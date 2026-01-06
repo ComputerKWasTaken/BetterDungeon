@@ -1,0 +1,257 @@
+/* BetterDungeon - Styles */
+/* CSS for enhanced markdown rendering in AI Dungeon */
+/* All styles inherit original fonts and colors from the game */
+
+/* ============================================
+   BASE MARKDOWN CONTAINER
+   ============================================ */
+
+.bd-markdown {
+  /* Inherit all font properties from AI Dungeon */
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+}
+
+/* ============================================
+   TEXT FORMATTING
+   ============================================ */
+
+/* Bold text */
+.bd-markdown strong,
+[data-bd-processed="true"] strong {
+  font-weight: 700;
+  color: inherit;
+  font-family: inherit;
+}
+
+/* Italic text */
+.bd-markdown em,
+[data-bd-processed="true"] em {
+  font-style: italic;
+  color: inherit;
+  font-family: inherit;
+}
+
+/* Bold + Italic */
+.bd-markdown strong em,
+.bd-markdown em strong,
+[data-bd-processed="true"] strong em,
+[data-bd-processed="true"] em strong {
+  font-weight: 700;
+  font-style: italic;
+  color: inherit;
+}
+
+/* Underlined text */
+.bd-markdown u,
+[data-bd-processed="true"] u {
+  text-decoration: underline;
+  text-decoration-color: currentColor;
+  text-underline-offset: 2px;
+  color: inherit;
+  font-family: inherit;
+}
+
+/* Strikethrough text */
+.bd-markdown s,
+[data-bd-processed="true"] s {
+  text-decoration: line-through;
+  text-decoration-color: currentColor;
+  color: inherit;
+  opacity: 0.65;
+  font-family: inherit;
+}
+
+/* ============================================
+   INLINE CODE
+   ============================================ */
+
+.bd-markdown .bd-inline-code,
+.bd-markdown code,
+[data-bd-processed="true"] .bd-inline-code,
+[data-bd-processed="true"] code {
+  background-color: rgba(255, 255, 255, 0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.9em;
+  color: #e8b4b4;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ============================================
+   CODE BLOCKS
+   ============================================ */
+
+.bd-markdown .bd-code-block,
+[data-bd-processed="true"] .bd-code-block {
+  display: block;
+  background-color: rgba(0, 0, 0, 0.3);
+  padding: 12px 16px;
+  border-radius: 6px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.9em;
+  color: #d4d4d4;
+  margin: 8px 0;
+  overflow-x: auto;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.bd-markdown .bd-code-block code,
+[data-bd-processed="true"] .bd-code-block code {
+  background: none;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  font-size: inherit;
+  color: inherit;
+}
+
+/* ============================================
+   HEADERS (using spans to preserve inline flow)
+   ============================================ */
+
+.bd-markdown .bd-h1,
+[data-bd-processed="true"] .bd-h1 {
+  display: block;
+  font-size: 1.6em;
+  font-weight: 700;
+  color: inherit;
+  margin: 16px 0 8px 0;
+  padding-bottom: 6px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+  font-family: inherit;
+}
+
+.bd-markdown .bd-h2,
+[data-bd-processed="true"] .bd-h2 {
+  display: block;
+  font-size: 1.4em;
+  font-weight: 600;
+  color: inherit;
+  margin: 14px 0 6px 0;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  font-family: inherit;
+}
+
+.bd-markdown .bd-h3,
+[data-bd-processed="true"] .bd-h3 {
+  display: block;
+  font-size: 1.25em;
+  font-weight: 600;
+  color: inherit;
+  margin: 12px 0 4px 0;
+  font-family: inherit;
+}
+
+.bd-markdown .bd-h4,
+[data-bd-processed="true"] .bd-h4 {
+  display: block;
+  font-size: 1.1em;
+  font-weight: 600;
+  color: inherit;
+  margin: 10px 0 4px 0;
+  font-family: inherit;
+}
+
+.bd-markdown .bd-h5,
+[data-bd-processed="true"] .bd-h5 {
+  display: block;
+  font-size: 1.05em;
+  font-weight: 600;
+  color: inherit;
+  margin: 8px 0 4px 0;
+  font-family: inherit;
+}
+
+.bd-markdown .bd-h6,
+[data-bd-processed="true"] .bd-h6 {
+  display: block;
+  font-size: 1em;
+  font-weight: 600;
+  color: inherit;
+  opacity: 0.85;
+  margin: 8px 0 4px 0;
+  font-family: inherit;
+}
+
+/* ============================================
+   BLOCKQUOTES
+   ============================================ */
+
+.bd-markdown .bd-blockquote,
+[data-bd-processed="true"] .bd-blockquote {
+  display: block;
+  border-left: 3px solid rgba(255, 255, 255, 0.3);
+  padding-left: 12px;
+  margin: 8px 0;
+  color: inherit;
+  opacity: 0.85;
+  font-style: italic;
+  font-family: inherit;
+}
+
+/* ============================================
+   LISTS
+   ============================================ */
+
+.bd-markdown .bd-list-item,
+[data-bd-processed="true"] .bd-list-item {
+  display: block;
+  padding-left: 8px;
+  margin: 2px 0;
+  color: inherit;
+  font-family: inherit;
+}
+
+/* ============================================
+   LINKS
+   ============================================ */
+
+.bd-markdown .bd-link,
+.bd-markdown a,
+[data-bd-processed="true"] .bd-link,
+[data-bd-processed="true"] a {
+  color: #7cb3ff;
+  text-decoration: underline;
+  text-decoration-color: rgba(124, 179, 255, 0.5);
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+
+.bd-markdown .bd-link:hover,
+.bd-markdown a:hover,
+[data-bd-processed="true"] .bd-link:hover,
+[data-bd-processed="true"] a:hover {
+  color: #a8cbff;
+  text-decoration-color: rgba(168, 203, 255, 0.8);
+}
+
+/* ============================================
+   HORIZONTAL RULES
+   ============================================ */
+
+.bd-markdown .bd-hr,
+[data-bd-processed="true"] .bd-hr {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  margin: 16px 0;
+}
+
+/* ============================================
+   PRESERVE WHITESPACE
+   ============================================ */
+
+.bd-markdown,
+[data-bd-processed="true"] {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
