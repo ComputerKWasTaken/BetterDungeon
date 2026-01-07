@@ -253,3 +253,82 @@ body {
 .apply-instructions-btn.error {
   background: linear-gradient(135deg, #d73a49 0%, #b92d3a 100%);
 }
+
+.setting-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, #fff8f0 0%, #fff5eb 100%);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 149, 0, 0.15);
+  margin-top: 4px;
+}
+
+.setting-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.setting-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #555;
+}
+
+.setting-desc {
+  font-size: 10px;
+  color: #999;
+}
+
+.slider-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 80px;
+  height: 6px;
+  background: #ddd;
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: linear-gradient(135deg, #ff9500 0%, #e07800 100%);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s ease;
+}
+
+.slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+.slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: linear-gradient(135deg, #ff9500 0%, #e07800 100%);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.slider-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: #ff9500;
+  min-width: 32px;
+  text-align: right;
+}

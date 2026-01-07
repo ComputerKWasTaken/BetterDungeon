@@ -51,6 +51,26 @@
             <span class="toggle-slider"></span>
           </label>
         </div>
+        <div class="feature-item" data-feature="attempt">
+          <div class="feature-info">
+            <span class="feature-name">Attempt Input Mode</span>
+            <span class="feature-desc">RNG-based success/failure actions</span>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="feature-attempt" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-item" id="attempt-settings">
+          <div class="setting-info">
+            <span class="setting-name">Critical Chance</span>
+            <span class="setting-desc">Chance for critical success/failure</span>
+          </div>
+          <div class="slider-container">
+            <input type="range" id="critical-chance" min="0" max="20" value="5" class="slider">
+            <span class="slider-value" id="critical-chance-value">5%</span>
+          </div>
+        </div>
       </div>
     </div>
     

@@ -1,0 +1,585 @@
+// BetterDungeon - Attempt Input Feature
+// Adds an "Attempt" input mode that uses RNG to determine success/failure
+
+class AttemptFeature {
+  static id = 'attempt';
+
+  constructor() {
+    this.observer = null;
+    this.attemptButton = null;
+    this.isAttemptMode = false;
+    this.boundKeyHandler = null;
+    this.submitClickHandler = null;
+    this.modeChangeHandler = null;
+    this.criticalChance = 5; // Default 5%
+    this.pendingAttemptText = null; // Track the attempt text we're waiting for
+    this.actionIconObserver = null; // Observer for updating action icons
+    this.weight = 0; // Weight modifier: -5 (harder) to +5 (easier)
+    this.weightKeyHandler = null; // Handler for Up/Down arrow keys
+  }
+
+  init() {
+    console.log('AttemptFeature: Initializing...');
+    this.loadSettings();
+    this.setupObserver();
+    this.injectAttemptButton();
+  }
+
+  destroy() {
+    console.log('AttemptFeature: Destroying...');
+    if (this.observer) {
+      this.observer.disconnect();
+      this.observer = null;
+    }
+    if (this.actionIconObserver) {
+      this.actionIconObserver.disconnect();
+      this.actionIconObserver = null;
+    }
+    if (this.modeChangeHandler) {
+      document.removeEventListener('click', this.modeChangeHandler, true);
+      this.modeChangeHandler = null;
+    }
+    if (this.boundKeyHandler) {
+      document.removeEventListener('keydown', this.boundKeyHandler, true);
+      this.boundKeyHandler = null;
+    }
+    if (this.submitClickHandler) {
+      document.removeEventListener('click', this.submitClickHandler, true);
+      this.submitClickHandler = null;
+    }
+    if (this.weightKeyHandler) {
+      document.removeEventListener('keydown', this.weightKeyHandler, true);
+      this.weightKeyHandler = null;
+    }
+    this.removeAttemptButton();
+    this.restoreModeDisplay();
+    this.isAttemptMode = false;
+    this.pendingAttemptText = null;
+    this.weight = 0;
+  }
+
+  loadSettings() {
+    // Load critical chance from storage
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.sync.get('betterDungeonSettings', (result) => {
+        const settings = result.betterDungeonSettings || {};
+        this.criticalChance = settings.attemptCriticalChance ?? 5;
+        console.log('AttemptFeature: Critical chance set to', this.criticalChance + '%');
+      });
+
+      // Listen for settings changes
+      chrome.storage.onChanged.addListener((changes, namespace) => {
+        if (namespace === 'sync' && changes.betterDungeonSettings) {
+          const newSettings = changes.betterDungeonSettings.newValue || {};
+          this.criticalChance = newSettings.attemptCriticalChance ?? 5;
+          console.log('AttemptFeature: Critical chance updated to', this.criticalChance + '%');
+        }
+      });
+    }
+  }
+
+  setupObserver() {
+    this.observer = new MutationObserver((mutations) => {
+      this.injectAttemptButton();
+    });
+
+    this.observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+  }
+
+  findInputModeMenu() {
+    // Find the input mode menu by looking for the container with the mode buttons
+    const doButton = document.querySelector('[aria-label="Set to \'Do\' mode"]');
+    if (doButton) {
+      return doButton.parentElement;
+    }
+    return null;
+  }
+
+  injectAttemptButton() {
+    const menu = this.findInputModeMenu();
+    if (!menu) return;
+
+    // Check if we already added the button
+    if (menu.querySelector('[aria-label="Set to \'Attempt\' mode"]')) {
+      return;
+    }
+
+    // Find the Do button to clone its structure
+    const doButton = menu.querySelector('[aria-label="Set to \'Do\' mode"]');
+    if (!doButton) return;
+
+    // Clone the Do button as a template
+    const attemptButton = doButton.cloneNode(true);
+    
+    // Update aria-label
+    attemptButton.setAttribute('aria-label', "Set to 'Attempt' mode");
+    
+    // Update the icon text - use controller icon (w_controller)
+    const iconElement = attemptButton.querySelector('.font_icons');
+    if (iconElement) {
+      iconElement.textContent = 'w_controller'; // Using controller icon
+    }
+    
+    // Update the label text
+    const labelElement = attemptButton.querySelector('.font_body');
+    if (labelElement) {
+      labelElement.textContent = 'Attempt';
+    }
+
+    // Remove any existing click handlers by cloning without event listeners
+    const cleanButton = attemptButton.cloneNode(true);
+    
+    // Add our click handler
+    cleanButton.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.activateAttemptMode();
+    });
+
+    // Insert the button after the Do button (between Do and Say)
+    const sayButton = menu.querySelector('[aria-label="Set to \'Say\' mode"]');
+    if (sayButton) {
+      menu.insertBefore(cleanButton, sayButton);
+    } else if (doButton.nextSibling) {
+      menu.insertBefore(cleanButton, doButton.nextSibling);
+    } else {
+      menu.appendChild(cleanButton);
+    }
+
+    this.attemptButton = cleanButton;
+    console.log('AttemptFeature: Attempt button injected');
+  }
+
+  removeAttemptButton() {
+    const button = document.querySelector('[aria-label="Set to \'Attempt\' mode"]');
+    if (button) {
+      button.remove();
+    }
+    this.attemptButton = null;
+  }
+
+  activateAttemptMode() {
+    console.log('AttemptFeature: Attempt mode activated');
+    this.isAttemptMode = true;
+
+    // Click the Do button first to set the base mode (action text, not story text)
+    const doButton = document.querySelector('[aria-label="Set to \'Do\' mode"]');
+    if (doButton) {
+      doButton.click();
+    }
+
+    // Close the menu by clicking the back arrow
+    setTimeout(() => {
+      const closeButton = document.querySelector('[aria-label="Close \'Input Mode\' menu"]');
+      if (closeButton) {
+        closeButton.click();
+      }
+      
+      // After menu closes, update the UI to show "Attempt" mode
+      setTimeout(() => {
+        this.updateModeDisplay();
+      }, 50);
+    }, 50);
+
+    // Setup interception for the next submission
+    this.setupSubmitInterception();
+    
+    // Setup weight adjustment keys (Up/Down arrows)
+    this.setupWeightKeyHandler();
+    
+    // Watch for mode changes (user clicking on input mode button)
+    this.watchForModeChanges();
+  }
+
+  setupWeightKeyHandler() {
+    // Clean up any existing handler
+    if (this.weightKeyHandler) {
+      document.removeEventListener('keydown', this.weightKeyHandler, true);
+    }
+
+    const handleWeightKey = (e) => {
+      if (!this.isAttemptMode) return;
+      
+      const textarea = document.querySelector('#game-text-input');
+      if (!textarea || document.activeElement !== textarea) return;
+      
+      // Only handle Up/Down arrows
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        this.adjustWeight(1);
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        this.adjustWeight(-1);
+      }
+    };
+
+    this.weightKeyHandler = handleWeightKey;
+    document.addEventListener('keydown', handleWeightKey, true);
+  }
+
+  adjustWeight(delta) {
+    const oldWeight = this.weight;
+    this.weight = Math.max(-5, Math.min(5, this.weight + delta));
+    
+    if (this.weight !== oldWeight) {
+      this.updatePlaceholderWithWeight();
+      console.log('AttemptFeature: Weight adjusted to', this.weight);
+    }
+  }
+
+  getWeightLabel() {
+    if (this.weight === 0) return '';
+    if (this.weight > 0) return ` [+${this.weight} Advantage]`;
+    return ` [${this.weight} Disadvantage]`;
+  }
+
+  updatePlaceholderWithWeight() {
+    const textarea = document.querySelector('#game-text-input');
+    if (textarea) {
+      const baseText = 'What do you attempt to do?';
+      const weightLabel = this.getWeightLabel();
+      const hint = this.weight === 0 ? ' (↑↓ with arrow keys to adjust odds)' : '';
+      textarea.placeholder = baseText + weightLabel + hint;
+    }
+  }
+
+  watchForModeChanges() {
+    // Clean up any existing handler
+    if (this.modeChangeHandler) {
+      document.removeEventListener('click', this.modeChangeHandler, true);
+    }
+
+    // Watch for clicks on the "Change input mode" button or any mode selection
+    const handleModeChange = (e) => {
+      if (!this.isAttemptMode) return;
+
+      const target = e.target.closest('[aria-label]');
+      if (!target) return;
+
+      const ariaLabel = target.getAttribute('aria-label') || '';
+      
+      // If user clicks "Change input mode" or selects a different mode, cancel attempt mode
+      if (ariaLabel === 'Change input mode' ||
+          ariaLabel.startsWith("Set to '") && !ariaLabel.includes("Attempt")) {
+        console.log('AttemptFeature: User changed input mode, canceling attempt mode');
+        this.deactivateAttemptMode();
+      }
+    };
+
+    document.addEventListener('click', handleModeChange, true);
+    
+    // Store reference for cleanup
+    this.modeChangeHandler = handleModeChange;
+  }
+
+  updateModeDisplay() {
+    // Update the current input mode button text from "do" to "attempt"
+    const modeButton = document.querySelector('[aria-label="Change input mode"]');
+    if (modeButton) {
+      const modeText = modeButton.querySelector('.font_body');
+      if (modeText && modeText.textContent.toLowerCase() === 'do') {
+        modeText.textContent = 'attempt';
+      }
+      
+      // Update the icon to w_controller
+      const iconElement = modeButton.querySelector('.font_icons');
+      if (iconElement && iconElement.textContent === 'w_run') {
+        iconElement.textContent = 'w_controller';
+      }
+    }
+
+    // Update the placeholder text with weight info
+    this.updatePlaceholderWithWeight();
+
+    // Update the send button icon
+    const submitButton = document.querySelector('[aria-label="Submit action"]');
+    if (submitButton) {
+      const iconElement = submitButton.querySelector('.font_icons');
+      if (iconElement && iconElement.textContent === 'w_run') {
+        iconElement.textContent = 'w_controller';
+      }
+    }
+  }
+
+  restoreModeDisplay() {
+    // Restore the original mode text
+    const modeButton = document.querySelector('[aria-label="Change input mode"]');
+    if (modeButton) {
+      const modeText = modeButton.querySelector('.font_body');
+      if (modeText && modeText.textContent.toLowerCase() === 'attempt') {
+        modeText.textContent = 'do';
+      }
+      
+      // Restore the icon
+      const iconElement = modeButton.querySelector('.font_icons');
+      if (iconElement && iconElement.textContent === 'w_controller') {
+        iconElement.textContent = 'w_run';
+      }
+    }
+
+    // Restore the placeholder text
+    const textarea = document.querySelector('#game-text-input');
+    if (textarea) {
+      textarea.placeholder = 'What do you do?';
+      textarea.setAttribute('data-placeholder', 'What do you do?');
+    }
+
+    // Restore the send button icon
+    const submitButton = document.querySelector('[aria-label="Submit action"]');
+    if (submitButton) {
+      const iconElement = submitButton.querySelector('.font_icons');
+      if (iconElement && iconElement.textContent === 'w_controller') {
+        iconElement.textContent = 'w_run';
+      }
+    }
+  }
+
+  setupSubmitInterception() {
+    // Intercept Enter key for submission
+    this.setupKeyboardListener();
+    
+    // Intercept click on submit button
+    this.setupSubmitButtonListener();
+  }
+
+  setupKeyboardListener() {
+    const handleKeyDown = (e) => {
+      if (!this.isAttemptMode) {
+        document.removeEventListener('keydown', handleKeyDown, true);
+        return;
+      }
+
+      // Check for Enter without Shift (submit)
+      if (e.key === 'Enter' && !e.shiftKey) {
+        const textarea = document.querySelector('#game-text-input');
+        if (textarea && e.target === textarea) {
+          const content = textarea.value || '';
+          
+          if (content.trim()) {
+            // Format the content as an attempt with RNG result
+            const formattedContent = this.formatAsAttempt(content);
+            textarea.value = formattedContent;
+            
+            // Trigger input event so React picks up the change
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            
+            // Watch for the new action element to appear and update its icon
+            this.watchForAttemptAction(formattedContent);
+            
+            // Reset attempt mode after submission
+            this.deactivateAttemptMode();
+            console.log('AttemptFeature: Attempt formatted via Enter key');
+          }
+        }
+      }
+    };
+
+    // Remove any existing listener first
+    if (this.boundKeyHandler) {
+      document.removeEventListener('keydown', this.boundKeyHandler, true);
+    }
+    this.boundKeyHandler = handleKeyDown;
+    document.addEventListener('keydown', handleKeyDown, true);
+  }
+
+  setupSubmitButtonListener() {
+    const handleClick = (e) => {
+      if (!this.isAttemptMode) return;
+      
+      // Check if the click is on the submit button
+      const submitButton = e.target.closest('[aria-label="Submit action"]');
+      if (!submitButton) return;
+
+      const textarea = document.querySelector('#game-text-input');
+      if (textarea) {
+        const content = textarea.value || '';
+        if (content.trim()) {
+          // Format the content as an attempt with RNG result
+          const formattedContent = this.formatAsAttempt(content);
+          textarea.value = formattedContent;
+          
+          // Trigger input event so React picks up the change
+          textarea.dispatchEvent(new Event('input', { bubbles: true }));
+          
+          // Watch for the new action element to appear and update its icon
+          this.watchForAttemptAction(formattedContent);
+          
+          // Reset attempt mode after submission
+          this.deactivateAttemptMode();
+          console.log('AttemptFeature: Attempt formatted via submit button');
+        }
+      }
+    };
+
+    // Store reference and add listener
+    if (this.submitClickHandler) {
+      document.removeEventListener('click', this.submitClickHandler, true);
+    }
+    this.submitClickHandler = handleClick;
+    document.addEventListener('click', handleClick, true);
+    
+    // Auto-cleanup after 30 seconds
+    setTimeout(() => {
+      if (this.isAttemptMode) {
+        this.deactivateAttemptMode();
+        console.log('AttemptFeature: Attempt mode timed out');
+      }
+    }, 30000);
+  }
+
+  deactivateAttemptMode() {
+    this.isAttemptMode = false;
+    this.restoreModeDisplay();
+    
+    // Reset weight for next attempt
+    this.weight = 0;
+    
+    // Clean up listeners
+    if (this.boundKeyHandler) {
+      document.removeEventListener('keydown', this.boundKeyHandler, true);
+      this.boundKeyHandler = null;
+    }
+    if (this.submitClickHandler) {
+      document.removeEventListener('click', this.submitClickHandler, true);
+      this.submitClickHandler = null;
+    }
+    if (this.modeChangeHandler) {
+      document.removeEventListener('click', this.modeChangeHandler, true);
+      this.modeChangeHandler = null;
+    }
+    if (this.weightKeyHandler) {
+      document.removeEventListener('keydown', this.weightKeyHandler, true);
+      this.weightKeyHandler = null;
+    }
+  }
+
+  rollOutcome() {
+    // Roll a random number between 0 and 100
+    const roll = Math.random() * 100;
+    
+    // Weight shifts the success threshold by 5% per level
+    // Weight -5: 25% threshold (harder), Weight +5: 75% threshold (easier)
+    const baseThreshold = 50;
+    const weightShift = this.weight * 5; // Each weight level = 5% shift
+    const successThreshold = baseThreshold - weightShift;
+    
+    // Critical zones are at the extremes
+    // Critical fail: 0 to criticalChance%
+    // Fail: criticalChance% to successThreshold%
+    // Succeed: successThreshold% to (100 - criticalChance)%
+    // Critical succeed: (100 - criticalChance)% to 100%
+    
+    if (roll < this.criticalChance) {
+      return 'critically fail';
+    } else if (roll < successThreshold) {
+      return 'fail';
+    } else if (roll < (100 - this.criticalChance)) {
+      return 'succeed';
+    } else {
+      return 'critically succeed';
+    }
+  }
+
+  watchForAttemptAction(attemptText) {
+    // Store the text we're looking for (partial match since AI Dungeon may modify it)
+    this.pendingAttemptText = attemptText.toLowerCase().substring(0, 30);
+    console.log('AttemptFeature: Watching for action with text:', this.pendingAttemptText);
+    
+    // Clean up any existing observer
+    if (this.actionIconObserver) {
+      this.actionIconObserver.disconnect();
+    }
+    
+    // Count existing action elements so we can detect new ones
+    const existingActionCount = document.querySelectorAll('#action-text').length;
+    
+    // Create observer to watch for new action elements
+    this.actionIconObserver = new MutationObserver((mutations) => {
+      // Look for new action-text elements
+      const actionTexts = document.querySelectorAll('#action-text');
+      
+      if (actionTexts.length > existingActionCount) {
+        // New action element appeared - check if it's our attempt
+        const latestAction = actionTexts[actionTexts.length - 1];
+        const actionContent = latestAction.textContent?.toLowerCase() || '';
+        
+        // Check if this action contains our attempt text
+        if (actionContent.includes('attempt to') || 
+            (this.pendingAttemptText && actionContent.includes(this.pendingAttemptText.substring(0, 15)))) {
+          
+          // Find the action icon in the parent container
+          const actionContainer = latestAction.closest('.is_Row, [id="transition-opacity"]');
+          if (actionContainer) {
+            const iconElement = actionContainer.querySelector('#action-icon');
+            if (iconElement && iconElement.textContent === 'w_run') {
+              iconElement.textContent = 'w_controller';
+              console.log('AttemptFeature: Updated action icon to w_controller');
+            }
+          }
+          
+          // Clean up
+          this.pendingAttemptText = null;
+          this.actionIconObserver.disconnect();
+          this.actionIconObserver = null;
+        }
+      }
+    });
+    
+    // Start observing
+    const storyOutput = document.querySelector('#gameplay-output') || document.body;
+    this.actionIconObserver.observe(storyOutput, {
+      childList: true,
+      subtree: true
+    });
+    
+    // Auto-cleanup after 30 seconds if action never appears
+    setTimeout(() => {
+      if (this.actionIconObserver) {
+        this.actionIconObserver.disconnect();
+        this.actionIconObserver = null;
+        this.pendingAttemptText = null;
+        console.log('AttemptFeature: Action icon observer timed out');
+      }
+    }, 30000);
+  }
+
+  formatAsAttempt(content) {
+    // Clean up the content - remove leading "I " or "You " if present
+    let action = content.trim();
+    
+    // Remove common prefixes that would make the sentence awkward
+    const prefixPatterns = [
+      /^(I\s+)/i,
+      /^(You\s+)/i,
+      /^(to\s+)/i,
+      /^(attempt\s+to\s+)/i,
+      /^(try\s+to\s+)/i
+    ];
+    
+    for (const pattern of prefixPatterns) {
+      action = action.replace(pattern, '');
+    }
+    
+    // Ensure the action starts lowercase (since it follows "attempt to")
+    if (action.length > 0) {
+      action = action.charAt(0).toLowerCase() + action.slice(1);
+    }
+    
+    // Remove trailing punctuation
+    action = action.replace(/[.!?]+$/, '');
+    
+    // Roll for the outcome
+    const outcome = this.rollOutcome();
+    
+    // Format: "You attempt to [action], you [result]."
+    return `attempt to ${action}, you ${outcome}.`;
+  }
+}
+
+// Make available globally
+if (typeof window !== 'undefined') {
+  window.AttemptFeature = AttemptFeature;
+}

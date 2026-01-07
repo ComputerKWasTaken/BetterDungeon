@@ -17,6 +17,7 @@
         "core/feature-manager.js",
         "features/markdown_feature.js",
         "features/command_feature.js",
+        "features/attempt_feature.js",
         "main.js"
       ],
       "css": ["styles.css"],

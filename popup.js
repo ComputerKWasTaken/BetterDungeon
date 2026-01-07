@@ -6,13 +6,22 @@ const STORAGE_KEY = 'betterDungeonFeatures';
 // Default feature states
 const DEFAULT_FEATURES = {
   markdown: true,
-  command: true
+  command: true,
+  attempt: true
+};
+
+const SETTINGS_KEY = 'betterDungeonSettings';
+
+const DEFAULT_SETTINGS = {
+  attemptCriticalChance: 5
 };
 
 document.addEventListener('DOMContentLoaded', function() {
   checkTabStatus();
   loadFeatureStates();
+  loadSettings();
   setupFeatureToggles();
+  setupSettingsControls();
   setupApplyInstructionsButton();
 });
 
@@ -138,4 +147,63 @@ function showButtonStatus(btn, status, text) {
     btn.textContent = 'Apply Instructions';
     btn.classList.remove('success', 'error');
   }, 2000);
+}
+
+// Load saved settings from storage
+function loadSettings() {
+  chrome.storage.sync.get(SETTINGS_KEY, function(result) {
+    const settings = result[SETTINGS_KEY] || DEFAULT_SETTINGS;
+    
+    // Update critical chance slider
+    const slider = document.getElementById('critical-chance');
+    const valueDisplay = document.getElementById('critical-chance-value');
+    if (slider && valueDisplay) {
+      slider.value = settings.attemptCriticalChance;
+      valueDisplay.textContent = settings.attemptCriticalChance + '%';
+    }
+    
+    // Update visibility of attempt settings based on feature state
+    updateAttemptSettingsVisibility();
+  });
+}
+
+// Setup settings controls (sliders, etc.)
+function setupSettingsControls() {
+  const slider = document.getElementById('critical-chance');
+  const valueDisplay = document.getElementById('critical-chance-value');
+  
+  if (slider && valueDisplay) {
+    slider.addEventListener('input', function() {
+      const value = parseInt(this.value);
+      valueDisplay.textContent = value + '%';
+      
+      // Save to storage
+      chrome.storage.sync.get(SETTINGS_KEY, function(result) {
+        const settings = result[SETTINGS_KEY] || DEFAULT_SETTINGS;
+        settings.attemptCriticalChance = value;
+        
+        chrome.storage.sync.set({ [SETTINGS_KEY]: settings }, function() {
+          console.log('Critical chance set to', value + '%');
+        });
+      });
+    });
+  }
+  
+  // Watch for attempt feature toggle to show/hide settings
+  const attemptToggle = document.getElementById('feature-attempt');
+  if (attemptToggle) {
+    attemptToggle.addEventListener('change', function() {
+      updateAttemptSettingsVisibility();
+    });
+  }
+}
+
+// Update visibility of attempt settings based on feature state
+function updateAttemptSettingsVisibility() {
+  const attemptToggle = document.getElementById('feature-attempt');
+  const attemptSettings = document.getElementById('attempt-settings');
+  
+  if (attemptToggle && attemptSettings) {
+    attemptSettings.style.display = attemptToggle.checked ? 'flex' : 'none';
+  }
 }

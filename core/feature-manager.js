@@ -23,6 +23,10 @@ class FeatureManager {
       this.featureClasses.set('command', CommandFeature);
     }
 
+    if (typeof AttemptFeature !== 'undefined') {
+      this.featureClasses.set('attempt', AttemptFeature);
+    }
+
     console.log('FeatureManager: Registered feature classes:', Array.from(this.featureClasses.keys()));
   }
 

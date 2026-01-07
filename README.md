@@ -30,6 +30,18 @@ A browser extension that enhances AI Dungeon with additional QOL features and ad
   - Type your command (e.g., "Time Skip" or "Scene Change")
   - Useful for sending narrative commands/headers to the AI that structure the story
 
+- **Attempt Input Mode**: A new "Attempt" button (between Do and Say) that uses RNG to determine action outcomes
+  - Select **Attempt** from the input mode menu
+  - Type what you want to attempt (e.g., "pick the lock" or "jump across the gap")
+  - The action is formatted as: `You attempt to [action], you [result].`
+  - Possible outcomes: **critically fail**, **fail**, **succeed**, **critically succeed**
+  - Outcome distribution:
+    - Critical fail: 0% to X% (configurable)
+    - Fail: X% to 50%
+    - Succeed: 50% to (100-X)%
+    - Critical succeed: (100-X)% to 100%
+  - Configure critical chance (0-20%, default 5%) in the extension popup
+
 ### Planned Features
 - Favorite AI Instructions (AIN) storage
 - Adventure categorization and sorting
@@ -95,7 +107,8 @@ BetterDungeon/
 │   └── storage.js          # Chrome storage abstraction
 ├── features/               # Self-contained feature modules
 │   ├── markdown_feature.js # Markdown formatting feature
-│   └── command_feature.js  # Command input mode feature
+│   ├── command_feature.js  # Command input mode feature
+│   └── attempt_feature.js  # Attempt input mode feature
 ├── styles.css              # CSS for all features
 ├── popup.html              # Extension popup interface
 ├── popup.js                # Popup settings script
