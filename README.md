@@ -23,6 +23,7 @@ A browser extension that enhances AI Dungeon with additional QOL features and ad
   | `{{++bold underline++}}` | **underlined bold** |
 
   - Click **"Apply Instructions"** in the extension popup to inject formatting guidelines automagically
+  - The AI is not always perfect at following these guidelines, you may need to nudge it a bit
 
 - **Command Input Mode**: A new "Command" button in the input mode menu that formats your input as a story header (`## Your Command:`)
   - Select **Command** from the input mode menu (alongside Do, Say, Story, See)
@@ -34,6 +35,19 @@ A browser extension that enhances AI Dungeon with additional QOL features and ad
 - Adventure categorization and sorting
 - Highlighting story card triggers in the recent story portion of the context viewer
 - And more...
+
+## Bugs/Issues
+
+### Urgent
+- **AI gamemaster ignoring AIN about Markdown**: The AI gamemaster oftentimes ignores the markdown syntax that BetterDungeon provides, looking for a better set of AI instructions to get the gamemaster to follow the formatting guidelines
+
+### High Priority
+- **Command button styling**: The Command button doesn't connect to the other buttons in any theme other than the default Dynamic theme
+
+### Low Priority  
+- **Enter button icon**: The story input enter button doesn't change to the w_wand icon when using the Command button
+
+### Backlog
 
 ## Installation
 
