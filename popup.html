@@ -219,6 +219,46 @@
       opacity: 0.5;
       cursor: not-allowed;
     }
+
+    .apply-instructions-btn {
+      width: 100%;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #fff;
+      background: linear-gradient(135deg, #ff9500 0%, #e07800 100%);
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-top: 4px;
+    }
+
+    .apply-instructions-btn:hover {
+      background: linear-gradient(135deg, #ffaa33 0%, #ff9500 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(255, 149, 0, 0.3);
+    }
+
+    .apply-instructions-btn:active {
+      transform: translateY(0);
+      box-shadow: none;
+    }
+
+    .apply-instructions-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .apply-instructions-btn.success {
+      background: linear-gradient(135deg, #22863a 0%, #1a6b2e 100%);
+    }
+
+    .apply-instructions-btn.error {
+      background: linear-gradient(135deg, #d73a49 0%, #b92d3a 100%);
+    }
   </style>
 </head>
 <body>
@@ -251,6 +291,9 @@
             <span class="toggle-slider"></span>
           </label>
         </div>
+        <button class="apply-instructions-btn" id="apply-instructions-btn">
+          Apply Instructions
+        </button>
         <div class="feature-item" data-feature="command">
           <div class="feature-info">
             <span class="feature-name">Command Input Mode</span>

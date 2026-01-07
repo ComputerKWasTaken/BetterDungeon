@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', function() {
   checkTabStatus();
   loadFeatureStates();
   setupFeatureToggles();
+  setupApplyInstructionsButton();
 });
 
 // Check if current tab is AI Dungeon
@@ -89,4 +90,52 @@ function notifyContentScript(featureId, enabled) {
       });
     }
   });
+}
+
+// Setup Apply Instructions button
+function setupApplyInstructionsButton() {
+  const btn = document.getElementById('apply-instructions-btn');
+  if (!btn) return;
+
+  btn.addEventListener('click', function() {
+    btn.disabled = true;
+    btn.textContent = 'Applying...';
+
+    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+      const tab = tabs[0];
+      const url = tab?.url || '';
+      const isAIDungeon = url.includes('aidungeon.com') || url.includes('play.aidungeon.com');
+
+      if (!isAIDungeon) {
+        showButtonStatus(btn, 'error', 'Not on AI Dungeon');
+        return;
+      }
+
+      if (tab?.id) {
+        chrome.tabs.sendMessage(tab.id, {
+          type: 'APPLY_INSTRUCTIONS'
+        }).then(response => {
+          if (response?.success) {
+            showButtonStatus(btn, 'success', 'Applied!');
+          } else {
+            showButtonStatus(btn, 'error', response?.error || 'Failed');
+          }
+        }).catch(() => {
+          showButtonStatus(btn, 'error', 'Extension not loaded');
+        });
+      }
+    });
+  });
+}
+
+// Show button status feedback
+function showButtonStatus(btn, status, text) {
+  btn.textContent = text;
+  btn.classList.add(status);
+  
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.textContent = 'Apply Instructions';
+    btn.classList.remove('success', 'error');
+  }, 2000);
 }
