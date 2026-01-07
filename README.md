@@ -22,6 +22,8 @@ A browser extension that enhances AI Dungeon with additional QOL features and ad
   | `{{_bold italic_}}` | ***bold italic*** |
   | `{{++bold underline++}}` | **underlined bold** |
 
+  - Click **"Apply Instructions"** in the extension popup to inject formatting guidelines automagically
+
 - **Command Input Mode**: A new "Command" button in the input mode menu that formats your input as a story header (`## Your Command:`)
   - Select **Command** from the input mode menu (alongside Do, Say, Story, See)
   - Type your command (e.g., "Time Skip" or "Scene Change")
@@ -71,28 +73,44 @@ Settings are synced across your Chrome browsers.
 BetterDungeon/
 ├── manifest.json           # Extension configuration
 ├── main.js                 # Core orchestrator - manages feature lifecycle
+├── core/                   # Core system components
+│   └── feature-manager.js  # Feature registration and lifecycle management
+├── services/               # External service integrations
+│   └── ai-dungeon-service.js # AI Dungeon specific operations
+├── utils/                  # Utility functions
+│   ├── dom.js              # DOM manipulation helpers
+│   └── storage.js          # Chrome storage abstraction
 ├── features/               # Self-contained feature modules
-│   └── markdown_feature.js # Markdown formatting feature
+│   ├── markdown_feature.js # Markdown formatting feature
+│   └── command_feature.js  # Command input mode feature
 ├── styles.css              # CSS for all features
 ├── popup.html              # Extension popup interface
 ├── popup.js                # Popup settings script
+├── ai_instructions.txt     # Default AI formatting instructions
 ├── icons/                  # Extension icons (16, 32, 48, 128px)
 └── README.md               # This file
 ```
 
 ### Architecture
 
-BetterDungeon uses a modular feature system where each feature is fully self-contained:
+BetterDungeon uses a modular, service-oriented architecture with clear separation of concerns:
 
-- **main.js**: Minimal core that handles feature registration, storage-based enable/disable, and message passing from the popup
-- **features/**: Each feature manages its own DOM observation, state, and cleanup
+- **main.js**: Core orchestrator that initializes the system and handles message passing from the popup
+- **core/feature-manager.js**: Manages feature registration, lifecycle, and storage-based enable/disable
+- **services/ai-dungeon-service.js**: Handles AI Dungeon-specific operations like instruction application
+- **utils/**: Shared utility functions for DOM manipulation and Chrome storage abstraction
+- **features/**: Self-contained feature modules that manage their own DOM observation, state, and cleanup
 
 Each feature implements:
-- `static id`: Unique identifier (e.g., `'markdown'`)
+- `static id`: Unique identifier (e.g., `'markdown'`, `'command'`)
 - `init()`: Called when feature is enabled - setup observers, UI, etc.
 - `destroy()`: Called when feature is disabled - cleanup observers, restore state
 
-Features are completely independent - a markdown feature watches story text, while a favorites feature might watch a sidebar. They don't share observation logic.
+Features are completely independent and communicate through the central feature manager. The architecture supports:
+- Dynamic feature loading and unloading
+- Persistent feature state across browser sessions
+- Modular development with clear boundaries
+- Shared utilities to prevent code duplication
 
 ### Adding New Features
 
@@ -119,25 +137,44 @@ class MyFeature {
     console.log('MyFeature: Destroyed');
   }
 }
-```
 
-2. Add to `manifest.json`:
-```json
-"js": ["features/markdown_feature.js", "features/my_feature.js", "main.js"]
-```
-
-3. Register in `main.js` `loadFeaturesFromStorage()`:
-```javascript
-if (typeof MyFeature !== 'undefined') {
-  this.featureClasses.set('my-feature', MyFeature);
+// Make available globally
+if (typeof window !== 'undefined') {
+  window.MyFeature = MyFeature;
 }
 ```
 
-4. Add toggle to `popup.html` and default state in `popup.js`.
+2. Add to `manifest.json` content scripts array (maintaining load order):
+```json
+"js": [
+  "utils/dom.js",
+  "utils/storage.js", 
+  "services/ai-dungeon-service.js",
+  "core/feature-manager.js",
+  "features/markdown_feature.js",
+  "features/command_feature.js",
+  "features/my_feature.js",
+  "main.js"
+]
+```
+
+3. The feature will be automatically registered by the FeatureManager if it follows the naming convention and is globally available
+
+4. Add toggle to `popup.html` and default state in `popup.js`:
+```html
+<div class="feature-item" data-feature="my-feature">
+  <div class="feature-info">
+    <span class="feature-name">My Feature</span>
+    <span class="feature-desc">Brief description</span>
+  </div>
+  <label class="toggle">
+    <input type="checkbox" id="feature-my-feature" checked>
+    <span class="toggle-slider"></span>
+  </label>
+</div>
+```
 
 ## Changelog
 
 ### v1.0.0
 - Initial release
-- Modular feature system with enable/disable toggles
-- Markdown formatting support (bold, italic, underline, strikethrough, headers, blockquotes, lists)
