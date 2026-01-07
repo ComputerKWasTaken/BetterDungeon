@@ -86,7 +86,7 @@ BetterDungeon/
 ├── styles.css              # CSS for all features
 ├── popup.html              # Extension popup interface
 ├── popup.js                # Popup settings script
-├── ai_instructions.txt     # Default AI formatting instructions
+├── ai_instruction.txt     # Default AI formatting instructions
 ├── icons/                  # Extension icons (16, 32, 48, 128px)
 └── README.md               # This file
 ```
