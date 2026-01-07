@@ -1,4 +1,5 @@
-# BetterDungeon
+
+# ![BetterDungeon Icon](icons/icon16.png) BetterDungeon
 
 A browser extension that enhances AI Dungeon with additional QOL features and additions to seamlessly improve the experience, no fuss or juggling scripts.
 
