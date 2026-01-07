@@ -82,10 +82,10 @@ class CommandFeature {
     // Update aria-label
     commandButton.setAttribute('aria-label', "Set to 'Command' mode");
     
-    // Update the icon text - use a wand icon
+    // Update the icon text - use the AI icon
     const iconElement = commandButton.querySelector('.font_icons');
     if (iconElement) {
-      iconElement.textContent = 'w_wand';
+      iconElement.textContent = 'w_ai';
     }
     
     // Update the label text
@@ -206,6 +206,15 @@ class CommandFeature {
       textarea.placeholder = 'Give an instruction to the AI.';
       textarea.setAttribute('data-placeholder', 'Give an instruction to the AI.');
     }
+
+    // Update the send button icon from paper plane to AI icon
+    const submitButton = document.querySelector('[aria-label="Submit action"]');
+    if (submitButton) {
+      const iconElement = submitButton.querySelector('.font_icons');
+      if (iconElement && iconElement.textContent === 'w_paper_plane') {
+        iconElement.textContent = 'w_ai';
+      }
+    }
   }
 
   restoreModeDisplay() {
@@ -223,6 +232,15 @@ class CommandFeature {
     if (textarea) {
       textarea.placeholder = 'What happens next?';
       textarea.setAttribute('data-placeholder', 'What happens next?');
+    }
+
+    // Restore the send button icon from AI icon back to paper plane
+    const submitButton = document.querySelector('[aria-label="Submit action"]');
+    if (submitButton) {
+      const iconElement = submitButton.querySelector('.font_icons');
+      if (iconElement && iconElement.textContent === 'w_ai') {
+        iconElement.textContent = 'w_paper_plane';
+      }
     }
   }
 

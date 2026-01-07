@@ -45,7 +45,6 @@ A browser extension that enhances AI Dungeon with additional QOL features and ad
 - **Command button styling**: The Command button doesn't connect to the other buttons in any theme other than the default Dynamic theme
 
 ### Low Priority  
-- **Enter button icon**: The story input enter button doesn't change to the w_wand icon when using the Command button
 
 ### Backlog
 
