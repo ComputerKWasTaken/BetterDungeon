@@ -5,7 +5,8 @@ const STORAGE_KEY = 'betterDungeonFeatures';
 
 // Default feature states
 const DEFAULT_FEATURES = {
-  markdown: true
+  markdown: true,
+  command: true
 };
 
 document.addEventListener('DOMContentLoaded', function() {

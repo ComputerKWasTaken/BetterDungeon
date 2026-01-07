@@ -1,0 +1,11 @@
+Put this in both AI Instructions and in Author's Note:
+
+ALWAYS format your responses with Markdown. Use this custom markdown:
+{{Bold}}
+_Italic_
+{{_Bold Italic_}}
+++Underlined++
+{{++Bold Underlined++}}
+# Headers
+> Blockquotes
+-/+ Lists

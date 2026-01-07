@@ -42,6 +42,10 @@ class BetterDungeon {
       this.featureClasses.set('markdown', MarkdownFeature);
     }
 
+    if (typeof CommandFeature !== 'undefined') {
+      this.featureClasses.set('command', CommandFeature);
+    }
+
     // Future features will be registered here
     // if (typeof FavoritesFeature !== 'undefined') {
     //   this.featureClasses.set('favorites', FavoritesFeature);

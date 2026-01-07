@@ -5,18 +5,31 @@ A browser extension that enhances AI Dungeon with additional QOL features and ad
 ## Features
 
 ### Currently Implemented
-- **Markdown Support**: Allows the gamemaster to use markdown formatting in its responses:
-  - `**bold text**`
-  - `*italic text*`
-  - `__underlined text__`
-  - `~~strikethrough text~~`
-  - `# Headers` (H1-H6)
-  - `>` Blockquotes
-  - `- or * or +` Lists
+- **Markdown Support**: Renders markdown formatting in the gamemaster's responses
+  
+  AI Dungeon's post-processing system heavily discourages the AI from outputting asterisks (`*`) in its responses, making standard markdown syntax unreliable. BetterDungeon provides asterisk-free alternatives that work seamlessly:
+  
+  | Syntax | Result |
+  |--------|--------|
+  | `{{bold text}}` | **bold** |
+  | `_italic text_` | *italic* |
+  | `++underlined text++` | underlined |
+  | `~~strikethrough~~` | ~~strikethrough~~ |
+  | `# Header` (H1-H6) | Headers |
+  | `> quote` | Blockquotes |
+  | `- item` or `+ item` | Lists |
+  | `{{_bold italic_}}` | ***bold italic*** |
+  | `{{++bold underline++}}` | **underlined bold** |
+
+- **Command Input Mode**: A new "Command" button in the input mode menu that formats your input as a story header (`## Your Command:`)
+  - Select **Command** from the input mode menu (alongside Do, Say, Story, See)
+  - Type your command (e.g., "Time Skip" or "Scene Change")
+  - Useful for sending narrative commands/headers to the AI that structure the story
 
 ### Planned Features
 - Favorite AI Instructions (AIN) storage
 - Adventure categorization and sorting
+- Highlighting story card triggers in the recent story portion of the context viewer
 - And more...
 
 ## Installation
@@ -37,7 +50,8 @@ I may put this on the Chrome Web Store at some point, but for now you'll have to
 2. Start or continue an adventure
 3. Use markdown syntax in your story inputs:
    ```
-   The **brave knight** rode his *majestic horse* through the __dark forest__.
+   Standard:    The **brave knight** rode his *majestic horse* through the __dark forest__.
+   Alternative: The {{brave knight}} rode his _majestic horse_ through the ++dark forest++.
    ```
 4. The extension will automatically format the text as it appears in the story
 

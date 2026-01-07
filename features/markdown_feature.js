@@ -201,12 +201,12 @@ class MarkdownFeature {
     if (!text) return false;
 
     const markdownIndicators = [
-      /\*\*.+?\*\*/,      // Bold **text**
-      /(?<!\*)\*(?!\*).+?(?<!\*)\*(?!\*)/, // Italic *text*
-      /__.+?__/,          // Underline __text__
+      /\{\{.+?\}\}/,      // Bold {{text}}
+      /(?<!_)_(?!_).+?(?<!_)_(?!_)/, // Italic _text_
+      /\+\+.+?\+\+/,      // Underline ++text++
       /~~.+?~~/,          // Strikethrough ~~text~~
       /^#{1,6}\s/m,       // Headers # ## ###
-      /^\s*[-*+]\s/m,     // Lists
+      /^\s*[-+]\s/m,      // Lists
       /^\s*>/m,           // Blockquotes
     ];
 
@@ -254,24 +254,29 @@ class MarkdownFeature {
     // Headers (must be at start of line)
     html = this.processHeaders(html);
 
-    // Bold/Italic combinations
-    html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
-    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // Bold + Underline: {{++text++}}
+    html = html.replace(/\{\{\+\+(.+?)\+\+\}\}/g, '<strong><u>$1</u></strong>');
 
-    // Italic (single asterisk)
-    html = html.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
+    // Bold + Italic: {{_text_}}
+    html = html.replace(/\{\{_(.+?)_\}\}/g, '<strong><em>$1</em></strong>');
+    
+    // Bold: {{text}}
+    html = html.replace(/\{\{(.+?)\}\}/g, '<strong>$1</strong>');
 
-    // Underline
-    html = html.replace(/__(.+?)__/g, '<u>$1</u>');
+    // Italic: _text_
+    html = html.replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, '<em>$1</em>');
 
-    // Strikethrough
+    // Underline: ++text++
+    html = html.replace(/\+\+(.+?)\+\+/g, '<u>$1</u>');
+
+    // Strikethrough: ~~text~~
     html = html.replace(/~~(.+?)~~/g, '<s>$1</s>');
 
     // Blockquotes
     html = this.processBlockquotes(html);
 
     // Horizontal rules
-    html = html.replace(/^(\s*)([-*_]){3,}\s*$/gm, '$1<hr class="bd-hr">');
+    html = html.replace(/^(\s*)([-_]){3,}\s*$/gm, '$1<hr class="bd-hr">');
 
     // Lists
     html = this.processLists(html);
@@ -330,7 +335,8 @@ class MarkdownFeature {
   }
 
   processLists(html) {
-    html = html.replace(/^(\s*)[-*+]\s+(.+)$/gm, '$1<span class="bd-list-item">• $2</span>');
+    // Use - or + only (no asterisk) for list markers
+    html = html.replace(/^(\s*)[-+]\s+(.+)$/gm, '$1<span class="bd-list-item">• $2</span>');
     return html;
   }
 
