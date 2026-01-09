@@ -50,10 +50,13 @@ A browser extension that enhances AI Dungeon with additional QOL features and ad
   - Works automatically—no configuration needed
   - Runs seamlessly in the background
 
+- **Story Card Triggers Highlighting**: (optionally) Automatically scans for story card triggers in the recent story portion of the context viewer and highlights them
+  - Works automatically—no configuration needed
+  - Runs seamlessly in the background
+
 ### Planned Features
 - Favorite AI Instructions (AIN) storage
 - Adventure categorization and sorting
-- Highlighting story card triggers in the recent story portion of the context viewer
 - And more...
 
 ## Bugs/Issues

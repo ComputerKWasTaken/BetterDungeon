@@ -1,148 +1,186 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>BetterDungeon Settings</title>
+  <meta name="viewport" content="width=320">
+  <title>BetterDungeon</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <div class="header">
-    <div class="logo-container">
-      <img src="icons/icon128.png" alt="BetterDungeon" class="logo-icon">
+  <header class="header">
+    <div class="logo">
+      <img src="icons/icon48.png" alt="" class="logo-icon">
       <span class="logo-text">BetterDungeon</span>
     </div>
-    <div class="version">Version 1.0.0</div>
-  </div>
-  
-  <div class="content">
-    <!-- Tab Navigation -->
-    <div class="tab-nav">
-      <button class="tab-btn active" data-tab="features">Features</button>
-      <button class="tab-btn" data-tab="enhancements">Enhancements</button>
-    </div>
+    <span class="version">v1.0.0</span>
+  </header>
 
-    <!-- Features Tab -->
-    <div class="tab-content active" id="tab-features">
-      <div class="feature-list">
-        <!-- Markdown Feature - Expandable -->
-        <div class="feature-card" data-feature="markdown">
-          <div class="feature-header">
-            <div class="feature-info">
-              <span class="feature-name">Markdown Formatting</span>
-              <span class="feature-desc">Rich text formatting in your adventures</span>
+  <nav class="tab-nav">
+    <button class="tab-btn active" data-tab="features">Features</button>
+    <button class="tab-btn" data-tab="enhancements">Enhancements</button>
+  </nav>
+
+  <main class="content">
+    <section class="tab-content active" id="tab-features">
+
+      <article class="card" data-feature="markdown">
+        <div class="card-header">
+          <div class="card-info">
+            <h3 class="card-title">Markdown Formatting</h3>
+            <p class="card-desc">Rich text formatting in adventures</p>
+          </div>
+          <div class="card-actions">
+            <button class="chevron-btn" data-expand="markdown" aria-label="Expand">
+              <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <label class="toggle">
+              <input type="checkbox" id="feature-markdown" checked>
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+        </div>
+        <div class="card-body" id="expanded-markdown">
+          <p class="card-detail">Enables <strong>bold</strong>, <em>italic</em>, <u>underline</u>, headers, and lists in AI Dungeon.</p>
+          <div class="card-options">
+            <div class="option-row">
+              <div class="option-info">
+                <span class="option-label">Auto-apply on adventure</span>
+                <span class="option-hint">Apply when entering an adventure</span>
+              </div>
+              <label class="toggle sm">
+                <input type="checkbox" id="auto-apply-instructions">
+                <span class="toggle-track"></span>
+              </label>
             </div>
-            <div class="feature-controls">
-              <button class="expand-btn" data-expand="markdown" aria-label="Expand details">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                  <path d="M2 4L6 8L10 4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-                </svg>
+            <div class="option-row">
+              <div class="option-info">
+                <span class="option-label">Apply now</span>
+                <span class="option-hint">Manually apply instructions</span>
+              </div>
+              <button class="btn-sm" id="apply-instructions-btn">Apply</button>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <div class="card-group">
+        <header class="card-group-header">
+          <h3 class="card-group-title">Story Input Options</h3>
+          <p class="card-group-desc">Additional input modes</p>
+        </header>
+
+        <article class="card nested" data-feature="command">
+          <div class="card-header">
+            <div class="card-info">
+              <h3 class="card-title">Command</h3>
+              <p class="card-desc">Direct instructions to the AI</p>
+            </div>
+            <div class="card-actions">
+              <button class="chevron-btn" data-expand="command" aria-label="Expand">
+                <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
               <label class="toggle">
-                <input type="checkbox" id="feature-markdown" checked>
-                <span class="toggle-slider"></span>
+                <input type="checkbox" id="feature-command" checked>
+                <span class="toggle-track"></span>
               </label>
             </div>
           </div>
-          <div class="feature-expanded" id="expanded-markdown">
-            <p class="feature-detail">Enables <strong>bold</strong>, <em>italic</em>, <u>underline</u>, headers, lists, and more formatting in AI Dungeon outputs.</p>
-            <button class="action-btn" id="apply-instructions-btn">
-              Apply Instructions
-            </button>
-            <p class="feature-hint">Click above to auto-apply markdown instructions to your adventure.</p>
+          <div class="card-body" id="expanded-command">
+            <p class="card-detail">Adds a <strong>Command</strong> input option that formats text as a header for direct AI instructions.</p>
           </div>
-        </div>
+        </article>
 
-        <!-- Story Input Options - Grouped -->
-        <div class="feature-group">
-          <div class="feature-group-header">
-            <span class="feature-group-name">Story Input Options</span>
-            <span class="feature-group-desc">Additional input modes for your adventures</span>
-          </div>
-          
-          <!-- Command Feature -->
-          <div class="feature-card nested" data-feature="command">
-            <div class="feature-header">
-              <div class="feature-info">
-                <span class="feature-name">Command</span>
-                <span class="feature-desc">Send story commands to the AI within the story</span>
-              </div>
-              <div class="feature-controls">
-                <button class="expand-btn" data-expand="command" aria-label="Expand details">
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                    <path d="M2 4L6 8L10 4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-                  </svg>
-                </button>
-                <label class="toggle">
-                  <input type="checkbox" id="feature-command" checked>
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
+        <article class="card nested" data-feature="attempt">
+          <div class="card-header">
+            <div class="card-info">
+              <h3 class="card-title">Attempt</h3>
+              <p class="card-desc">RNG-based action outcomes</p>
             </div>
-            <div class="feature-expanded" id="expanded-command">
-              <p class="feature-detail">Adds a <strong>Command</strong> story input option that formats your input as a header, making it easier to give direct instructions to the AI.</p>
+            <div class="card-actions">
+              <button class="chevron-btn" data-expand="attempt" aria-label="Expand">
+                <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <label class="toggle">
+                <input type="checkbox" id="feature-attempt" checked>
+                <span class="toggle-track"></span>
+              </label>
             </div>
           </div>
-
-          <!-- Attempt Feature -->
-          <div class="feature-card nested" data-feature="attempt">
-            <div class="feature-header">
-              <div class="feature-info">
-                <span class="feature-name">Attempt</span>
-                <span class="feature-desc">RNG-based success/failure actions</span>
+          <div class="card-body" id="expanded-attempt">
+            <p class="card-detail">Dice-roll mechanics for actions. Use <strong>+</strong>/<strong>−</strong> to adjust odds.</p>
+            <div class="option-row">
+              <div class="option-info">
+                <span class="option-label">Critical Chance</span>
+                <span class="option-hint">Chance for critical outcomes</span>
               </div>
-              <div class="feature-controls">
-                <button class="expand-btn" data-expand="attempt" aria-label="Expand details">
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                    <path d="M2 4L6 8L10 4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-                  </svg>
-                </button>
-                <label class="toggle">
-                  <input type="checkbox" id="feature-attempt" checked>
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-            </div>
-            <div class="feature-expanded" id="expanded-attempt">
-              <p class="feature-detail">Adds an <strong>Attempt</strong> story input option that uses the action-text format with dice-roll mechanics. Use <strong>+</strong>/<strong>-</strong> keys to weight success/failure chances.</p>
-              <div class="setting-row">
-                <div class="setting-info">
-                  <span class="setting-name">Critical Chance</span>
-                  <span class="setting-desc">Chance for critical success/failure</span>
-                </div>
-                <div class="slider-container">
-                  <input type="range" id="critical-chance" min="0" max="20" value="5" class="slider">
-                  <span class="slider-value" id="critical-chance-value">5%</span>
-                </div>
+              <div class="slider-group">
+                <input type="range" id="critical-chance" min="0" max="20" value="5" class="slider">
+                <span class="slider-value" id="critical-chance-value">5%</span>
               </div>
             </div>
           </div>
-        </div>
+        </article>
       </div>
-    </div>
 
-    <!-- Enhancements Tab -->
-    <div class="tab-content" id="tab-enhancements">
-      <p class="tab-intro">Seamless improvements that work automatically—no configuration needed.</p>
+      <article class="card" data-feature="triggerHighlight">
+        <div class="card-header">
+          <div class="card-info">
+            <h3 class="card-title">Trigger Highlighting</h3>
+            <p class="card-desc">Highlight story card triggers</p>
+          </div>
+          <div class="card-actions">
+            <button class="chevron-btn" data-expand="triggerHighlight" aria-label="Expand">
+              <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <label class="toggle">
+              <input type="checkbox" id="feature-triggerHighlight" checked>
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+        </div>
+        <div class="card-body" id="expanded-triggerHighlight">
+          <p class="card-detail">Highlights triggers in the context viewer with card name tooltips.</p>
+          <div class="card-options">
+            <div class="option-row">
+              <div class="option-info">
+                <span class="option-label">Auto-scan on adventure</span>
+                <span class="option-hint">Scan when entering an adventure</span>
+              </div>
+              <label class="toggle sm">
+                <input type="checkbox" id="auto-scan-triggers">
+                <span class="toggle-track"></span>
+              </label>
+            </div>
+            <div class="option-row">
+              <div class="option-info">
+                <span class="option-label">Scan now</span>
+                <span class="option-hint">Manually scan story cards</span>
+              </div>
+              <button class="btn-sm" id="scan-triggers-btn">Scan</button>
+            </div>
+          </div>
+        </div>
+      </article>
+
+    </section>
+
+    <section class="tab-content" id="tab-enhancements">
+      <p class="tab-intro">Automatic improvements—no configuration needed.</p>
       <div class="enhancement-list">
-        <div class="enhancement-item">
+        <article class="enhancement-card">
           <span class="enhancement-icon">📖</span>
           <div class="enhancement-info">
-            <span class="enhancement-name">Readable Tab Repositioning</span>
-            <span class="enhancement-desc">Moves the "Readable" tab to appear right after "All" in Section Tabs.</span>
+            <h3 class="enhancement-title">Readable Tab Repositioning</h3>
+            <p class="enhancement-desc">Moves "Readable" tab after "All" in Section Tabs.</p>
           </div>
-        </div>
+        </article>
       </div>
-    </div>
-    
-    <div class="status active" id="status">
-      <span class="status-icon"></span>
-      <span class="status-text">Extension Active</span>
-    </div>
-  </div>
-  
+    </section>
+  </main>
+
   <script src="popup.js"></script>
 </body>
 </html>

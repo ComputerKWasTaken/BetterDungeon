@@ -31,6 +31,10 @@ class FeatureManager {
       this.featureClasses.set('readablePosition', ReadablePositionFeature);
     }
 
+    if (typeof TriggerHighlightFeature !== 'undefined') {
+      this.featureClasses.set('triggerHighlight', TriggerHighlightFeature);
+    }
+
     console.log('FeatureManager: Registered feature classes:', Array.from(this.featureClasses.keys()));
   }
 

@@ -23,8 +23,61 @@ class BetterDungeon {
       } else if (message.type === 'APPLY_INSTRUCTIONS') {
         this.handleApplyInstructions().then(sendResponse);
         return true;
+      } else if (message.type === 'SCAN_STORY_CARDS') {
+        this.handleScanStoryCards().then(sendResponse);
+        return true;
+      } else if (message.type === 'SET_AUTO_SCAN') {
+        this.handleSetAutoScan(message.enabled);
+      } else if (message.type === 'SET_AUTO_APPLY') {
+        this.handleSetAutoApply(message.enabled);
+      } else if (message.type === 'APPLY_INSTRUCTIONS_WITH_LOADING') {
+        this.handleApplyInstructionsWithLoading().then(sendResponse);
+        return true;
       }
     });
+  }
+
+  handleSetAutoScan(enabled) {
+    const triggerFeature = this.featureManager.features.get('triggerHighlight');
+    if (triggerFeature && typeof triggerFeature.setAutoScan === 'function') {
+      triggerFeature.setAutoScan(enabled);
+    }
+  }
+
+  handleSetAutoApply(enabled) {
+    const markdownFeature = this.featureManager.features.get('markdown');
+    if (markdownFeature && typeof markdownFeature.setAutoApply === 'function') {
+      markdownFeature.setAutoApply(enabled);
+    }
+  }
+
+  async handleApplyInstructionsWithLoading() {
+    const markdownFeature = this.featureManager.features.get('markdown');
+    if (markdownFeature && typeof markdownFeature.applyInstructionsWithLoadingScreen === 'function') {
+      return await markdownFeature.applyInstructionsWithLoadingScreen();
+    }
+    return { success: false, error: 'Markdown feature not available' };
+  }
+
+  async handleScanStoryCards() {
+    // Get the trigger highlight feature instance
+    const triggerFeature = this.featureManager.features.get('triggerHighlight');
+    
+    if (!triggerFeature) {
+      return { success: false, error: 'Trigger Highlight feature not enabled' };
+    }
+
+    if (typeof triggerFeature.scanAllStoryCards !== 'function') {
+      return { success: false, error: 'Scan function not available' };
+    }
+
+    try {
+      const result = await triggerFeature.scanAllStoryCards();
+      return result;
+    } catch (error) {
+      console.error('BetterDungeon: Scan error:', error);
+      return { success: false, error: error.message };
+    }
   }
 
   async handleFeatureToggle(featureId, enabled) {

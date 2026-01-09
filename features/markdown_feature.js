@@ -17,12 +17,150 @@ class MarkdownFeature {
     this.observer = null;
     this.debounceTimer = null;
     this.animationCheckTimer = null;
+    
+    // Auto-apply instructions state
+    this.autoApplyEnabled = false;
+    this.currentAdventureId = null;
   }
 
   // Called when feature is registered
-  init() {
+  async init() {
     console.log('MarkdownFeature: Initializing...');
+    await this.loadAutoApplySetting();
+    this.detectCurrentAdventure();
+    this.startAdventureChangeDetection();
     this.waitForContainer();
+  }
+
+  async loadAutoApplySetting() {
+    try {
+      const result = await chrome.storage.sync.get('betterDungeon_autoApplyInstructions');
+      this.autoApplyEnabled = result.betterDungeon_autoApplyInstructions ?? false;
+      console.log('MarkdownFeature: Auto-apply setting:', this.autoApplyEnabled);
+    } catch (e) {
+      this.autoApplyEnabled = false;
+    }
+  }
+
+  setAutoApply(enabled) {
+    this.autoApplyEnabled = enabled;
+    chrome.storage.sync.set({ betterDungeon_autoApplyInstructions: enabled });
+    console.log('MarkdownFeature: Auto-apply set to:', enabled);
+  }
+
+  detectCurrentAdventure() {
+    const match = window.location.pathname.match(/\/adventure\/([^\/]+)/);
+    const newAdventureId = match ? match[1] : null;
+    const adventureChanged = this.currentAdventureId !== newAdventureId;
+    
+    // Auto-apply when entering a new adventure
+    if (newAdventureId && adventureChanged && this.autoApplyEnabled) {
+      console.log('MarkdownFeature: Auto-applying instructions for new adventure...');
+      setTimeout(() => this.applyInstructionsWithLoadingScreen(), 2500);
+    }
+    
+    this.currentAdventureId = newAdventureId;
+  }
+
+  startAdventureChangeDetection() {
+    window.addEventListener('popstate', () => this.detectCurrentAdventure());
+    
+    const originalPushState = history.pushState;
+    const originalReplaceState = history.replaceState;
+    
+    history.pushState = (...args) => {
+      originalPushState.apply(history, args);
+      this.detectCurrentAdventure();
+    };
+    
+    history.replaceState = (...args) => {
+      originalReplaceState.apply(history, args);
+      this.detectCurrentAdventure();
+    };
+  }
+
+  async applyInstructionsWithLoadingScreen() {
+    if (typeof loadingScreen === 'undefined') {
+      console.error('MarkdownFeature: Loading screen not available');
+      return { success: false, error: 'Loading screen not available' };
+    }
+
+    // Use queue to ensure sequential execution with other features
+    return loadingScreen.queueOperation(() => this._doApplyInstructions());
+  }
+
+  async _doApplyInstructions() {
+    loadingScreen.show({
+      title: 'Applying Instructions',
+      subtitle: 'Preparing...',
+      showProgress: false
+    });
+
+    try {
+      if (typeof AIDungeonService === 'undefined') {
+        throw new Error('AIDungeonService not available');
+      }
+
+      const service = new AIDungeonService();
+      
+      loadingScreen.updateSubtitle('Loading instruction file...');
+      const instructionsResult = await service.fetchInstructionsFile();
+      
+      if (!instructionsResult.success) {
+        throw new Error(instructionsResult.error || 'Failed to fetch instructions');
+      }
+
+      loadingScreen.updateSubtitle('Opening adventure settings...');
+      await this.wait(300);
+      
+      const applyResult = await service.applyInstructionsToTextareas(instructionsResult.data);
+      
+      if (!applyResult.success) {
+        throw new Error(applyResult.error || 'Failed to apply instructions');
+      }
+
+      // Handle different outcomes
+      if (applyResult.alreadyApplied) {
+        loadingScreen.updateTitle('Already Applied');
+        loadingScreen.updateSubtitle('Markdown instructions are already present');
+        await this.wait(1200);
+        return { success: true, alreadyApplied: true };
+      }
+
+      if (applyResult.appliedCount === 0) {
+        loadingScreen.updateTitle('Already Applied');
+        loadingScreen.updateSubtitle('Instructions were already in place');
+        await this.wait(1200);
+        return { success: true, alreadyApplied: true };
+      }
+
+      loadingScreen.updateTitle('Instructions Applied!');
+      if (applyResult.appliedCount === 2) {
+        loadingScreen.updateSubtitle('Added to AI Instructions & Author\'s Note');
+      } else {
+        loadingScreen.updateSubtitle('Markdown formatting guidelines are now active');
+      }
+      
+      await this.wait(1500);
+      
+      return { success: true };
+
+    } catch (error) {
+      console.error('MarkdownFeature: Apply instructions error:', error);
+      loadingScreen.updateTitle('Failed to Apply');
+      loadingScreen.updateSubtitle(error.message);
+      
+      await this.wait(2000);
+      
+      return { success: false, error: error.message };
+
+    } finally {
+      loadingScreen.hide();
+    }
+  }
+
+  wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   // Called when feature is unregistered

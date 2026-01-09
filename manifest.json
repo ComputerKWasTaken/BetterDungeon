@@ -14,11 +14,14 @@
         "utils/dom.js",
         "utils/storage.js",
         "services/ai-dungeon-service.js",
+        "services/loading-screen.js",
+        "services/story-card-scanner.js",
         "core/feature-manager.js",
         "features/markdown_feature.js",
         "features/command_feature.js",
         "features/attempt_feature.js",
         "features/readable_position_feature.js",
+        "features/trigger_highlight_feature.js",
         "main.js"
       ],
       "css": ["styles.css"],
@@ -27,7 +30,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["styles.css", "ai_instruction.txt"],
+      "resources": ["styles.css", "ai_instruction.txt", "icons/icon128.png"],
       "matches": ["https://aidungeon.com/*", "https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"]
     }
   ],
