@@ -20,10 +20,64 @@ document.addEventListener('DOMContentLoaded', function() {
   checkTabStatus();
   loadFeatureStates();
   loadSettings();
+  setupTabNavigation();
   setupFeatureToggles();
+  setupExpandableCards();
   setupSettingsControls();
   setupApplyInstructionsButton();
 });
+
+// Setup tab navigation
+function setupTabNavigation() {
+  const tabButtons = document.querySelectorAll('.tab-btn');
+  const tabContents = document.querySelectorAll('.tab-content');
+  
+  tabButtons.forEach(btn => {
+    btn.addEventListener('click', function() {
+      const targetTab = this.dataset.tab;
+      
+      // Update button states
+      tabButtons.forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      
+      // Update content visibility
+      tabContents.forEach(content => {
+        content.classList.toggle('active', content.id === `tab-${targetTab}`);
+      });
+    });
+  });
+}
+
+// Setup expandable feature cards
+function setupExpandableCards() {
+  const expandButtons = document.querySelectorAll('.expand-btn');
+  
+  expandButtons.forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const featureId = this.dataset.expand;
+      const card = document.querySelector(`.feature-card[data-feature="${featureId}"]`);
+      
+      if (card) {
+        card.classList.toggle('expanded');
+      }
+    });
+  });
+  
+  // Also allow clicking the header to expand
+  const featureHeaders = document.querySelectorAll('.feature-header');
+  featureHeaders.forEach(header => {
+    header.addEventListener('click', function(e) {
+      // Don't expand if clicking on toggle
+      if (e.target.closest('.toggle')) return;
+      
+      const card = this.closest('.feature-card');
+      if (card) {
+        card.classList.toggle('expanded');
+      }
+    });
+  });
+}
 
 // Check if current tab is AI Dungeon
 function checkTabStatus() {
@@ -202,8 +256,19 @@ function setupSettingsControls() {
 function updateAttemptSettingsVisibility() {
   const attemptToggle = document.getElementById('feature-attempt');
   const attemptSettings = document.getElementById('attempt-settings');
+  const attemptSettingRow = document.querySelector('#expanded-attempt .setting-row');
   
+  // Handle legacy setting-item
   if (attemptToggle && attemptSettings) {
     attemptSettings.style.display = attemptToggle.checked ? 'flex' : 'none';
+  }
+  
+  // Handle new setting-row inside expanded card
+  if (attemptToggle && attemptSettingRow) {
+    attemptSettingRow.style.opacity = attemptToggle.checked ? '1' : '0.5';
+    const slider = attemptSettingRow.querySelector('.slider');
+    if (slider) {
+      slider.disabled = !attemptToggle.checked;
+    }
   }
 }

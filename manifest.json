@@ -18,6 +18,7 @@
         "features/markdown_feature.js",
         "features/command_feature.js",
         "features/attempt_feature.js",
+        "features/readable_position_feature.js",
         "main.js"
       ],
       "css": ["styles.css"],

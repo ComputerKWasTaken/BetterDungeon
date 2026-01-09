@@ -5,7 +5,7 @@ A browser extension that enhances AI Dungeon with additional QOL features and ad
 
 ## Features
 
-### Currently Implemented
+### Currently Implemented Features
 - **Markdown Support**: Renders markdown formatting in the gamemaster's responses
   
   AI Dungeon's post-processing system heavily discourages the AI from outputting asterisks (`*`) in its responses, making standard markdown syntax unreliable. BetterDungeon provides asterisk-free alternatives that work seamlessly:
@@ -41,6 +41,14 @@ A browser extension that enhances AI Dungeon with additional QOL features and ad
     - Succeed: 50% to (100-X)%
     - Critical succeed: (100-X)% to 100%
   - Configure critical chance (0-20%, default 5%) in the extension popup
+  - Adjust odds with arrow keys (↑↓)
+  - Increases or decreases the chance of success or failure
+
+### Currently Implemented Enhancements
+
+- **Readable Tab Repositioning**: Automatically moves the "Readable" tab button to appear right after "All" in the Section Tabs
+  - Works automatically—no configuration needed
+  - Runs seamlessly in the background
 
 ### Planned Features
 - Favorite AI Instructions (AIN) storage
@@ -54,7 +62,7 @@ A browser extension that enhances AI Dungeon with additional QOL features and ad
 - **AI gamemaster ignoring AIN about Markdown**: The AI gamemaster oftentimes ignores the markdown syntax that BetterDungeon provides, looking for a better set of AI instructions to get the gamemaster to follow the formatting guidelines
 
 ### High Priority
-- **Command button styling**: The Command button doesn't connect to the other buttons in any theme other than the default Dynamic theme
+- **Command/Attempt button styling**: The Command/Attempt button doesn't connect to the other buttons in any theme other than the default Dynamic theme
 
 ### Low Priority  
 
@@ -108,7 +116,8 @@ BetterDungeon/
 ├── features/               # Self-contained feature modules
 │   ├── markdown_feature.js # Markdown formatting feature
 │   ├── command_feature.js  # Command input mode feature
-│   └── attempt_feature.js  # Attempt input mode feature
+│   ├── attempt_feature.js  # Attempt input mode feature
+│   └── readable_position_feature.js # Readable tab repositioning
 ├── styles.css              # CSS for all features
 ├── popup.html              # Extension popup interface
 ├── popup.js                # Popup settings script

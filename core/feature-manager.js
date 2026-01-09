@@ -27,6 +27,10 @@ class FeatureManager {
       this.featureClasses.set('attempt', AttemptFeature);
     }
 
+    if (typeof ReadablePositionFeature !== 'undefined') {
+      this.featureClasses.set('readablePosition', ReadablePositionFeature);
+    }
+
     console.log('FeatureManager: Registered feature classes:', Array.from(this.featureClasses.keys()));
   }
 

@@ -18,57 +18,120 @@
   </div>
   
   <div class="content">
-    <div class="section">
-      <div class="section-title">About</div>
-      <p class="about-text">
-        Enhances AI Dungeon with <strong>Markdown</strong> support—use bold, italic, underline, and more formatting in your adventures.
-      </p>
+    <!-- Tab Navigation -->
+    <div class="tab-nav">
+      <button class="tab-btn active" data-tab="features">Features</button>
+      <button class="tab-btn" data-tab="enhancements">Enhancements</button>
     </div>
 
-    <div class="section">
-      <div class="section-title">Features</div>
-      <div class="feature-list" id="feature-list">
-        <div class="feature-item" data-feature="markdown">
-          <div class="feature-info">
-            <span class="feature-name">Markdown Formatting</span>
-            <span class="feature-desc">Bold, italic, headers, lists, etc.</span>
+    <!-- Features Tab -->
+    <div class="tab-content active" id="tab-features">
+      <div class="feature-list">
+        <!-- Markdown Feature - Expandable -->
+        <div class="feature-card" data-feature="markdown">
+          <div class="feature-header">
+            <div class="feature-info">
+              <span class="feature-name">Markdown Formatting</span>
+              <span class="feature-desc">Rich text formatting in your adventures</span>
+            </div>
+            <div class="feature-controls">
+              <button class="expand-btn" data-expand="markdown" aria-label="Expand details">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                  <path d="M2 4L6 8L10 4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                </svg>
+              </button>
+              <label class="toggle">
+                <input type="checkbox" id="feature-markdown" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
           </div>
-          <label class="toggle">
-            <input type="checkbox" id="feature-markdown" checked>
-            <span class="toggle-slider"></span>
-          </label>
+          <div class="feature-expanded" id="expanded-markdown">
+            <p class="feature-detail">Enables <strong>bold</strong>, <em>italic</em>, <u>underline</u>, headers, lists, and more formatting in AI Dungeon outputs.</p>
+            <button class="action-btn" id="apply-instructions-btn">
+              Apply Instructions
+            </button>
+            <p class="feature-hint">Click above to auto-apply markdown instructions to your adventure.</p>
+          </div>
         </div>
-        <button class="apply-instructions-btn" id="apply-instructions-btn">
-          Apply Instructions
-        </button>
-        <div class="feature-item" data-feature="command">
-          <div class="feature-info">
-            <span class="feature-name">Command Input Mode</span>
-            <span class="feature-desc">Send story commands as headers</span>
+
+        <!-- Story Input Options - Grouped -->
+        <div class="feature-group">
+          <div class="feature-group-header">
+            <span class="feature-group-name">Story Input Options</span>
+            <span class="feature-group-desc">Additional input modes for your adventures</span>
           </div>
-          <label class="toggle">
-            <input type="checkbox" id="feature-command" checked>
-            <span class="toggle-slider"></span>
-          </label>
+          
+          <!-- Command Feature -->
+          <div class="feature-card nested" data-feature="command">
+            <div class="feature-header">
+              <div class="feature-info">
+                <span class="feature-name">Command</span>
+                <span class="feature-desc">Send story commands to the AI within the story</span>
+              </div>
+              <div class="feature-controls">
+                <button class="expand-btn" data-expand="command" aria-label="Expand details">
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                    <path d="M2 4L6 8L10 4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                  </svg>
+                </button>
+                <label class="toggle">
+                  <input type="checkbox" id="feature-command" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+            <div class="feature-expanded" id="expanded-command">
+              <p class="feature-detail">Adds a <strong>Command</strong> story input option that formats your input as a header, making it easier to give direct instructions to the AI.</p>
+            </div>
+          </div>
+
+          <!-- Attempt Feature -->
+          <div class="feature-card nested" data-feature="attempt">
+            <div class="feature-header">
+              <div class="feature-info">
+                <span class="feature-name">Attempt</span>
+                <span class="feature-desc">RNG-based success/failure actions</span>
+              </div>
+              <div class="feature-controls">
+                <button class="expand-btn" data-expand="attempt" aria-label="Expand details">
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                    <path d="M2 4L6 8L10 4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                  </svg>
+                </button>
+                <label class="toggle">
+                  <input type="checkbox" id="feature-attempt" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+            <div class="feature-expanded" id="expanded-attempt">
+              <p class="feature-detail">Adds an <strong>Attempt</strong> story input option that uses the action-text format with dice-roll mechanics. Use <strong>+</strong>/<strong>-</strong> keys to weight success/failure chances.</p>
+              <div class="setting-row">
+                <div class="setting-info">
+                  <span class="setting-name">Critical Chance</span>
+                  <span class="setting-desc">Chance for critical success/failure</span>
+                </div>
+                <div class="slider-container">
+                  <input type="range" id="critical-chance" min="0" max="20" value="5" class="slider">
+                  <span class="slider-value" id="critical-chance-value">5%</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="feature-item" data-feature="attempt">
-          <div class="feature-info">
-            <span class="feature-name">Attempt Input Mode</span>
-            <span class="feature-desc">RNG-based success/failure actions</span>
-          </div>
-          <label class="toggle">
-            <input type="checkbox" id="feature-attempt" checked>
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-        <div class="setting-item" id="attempt-settings">
-          <div class="setting-info">
-            <span class="setting-name">Critical Chance</span>
-            <span class="setting-desc">Chance for critical success/failure</span>
-          </div>
-          <div class="slider-container">
-            <input type="range" id="critical-chance" min="0" max="20" value="5" class="slider">
-            <span class="slider-value" id="critical-chance-value">5%</span>
+      </div>
+    </div>
+
+    <!-- Enhancements Tab -->
+    <div class="tab-content" id="tab-enhancements">
+      <p class="tab-intro">Seamless improvements that work automatically—no configuration needed.</p>
+      <div class="enhancement-list">
+        <div class="enhancement-item">
+          <span class="enhancement-icon">📖</span>
+          <div class="enhancement-info">
+            <span class="enhancement-name">Readable Tab Repositioning</span>
+            <span class="enhancement-desc">Moves the "Readable" tab to appear right after "All" in Section Tabs.</span>
           </div>
         </div>
       </div>
