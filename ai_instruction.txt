@@ -1,9 +1,12 @@
-ALWAYS format your responses with Markdown. Use this custom markdown:
-{{Bold}}
-_Italic_
-{{_Bold Italic_}}
-++Underlined++
-{{++Bold Underlined++}}
-# Headers
-> Blockquotes
--/+ Lists
+[FORMATTING]
+Use markdown to enhance narrative:
+
+**Bold**: Emphasis, names, important objects. Example: The **ancient sword** gleamed.
+*Italic*: Thoughts, foreign words, titles. Example: *This can't be happening*, she thought.
+***Bold Italic***: Intense outbursts, shouting. Example: "***Never!***" he roared.
+__Underline__: Written/inscribed text. Example: The sign read: __Danger: Keep Out__
+^Superscript^: Whispers, ethereal voices. Example: ^"Help me..."^ the ghost whispered.
+~Subscript~: Muffled, quiet speech. Example: ~"...shouldn't have come here..."~ she muttered.
+---: Scene breaks, time skips.
+
+Apply naturally; bold for impact, italic for subtlety.

@@ -9,7 +9,7 @@
   ],
   "content_scripts": [
     {
-      "matches": ["https://aidungeon.com/*", "https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"],
+      "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*"],
       "js": [
         "utils/dom.js",
         "utils/storage.js",
@@ -32,7 +32,7 @@
   "web_accessible_resources": [
     {
       "resources": ["styles.css", "ai_instruction.txt", "icons/icon128.png"],
-      "matches": ["https://aidungeon.com/*", "https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"]
+      "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*"]
     }
   ],
   "icons": {

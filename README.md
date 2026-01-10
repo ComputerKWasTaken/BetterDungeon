@@ -6,24 +6,25 @@ An all-in-one browser extension that enhances AI Dungeon with additional QOL add
 ## Features
 
 ### Currently Implemented Features
-- **Markdown Support**: Renders markdown formatting in the gamemaster's responses
+- **Markdown Support**: Renders standard markdown formatting in the gamemaster's responses
   
-  AI Dungeon's post-processing system heavily discourages the AI from outputting asterisks (`*`) in its responses, making standard markdown syntax unreliable. BetterDungeon provides asterisk-free alternatives that work seamlessly:
+  BetterDungeon uses standard markdown syntax with specific AI instructions that tell the model *when* to use each format:
   
-  | Syntax | Result |
-  |--------|--------|
-  | `{{bold text}}` | **bold** |
-  | `_italic text_` | *italic* |
-  | `++underlined text++` | underlined |
-  | `~~strikethrough~~` | ~~strikethrough~~ |
-  | `# Header` (H1-H6) | Headers |
-  | `> quote` | Blockquotes |
-  | `- item` or `+ item` | Lists |
-  | `{{_bold italic_}}` | ***bold italic*** |
-  | `{{++bold underline++}}` | **underlined bold** |
+  | Syntax | Result | AI Usage |
+  |--------|--------|----------|
+  | `**bold**` | **bold** | Important words, names, dramatic impact |
+  | `*italic*` | *italic* | Thoughts, foreign words, titles |
+  | `***bold italic***` | ***bold italic*** | Intense outbursts, shouted words |
+  | `__underline__` | underline | Written/inscribed text, labels |
+  | `^superscript^` | ^whisper^ | Whispers, ethereal voices, echoes |
+  | `~subscript~` | ~muffled~ | Muffled sounds, quiet muttering |
+  | `---` | ─────── | Scene breaks, time skips |
+  | `- item` or `+ item` | • item | Lists |
 
-  - Click **"Apply Instructions"** in the extension popup to inject formatting guidelines automagically
-  - The AI is not always perfect at following these guidelines, you may need to nudge it a bit
+  **Note:** Headers (`#`) and blockquotes (`>`) are intentionally excluded as they conflict with AI Dungeon's command system.
+
+  - Click **"Apply Instructions"** in the extension popup to inject formatting guidelines
+  - The instructions tell the AI *when* to use each format, not just that it can
 
 - **Command Input Mode**: A new "Command" button in the input mode menu that formats your input as a story header (`## Your Command:`)
   - Select **Command** from the input mode menu (alongside Do, Say, Story, See)
@@ -111,7 +112,7 @@ I may put this on the Chrome Web Store at some point, but for now you'll have to
 1. Navigate to [AI Dungeon](https://aidungeon.com)
 2. Start or continue an adventure
 3. Use markdown syntax in your story inputs:
-   `The {{brave knight}} rode his _majestic horse_ through the ++dark forest++.`
+   `The **brave knight** rode his *majestic horse* through the __dark forest__.`
 4. The extension will automatically format the text as it appears in the story
 
 ## Settings

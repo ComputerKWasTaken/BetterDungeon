@@ -346,13 +346,14 @@ class MarkdownFeature {
     if (!text) return false;
 
     const markdownIndicators = [
-      /\{\{.+?\}\}/,      // Bold {{text}}
-      /(?<!_)_(?!_).+?(?<!_)_(?!_)/, // Italic _text_
-      /\+\+.+?\+\+/,      // Underline ++text++
-      /~~.+?~~/,          // Strikethrough ~~text~~
-      /^#{1,6}\s/m,       // Headers # ## ###
-      /^\s*[-+]\s/m,      // Lists
-      /^\s*>/m,           // Blockquotes
+      /\*\*\*.+?\*\*\*/,   // Bold Italic ***text***
+      /\*\*.+?\*\*/,       // Bold **text**
+      /(?:^|[^*])\*[^*]+?\*(?:[^*]|$)/, // Italic *text*
+      /__.+?__/,           // Underline __text__
+      /\^.+?\^/,           // Superscript ^text^
+      /(?:^|[^~])~[^~]+?~(?:[^~]|$)/, // Subscript ~text~
+      /^\s*[-_]{3,}\s*$/m, // Horizontal rules ---
+      /^\s*[-+]\s/m,       // Lists
     ];
 
     return markdownIndicators.some(pattern => pattern.test(text));
@@ -396,29 +397,27 @@ class MarkdownFeature {
 
     let html = this.escapeHtml(text);
 
-    // Headers (must be at start of line)
-    html = this.processHeaders(html);
+    // Bold + Italic: ***text***
+    html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
 
-    // Bold + Underline: {{++text++}}
-    html = html.replace(/\{\{\+\+(.+?)\+\+\}\}/g, '<strong><u>$1</u></strong>');
-
-    // Bold + Italic: {{_text_}}
-    html = html.replace(/\{\{_(.+?)_\}\}/g, '<strong><em>$1</em></strong>');
+    // Bold + Underline: **__text__** or __**text**__
+    html = html.replace(/\*\*__(.+?)__\*\*/g, '<strong><u>$1</u></strong>');
+    html = html.replace(/__\*\*(.+?)\*\*__/g, '<u><strong>$1</strong></u>');
     
-    // Bold: {{text}}
-    html = html.replace(/\{\{(.+?)\}\}/g, '<strong>$1</strong>');
+    // Bold: **text**
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
 
-    // Italic: _text_
-    html = html.replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, '<em>$1</em>');
+    // Italic: *text* (not preceded/followed by another *)
+    html = html.replace(/(^|[^*])\*([^*]+?)\*([^*]|$)/g, '$1<em>$2</em>$3');
 
-    // Underline: ++text++
-    html = html.replace(/\+\+(.+?)\+\+/g, '<u>$1</u>');
+    // Underline: __text__
+    html = html.replace(/__(.+?)__/g, '<u>$1</u>');
 
-    // Strikethrough: ~~text~~
-    html = html.replace(/~~(.+?)~~/g, '<s>$1</s>');
+    // Superscript: ^text^
+    html = html.replace(/\^(.+?)\^/g, '<sup class="bd-superscript">$1</sup>');
 
-    // Blockquotes
-    html = this.processBlockquotes(html);
+    // Subscript: ~text~ (not preceded/followed by another ~)
+    html = html.replace(/(?:^|[^~])~([^~]+?)~(?:[^~]|$)/g, '$1<sub class="bd-subscript">$2</sub>$3');
 
     // Horizontal rules
     html = html.replace(/^(\s*)([-_]){3,}\s*$/gm, '$1<hr class="bd-hr">');
@@ -438,46 +437,9 @@ class MarkdownFeature {
     return text.replace(/[&<>]/g, char => escapeMap[char]);
   }
 
-  processHeaders(html) {
-    html = html.replace(/^(\s*)######\s+(.+)$/gm, '$1<span class="bd-h6">$2</span>');
-    html = html.replace(/^(\s*)#####\s+(.+)$/gm, '$1<span class="bd-h5">$2</span>');
-    html = html.replace(/^(\s*)####\s+(.+)$/gm, '$1<span class="bd-h4">$2</span>');
-    html = html.replace(/^(\s*)###\s+(.+)$/gm, '$1<span class="bd-h3">$2</span>');
-    html = html.replace(/^(\s*)##\s+(.+)$/gm, '$1<span class="bd-h2">$2</span>');
-    html = html.replace(/^(\s*)#\s+(.+)$/gm, '$1<span class="bd-h1">$2</span>');
-    return html;
-  }
-
-  processBlockquotes(html) {
-    const lines = html.split('\n');
-    const result = [];
-    let inBlockquote = false;
-    let blockquoteContent = [];
-
-    for (const line of lines) {
-      const match = line.match(/^(\s*)&gt;\s?(.*)$/);
-      if (match) {
-        if (!inBlockquote) {
-          inBlockquote = true;
-          blockquoteContent = [];
-        }
-        blockquoteContent.push(match[1] + match[2]);
-      } else {
-        if (inBlockquote) {
-          result.push(`<span class="bd-blockquote">${blockquoteContent.join('\n')}</span>`);
-          inBlockquote = false;
-          blockquoteContent = [];
-        }
-        result.push(line);
-      }
-    }
-
-    if (inBlockquote) {
-      result.push(`<span class="bd-blockquote">${blockquoteContent.join('\n')}</span>`);
-    }
-
-    return result.join('\n');
-  }
+  // Headers and blockquotes removed - they conflict with AI Dungeon's command system
+  // # headers are treated as commands by the AI
+  // > blockquotes conflict with player action syntax
 
   processLists(html) {
     // Use - or + only (no asterisk) for list markers
