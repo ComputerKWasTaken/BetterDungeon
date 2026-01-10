@@ -97,6 +97,41 @@ class HotkeyFeature {
     }
   }
 
+  isInputAreaOpen() {
+    // Check if the input area is visible by looking for the "Change input mode" button
+    return !!document.querySelector('[aria-label="Change input mode"]');
+  }
+
+  async openInputArea() {
+    // If input area is already open, return true
+    if (this.isInputAreaOpen()) return true;
+    
+    // Click "Take a Turn" to open the input area
+    const takeATurnButton = document.querySelector('[aria-label="Command: take a turn"]');
+    if (!takeATurnButton) {
+      console.log('HotkeyFeature: Could not find Take a Turn button');
+      return false;
+    }
+    
+    takeATurnButton.click();
+    
+    // Wait for the input area to appear
+    return new Promise(resolve => {
+      let attempts = 0;
+      const checkInputArea = setInterval(() => {
+        attempts++;
+        if (this.isInputAreaOpen()) {
+          clearInterval(checkInputArea);
+          resolve(true);
+        } else if (attempts > 30) {
+          clearInterval(checkInputArea);
+          console.log('HotkeyFeature: Timed out waiting for input area');
+          resolve(false);
+        }
+      }, 50);
+    });
+  }
+
   setupKeyboardListener() {
     const handleKeyDown = async (e) => {
       // Don't trigger hotkeys when user is typing
@@ -110,17 +145,22 @@ class HotkeyFeature {
       
       if (!hotkeyConfig) return;
       
-      // Check if this hotkey depends on a feature being enabled
-      if (hotkeyConfig.featureDependent && !this.isFeatureEnabled(hotkeyConfig.featureDependent)) {
-        console.log(`HotkeyFeature: ${hotkeyConfig.description} not available (feature disabled)`);
-        return;
-      }
-      
       e.preventDefault();
       e.stopPropagation();
       
-      // Handle input mode selection (requires opening menu first)
+      // Handle input mode selection (requires opening input area and menu first)
       if (hotkeyConfig.requiresMenu) {
+        // First, ensure the input area is open (click Take a Turn if needed)
+        const inputAreaOpen = await this.openInputArea();
+        if (!inputAreaOpen) {
+          console.log('HotkeyFeature: Could not open input area');
+          return;
+        }
+        
+        // Small delay to ensure input area is fully rendered
+        await new Promise(resolve => setTimeout(resolve, 150));
+        
+        // Now open the input mode menu
         const menuOpened = await this.openInputModeMenu();
         if (!menuOpened) {
           console.log('HotkeyFeature: Could not open input mode menu');
@@ -129,6 +169,13 @@ class HotkeyFeature {
         
         // Small delay to ensure menu is fully rendered
         await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Check feature dependency AFTER menu is open (so we can see if button exists)
+        if (hotkeyConfig.featureDependent && !this.isFeatureEnabled(hotkeyConfig.featureDependent)) {
+          console.log(`HotkeyFeature: ${hotkeyConfig.description} not available (feature disabled)`);
+          this.closeInputModeMenu();
+          return;
+        }
       }
       
       // Find and click the target element
