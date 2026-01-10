@@ -35,6 +35,10 @@ class FeatureManager {
       this.featureClasses.set('triggerHighlight', TriggerHighlightFeature);
     }
 
+    if (typeof HotkeyFeature !== 'undefined') {
+      this.featureClasses.set('hotkey', HotkeyFeature);
+    }
+
     console.log('FeatureManager: Registered feature classes:', Array.from(this.featureClasses.keys()));
   }
 

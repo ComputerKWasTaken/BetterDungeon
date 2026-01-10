@@ -8,7 +8,8 @@ const DEFAULT_FEATURES = {
   markdown: true,
   command: true,
   attempt: true,
-  triggerHighlight: true
+  triggerHighlight: true,
+  hotkey: true
 };
 
 const SETTINGS_KEY = 'betterDungeonSettings';
@@ -30,6 +31,7 @@ document.addEventListener('DOMContentLoaded', function() {
   setupScanTriggersButton();
   setupAutoScanToggle();
   setupAutoApplyToggle();
+  setupHotkeyDetailsToggle();
 });
 
 // Setup tab navigation
@@ -345,6 +347,27 @@ function setupAutoScanToggle() {
         }
       } catch (e) {
         console.log('Could not notify content script:', e);
+      }
+    });
+  }
+}
+
+// Setup hotkey details toggle
+function setupHotkeyDetailsToggle() {
+  const chevronBtn = document.querySelector('[data-expand="hotkey-details"]');
+  const detailsSection = document.getElementById('hotkey-details');
+  
+  if (chevronBtn && detailsSection) {
+    chevronBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      detailsSection.classList.toggle('expanded');
+      
+      // Rotate chevron
+      const svg = this.querySelector('svg');
+      if (svg) {
+        svg.style.transform = detailsSection.classList.contains('expanded') 
+          ? 'rotate(180deg)' 
+          : 'rotate(0deg)';
       }
     });
   }

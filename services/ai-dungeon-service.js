@@ -105,6 +105,104 @@ class AIDungeonService {
     return null;
   }
 
+  // Check if no plot components exist
+  hasNoPlotComponents() {
+    const noComponentsText = Array.from(document.querySelectorAll('p'))
+      .find(p => p.textContent?.includes('No Active Plot Components'));
+    return !!noComponentsText;
+  }
+
+  // Find the "Add Plot Component" button
+  findAddPlotComponentButton() {
+    return document.querySelector('div[aria-label="Add Plot Component"]');
+  }
+
+  // Find a plot component type option in the dialog
+  findPlotComponentOption(optionName) {
+    // Look for clickable elements containing the option name
+    const allElements = document.querySelectorAll('div[role="button"], button, div[tabindex="0"]');
+    for (const el of allElements) {
+      const text = el.textContent?.trim();
+      if (text && text.toLowerCase().includes(optionName.toLowerCase())) {
+        return el;
+      }
+    }
+    // Also search for menu items or list items
+    const menuItems = document.querySelectorAll('[role="menuitem"], [role="option"], [data-radix-collection-item]');
+    for (const item of menuItems) {
+      if (item.textContent?.toLowerCase().includes(optionName.toLowerCase())) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  // Create a specific plot component
+  async createPlotComponent(componentName) {
+    console.log(`AIDungeonService: Creating ${componentName} plot component...`);
+    
+    const addButton = this.findAddPlotComponentButton();
+    if (!addButton) {
+      console.log('AIDungeonService: Add Plot Component button not found');
+      return { success: false, error: 'Add Plot Component button not found' };
+    }
+
+    addButton.click();
+    await this.domUtils.wait(300);
+
+    // Wait for the dialog/menu to appear
+    for (let i = 0; i < 10; i++) {
+      const option = this.findPlotComponentOption(componentName);
+      if (option) {
+        console.log(`AIDungeonService: Found ${componentName} option, clicking...`);
+        option.click();
+        await this.domUtils.wait(500);
+        return { success: true };
+      }
+      await this.domUtils.wait(100);
+    }
+
+    // Try pressing Escape to close any dialog if option wasn't found
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await this.domUtils.wait(100);
+
+    return { success: false, error: `${componentName} option not found in menu` };
+  }
+
+  // Create required plot components if they don't exist
+  async ensurePlotComponentsExist() {
+    console.log('AIDungeonService: Checking for existing plot components...');
+    
+    // Check if we're in the "no components" state
+    if (!this.hasNoPlotComponents()) {
+      console.log('AIDungeonService: Plot components already exist or not in expected state');
+      return { success: true, created: false };
+    }
+
+    console.log('AIDungeonService: No plot components found, creating them...');
+    
+    // Create AI Instructions component
+    const aiResult = await this.createPlotComponent('AI Instructions');
+    if (!aiResult.success) {
+      console.log('AIDungeonService: Failed to create AI Instructions:', aiResult.error);
+      // Continue to try Author's Note anyway
+    } else {
+      await this.domUtils.wait(500);
+    }
+
+    // Check if we still need to add more (button might have moved)
+    if (this.findAddPlotComponentButton()) {
+      // Create Author's Note component
+      const noteResult = await this.createPlotComponent("Author's Note");
+      if (!noteResult.success) {
+        console.log('AIDungeonService: Failed to create Author\'s Note:', noteResult.error);
+      }
+    }
+
+    await this.domUtils.wait(500);
+    return { success: true, created: true };
+  }
+
   async waitForTextareas(maxAttempts = 20) {
     console.log('AIDungeonService: Waiting for textareas...');
     
@@ -157,14 +255,39 @@ class AIDungeonService {
   }
 
   async applyInstructionsToTextareas(instructionsText, options = {}) {
-    const { forceApply = false } = options;
+    const { forceApply = false, onCreatingComponents = null } = options;
     
     const navResult = await this.navigateToPlotSettings();
     if (!navResult.success) {
       return navResult;
     }
 
-    const textareas = await this.waitForTextareas();
+    // First try to find textareas
+    let textareas = await this.waitForTextareas(5);
+    
+    // Track if we created components
+    let componentsCreated = false;
+    
+    // If textareas not found, check if we need to create plot components
+    if (!textareas.success) {
+      console.log('AIDungeonService: Textareas not found, checking if plot components need to be created...');
+      
+      // Notify caller that we're creating components
+      if (onCreatingComponents) {
+        onCreatingComponents();
+      }
+      
+      const ensureResult = await this.ensurePlotComponentsExist();
+      if (ensureResult.created) {
+        componentsCreated = true;
+        console.log('AIDungeonService: Plot components created, waiting for textareas again...');
+        textareas = await this.waitForTextareas(20);
+      } else {
+        // Try waiting longer in case they're just loading slowly
+        textareas = await this.waitForTextareas(15);
+      }
+    }
+    
     if (!textareas.success) {
       return textareas;
     }
@@ -199,7 +322,7 @@ class AIDungeonService {
     }
 
     console.log(`AIDungeonService: Applied instructions to ${appliedCount} field(s)`);
-    return { success: true, appliedCount };
+    return { success: true, appliedCount, componentsCreated };
   }
 
   async fetchInstructionsFile() {

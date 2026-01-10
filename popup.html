@@ -177,6 +177,48 @@
             <p class="enhancement-desc">Moves "Readable" tab after "All" in Section Tabs.</p>
           </div>
         </article>
+        <article class="enhancement-card" data-feature="hotkey">
+          <span class="enhancement-icon">⌨️</span>
+          <div class="enhancement-info">
+            <h3 class="enhancement-title">Hotkeys</h3>
+            <p class="enhancement-desc">Keyboard shortcuts for common actions.</p>
+          </div>
+          <div class="enhancement-actions">
+            <button class="chevron-btn" data-expand="hotkey-details" aria-label="Expand">
+              <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <label class="toggle">
+              <input type="checkbox" id="feature-hotkey" checked>
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+        </article>
+        <div class="enhancement-details" id="hotkey-details">
+          <div class="hotkey-list">
+            <div class="hotkey-group">
+              <h4 class="hotkey-group-title">Command Bar</h4>
+              <div class="hotkey-item"><kbd>T</kbd> Take a Turn</div>
+              <div class="hotkey-item"><kbd>C</kbd> Continue</div>
+              <div class="hotkey-item"><kbd>R</kbd> Retry</div>
+              <div class="hotkey-item"><kbd>E</kbd> Erase</div>
+            </div>
+            <div class="hotkey-group">
+              <h4 class="hotkey-group-title">History</h4>
+              <div class="hotkey-item"><kbd>Z</kbd> Undo</div>
+              <div class="hotkey-item"><kbd>Y</kbd> Redo</div>
+            </div>
+            <div class="hotkey-group">
+              <h4 class="hotkey-group-title">Input Modes</h4>
+              <div class="hotkey-item"><kbd>1</kbd> Do</div>
+              <div class="hotkey-item"><kbd>2</kbd> Attempt*</div>
+              <div class="hotkey-item"><kbd>3</kbd> Say</div>
+              <div class="hotkey-item"><kbd>4</kbd> Story</div>
+              <div class="hotkey-item"><kbd>5</kbd> See</div>
+              <div class="hotkey-item"><kbd>6</kbd> Command*</div>
+            </div>
+            <p class="hotkey-note">*Requires feature to be enabled</p>
+          </div>
+        </div>
       </div>
     </section>
   </main>

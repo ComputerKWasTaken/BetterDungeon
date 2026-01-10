@@ -1,7 +1,7 @@
 
 # ![BetterDungeon Icon](icons/icon16.png) BetterDungeon
 
-A browser extension that enhances AI Dungeon with additional QOL features and additions to seamlessly improve the experience, no fuss or juggling scripts.
+An all-in-one browser extension that enhances AI Dungeon with additional QOL additions and brand new features to improve the AI Dungeon experience.
 
 ## Features
 
@@ -28,7 +28,7 @@ A browser extension that enhances AI Dungeon with additional QOL features and ad
 - **Command Input Mode**: A new "Command" button in the input mode menu that formats your input as a story header (`## Your Command:`)
   - Select **Command** from the input mode menu (alongside Do, Say, Story, See)
   - Type your command (e.g., "Time Skip" or "Scene Change")
-  - Useful for sending narrative commands/headers to the AI that structure the story
+  - Useful for sending narrative commands/headers to the AI that structure the story, and makes it far easier to guide and adjust the story's direction
 
 - **Attempt Input Mode**: A new "Attempt" button (between Do and Say) that uses RNG to determine action outcomes
   - Select **Attempt** from the input mode menu
@@ -47,17 +47,37 @@ A browser extension that enhances AI Dungeon with additional QOL features and ad
 ### Currently Implemented Enhancements
 
 - **Readable Tab Repositioning**: Automatically moves the "Readable" tab button to appear right after "All" in the Section Tabs
-  - Works automatically—no configuration needed
-  - Runs seamlessly in the background
+  - Returns the "Readable" tab back to its rightful place :D
 
-- **Story Card Triggers Highlighting**: (optionally) Automatically scans for story card triggers in the recent story portion of the context viewer and highlights them
-  - Works automatically—no configuration needed
-  - Runs seamlessly in the background
+- **Story Card Triggers Highlighting**: Scans for story card triggers in the recent story portion of the context viewer and highlights them, including a hover tooltip that links to the story card
+
+- **Hotkeys**: Keyboard shortcuts for common AI Dungeon actions
+  - Works only when not typing in a text field
+  
+  | Key | Action |
+  |-----|--------|
+  | `T` | Take a Turn |
+  | `C` | Continue |
+  | `R` | Retry |
+  | `E` | Erase |
+  | `Z` | Undo |
+  | `Y` | Redo |
+  | `1` | Do mode |
+  | `2` | Attempt mode* |
+  | `3` | Say mode |
+  | `4` | Story mode |
+  | `5` | See mode |
+  | `6` | Command mode* |
+  
+  *Requires the respective feature to be enabled
 
 ### Planned Features
 - Favorite AI Instructions (AIN) storage
 - Adventure categorization and sorting
 - And more...
+
+### Planned Enhancements
+- Expanding on the Story Card Triggers Highlighting feature to include a check for potentially missed story card triggers in the recent story portion of the context viewer
 
 ## Bugs/Issues
 
@@ -88,19 +108,16 @@ I may put this on the Chrome Web Store at some point, but for now you'll have to
 1. Navigate to [AI Dungeon](https://aidungeon.com)
 2. Start or continue an adventure
 3. Use markdown syntax in your story inputs:
-   ```
-   Standard:    The **brave knight** rode his *majestic horse* through the __dark forest__.
-   Alternative: The {{brave knight}} rode his _majestic horse_ through the ++dark forest++.
-   ```
+   `The {{brave knight}} rode his _majestic horse_ through the ++dark forest++.`
 4. The extension will automatically format the text as it appears in the story
 
 ## Settings
 
 Click the BetterDungeon icon in your Chrome toolbar to access settings:
 - **Feature Toggles**: Enable or disable individual features
-- **Status Indicator**: Shows if extension is active on current page
+- **Enhancement Descriptions**: Discover what each enhancement does
 
-Settings are synced across your Chrome browsers.
+Settings are synced across your Chromium-based browsers.
 
 ## Development
 
@@ -112,7 +129,9 @@ BetterDungeon/
 ├── core/                   # Core system components
 │   └── feature-manager.js  # Feature registration and lifecycle management
 ├── services/               # External service integrations
-│   └── ai-dungeon-service.js # AI Dungeon specific operations
+│   ├── ai-dungeon-service.js # AI Dungeon specific operations
+│   ├── loading-screen-service.js # Loading screen management
+│   └── story-card-scanner.js # Story card scanning
 ├── utils/                  # Utility functions
 │   ├── dom.js              # DOM manipulation helpers
 │   └── storage.js          # Chrome storage abstraction
@@ -120,18 +139,20 @@ BetterDungeon/
 │   ├── markdown_feature.js # Markdown formatting feature
 │   ├── command_feature.js  # Command input mode feature
 │   ├── attempt_feature.js  # Attempt input mode feature
-│   └── readable_position_feature.js # Readable tab repositioning
+│   ├── readable_position_feature.js # Readable tab repositioning
+│   ├── trigger_highlight_feature.js # Story card trigger highlighting
+│   └── hotkey_feature.js  # Keyboard shortcuts
 ├── styles.css              # CSS for all features
 ├── popup.html              # Extension popup interface
 ├── popup.js                # Popup settings script
-├── ai_instruction.txt     # Default AI formatting instructions
+├── ai_instruction.txt      # Default AI formatting instructions
 ├── icons/                  # Extension icons (16, 32, 48, 128px)
 └── README.md               # This file
 ```
 
 ### Architecture
 
-BetterDungeon uses a modular, service-oriented architecture with clear separation of concerns:
+BetterDungeon uses a modular, service-oriented architecture that allows for each feature to be developed, self-contained, and independently managed.
 
 - **main.js**: Core orchestrator that initializes the system and handles message passing from the popup
 - **core/feature-manager.js**: Manages feature registration, lifecycle, and storage-based enable/disable

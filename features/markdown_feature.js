@@ -113,7 +113,12 @@ class MarkdownFeature {
       loadingScreen.updateSubtitle('Opening adventure settings...');
       await this.wait(300);
       
-      const applyResult = await service.applyInstructionsToTextareas(instructionsResult.data);
+      // Pass a callback to update loading screen during component creation
+      const applyResult = await service.applyInstructionsToTextareas(instructionsResult.data, {
+        onCreatingComponents: () => {
+          loadingScreen.updateSubtitle('Creating plot components...');
+        }
+      });
       
       if (!applyResult.success) {
         throw new Error(applyResult.error || 'Failed to apply instructions');
@@ -135,7 +140,9 @@ class MarkdownFeature {
       }
 
       loadingScreen.updateTitle('Instructions Applied!');
-      if (applyResult.appliedCount === 2) {
+      if (applyResult.componentsCreated) {
+        loadingScreen.updateSubtitle('Created plot components & added instructions');
+      } else if (applyResult.appliedCount === 2) {
         loadingScreen.updateSubtitle('Added to AI Instructions & Author\'s Note');
       } else {
         loadingScreen.updateSubtitle('Markdown formatting guidelines are now active');

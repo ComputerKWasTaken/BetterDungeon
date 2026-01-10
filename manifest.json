@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "BetterDungeon",
   "version": "1.0.0",
-  "description": "Enhances AI Dungeon with Markdown support and additional QOL features",
+  "description": "An all-in-one browser extension that enhances AI Dungeon with additional QOL additions and brand new features to improve the AI Dungeon experience.",
   "permissions": [
     "activeTab",
     "storage"
@@ -22,6 +22,7 @@
         "features/attempt_feature.js",
         "features/readable_position_feature.js",
         "features/trigger_highlight_feature.js",
+        "features/hotkey_feature.js",
         "main.js"
       ],
       "css": ["styles.css"],
