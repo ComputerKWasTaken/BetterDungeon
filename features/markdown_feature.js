@@ -417,7 +417,7 @@ class MarkdownFeature {
     html = html.replace(/\^(.+?)\^/g, '<sup class="bd-superscript">$1</sup>');
 
     // Subscript: ~text~ (not preceded/followed by another ~)
-    html = html.replace(/(?:^|[^~])~([^~]+?)~(?:[^~]|$)/g, '$1<sub class="bd-subscript">$2</sub>$3');
+    html = html.replace(/(^|[^~])~([^~]+?)~([^~]|$)/g, '$1<sub class="bd-subscript">$2</sub>$3');
 
     // Horizontal rules
     html = html.replace(/^(\s*)([-_]){3,}\s*$/gm, '$1<hr class="bd-hr">');
