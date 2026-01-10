@@ -82,7 +82,6 @@ An all-in-one browser extension that enhances AI Dungeon with additional QOL add
 ## Bugs/Issues
 
 ### Urgent
-- **AI gamemaster ignoring AIN about Markdown**: The AI gamemaster oftentimes ignores the markdown syntax that BetterDungeon provides, looking for a better set of AI instructions to get the gamemaster to follow the formatting guidelines
 
 ### High Priority
 - **Command/Attempt button styling**: The Command/Attempt button doesn't connect to the other buttons in any theme other than the default Dynamic theme
