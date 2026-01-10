@@ -26,46 +26,6 @@
   <main class="content">
     <section class="tab-content active" id="tab-features">
 
-      <article class="card" data-feature="markdown">
-        <div class="card-header">
-          <div class="card-info">
-            <h3 class="card-title">Markdown Formatting</h3>
-            <p class="card-desc">Rich text formatting in adventures</p>
-          </div>
-          <div class="card-actions">
-            <button class="chevron-btn" data-expand="markdown" aria-label="Expand">
-              <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
-            <label class="toggle">
-              <input type="checkbox" id="feature-markdown" checked>
-              <span class="toggle-track"></span>
-            </label>
-          </div>
-        </div>
-        <div class="card-body" id="expanded-markdown">
-          <p class="card-detail">Enables <strong>bold</strong>, <em>italic</em>, <u>underline</u>, headers, and lists in AI Dungeon.</p>
-          <div class="card-options">
-            <div class="option-row">
-              <div class="option-info">
-                <span class="option-label">Auto-apply on adventure</span>
-                <span class="option-hint">Apply when entering an adventure</span>
-              </div>
-              <label class="toggle sm">
-                <input type="checkbox" id="auto-apply-instructions">
-                <span class="toggle-track"></span>
-              </label>
-            </div>
-            <div class="option-row">
-              <div class="option-info">
-                <span class="option-label">Apply now</span>
-                <span class="option-hint">Manually apply instructions</span>
-              </div>
-              <button class="btn-sm" id="apply-instructions-btn">Apply</button>
-            </div>
-          </div>
-        </div>
-      </article>
-
       <div class="card-group">
         <header class="card-group-header">
           <h3 class="card-group-title">Story Input Options</h3>
@@ -125,6 +85,46 @@
         </article>
       </div>
 
+      <article class="card" data-feature="markdown">
+        <div class="card-header">
+          <div class="card-info">
+            <h3 class="card-title">Markdown Formatting</h3>
+            <p class="card-desc">Rich text formatting in adventures</p>
+          </div>
+          <div class="card-actions">
+            <button class="chevron-btn" data-expand="markdown" aria-label="Expand">
+              <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <label class="toggle">
+              <input type="checkbox" id="feature-markdown" checked>
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+        </div>
+        <div class="card-body" id="expanded-markdown">
+          <p class="card-detail">Enables <strong>bold</strong>, <em>italic</em>, <u>underline</u>, headers, and lists in AI Dungeon.</p>
+          <div class="card-options">
+            <div class="option-row">
+              <div class="option-info">
+                <span class="option-label">Auto-apply on adventure</span>
+                <span class="option-hint">Apply when entering an adventure</span>
+              </div>
+              <label class="toggle sm">
+                <input type="checkbox" id="auto-apply-instructions">
+                <span class="toggle-track"></span>
+              </label>
+            </div>
+            <div class="option-row">
+              <div class="option-info">
+                <span class="option-label">Apply now</span>
+                <span class="option-hint">Manually apply instructions</span>
+              </div>
+              <button class="btn-sm" id="apply-instructions-btn">Apply</button>
+            </div>
+          </div>
+        </div>
+      </article>
+
       <article class="card" data-feature="triggerHighlight">
         <div class="card-header">
           <div class="card-info">
@@ -170,13 +170,6 @@
     <section class="tab-content" id="tab-enhancements">
       <p class="tab-intro">Automatic improvements—no configuration needed.</p>
       <div class="enhancement-list">
-        <article class="enhancement-card">
-          <span class="enhancement-icon">📖</span>
-          <div class="enhancement-info">
-            <h3 class="enhancement-title">Readable Tab Repositioning</h3>
-            <p class="enhancement-desc">Moves "Readable" tab after "All" in Section Tabs.</p>
-          </div>
-        </article>
         <article class="enhancement-card" data-feature="hotkey">
           <span class="enhancement-icon">⌨️</span>
           <div class="enhancement-info">
@@ -219,6 +212,13 @@
             <p class="hotkey-note">*Requires feature to be enabled</p>
           </div>
         </div>
+        <article class="enhancement-card">
+          <span class="enhancement-icon">📖</span>
+          <div class="enhancement-info">
+            <h3 class="enhancement-title">Readable Tab Repositioning</h3>
+            <p class="enhancement-desc">Moves "Readable" tab after "All" in Section Tabs.</p>
+          </div>
+        </article>
       </div>
     </section>
   </main>
