@@ -164,8 +164,6 @@ class HotkeyFeature {
         const menuOpened = await this.openInputModeMenu();
         if (!menuOpened) {
           console.log('HotkeyFeature: Could not open input mode menu');
-          // Close the input area we opened since menu failed
-          this.closeInputArea();
           return;
         }
         

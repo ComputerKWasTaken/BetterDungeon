@@ -14,6 +14,11 @@ class TriggerHighlightFeature {
     this.scanDebounceTimer = null;
     // Track current adventure to clear triggers on adventure change
     this.currentAdventureId = null;
+    // Suggested triggers settings
+    this.suggestedTriggersEnabled = true;
+    this.suggestedTriggerThreshold = 3; // Minimum occurrences to suggest
+    // Cache for noun frequencies in current context
+    this.nounFrequencies = new Map();
   }
 
   async init() {
@@ -30,11 +35,20 @@ class TriggerHighlightFeature {
 
   async loadAutoScanSetting() {
     try {
-      const result = await chrome.storage.sync.get('betterDungeon_autoScanTriggers');
+      const result = await chrome.storage.sync.get([
+        'betterDungeon_autoScanTriggers',
+        'betterDungeon_suggestedTriggers',
+        'betterDungeon_suggestedTriggerThreshold'
+      ]);
       this.autoScanEnabled = result.betterDungeon_autoScanTriggers ?? false;
+      this.suggestedTriggersEnabled = result.betterDungeon_suggestedTriggers ?? true;
+      this.suggestedTriggerThreshold = result.betterDungeon_suggestedTriggerThreshold ?? 3;
       console.log('TriggerHighlightFeature: Auto-scan setting:', this.autoScanEnabled);
+      console.log('TriggerHighlightFeature: Suggested triggers:', this.suggestedTriggersEnabled, 'threshold:', this.suggestedTriggerThreshold);
     } catch (e) {
       this.autoScanEnabled = false;
+      this.suggestedTriggersEnabled = true;
+      this.suggestedTriggerThreshold = 3;
     }
   }
 
@@ -42,6 +56,18 @@ class TriggerHighlightFeature {
     this.autoScanEnabled = enabled;
     chrome.storage.sync.set({ betterDungeon_autoScanTriggers: enabled });
     console.log('TriggerHighlightFeature: Auto-scan set to:', enabled);
+  }
+
+  setSuggestedTriggers(enabled) {
+    this.suggestedTriggersEnabled = enabled;
+    chrome.storage.sync.set({ betterDungeon_suggestedTriggers: enabled });
+    console.log('TriggerHighlightFeature: Suggested triggers set to:', enabled);
+  }
+
+  setSuggestedTriggerThreshold(threshold) {
+    this.suggestedTriggerThreshold = Math.max(2, Math.min(10, threshold));
+    chrome.storage.sync.set({ betterDungeon_suggestedTriggerThreshold: this.suggestedTriggerThreshold });
+    console.log('TriggerHighlightFeature: Suggested trigger threshold set to:', this.suggestedTriggerThreshold);
   }
 
   // Detect adventure ID from URL to scope triggers
@@ -401,27 +427,173 @@ class TriggerHighlightFeature {
     return commonWords.has(word.toLowerCase());
   }
 
+  // Extended common words list for suggested triggers (more restrictive)
+  isCommonWordExtended(word) {
+    if (this.isCommonWord(word)) return true;
+    
+    const extendedCommonWords = new Set([
+      // Common story words
+      'said', 'says', 'told', 'asked', 'replied', 'answered', 'spoke', 'whispered',
+      'shouted', 'yelled', 'called', 'cried', 'screamed', 'muttered', 'murmured',
+      'looked', 'looks', 'saw', 'see', 'seen', 'watching', 'watched', 'stared',
+      'walked', 'walk', 'ran', 'run', 'running', 'went', 'go', 'goes', 'going', 'gone',
+      'came', 'come', 'comes', 'coming', 'left', 'leave', 'leaves', 'leaving',
+      'took', 'take', 'takes', 'taking', 'taken', 'gave', 'give', 'gives', 'giving', 'given',
+      'made', 'make', 'makes', 'making', 'got', 'get', 'gets', 'getting',
+      'put', 'puts', 'putting', 'set', 'sets', 'setting',
+      'stood', 'stand', 'stands', 'standing', 'sat', 'sit', 'sits', 'sitting',
+      'turned', 'turn', 'turns', 'turning', 'moved', 'move', 'moves', 'moving',
+      'felt', 'feel', 'feels', 'feeling', 'thought', 'think', 'thinks', 'thinking',
+      'knew', 'know', 'knows', 'knowing', 'known', 'seemed', 'seem', 'seems', 'seeming',
+      'began', 'begin', 'begins', 'beginning', 'started', 'start', 'starts', 'starting',
+      'tried', 'try', 'tries', 'trying', 'wanted', 'want', 'wants', 'wanting',
+      'needed', 'needs', 'needing', 'found', 'find', 'finds', 'finding',
+      // Common nouns that aren't interesting
+      'way', 'ways', 'time', 'times', 'day', 'days', 'night', 'nights',
+      'thing', 'things', 'something', 'nothing', 'everything', 'anything',
+      'someone', 'anyone', 'everyone', 'no one', 'nobody', 'somebody', 'everybody',
+      'place', 'places', 'room', 'rooms', 'door', 'doors', 'floor', 'floors',
+      'wall', 'walls', 'window', 'windows', 'hand', 'hands', 'head', 'heads',
+      'eye', 'eyes', 'face', 'faces', 'voice', 'voices', 'word', 'words',
+      'moment', 'moments', 'second', 'seconds', 'minute', 'minutes', 'hour', 'hours',
+      'part', 'parts', 'side', 'sides', 'end', 'ends', 'back', 'front',
+      'top', 'bottom', 'left', 'right', 'middle', 'center',
+      // Pronouns and determiners
+      'my', 'your', 'his', 'her', 'its', 'our', 'their', 'mine', 'yours', 'hers', 'ours', 'theirs',
+      'myself', 'yourself', 'himself', 'herself', 'itself', 'ourselves', 'themselves',
+      'here', 'there', 'now', 'then', 'today', 'tomorrow', 'yesterday',
+      'just', 'still', 'already', 'yet', 'even', 'also', 'too', 'very', 'really',
+      'only', 'well', 'much', 'more', 'most', 'less', 'least', 'other', 'another',
+      'same', 'different', 'such', 'own', 'first', 'last', 'next', 'new', 'old',
+      'good', 'bad', 'great', 'little', 'big', 'small', 'large', 'long', 'short',
+      'high', 'low', 'young', 'few', 'many', 'some', 'any', 'all', 'both', 'each', 'every',
+      // Common adjectives
+      'able', 'sure', 'certain', 'clear', 'hard', 'easy', 'possible', 'impossible',
+      'true', 'false', 'real', 'right', 'wrong', 'dark', 'light', 'black', 'white',
+      'red', 'blue', 'green', 'yellow', 'brown', 'gray', 'grey',
+      // Story formatting words
+      'chapter', 'scene', 'act', 'part', 'section', 'story', 'tale',
+      // Common conjunctions and prepositions
+      'after', 'before', 'during', 'until', 'while', 'through', 'across', 'against',
+      'between', 'into', 'onto', 'upon', 'within', 'without', 'about', 'above', 'below',
+      'under', 'over', 'around', 'near', 'far', 'along', 'toward', 'towards', 'away'
+    ]);
+    return extendedCommonWords.has(word.toLowerCase());
+  }
+
+  // Extract potential nouns from text (capitalized words, proper nouns)
+  extractPotentialNouns(text) {
+    const nouns = new Map(); // word -> { total: count, midSentence: count }
+    
+    // Split on sentence boundaries (periods, exclamations, questions, newlines)
+    const sentences = text.split(/[.!?\n]+/);
+    
+    sentences.forEach(sentence => {
+      const trimmed = sentence.trim();
+      if (!trimmed) return;
+      
+      // Get all words in the sentence
+      const words = trimmed.split(/\s+/);
+      
+      words.forEach((word, index) => {
+        // Clean the word of punctuation
+        const cleanWord = word.replace(/[^a-zA-Z'-]/g, '');
+        if (!cleanWord || cleanWord.length < 3) return;
+        
+        // Skip if it's a common word
+        if (this.isCommonWordExtended(cleanWord)) return;
+        
+        // Check if word is capitalized
+        const isCapitalized = /^[A-Z]/.test(cleanWord);
+        if (!isCapitalized) return;
+        
+        const lowerWord = cleanWord.toLowerCase();
+        const existing = nouns.get(lowerWord) || { total: 0, midSentence: 0 };
+        
+        existing.total++;
+        if (index > 0) {
+          existing.midSentence++;
+        }
+        
+        nouns.set(lowerWord, existing);
+      });
+    });
+    
+    // Filter: include words that either appear mid-sentence at least once,
+    // OR appear frequently enough (5+ times) even if only at sentence starts
+    const filtered = new Map();
+    nouns.forEach((counts, word) => {
+      if (counts.midSentence > 0) {
+        // Has at least one mid-sentence occurrence - count all
+        filtered.set(word, counts.total);
+      } else if (counts.total >= 5) {
+        // Appears very frequently, likely a proper noun even without mid-sentence proof
+        filtered.set(word, counts.total);
+      }
+    });
+    
+    return filtered;
+  }
+
+  // Get suggested triggers (frequent nouns without story cards)
+  getSuggestedTriggers(text) {
+    if (!this.suggestedTriggersEnabled) return new Map();
+    
+    const nounFrequencies = this.extractPotentialNouns(text);
+    const suggested = new Map();
+    
+    nounFrequencies.forEach((count, noun) => {
+      // Skip if this noun already has a story card
+      if (this.cachedTriggers.has(noun)) return;
+      
+      // Skip if below threshold
+      if (count < this.suggestedTriggerThreshold) return;
+      
+      suggested.set(noun, count);
+    });
+    
+    console.log('TriggerHighlightFeature: Suggested triggers:', Object.fromEntries(suggested));
+    return suggested;
+  }
+
   highlightTriggersInModal(modal) {
-    if (this.cachedTriggers.size === 0) {
-      console.log('TriggerHighlightFeature: No triggers to highlight');
-      console.log('TriggerHighlightFeature: Cached triggers map:', Object.fromEntries(this.cachedTriggers));
+    const hasTriggers = this.cachedTriggers.size > 0;
+    const suggestedEnabled = this.suggestedTriggersEnabled;
+    
+    if (!hasTriggers && !suggestedEnabled) {
+      console.log('TriggerHighlightFeature: No triggers to highlight and suggested triggers disabled');
       return;
     }
-    console.log('TriggerHighlightFeature: Highlighting with triggers:', Object.fromEntries(this.cachedTriggers));
+    
+    if (hasTriggers) {
+      console.log('TriggerHighlightFeature: Highlighting with triggers:', Object.fromEntries(this.cachedTriggers));
+    }
 
     // Find the story text content within the Adventure modal
     // The story text is in a scrollable area with font_mono class
     const storyTextElements = modal.querySelectorAll('.font_mono.is_Paragraph');
     
+    // Collect all text for noun frequency analysis
+    let allText = '';
+    storyTextElements.forEach(element => {
+      allText += element.textContent + ' ';
+    });
+    
+    // Get suggested triggers from the combined text
+    const suggestedTriggers = this.getSuggestedTriggers(allText);
+    if (suggestedTriggers.size > 0) {
+      console.log('TriggerHighlightFeature: Found suggested triggers:', Object.fromEntries(suggestedTriggers));
+    }
+    
     storyTextElements.forEach(element => {
       if (!this.processedElements.has(element)) {
-        this.highlightElement(element);
+        this.highlightElement(element, suggestedTriggers);
         this.processedElements.add(element);
       }
     });
   }
 
-  highlightElement(element) {
+  highlightElement(element, suggestedTriggers = new Map()) {
     if (!element || !element.textContent) return;
     
     const originalText = element.textContent;
@@ -431,7 +603,7 @@ class TriggerHighlightFeature {
     const sortedTriggers = Array.from(this.cachedTriggers.keys())
       .sort((a, b) => b.length - a.length);
     
-    // Create a regex pattern for all triggers
+    // Highlight existing triggers (yellow)
     sortedTriggers.forEach(trigger => {
       const cardName = this.cachedTriggers.get(trigger) || 'Unknown Card';
       // Escape the card name for use in HTML attribute
@@ -442,6 +614,33 @@ class TriggerHighlightFeature {
       const regex = new RegExp(`\\b(${escapedTrigger})\\b`, 'gi');
       html = html.replace(regex, `<span class="bd-trigger-highlight" data-card-name="${escapedCardName}">$1</span>`);
     });
+    
+    // Highlight suggested triggers (cyan) - only if not already highlighted
+    if (suggestedTriggers.size > 0) {
+      const sortedSuggested = Array.from(suggestedTriggers.keys())
+        .sort((a, b) => b.length - a.length);
+      
+      sortedSuggested.forEach(noun => {
+        const count = suggestedTriggers.get(noun);
+        const escapedNoun = this.escapeRegExp(noun);
+        const regex = new RegExp(`\\b(${escapedNoun})\\b`, 'gi');
+        
+        // Capture current html state before this replacement
+        const htmlBeforeReplace = html;
+        
+        html = html.replace(regex, (match, p1, offset) => {
+          // Check if this match is inside an existing highlight span using the pre-replace state
+          const beforeMatch = htmlBeforeReplace.substring(0, offset);
+          const lastOpenSpan = beforeMatch.lastIndexOf('<span');
+          const lastCloseSpan = beforeMatch.lastIndexOf('</span>');
+          // If there's an open span tag after the last close span, we're inside a span
+          if (lastOpenSpan > lastCloseSpan) {
+            return match; // Don't highlight, already inside a span
+          }
+          return `<span class="bd-suggested-trigger" data-occurrences="${count}">${p1}</span>`;
+        });
+      });
+    }
     
     // Only update if we made changes
     if (html !== this.escapeHtml(originalText)) {
@@ -492,7 +691,7 @@ class TriggerHighlightFeature {
 
   removeHighlights() {
     // Remove all highlight spans and restore original text
-    document.querySelectorAll('.bd-trigger-highlight').forEach(span => {
+    document.querySelectorAll('.bd-trigger-highlight, .bd-suggested-trigger').forEach(span => {
       const parent = span.parentNode;
       if (parent) {
         parent.replaceChild(document.createTextNode(span.textContent), span);

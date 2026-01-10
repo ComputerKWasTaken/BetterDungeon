@@ -50,6 +50,10 @@ An all-in-one browser extension that enhances AI Dungeon with additional QOL add
   - Returns the "Readable" tab back to its rightful place :D
 
 - **Story Card Triggers Highlighting**: Scans for story card triggers in the recent story portion of the context viewer and highlights them, including a hover tooltip that links to the story card
+  - **Suggested Triggers**: Automatically detects frequently mentioned proper nouns (names, places, etc.) that don't have associated story cards and highlights them in cyan with a dashed underline
+  - Hover over suggested triggers to see how many times they appear in the context
+  - Helps identify potential story cards you may want to create
+  - Configurable threshold (default: 3 mentions) for when a noun is suggested
 
 - **Hotkeys**: Keyboard shortcuts for common AI Dungeon actions
   - Works only when not typing in a text field
@@ -77,7 +81,7 @@ An all-in-one browser extension that enhances AI Dungeon with additional QOL add
 - And more...
 
 ### Planned Enhancements
-- Expanding on the Story Card Triggers Highlighting feature to include a check for potentially missed story card triggers in the recent story portion of the context viewer
+- (None currently planned)
 
 ## Bugs/Issues
 
