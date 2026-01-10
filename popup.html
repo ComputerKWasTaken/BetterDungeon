@@ -29,14 +29,14 @@
       <div class="card-group">
         <header class="card-group-header">
           <h3 class="card-group-title">Story Input Options</h3>
-          <p class="card-group-desc">Additional input modes</p>
+          <p class="card-group-desc">New input modes in the action menu</p>
         </header>
 
         <article class="card nested" data-feature="command">
           <div class="card-header">
             <div class="card-info">
-              <h3 class="card-title">Command</h3>
-              <p class="card-desc">Direct instructions to the AI</p>
+              <h3 class="card-title">Command Mode</h3>
+              <p class="card-desc">Send narrative commands to the AI</p>
             </div>
             <div class="card-actions">
               <button class="chevron-btn" data-expand="command" aria-label="Expand">
@@ -49,15 +49,16 @@
             </div>
           </div>
           <div class="card-body" id="expanded-command">
-            <p class="card-detail">Adds a <strong>Command</strong> input option that formats text as a header for direct AI instructions.</p>
+            <p class="card-detail">Adds a <strong>Command</strong> button to the input menu. Text is formatted as <code>## Your Command:</code> for direct AI instructions.</p>
+            <p class="card-hint">Great for: Time skips, scene changes, and guiding story direction.</p>
           </div>
         </article>
 
         <article class="card nested" data-feature="attempt">
           <div class="card-header">
             <div class="card-info">
-              <h3 class="card-title">Attempt</h3>
-              <p class="card-desc">RNG-based action outcomes</p>
+              <h3 class="card-title">Attempt Mode</h3>
+              <p class="card-desc">Dice-roll action outcomes</p>
             </div>
             <div class="card-actions">
               <button class="chevron-btn" data-expand="attempt" aria-label="Expand">
@@ -70,15 +71,18 @@
             </div>
           </div>
           <div class="card-body" id="expanded-attempt">
-            <p class="card-detail">Dice-roll mechanics for actions. Use <strong>+</strong>/<strong>−</strong> to adjust odds.</p>
-            <div class="option-row">
-              <div class="option-info">
-                <span class="option-label">Critical Chance</span>
-                <span class="option-hint">Chance for critical outcomes</span>
-              </div>
-              <div class="slider-group">
-                <input type="range" id="critical-chance" min="0" max="20" value="5" class="slider">
-                <span class="slider-value" id="critical-chance-value">5%</span>
+            <p class="card-detail">RNG determines if actions succeed or fail. Formats as: <code>You attempt to [action], you [result].</code></p>
+            <p class="card-hint">Outcomes: critically fail, fail, succeed, critically succeed. Use arrow keys (↑↓) to adjust odds.</p>
+            <div class="card-options">
+              <div class="option-row">
+                <div class="option-info">
+                  <span class="option-label">Critical Chance</span>
+                  <span class="option-hint">Chance for critical success/failure (0-20%)</span>
+                </div>
+                <div class="slider-group">
+                  <input type="range" id="critical-chance" min="0" max="20" value="5" class="slider">
+                  <span class="slider-value" id="critical-chance-value">5%</span>
+                </div>
               </div>
             </div>
           </div>
@@ -89,7 +93,7 @@
         <div class="card-header">
           <div class="card-info">
             <h3 class="card-title">Markdown Formatting</h3>
-            <p class="card-desc">Rich text formatting in adventures</p>
+            <p class="card-desc">Rich text in AI responses</p>
           </div>
           <div class="card-actions">
             <button class="chevron-btn" data-expand="markdown" aria-label="Expand">
@@ -102,12 +106,23 @@
           </div>
         </div>
         <div class="card-body" id="expanded-markdown">
-          <p class="card-detail">Enables <strong>bold</strong>, <em>italic</em>, <u>underline</u>, headers, and lists in AI Dungeon.</p>
+          <p class="card-detail">Renders <strong>bold</strong>, <em>italic</em>, <u>underline</u>, headers, lists, and more. Uses asterisk-free syntax that works with AI Dungeon.</p>
+          <div class="syntax-reference">
+            <h4 class="syntax-title">Syntax Reference</h4>
+            <div class="syntax-grid">
+              <code>{{text}}</code><span><strong>bold</strong></span>
+              <code>_text_</code><span><em>italic</em></span>
+              <code>++text++</code><span><u>underline</u></span>
+              <code>~~text~~</code><span><s>strikethrough</s></span>
+              <code># Header</code><span>Headers (H1-H6)</span>
+              <code>> quote</code><span>Blockquotes</span>
+            </div>
+          </div>
           <div class="card-options">
             <div class="option-row">
               <div class="option-info">
                 <span class="option-label">Auto-apply on adventure</span>
-                <span class="option-hint">Apply when entering an adventure</span>
+                <span class="option-hint">Inject formatting instructions when entering an adventure</span>
               </div>
               <label class="toggle sm">
                 <input type="checkbox" id="auto-apply-instructions">
@@ -116,12 +131,13 @@
             </div>
             <div class="option-row">
               <div class="option-info">
-                <span class="option-label">Apply now</span>
-                <span class="option-hint">Manually apply instructions</span>
+                <span class="option-label">Apply Instructions</span>
+                <span class="option-hint">Manually inject formatting guidelines into current adventure</span>
               </div>
               <button class="btn-sm" id="apply-instructions-btn">Apply</button>
             </div>
           </div>
+          <p class="card-note">The AI may not always follow formatting perfectly—you may need to nudge it.</p>
         </div>
       </article>
 
@@ -129,7 +145,7 @@
         <div class="card-header">
           <div class="card-info">
             <h3 class="card-title">Trigger Highlighting</h3>
-            <p class="card-desc">Highlight story card triggers</p>
+            <p class="card-desc">Visualize story card triggers</p>
           </div>
           <div class="card-actions">
             <button class="chevron-btn" data-expand="triggerHighlight" aria-label="Expand">
@@ -142,22 +158,24 @@
           </div>
         </div>
         <div class="card-body" id="expanded-triggerHighlight">
-          <p class="card-detail">Highlights triggers in the context viewer with card name tooltips.</p>
+          <p class="card-detail">Highlights story card triggers in the context viewer. Hover for card name tooltips.</p>
+          <p class="card-hint"><strong>Suggested Triggers:</strong> Frequently mentioned names/places without story cards appear in cyan with dashed underlines.</p>
           <div class="card-options">
             <div class="option-row">
               <div class="option-info">
                 <span class="option-label">Auto-scan on adventure</span>
-                <span class="option-hint">Scan when entering an adventure</span>
+                <span class="option-hint">Scan story cards when entering an adventure</span>
               </div>
               <label class="toggle sm">
                 <input type="checkbox" id="auto-scan-triggers">
                 <span class="toggle-track"></span>
               </label>
             </div>
+            <p class="option-warning">⚠️ Auto-scan makes API requests. May increase load times on adventures with many story cards.</p>
             <div class="option-row">
               <div class="option-info">
-                <span class="option-label">Scan now</span>
-                <span class="option-hint">Manually scan story cards</span>
+                <span class="option-label">Scan Story Cards</span>
+                <span class="option-hint">Manually scan triggers for current adventure</span>
               </div>
               <button class="btn-sm" id="scan-triggers-btn">Scan</button>
             </div>
@@ -168,13 +186,13 @@
     </section>
 
     <section class="tab-content" id="tab-enhancements">
-      <p class="tab-intro">Automatic improvements—no configuration needed.</p>
+      <p class="tab-intro">Automatic improvements—always active, no configuration needed.</p>
       <div class="enhancement-list">
         <article class="enhancement-card" data-feature="hotkey">
           <span class="enhancement-icon">⌨️</span>
           <div class="enhancement-info">
             <h3 class="enhancement-title">Hotkeys</h3>
-            <p class="enhancement-desc">Keyboard shortcuts for common actions.</p>
+            <p class="enhancement-desc">Keyboard shortcuts for quick actions. Only active when not typing.</p>
           </div>
           <div class="enhancement-actions">
             <button class="chevron-btn" data-expand="hotkey-details" aria-label="Expand">
@@ -189,7 +207,7 @@
         <div class="enhancement-details" id="hotkey-details">
           <div class="hotkey-list">
             <div class="hotkey-group">
-              <h4 class="hotkey-group-title">Command Bar</h4>
+              <h4 class="hotkey-group-title">Actions</h4>
               <div class="hotkey-item"><kbd>T</kbd> Take a Turn</div>
               <div class="hotkey-item"><kbd>C</kbd> Continue</div>
               <div class="hotkey-item"><kbd>R</kbd> Retry</div>
@@ -215,8 +233,8 @@
         <article class="enhancement-card">
           <span class="enhancement-icon">📖</span>
           <div class="enhancement-info">
-            <h3 class="enhancement-title">Readable Tab Repositioning</h3>
-            <p class="enhancement-desc">Moves "Readable" tab after "All" in Section Tabs.</p>
+            <h3 class="enhancement-title">Readable Tab Fix</h3>
+            <p class="enhancement-desc">Moves "Readable" tab back to its rightful place after "All" in Section Tabs.</p>
           </div>
         </article>
       </div>

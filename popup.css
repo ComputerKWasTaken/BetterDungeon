@@ -726,3 +726,72 @@ body {
   color: var(--text-muted);
   margin: 4px 0 0;
 }
+
+/* Syntax Reference */
+.syntax-reference {
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 8px 0;
+}
+
+.syntax-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent-primary);
+  margin: 0 0 8px;
+}
+
+.syntax-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  font-size: 11px;
+}
+
+.syntax-grid code {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 10px;
+  color: var(--accent-secondary);
+  background: var(--bg-elevated);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.syntax-grid span {
+  color: var(--text-secondary);
+}
+
+/* Card hints and notes */
+.card-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 6px 0 0;
+  line-height: 1.4;
+}
+
+.card-hint strong {
+  color: var(--accent-secondary);
+}
+
+.card-note {
+  font-size: 10px;
+  font-style: italic;
+  color: var(--text-muted);
+  margin: 10px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* Option warning */
+.option-warning {
+  font-size: 10px;
+  color: var(--warning, #f59e0b);
+  background: rgba(245, 158, 11, 0.1);
+  padding: 6px 10px;
+  border-radius: 4px;
+  margin: 6px 0;
+  line-height: 1.4;
+}
