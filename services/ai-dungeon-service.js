@@ -242,10 +242,11 @@ class AIDungeonService {
     // Check for unique phrases from the actual instruction file
     // These are specific enough to avoid false positives
     const markers = [
-      'ALWAYS format your responses with Markdown',
-      '{{Bold}}',
-      '{{_Bold Italic_}}',
-      '{{++Bold Underlined++}}'
+      '[FORMATTING]',
+      'ALWAYS use Markdown in your responses',
+      '__Bold__: Emphasis, names',
+      '___Bold Italic___: Intense outbursts',
+      '~Small Text~: Whispers'
     ];
     
     // Return true if ANY marker is found
