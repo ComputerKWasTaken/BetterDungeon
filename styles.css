@@ -66,29 +66,15 @@
   font-family: inherit;
 }
 
-/* Superscript - whispers, ethereal voices */
-.bd-markdown .bd-superscript,
-.bd-markdown sup,
-[data-bd-processed="true"] .bd-superscript,
-[data-bd-processed="true"] sup {
+/* Small/faint text - whispers, quiet speech, ethereal voices */
+.bd-markdown .bd-small-text,
+[data-bd-processed="true"] .bd-small-text {
   font-size: 0.75em;
-  vertical-align: super;
+  vertical-align: baseline;
   color: inherit;
-  opacity: 0.7;
+  opacity: 0.65;
   font-family: inherit;
-  letter-spacing: 0.5px;
-}
-
-/* Subscript - muffled, quiet speech */
-.bd-markdown .bd-subscript,
-.bd-markdown sub,
-[data-bd-processed="true"] .bd-subscript,
-[data-bd-processed="true"] sub {
-  font-size: 0.75em;
-  vertical-align: sub;
-  color: inherit;
-  opacity: 0.6;
-  font-family: inherit;
+  letter-spacing: 0.3px;
 }
 
 /* ============================================

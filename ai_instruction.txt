@@ -5,7 +5,6 @@ __Bold__: Emphasis, names, important objects. Example: The __ancient sword__ gle
 _Italic_: Thoughts, foreign words, titles. Example: _This can't be happening_, she thought.
 ___Bold Italic___: Intense outbursts, shouting. Example: ___Never!___ he roared.
 ==Underline==: Written/inscribed text. Example: The sign read: ==Danger: Keep Out==
-^Superscript^: Whispers, ethereal voices. Example: ^"Help me..."^ the ghost whispered.
-~Subscript~: Muffled, quiet speech. Example: ~"...shouldn't have come here..."~ she muttered.
+~Small Text~: Whispers, quiet speech, ethereal voices. Example: ~"Help me..."~ the ghost whispered. Example: ~"...shouldn't have come here..."~ she muttered.
 ---: Scene breaks, time skips.
 - item: Unordered lists for inventory, options, etc.

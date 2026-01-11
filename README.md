@@ -16,8 +16,7 @@ An all-in-one browser extension that enhances AI Dungeon with additional QOL add
   | `_italic_` | *italic* | Thoughts, foreign words, titles |
   | `___bold italic___` | ***bold italic*** | Intense outbursts, shouted words |
   | `==underline==` | underline | Written/inscribed text, labels |
-  | `^superscript^` | ^whisper^ | Whispers, ethereal voices, echoes |
-  | `~subscript~` | ~muffled~ | Muffled sounds, quiet muttering |
+  | `~small text~` | small faint text | Whispers, quiet speech, ethereal voices |
   | `---` | ─────── | Scene breaks, time skips |
   | `- item` | • item | Unordered lists (inventory, options, etc.) |
 

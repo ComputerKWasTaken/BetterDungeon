@@ -350,8 +350,7 @@ class MarkdownFeature {
       /(?:^|[^_])__.+?__(?:[^_]|$)/, // Bold __text__
       /(?:^|[^_])_[^_]+?_(?:[^_]|$)/, // Italic _text_
       /==.+?==/,           // Underline ==text==
-      /\^.+?\^/,           // Superscript ^text^
-      /(?:^|[^~])~[^~]+?~(?:[^~]|$)/, // Subscript ~text~
+      /(?:^|[^~])~[^~]+?~(?:[^~]|$)/, // Small text ~text~
       /^\s*[-]{3,}\s*$/m,  // Horizontal rules ---
       /^\s*[-]\s/m,        // Unordered lists
     ];
@@ -413,11 +412,8 @@ class MarkdownFeature {
     // Underline: ==text==
     html = html.replace(/==(.+?)==/g, '<u>$1</u>');
 
-    // Superscript: ^text^
-    html = html.replace(/\^(.+?)\^/g, '<sup class="bd-superscript">$1</sup>');
-
-    // Subscript: ~text~ (not preceded/followed by another ~)
-    html = html.replace(/(^|[^~])~([^~]+?)~([^~]|$)/g, '$1<sub class="bd-subscript">$2</sub>$3');
+    // Small/faint text: ~text~
+    html = html.replace(/(^|[^~])~([^~]+?)~([^~]|$)/g, '$1<span class="bd-small-text">$2</span>$3');
 
     // Horizontal rules (--- only, no underscores to avoid conflicts)
     html = html.replace(/^(\s*)[-]{3,}\s*$/gm, '$1<hr class="bd-hr">');
