@@ -21,6 +21,7 @@
   <nav class="tab-nav">
     <button class="tab-btn active" data-tab="features">Features</button>
     <button class="tab-btn" data-tab="enhancements">Enhancements</button>
+    <button class="tab-btn" data-tab="presets">Presets</button>
   </nav>
 
   <main class="content">
@@ -187,6 +188,27 @@
 
     </section>
 
+    <section class="tab-content" id="tab-presets">
+      <p class="tab-intro">Save and manage your favorite plot component configurations.</p>
+
+      <div class="preset-actions">
+        <button class="btn-sm btn-full" id="save-current-preset-btn">
+          <span class="btn-icon">★</span> Save Current Plot as Preset
+        </button>
+        <button class="btn-sm btn-secondary" id="undo-preset-btn" style="display: none;">
+          <span class="btn-icon">↩</span> Undo Last Apply
+        </button>
+      </div>
+
+      <div class="preset-list" id="preset-list">
+        <div class="preset-empty" id="preset-empty">
+          <span class="preset-empty-icon">📋</span>
+          <p>No presets saved yet</p>
+          <p class="preset-empty-hint">Navigate to an adventure's Plot tab and save your current configuration.</p>
+        </div>
+      </div>
+    </section>
+
     <section class="tab-content" id="tab-enhancements">
       <p class="tab-intro">Automatic improvements that are always active, no configuration needed.</p>
       <div class="enhancement-list">
@@ -242,6 +264,84 @@
       </div>
     </section>
   </main>
+
+  <!-- Preset Preview/Edit Modal -->
+  <div class="modal-overlay" id="preset-modal" style="display: none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-title">Preview Preset</h3>
+        <button class="modal-close" id="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-field">
+          <label class="modal-label">Preset Name</label>
+          <input type="text" class="modal-input" id="modal-preset-name" placeholder="My Preset">
+        </div>
+        <div class="modal-field" id="modal-field-ai">
+          <label class="modal-label">
+            <input type="checkbox" id="modal-check-ai" checked>
+            AI Instructions
+          </label>
+          <textarea class="modal-textarea" id="modal-ai-instructions" placeholder="No AI Instructions saved"></textarea>
+        </div>
+        <div class="modal-field" id="modal-field-essentials">
+          <label class="modal-label">
+            <input type="checkbox" id="modal-check-essentials" checked>
+            Plot Essentials
+          </label>
+          <textarea class="modal-textarea" id="modal-plot-essentials" placeholder="No Plot Essentials saved"></textarea>
+        </div>
+        <div class="modal-field" id="modal-field-note">
+          <label class="modal-label">
+            <input type="checkbox" id="modal-check-note" checked>
+            Author's Note
+          </label>
+          <textarea class="modal-textarea" id="modal-authors-note" placeholder="No Author's Note saved"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-sm btn-secondary" id="modal-cancel">Cancel</button>
+        <button class="btn-sm btn-primary" id="modal-save">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Save Preset Modal (for selecting components) -->
+  <div class="modal-overlay" id="save-modal" style="display: none;">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h3 class="modal-title">Save New Preset</h3>
+        <button class="modal-close" id="save-modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-field">
+          <label class="modal-label">Preset Name</label>
+          <input type="text" class="modal-input" id="save-preset-name" placeholder="My Preset">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Components to Save</label>
+          <div class="component-checklist">
+            <label class="component-check">
+              <input type="checkbox" id="save-check-ai" checked>
+              <span>AI Instructions</span>
+            </label>
+            <label class="component-check">
+              <input type="checkbox" id="save-check-essentials" checked>
+              <span>Plot Essentials</span>
+            </label>
+            <label class="component-check">
+              <input type="checkbox" id="save-check-note" checked>
+              <span>Author's Note</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-sm btn-secondary" id="save-modal-cancel">Cancel</button>
+        <button class="btn-sm btn-primary" id="save-modal-confirm">Save Preset</button>
+      </div>
+    </div>
+  </div>
 
   <script src="popup.js"></script>
 </body>

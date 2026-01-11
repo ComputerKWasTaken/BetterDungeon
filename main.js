@@ -33,6 +33,27 @@ class BetterDungeon {
       } else if (message.type === 'APPLY_INSTRUCTIONS_WITH_LOADING') {
         this.handleApplyInstructionsWithLoading().then(sendResponse);
         return true;
+      } else if (message.type === 'GET_PRESETS') {
+        this.handleGetPresets().then(sendResponse);
+        return true;
+      } else if (message.type === 'SAVE_PRESET') {
+        this.handleSavePreset(message.name, message.components).then(sendResponse);
+        return true;
+      } else if (message.type === 'APPLY_PRESET') {
+        this.handleApplyPreset(message.presetId, message.mode).then(sendResponse);
+        return true;
+      } else if (message.type === 'DELETE_PRESET') {
+        this.handleDeletePreset(message.presetId).then(sendResponse);
+        return true;
+      } else if (message.type === 'UPDATE_PRESET') {
+        this.handleUpdatePreset(message.presetId, message.updates).then(sendResponse);
+        return true;
+      } else if (message.type === 'SAVE_CURRENT_AS_PRESET') {
+        this.handleSaveCurrentAsPreset(message.name, message.includeComponents).then(sendResponse);
+        return true;
+      } else if (message.type === 'UNDO_PRESET_APPLY') {
+        this.handleUndoPresetApply(message.previousState).then(sendResponse);
+        return true;
       }
     });
   }
@@ -57,6 +78,85 @@ class BetterDungeon {
       return await markdownFeature.applyInstructionsWithLoadingScreen();
     }
     return { success: false, error: 'Markdown feature not available' };
+  }
+
+  async handleGetPresets() {
+    const feature = this.featureManager.features.get('favoriteInstructions');
+    if (feature) {
+      const presets = await feature.getAllPresets();
+      return { success: true, presets };
+    }
+    return { success: false, error: 'Feature not available' };
+  }
+
+  async handleSavePreset(name, components) {
+    const feature = this.featureManager.features.get('favoriteInstructions');
+    if (feature) {
+      const preset = await feature.createPreset(name, components);
+      return { success: true, preset };
+    }
+    return { success: false, error: 'Feature not available' };
+  }
+
+  async handleApplyPreset(presetId, mode) {
+    const feature = this.featureManager.features.get('favoriteInstructions');
+    if (feature) {
+      return await feature.applyPreset(presetId, mode);
+    }
+    return { success: false, error: 'Feature not available' };
+  }
+
+  async handleDeletePreset(presetId) {
+    const feature = this.featureManager.features.get('favoriteInstructions');
+    if (feature) {
+      const deleted = await feature.deletePreset(presetId);
+      return { success: deleted };
+    }
+    return { success: false, error: 'Feature not available' };
+  }
+
+  async handleUpdatePreset(presetId, updates) {
+    const feature = this.featureManager.features.get('favoriteInstructions');
+    if (feature) {
+      const preset = await feature.updatePreset(presetId, updates);
+      return { success: !!preset, preset };
+    }
+    return { success: false, error: 'Feature not available' };
+  }
+
+  async handleSaveCurrentAsPreset(name, includeComponents = null) {
+    console.log('BetterDungeon: handleSaveCurrentAsPreset called with name:', name);
+    console.log('BetterDungeon: includeComponents:', includeComponents);
+    console.log('BetterDungeon: Available features:', Array.from(this.featureManager.features.keys()));
+    
+    const feature = this.featureManager.features.get('favoriteInstructions');
+    if (feature) {
+      console.log('BetterDungeon: favoriteInstructions feature found, calling saveCurrentAsPreset');
+      try {
+        const result = await feature.saveCurrentAsPreset(name, includeComponents);
+        console.log('BetterDungeon: saveCurrentAsPreset result:', result);
+        return result;
+      } catch (error) {
+        console.error('BetterDungeon: Error in saveCurrentAsPreset:', error);
+        return { success: false, error: error.message };
+      }
+    }
+    console.log('BetterDungeon: favoriteInstructions feature NOT found');
+    return { success: false, error: 'Favorite Instructions feature not enabled. Enable it in the Presets tab.' };
+  }
+
+  async handleUndoPresetApply(previousState) {
+    console.log('BetterDungeon: handleUndoPresetApply called');
+    const feature = this.featureManager.features.get('favoriteInstructions');
+    if (feature) {
+      try {
+        return await feature.restorePreviousState(previousState);
+      } catch (error) {
+        console.error('BetterDungeon: Error in restorePreviousState:', error);
+        return { success: false, error: error.message };
+      }
+    }
+    return { success: false, error: 'Feature not available' };
   }
 
   async handleScanStoryCards() {

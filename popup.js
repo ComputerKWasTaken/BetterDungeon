@@ -9,7 +9,8 @@ const DEFAULT_FEATURES = {
   command: true,
   attempt: true,
   triggerHighlight: true,
-  hotkey: true
+  hotkey: true,
+  favoriteInstructions: true
 };
 
 const SETTINGS_KEY = 'betterDungeonSettings';
@@ -33,6 +34,8 @@ document.addEventListener('DOMContentLoaded', function() {
   setupAutoApplyToggle();
   setupHotkeyDetailsToggle();
   setupProfileLinks();
+  setupPresetManagement();
+  loadPresets();
 });
 
 // Setup tab navigation
@@ -425,4 +428,470 @@ function setupProfileLinks() {
       }
     });
   });
+}
+
+// ============================================
+// PRESET MANAGEMENT
+// ============================================
+
+const PRESETS_STORAGE_KEY = 'betterDungeon_favoritePresets';
+let currentEditingPreset = null;
+let lastUndoState = null; // Store previous state for undo
+
+// Load presets from storage and render them
+async function loadPresets() {
+  chrome.storage.sync.get(PRESETS_STORAGE_KEY, function(result) {
+    const presets = result[PRESETS_STORAGE_KEY] || [];
+    renderPresets(presets);
+  });
+}
+
+// Render preset list
+function renderPresets(presets) {
+  const listContainer = document.getElementById('preset-list');
+  const emptyState = document.getElementById('preset-empty');
+  
+  if (!listContainer) return;
+  
+  // Clear existing preset cards (but keep empty state)
+  const existingCards = listContainer.querySelectorAll('.preset-card');
+  existingCards.forEach(card => card.remove());
+  
+  if (presets.length === 0) {
+    if (emptyState) emptyState.style.display = 'flex';
+    return;
+  }
+  
+  if (emptyState) emptyState.style.display = 'none';
+  
+  // Sort by use count (most used first)
+  const sortedPresets = [...presets].sort((a, b) => b.useCount - a.useCount);
+  
+  sortedPresets.forEach(preset => {
+    const card = createPresetCard(preset);
+    listContainer.appendChild(card);
+  });
+}
+
+// Create a preset card element
+function createPresetCard(preset) {
+  const card = document.createElement('div');
+  card.className = 'preset-card';
+  card.dataset.presetId = preset.id;
+  
+  // Build component badges
+  const componentBadges = [];
+  if (preset.components.aiInstructions) componentBadges.push('AI Instructions');
+  if (preset.components.plotEssentials) componentBadges.push('Plot Essentials');
+  if (preset.components.authorsNote) componentBadges.push("Author's Note");
+  
+  card.innerHTML = `
+    <div class="preset-header">
+      <div class="preset-info">
+        <h4 class="preset-name">${escapeHtml(preset.name)}</h4>
+        <div class="preset-meta">
+          <span class="preset-uses">${preset.useCount} uses</span>
+          <span class="preset-components">${componentBadges.join(' • ')}</span>
+        </div>
+      </div>
+      <button class="preset-menu-btn" aria-label="Preset options">⋮</button>
+    </div>
+    <div class="preset-actions-row">
+      <button class="preset-apply-btn" data-mode="replace">Replace</button>
+      <button class="preset-apply-btn preset-apply-append" data-mode="append">Append</button>
+    </div>
+    <div class="preset-menu" style="display: none;">
+      <button class="preset-menu-item preset-preview-btn">Preview / Edit</button>
+      <button class="preset-menu-item preset-delete-btn">Delete</button>
+    </div>
+  `;
+  
+  // Setup event handlers
+  setupPresetCardHandlers(card, preset);
+  
+  return card;
+}
+
+// Setup handlers for a preset card
+function setupPresetCardHandlers(card, preset) {
+  // Menu toggle
+  const menuBtn = card.querySelector('.preset-menu-btn');
+  const menu = card.querySelector('.preset-menu');
+  
+  menuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    // Close all other menus first
+    document.querySelectorAll('.preset-menu').forEach(m => {
+      if (m !== menu) m.style.display = 'none';
+    });
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+  });
+  
+  // Close menu when clicking elsewhere
+  document.addEventListener('click', () => {
+    menu.style.display = 'none';
+  });
+  
+  // Apply buttons
+  card.querySelectorAll('.preset-apply-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const mode = btn.dataset.mode;
+      await applyPreset(preset.id, mode);
+    });
+  });
+  
+  // Preview/Edit button
+  card.querySelector('.preset-preview-btn').addEventListener('click', async () => {
+    menu.style.display = 'none';
+    openPresetModal(preset);
+  });
+  
+  // Delete button
+  card.querySelector('.preset-delete-btn').addEventListener('click', async () => {
+    menu.style.display = 'none';
+    if (confirm(`Delete preset "${preset.name}"?`)) {
+      await deletePreset(preset.id);
+    }
+  });
+}
+
+// Apply a preset to current adventure
+async function applyPreset(presetId, mode) {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    if (!tab?.id || !tab.url?.includes('aidungeon.com')) {
+      showPresetStatus('Navigate to AI Dungeon first', 'error');
+      return;
+    }
+    
+    const response = await chrome.tabs.sendMessage(tab.id, {
+      type: 'APPLY_PRESET',
+      presetId: presetId,
+      mode: mode
+    });
+    
+    if (response?.success) {
+      // Store undo state if provided
+      if (response.previousState) {
+        lastUndoState = response.previousState;
+        updateUndoButton();
+      }
+      showPresetStatus(`Applied (${mode})!`, 'success');
+      // Reload presets to update use count
+      loadPresets();
+    } else {
+      showPresetStatus(response?.error || 'Failed to apply', 'error');
+    }
+  } catch (error) {
+    console.error('Apply preset error:', error);
+    showPresetStatus('Error applying preset', 'error');
+  }
+}
+
+// Update undo button visibility
+function updateUndoButton() {
+  const undoBtn = document.getElementById('undo-preset-btn');
+  if (undoBtn) {
+    undoBtn.style.display = lastUndoState ? 'flex' : 'none';
+  }
+}
+
+// Update a preset
+async function updatePreset(presetId, updates) {
+  chrome.storage.sync.get(PRESETS_STORAGE_KEY, function(result) {
+    const presets = result[PRESETS_STORAGE_KEY] || [];
+    const index = presets.findIndex(p => p.id === presetId);
+    
+    if (index !== -1) {
+      presets[index] = { ...presets[index], ...updates, updatedAt: Date.now() };
+      chrome.storage.sync.set({ [PRESETS_STORAGE_KEY]: presets }, () => {
+        loadPresets();
+        showPresetStatus('Preset updated!', 'success');
+      });
+    }
+  });
+}
+
+// Delete a preset
+async function deletePreset(presetId) {
+  chrome.storage.sync.get(PRESETS_STORAGE_KEY, function(result) {
+    const presets = result[PRESETS_STORAGE_KEY] || [];
+    const filtered = presets.filter(p => p.id !== presetId);
+    
+    chrome.storage.sync.set({ [PRESETS_STORAGE_KEY]: filtered }, () => {
+      loadPresets();
+      showPresetStatus('Preset deleted', 'success');
+    });
+  });
+}
+
+// Setup preset management buttons
+function setupPresetManagement() {
+  const saveBtn = document.getElementById('save-current-preset-btn');
+  
+  if (saveBtn) {
+    saveBtn.addEventListener('click', async () => {
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        
+        if (!tab?.id || !tab.url?.includes('aidungeon.com')) {
+          showPresetStatus('Navigate to AI Dungeon first', 'error');
+          return;
+        }
+        
+        // Open save modal instead of prompt
+        openSaveModal();
+      } catch (error) {
+        console.error('Save preset error:', error);
+        showPresetStatus('Error opening save dialog', 'error');
+      }
+    });
+  }
+  
+  // Setup modal handlers
+  setupModalHandlers();
+}
+
+// Show status message for preset operations
+function showPresetStatus(message, type) {
+  // Remove existing status
+  const existingStatus = document.querySelector('.preset-status');
+  if (existingStatus) existingStatus.remove();
+  
+  const status = document.createElement('div');
+  status.className = `preset-status preset-status-${type}`;
+  status.textContent = message;
+  
+  const presetList = document.getElementById('preset-list');
+  if (presetList) {
+    presetList.insertBefore(status, presetList.firstChild);
+    
+    setTimeout(() => {
+      status.classList.add('preset-status-fade');
+      setTimeout(() => status.remove(), 300);
+    }, 2000);
+  }
+}
+
+// Escape HTML for safe rendering
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// ============================================
+// MODAL HANDLING
+// ============================================
+
+// Open preset preview/edit modal
+function openPresetModal(preset) {
+  currentEditingPreset = preset;
+  
+  const modal = document.getElementById('preset-modal');
+  const nameInput = document.getElementById('modal-preset-name');
+  const aiTextarea = document.getElementById('modal-ai-instructions');
+  const essentialsTextarea = document.getElementById('modal-plot-essentials');
+  const noteTextarea = document.getElementById('modal-authors-note');
+  const aiCheck = document.getElementById('modal-check-ai');
+  const essentialsCheck = document.getElementById('modal-check-essentials');
+  const noteCheck = document.getElementById('modal-check-note');
+  
+  // Populate fields
+  nameInput.value = preset.name;
+  aiTextarea.value = preset.components.aiInstructions || '';
+  essentialsTextarea.value = preset.components.plotEssentials || '';
+  noteTextarea.value = preset.components.authorsNote || '';
+  
+  // Set checkboxes based on whether content exists
+  aiCheck.checked = !!preset.components.aiInstructions;
+  essentialsCheck.checked = !!preset.components.plotEssentials;
+  noteCheck.checked = !!preset.components.authorsNote;
+  
+  // Update textarea disabled state
+  aiTextarea.disabled = !aiCheck.checked;
+  essentialsTextarea.disabled = !essentialsCheck.checked;
+  noteTextarea.disabled = !noteCheck.checked;
+  
+  modal.style.display = 'flex';
+}
+
+// Close preset modal
+function closePresetModal() {
+  const modal = document.getElementById('preset-modal');
+  modal.style.display = 'none';
+  currentEditingPreset = null;
+}
+
+// Save preset modal changes
+async function savePresetModalChanges() {
+  if (!currentEditingPreset) return;
+  
+  const nameInput = document.getElementById('modal-preset-name');
+  const aiTextarea = document.getElementById('modal-ai-instructions');
+  const essentialsTextarea = document.getElementById('modal-plot-essentials');
+  const noteTextarea = document.getElementById('modal-authors-note');
+  const aiCheck = document.getElementById('modal-check-ai');
+  const essentialsCheck = document.getElementById('modal-check-essentials');
+  const noteCheck = document.getElementById('modal-check-note');
+  
+  const updates = {
+    name: nameInput.value.trim() || currentEditingPreset.name,
+    components: {}
+  };
+  
+  // Only include checked components
+  if (aiCheck.checked && aiTextarea.value.trim()) {
+    updates.components.aiInstructions = aiTextarea.value;
+  }
+  if (essentialsCheck.checked && essentialsTextarea.value.trim()) {
+    updates.components.plotEssentials = essentialsTextarea.value;
+  }
+  if (noteCheck.checked && noteTextarea.value.trim()) {
+    updates.components.authorsNote = noteTextarea.value;
+  }
+  
+  await updatePreset(currentEditingPreset.id, updates);
+  closePresetModal();
+}
+
+// Open save modal (for new presets)
+function openSaveModal() {
+  const modal = document.getElementById('save-modal');
+  const nameInput = document.getElementById('save-preset-name');
+  
+  // Reset form
+  nameInput.value = '';
+  document.getElementById('save-check-ai').checked = true;
+  document.getElementById('save-check-essentials').checked = true;
+  document.getElementById('save-check-note').checked = true;
+  
+  modal.style.display = 'flex';
+  nameInput.focus();
+}
+
+// Close save modal
+function closeSaveModal() {
+  const modal = document.getElementById('save-modal');
+  modal.style.display = 'none';
+}
+
+// Confirm save from modal
+async function confirmSavePreset() {
+  const nameInput = document.getElementById('save-preset-name');
+  const name = nameInput.value.trim();
+  
+  if (!name) {
+    nameInput.focus();
+    return;
+  }
+  
+  const includeAi = document.getElementById('save-check-ai').checked;
+  const includeEssentials = document.getElementById('save-check-essentials').checked;
+  const includeNote = document.getElementById('save-check-note').checked;
+  
+  if (!includeAi && !includeEssentials && !includeNote) {
+    showPresetStatus('Select at least one component', 'error');
+    return;
+  }
+  
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    if (!tab?.id || !tab.url?.includes('aidungeon.com')) {
+      showPresetStatus('Navigate to AI Dungeon first', 'error');
+      return;
+    }
+    
+    closeSaveModal();
+    
+    const response = await chrome.tabs.sendMessage(tab.id, {
+      type: 'SAVE_CURRENT_AS_PRESET',
+      name: name,
+      includeComponents: {
+        aiInstructions: includeAi,
+        plotEssentials: includeEssentials,
+        authorsNote: includeNote
+      }
+    });
+    
+    if (response?.success) {
+      showPresetStatus('Preset saved!', 'success');
+      loadPresets();
+    } else {
+      showPresetStatus(response?.error || 'Failed to save preset', 'error');
+    }
+  } catch (error) {
+    console.error('Save preset error:', error);
+    showPresetStatus('Error saving preset', 'error');
+  }
+}
+
+// Undo last apply
+async function undoLastApply() {
+  if (!lastUndoState) return;
+  
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    if (!tab?.id || !tab.url?.includes('aidungeon.com')) {
+      showPresetStatus('Navigate to AI Dungeon first', 'error');
+      return;
+    }
+    
+    const response = await chrome.tabs.sendMessage(tab.id, {
+      type: 'UNDO_PRESET_APPLY',
+      previousState: lastUndoState
+    });
+    
+    if (response?.success) {
+      showPresetStatus('Undone!', 'success');
+      lastUndoState = null;
+      updateUndoButton();
+    } else {
+      showPresetStatus(response?.error || 'Failed to undo', 'error');
+    }
+  } catch (error) {
+    console.error('Undo error:', error);
+    showPresetStatus('Error undoing', 'error');
+  }
+}
+
+// Setup modal event handlers
+function setupModalHandlers() {
+  // Preview/Edit modal
+  document.getElementById('modal-close')?.addEventListener('click', closePresetModal);
+  document.getElementById('modal-cancel')?.addEventListener('click', closePresetModal);
+  document.getElementById('modal-save')?.addEventListener('click', savePresetModalChanges);
+  
+  // Checkbox toggles for textareas
+  ['ai', 'essentials', 'note'].forEach(type => {
+    const checkId = `modal-check-${type}`;
+    const textareaId = type === 'ai' ? 'modal-ai-instructions' : 
+                       type === 'essentials' ? 'modal-plot-essentials' : 'modal-authors-note';
+    
+    document.getElementById(checkId)?.addEventListener('change', (e) => {
+      const textarea = document.getElementById(textareaId);
+      if (textarea) {
+        textarea.disabled = !e.target.checked;
+      }
+    });
+  });
+  
+  // Save modal
+  document.getElementById('save-modal-close')?.addEventListener('click', closeSaveModal);
+  document.getElementById('save-modal-cancel')?.addEventListener('click', closeSaveModal);
+  document.getElementById('save-modal-confirm')?.addEventListener('click', confirmSavePreset);
+  
+  // Close modals on overlay click
+  document.getElementById('preset-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'preset-modal') closePresetModal();
+  });
+  document.getElementById('save-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'save-modal') closeSaveModal();
+  });
+  
+  // Undo button
+  document.getElementById('undo-preset-btn')?.addEventListener('click', undoLastApply);
 }

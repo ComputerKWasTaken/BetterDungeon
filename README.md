@@ -76,7 +76,6 @@ An all-in-one browser extension that enhances AI Dungeon with additional QOL add
   *Requires the respective feature to be enabled
 
 ### Planned Features
-- Favorite AI Instructions (AIN) storage
 - Adventure categorization and sorting
 - And more...
 
@@ -144,7 +143,8 @@ BetterDungeon/
 │   ├── attempt_feature.js  # Attempt input mode feature
 │   ├── readable_position_feature.js # Readable tab repositioning
 │   ├── trigger_highlight_feature.js # Story card trigger highlighting
-│   └── hotkey_feature.js  # Keyboard shortcuts
+│   ├── hotkey_feature.js   # Keyboard shortcuts
+│   └── favorite_instructions_feature.js # Plot presets storage
 ├── styles.css              # CSS for all features
 ├── popup.html              # Extension popup interface
 ├── popup.js                # Popup settings script

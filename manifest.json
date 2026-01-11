@@ -23,6 +23,7 @@
         "features/readable_position_feature.js",
         "features/trigger_highlight_feature.js",
         "features/hotkey_feature.js",
+        "features/favorite_instructions_feature.js",
         "main.js"
       ],
       "css": ["styles.css"],

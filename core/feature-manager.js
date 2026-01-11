@@ -39,6 +39,13 @@ class FeatureManager {
       this.featureClasses.set('hotkey', HotkeyFeature);
     }
 
+    if (typeof FavoriteInstructionsFeature !== 'undefined') {
+      this.featureClasses.set('favoriteInstructions', FavoriteInstructionsFeature);
+      console.log('FeatureManager: FavoriteInstructionsFeature class registered');
+    } else {
+      console.warn('FeatureManager: FavoriteInstructionsFeature class NOT found!');
+    }
+
     console.log('FeatureManager: Registered feature classes:', Array.from(this.featureClasses.keys()));
   }
 
