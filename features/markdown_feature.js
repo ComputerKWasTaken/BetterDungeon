@@ -346,14 +346,14 @@ class MarkdownFeature {
     if (!text) return false;
 
     const markdownIndicators = [
-      /\*\*\*.+?\*\*\*/,   // Bold Italic ***text***
-      /\*\*.+?\*\*/,       // Bold **text**
-      /(?:^|[^*])\*[^*]+?\*(?:[^*]|$)/, // Italic *text*
-      /__.+?__/,           // Underline __text__
+      /___.+?___/,         // Bold Italic ___text___
+      /(?:^|[^_])__.+?__(?:[^_]|$)/, // Bold __text__
+      /(?:^|[^_])_[^_]+?_(?:[^_]|$)/, // Italic _text_
+      /==.+?==/,           // Underline ==text==
       /\^.+?\^/,           // Superscript ^text^
       /(?:^|[^~])~[^~]+?~(?:[^~]|$)/, // Subscript ~text~
-      /^\s*[-_]{3,}\s*$/m, // Horizontal rules ---
-      /^\s*[-+]\s/m,       // Lists
+      /^\s*[-]{3,}\s*$/m,  // Horizontal rules ---
+      /^\s*[-]\s/m,        // Unordered lists
     ];
 
     return markdownIndicators.some(pattern => pattern.test(text));
@@ -397,21 +397,21 @@ class MarkdownFeature {
 
     let html = this.escapeHtml(text);
 
-    // Bold + Italic: ***text***
-    html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+    // Bold + Italic: ___text___
+    html = html.replace(/___(.+?)___/g, '<strong><em>$1</em></strong>');
 
-    // Bold + Underline: **__text__** or __**text**__
-    html = html.replace(/\*\*__(.+?)__\*\*/g, '<strong><u>$1</u></strong>');
-    html = html.replace(/__\*\*(.+?)\*\*__/g, '<u><strong>$1</strong></u>');
+    // Bold + Underline: __==text==__ or ==__text__==
+    html = html.replace(/__==(.+?)==__/g, '<strong><u>$1</u></strong>');
+    html = html.replace(/==__(.+?)__==/g, '<u><strong>$1</strong></u>');
     
-    // Bold: **text**
-    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // Bold: __text__ (not preceded/followed by another _)
+    html = html.replace(/(^|[^_])__([^_]+?)__([^_]|$)/g, '$1<strong>$2</strong>$3');
 
-    // Italic: *text* (not preceded/followed by another *)
-    html = html.replace(/(^|[^*])\*([^*]+?)\*([^*]|$)/g, '$1<em>$2</em>$3');
+    // Italic: _text_ (not preceded/followed by another _)
+    html = html.replace(/(^|[^_])_([^_]+?)_([^_]|$)/g, '$1<em>$2</em>$3');
 
-    // Underline: __text__
-    html = html.replace(/__(.+?)__/g, '<u>$1</u>');
+    // Underline: ==text==
+    html = html.replace(/==(.+?)==/g, '<u>$1</u>');
 
     // Superscript: ^text^
     html = html.replace(/\^(.+?)\^/g, '<sup class="bd-superscript">$1</sup>');
@@ -419,10 +419,10 @@ class MarkdownFeature {
     // Subscript: ~text~ (not preceded/followed by another ~)
     html = html.replace(/(^|[^~])~([^~]+?)~([^~]|$)/g, '$1<sub class="bd-subscript">$2</sub>$3');
 
-    // Horizontal rules
-    html = html.replace(/^(\s*)[-_]{3,}\s*$/gm, '$1<hr class="bd-hr">');
+    // Horizontal rules (--- only, no underscores to avoid conflicts)
+    html = html.replace(/^(\s*)[-]{3,}\s*$/gm, '$1<hr class="bd-hr">');
 
-    // Lists
+    // Unordered lists
     html = this.processLists(html);
 
     return html;
@@ -442,8 +442,9 @@ class MarkdownFeature {
   // > blockquotes conflict with player action syntax
 
   processLists(html) {
-    // Use - or + only (no asterisk) for list markers
-    html = html.replace(/^(\s*)[-+]\s+(.+)$/gm, '$1<span class="bd-list-item">• $2</span>');
+    // Unordered lists: - item (minus sign only)
+    // Each line starting with - followed by space becomes a bullet point
+    html = html.replace(/^(\s*)[-]\s+(.+)$/gm, '$1<span class="bd-list-item">• $2</span>');
     return html;
   }
 

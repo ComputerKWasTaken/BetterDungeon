@@ -32,6 +32,7 @@ document.addEventListener('DOMContentLoaded', function() {
   setupAutoScanToggle();
   setupAutoApplyToggle();
   setupHotkeyDetailsToggle();
+  setupProfileLinks();
 });
 
 // Setup tab navigation
@@ -408,4 +409,20 @@ function setupAutoApplyToggle() {
       }
     });
   }
+}
+
+// Setup profile links to open in new tabs
+function setupProfileLinks() {
+  const profileLinks = document.querySelectorAll('.card-note a');
+  
+  profileLinks.forEach(link => {
+    link.addEventListener('click', function(e) {
+      e.preventDefault();
+      const url = this.href;
+      
+      if (url && url.includes('aidungeon.com/profile/')) {
+        chrome.tabs.create({ url: url });
+      }
+    });
+  });
 }

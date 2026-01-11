@@ -785,6 +785,24 @@ body {
   border-top: 1px solid var(--border-subtle);
 }
 
+.card-note a {
+  color: var(--accent-primary);
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid transparent;
+}
+
+.card-note a:hover {
+  color: var(--accent-secondary);
+  border-bottom-color: var(--accent-secondary);
+  filter: brightness(1.1);
+}
+
+.card-note a:active {
+  transform: translateY(1px);
+}
+
 /* Option warning */
 .option-warning {
   font-size: 10px;

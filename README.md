@@ -6,20 +6,20 @@ An all-in-one browser extension that enhances AI Dungeon with additional QOL add
 ## Features
 
 ### Currently Implemented Features
-- **Markdown Support**: Renders standard markdown formatting in the gamemaster's responses
+- **Markdown Support**: Renders markdown formatting in the gamemaster's responses
   
-  BetterDungeon uses standard markdown syntax with specific AI instructions that tell the model *when* to use each format:
+  BetterDungeon uses an **asterisk-free markdown syntax** (for compatibility with models that can't output asterisks) with specific AI instructions that tell the model *when* to use each format:
   
   | Syntax | Result | AI Usage |
   |--------|--------|----------|
-  | `**bold**` | **bold** | Important words, names, dramatic impact |
-  | `*italic*` | *italic* | Thoughts, foreign words, titles |
-  | `***bold italic***` | ***bold italic*** | Intense outbursts, shouted words |
-  | `__underline__` | underline | Written/inscribed text, labels |
+  | `__bold__` | **bold** | Important words, names, dramatic impact |
+  | `_italic_` | *italic* | Thoughts, foreign words, titles |
+  | `___bold italic___` | ***bold italic*** | Intense outbursts, shouted words |
+  | `==underline==` | underline | Written/inscribed text, labels |
   | `^superscript^` | ^whisper^ | Whispers, ethereal voices, echoes |
   | `~subscript~` | ~muffled~ | Muffled sounds, quiet muttering |
   | `---` | ─────── | Scene breaks, time skips |
-  | `- item` or `+ item` | • item | Lists |
+  | `- item` | • item | Unordered lists (inventory, options, etc.) |
 
   **Note:** Headers (`#`) and blockquotes (`>`) are intentionally excluded as they conflict with AI Dungeon's command system.
 
@@ -112,7 +112,7 @@ I may put this on the Chrome Web Store at some point, but for now you'll have to
 1. Navigate to [AI Dungeon](https://aidungeon.com)
 2. Start or continue an adventure
 3. Use markdown syntax in your story inputs:
-   `The **brave knight** rode his *majestic horse* through the __dark forest__.`
+   `The __brave knight__ rode his _majestic horse_ through the ==dark forest==.`
 4. The extension will automatically format the text as it appears in the story
 
 ## Settings
