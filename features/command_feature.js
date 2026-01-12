@@ -289,6 +289,27 @@ class CommandFeature {
     }, 100);
   }
 
+  addHoverHandling(button, hoverOffset = -180) {
+    if (!button || button.dataset.hoverHandled) return;
+    button.dataset.hoverHandled = 'true';
+
+    const spriteWrapper = button.querySelector('div[style*="position: absolute"]');
+    if (!spriteWrapper) return;
+
+    const positioner = spriteWrapper.querySelector('.css-175oi2r[style*="left"]');
+    if (!positioner) return;
+
+    const originalLeft = parseFloat(positioner.style.left) || 0;
+
+    button.addEventListener('mouseenter', () => {
+      positioner.style.left = `${originalLeft + hoverOffset}px`;
+    });
+
+    button.addEventListener('mouseleave', () => {
+      positioner.style.left = `${originalLeft}px`;
+    });
+  }
+
   addEndCapHoverHandling(button) {
     if (!button || button.dataset.hoverHandled) return;
     button.dataset.hoverHandled = 'true';
