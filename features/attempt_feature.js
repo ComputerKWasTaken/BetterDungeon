@@ -151,6 +151,139 @@ class AttemptFeature {
 
     this.attemptButton = cleanButton;
     console.log('AttemptFeature: Attempt button injected');
+
+    // Apply sprite theming for non-Dynamic themes
+    this.applySpriteTheming(cleanButton, sayButton || doButton);
+  }
+
+  applySpriteTheming(customButton, referenceButton) {
+    if (!customButton || !referenceButton) return;
+
+    // Wait for button to be in DOM and rendered
+    setTimeout(() => {
+      // Find sprite wrapper in reference button
+      const refSpriteWrapper = referenceButton.querySelector('div[style*="position: absolute"]');
+      if (!refSpriteWrapper) return;
+
+      // Check if the wrapper has actual sprite content (for sprite-based themes)
+      const refSpriteContainer = refSpriteWrapper.querySelector('div[class*="_ox-hidden"]');
+      if (!refSpriteContainer) return;
+
+      // Check if this is a sprite theme by looking at container dimensions
+      const containerStyle = window.getComputedStyle(refSpriteContainer);
+      if (parseFloat(containerStyle.width) === 0) return; // Dynamic theme, no sprites
+
+      // Find sprite wrapper in custom button
+      const customSpriteWrapper = customButton.querySelector('div[style*="position: absolute"]');
+      if (!customSpriteWrapper) return;
+
+      // Get button dimensions
+      const customButtonWidth = customButton.getBoundingClientRect().width;
+      const refButtonWidth = referenceButton.getBoundingClientRect().width;
+      
+      if (customButtonWidth === 0 || refButtonWidth === 0) return;
+
+      // Deep clone the entire reference sprite wrapper content
+      while (customSpriteWrapper.firstChild) {
+        customSpriteWrapper.removeChild(customSpriteWrapper.firstChild);
+      }
+      
+      // Clone each child node from reference
+      Array.from(refSpriteWrapper.children).forEach(child => {
+        const clonedChild = child.cloneNode(true);
+        customSpriteWrapper.appendChild(clonedChild);
+      });
+
+      // Copy wrapper styles and ensure no gaps
+      customSpriteWrapper.style.justifyContent = window.getComputedStyle(refSpriteWrapper).justifyContent;
+      customSpriteWrapper.style.margin = '0';
+      customSpriteWrapper.style.padding = '0';
+
+      // Ensure all cloned containers have no margin and correct dimensions
+      customSpriteWrapper.querySelectorAll('div').forEach(div => {
+        div.style.margin = '0';
+      });
+
+      // Ensure the sprite containers fill the button width
+      const spriteContainers = customSpriteWrapper.querySelectorAll('div[class*="_ox-hidden"]');
+      if (spriteContainers.length === 1) {
+        // Middle button - single container should match button width
+        spriteContainers[0].style.width = `${customButtonWidth}px`;
+      }
+
+      // Adjust the middle section width if button sizes differ
+      const widthDiff = customButtonWidth - refButtonWidth;
+      if (Math.abs(widthDiff) > 1) {
+        const customContainers = customSpriteWrapper.querySelectorAll('div[class*="_ox-hidden"]');
+        const refContainers = refSpriteWrapper.querySelectorAll('div[class*="_ox-hidden"]');
+        
+        customContainers.forEach((container, index) => {
+          const refContainer = refContainers[index];
+          if (!refContainer) return;
+
+          const refWidth = parseFloat(window.getComputedStyle(refContainer).width);
+          
+          // Only scale non-end-cap containers (width > 20px)
+          if (refWidth > 20) {
+            const newWidth = refWidth + widthDiff;
+            container.style.width = `${newWidth}px`;
+            
+            // Also scale the inner positioner
+            const positioner = container.querySelector('.css-175oi2r');
+            if (positioner && positioner.style.width) {
+              const posWidth = parseFloat(positioner.style.width);
+              const posLeft = parseFloat(positioner.style.left) || 0;
+              const scale = newWidth / refWidth;
+              positioner.style.width = `${posWidth * scale}px`;
+              positioner.style.left = `${posLeft * scale}px`;
+            }
+          }
+        });
+      }
+
+      // Add hover handling for the custom button
+      this.addHoverHandling(customButton);
+
+      console.log('AttemptFeature: Applied sprite theming');
+    }, 100);
+  }
+
+  addHoverHandling(button) {
+    if (!button || button.dataset.hoverHandled) return;
+    button.dataset.hoverHandled = 'true';
+
+    const spriteWrapper = button.querySelector('div[style*="position: absolute"]');
+    if (!spriteWrapper) return;
+
+    // Find all positioner elements that have a left style
+    const getPositioners = () => spriteWrapper.querySelectorAll('.css-175oi2r[style*="left"]');
+
+    // Store original left values
+    const positioners = getPositioners();
+    const originalLefts = [];
+    positioners.forEach(p => {
+      originalLefts.push(parseFloat(p.style.left) || 0);
+    });
+
+    // Hover offset - hover sprite is to the RIGHT, so shift LEFT (more negative)
+    const hoverOffset = -250;
+
+    button.addEventListener('mouseenter', () => {
+      const ps = getPositioners();
+      ps.forEach((p, i) => {
+        const origLeft = originalLefts[i] !== undefined ? originalLefts[i] : parseFloat(p.style.left) || 0;
+        p.style.left = `${origLeft + hoverOffset}px`;
+      });
+    });
+
+    button.addEventListener('mouseleave', () => {
+      const ps = getPositioners();
+      ps.forEach((p, i) => {
+        if (originalLefts[i] !== undefined) {
+          p.style.left = `${originalLefts[i]}px`;
+        }
+      });
+    });
   }
 
   removeAttemptButton() {

@@ -76,18 +76,18 @@ An all-in-one browser extension that enhances AI Dungeon with additional QOL add
   *Requires the respective feature to be enabled
 
 ### Planned Features
-- Adventure categorization and sorting
+- Scenario/Adventure categorization and sorting (allows you to put your scenarios and/or adventures into folders to make it easier to navigate)
 - And more...
 
 ### Planned Enhancements
-- (None currently planned)
+- Color coding for story input options to help the user identify which mode they are in. It'll be a subtle color change to the input box border.
+- And more...
 
 ## Bugs/Issues
 
 ### Urgent
 
 ### High Priority
-- **Command/Attempt button styling**: The Command/Attempt button doesn't connect to the other buttons in any theme other than the default Dynamic theme
 
 ### Low Priority  
 
