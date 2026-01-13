@@ -99,7 +99,7 @@ class InputModeColorFeature {
       let container = textarea.closest('.is_Row');
       if (container) {
         // Look for the parent that has the rounded corners and shadow
-        const parent = container.closest('div[class*="_btlr-"]');
+        const parent = container.closest('div[class*="_bxsh-"]');
         if (parent) {
           return parent;
         }
