@@ -75,12 +75,22 @@ An all-in-one browser extension that enhances AI Dungeon with additional QOL add
   
   *Requires the respective feature to be enabled
 
+- **Input Mode Color Coding**: Adds a subtle color-coded border and glow to the input box based on the current input mode
+  - Helps you quickly identify which mode you're in at a glance
+  - Color scheme:
+    - **Do**: Blue
+    - **Attempt**: Purple
+    - **Say**: Green
+    - **Story**: Amber/Gold
+    - **See**: Pink
+    - **Command**: Cyan
+  - Can be toggled on/off in the extension popup
+
 ### Planned Features
 - Scenario/Adventure categorization and sorting (allows you to put your scenarios and/or adventures into folders to make it easier to navigate)
 - And more...
 
 ### Planned Enhancements
-- Color coding for story input options to help the user identify which mode they are in. It'll be a subtle color change to the input box border.
 - And more...
 
 ## Bugs/Issues
@@ -144,7 +154,8 @@ BetterDungeon/
 │   ├── readable_position_feature.js # Readable tab repositioning
 │   ├── trigger_highlight_feature.js # Story card trigger highlighting
 │   ├── hotkey_feature.js   # Keyboard shortcuts
-│   └── favorite_instructions_feature.js # Plot presets storage
+│   ├── favorite_instructions_feature.js # Plot presets storage
+│   └── input_mode_color_feature.js # Input mode color coding
 ├── styles.css              # CSS for all features
 ├── popup.html              # Extension popup interface
 ├── popup.js                # Popup settings script

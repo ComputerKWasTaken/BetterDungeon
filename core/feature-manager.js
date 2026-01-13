@@ -46,6 +46,10 @@ class FeatureManager {
       console.warn('FeatureManager: FavoriteInstructionsFeature class NOT found!');
     }
 
+    if (typeof InputModeColorFeature !== 'undefined') {
+      this.featureClasses.set('inputModeColor', InputModeColorFeature);
+    }
+
     console.log('FeatureManager: Registered feature classes:', Array.from(this.featureClasses.keys()));
   }
 

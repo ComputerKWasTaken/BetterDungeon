@@ -1289,3 +1289,35 @@ body {
 #undo-preset-btn:hover {
   background: rgba(251, 191, 36, 0.25);
 }
+
+/* Color Legend for Input Mode Colors */
+.color-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.color-legend-title {
+  width: 100%;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent-primary);
+  margin: 0 0 4px;
+}
+
+.color-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.color-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}

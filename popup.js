@@ -10,7 +10,8 @@ const DEFAULT_FEATURES = {
   attempt: true,
   triggerHighlight: true,
   hotkey: true,
-  favoriteInstructions: true
+  favoriteInstructions: true,
+  inputModeColor: true
 };
 
 const SETTINGS_KEY = 'betterDungeonSettings';
@@ -33,6 +34,7 @@ document.addEventListener('DOMContentLoaded', function() {
   setupAutoScanToggle();
   setupAutoApplyToggle();
   setupHotkeyDetailsToggle();
+  setupInputModeColorDetailsToggle();
   setupProfileLinks();
   setupPresetManagement();
   loadPresets();
@@ -360,6 +362,27 @@ function setupAutoScanToggle() {
 function setupHotkeyDetailsToggle() {
   const chevronBtn = document.querySelector('[data-expand="hotkey-details"]');
   const detailsSection = document.getElementById('hotkey-details');
+  
+  if (chevronBtn && detailsSection) {
+    chevronBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      detailsSection.classList.toggle('expanded');
+      
+      // Rotate chevron
+      const svg = this.querySelector('svg');
+      if (svg) {
+        svg.style.transform = detailsSection.classList.contains('expanded') 
+          ? 'rotate(180deg)' 
+          : 'rotate(0deg)';
+      }
+    });
+  }
+}
+
+// Setup input mode color details toggle
+function setupInputModeColorDetailsToggle() {
+  const chevronBtn = document.querySelector('[data-expand="inputModeColor-details"]');
+  const detailsSection = document.getElementById('inputModeColor-details');
   
   if (chevronBtn && detailsSection) {
     chevronBtn.addEventListener('click', function(e) {

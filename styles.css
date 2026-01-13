@@ -591,3 +591,85 @@
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.95) 0%, rgba(37, 99, 235, 0.95) 100%);
   color: #fff;
 }
+
+/* ============================================
+   INPUT MODE COLOR CODING
+   ============================================ */
+
+.bd-input-mode-colored {
+  position: relative;
+  border: 2px solid var(--bd-mode-border, transparent) !important;
+  box-shadow: 
+    0px 0px 32px rgba(0, 0, 0, 0.4),
+    0px 0px 20px var(--bd-mode-glow, transparent),
+    inset 0px 0px 12px var(--bd-mode-glow, transparent) !important;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease !important;
+}
+
+/* Mode-specific colors using data attributes */
+.bd-input-mode-colored[data-bd-input-mode="do"] {
+  --bd-mode-border: rgba(59, 130, 246, 0.6);
+  --bd-mode-glow: rgba(59, 130, 246, 0.15);
+}
+
+.bd-input-mode-colored[data-bd-input-mode="attempt"] {
+  --bd-mode-border: rgba(168, 85, 247, 0.6);
+  --bd-mode-glow: rgba(168, 85, 247, 0.15);
+}
+
+.bd-input-mode-colored[data-bd-input-mode="say"] {
+  --bd-mode-border: rgba(34, 197, 94, 0.6);
+  --bd-mode-glow: rgba(34, 197, 94, 0.15);
+}
+
+.bd-input-mode-colored[data-bd-input-mode="story"] {
+  --bd-mode-border: rgba(251, 191, 36, 0.6);
+  --bd-mode-glow: rgba(251, 191, 36, 0.15);
+}
+
+.bd-input-mode-colored[data-bd-input-mode="see"] {
+  --bd-mode-border: rgba(236, 72, 153, 0.6);
+  --bd-mode-glow: rgba(236, 72, 153, 0.15);
+}
+
+.bd-input-mode-colored[data-bd-input-mode="command"] {
+  --bd-mode-border: rgba(6, 182, 212, 0.6);
+  --bd-mode-glow: rgba(6, 182, 212, 0.15);
+}
+
+/* Mode selection button gradient styling */
+.bd-mode-button-colored {
+  position: relative;
+  overflow: hidden;
+}
+
+.bd-mode-button-colored::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(var(--bd-button-rgb), 0.15) 0%,
+    rgba(var(--bd-button-rgb), 0.05) 50%,
+    rgba(var(--bd-button-rgb), 0.12) 100%
+  );
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.bd-mode-button-colored:hover::before {
+  opacity: 1;
+  background: linear-gradient(
+    135deg,
+    rgba(var(--bd-button-rgb), 0.25) 0%,
+    rgba(var(--bd-button-rgb), 0.1) 50%,
+    rgba(var(--bd-button-rgb), 0.2) 100%
+  );
+}
+
