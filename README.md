@@ -77,6 +77,7 @@ An all-in-one browser extension that enhances AI Dungeon with additional QOL add
 
 - **Input Mode Color Coding**: Adds a subtle color-coded border and glow to the input box based on the current input mode
   - Helps you quickly identify which mode you're in at a glance
+  - Also applies a gradient to mode selection buttons in the mode menu
   - Color scheme:
     - **Do**: Blue
     - **Attempt**: Purple

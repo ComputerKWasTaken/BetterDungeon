@@ -1,5 +1,5 @@
 // BetterDungeon - Input Mode Color Feature
-// Adds subtle color coding to the input box border based on the current input mode
+// Adds color coding to the input box border and mode selection buttons based on input mode
 
 class InputModeColorFeature {
   static id = 'inputModeColor';
@@ -27,15 +27,14 @@ class InputModeColorFeature {
   }
 
   setupObserver() {
-    this.observer = new MutationObserver((mutations) => {
-      // Check for mode changes
+    this.observer = new MutationObserver(() => {
       this.detectAndApplyColor();
     });
 
+    // Watch for DOM changes to detect mode menu opening and mode changes
     this.observer.observe(document.body, {
       childList: true,
       subtree: true,
-      characterData: true,
       attributes: true,
       attributeFilter: ['class', 'aria-label']
     });
@@ -79,7 +78,7 @@ class InputModeColorFeature {
   }
 
   detectCurrentMode() {
-    // Look for the mode display button that shows current mode
+    // The "Change input mode" button displays the current mode name
     const modeButton = document.querySelector('[aria-label="Change input mode"]');
     if (modeButton) {
       const modeText = modeButton.querySelector('.font_body');
@@ -91,27 +90,22 @@ class InputModeColorFeature {
   }
 
   findInputContainer() {
-    // Find the main input container that wraps the textarea
-    // This is the rounded container with the background
+    // Find the input container with border-radius (the rounded input box)
     const textarea = document.querySelector('#game-text-input');
     if (textarea) {
-      // Navigate up to find the container with the border-radius styling
-      let container = textarea.closest('.is_Row');
+      // Look for parent with border-top-left-radius class (_btlr-)
+      const container = textarea.closest('div[class*="_btlr-"]');
       if (container) {
-        // Look for the parent that has the rounded corners and shadow
-        const parent = container.closest('div[class*="_bxsh-"]');
-        if (parent) {
+        return container;
+      }
+      // Fallback: traverse up to find container with visible border-radius
+      let parent = textarea.parentElement;
+      while (parent && parent !== document.body) {
+        const style = window.getComputedStyle(parent);
+        if (style.borderRadius && parseFloat(style.borderRadius) > 8) {
           return parent;
         }
-      }
-      // Fallback: find container with specific styling
-      container = textarea.parentElement;
-      while (container && container !== document.body) {
-        const style = window.getComputedStyle(container);
-        if (style.borderRadius && parseFloat(style.borderRadius) > 8) {
-          return container;
-        }
-        container = container.parentElement;
+        parent = parent.parentElement;
       }
     }
     return null;
@@ -141,8 +135,8 @@ class InputModeColorFeature {
   }
 
   styleModeButtons() {
-    // Find all mode selection buttons and apply their respective color gradients
-    const modeButtons = [
+    // Style mode selection buttons in the input mode menu (is_Button elements)
+    const modeSelectors = [
       { selector: '[aria-label="Set to \'Do\' mode"]', mode: 'do' },
       { selector: '[aria-label="Set to \'Attempt\' mode"]', mode: 'attempt' },
       { selector: '[aria-label="Set to \'Say\' mode"]', mode: 'say' },
@@ -151,7 +145,7 @@ class InputModeColorFeature {
       { selector: '[aria-label="Set to \'Command\' mode"]', mode: 'command' }
     ];
 
-    modeButtons.forEach(({ selector, mode }) => {
+    modeSelectors.forEach(({ selector, mode }) => {
       const button = document.querySelector(selector);
       if (button && !button.hasAttribute('data-bd-mode-styled')) {
         const colors = this.getModeColor(mode);
@@ -169,22 +163,17 @@ class InputModeColorFeature {
     if (!this.inputContainer) return;
 
     const colors = this.getModeColor(mode);
-    if (!colors || !this.inputContainer) return;
+    if (!colors) return;
 
-    // Add the data attribute for CSS targeting
+    // Apply mode-specific CSS custom properties and class for styling
     this.inputContainer.setAttribute('data-bd-input-mode', mode);
-
-    // Apply inline styles for the border effect
     this.inputContainer.style.setProperty('--bd-mode-border', colors.border);
     this.inputContainer.style.setProperty('--bd-mode-glow', colors.glow);
-    
-    // Add the color class
     this.inputContainer.classList.add('bd-input-mode-colored');
-
-    console.log(`InputModeColorFeature: Applied ${mode} mode color`);
   }
 
   removeColorStyling() {
+    // Clean up input container styling
     if (this.inputContainer) {
       this.inputContainer.removeAttribute('data-bd-input-mode');
       this.inputContainer.style.removeProperty('--bd-mode-border');
@@ -192,7 +181,7 @@ class InputModeColorFeature {
       this.inputContainer.classList.remove('bd-input-mode-colored');
     }
 
-    // Also clean up any orphaned elements
+    // Clean up any orphaned input containers
     document.querySelectorAll('.bd-input-mode-colored').forEach(el => {
       el.removeAttribute('data-bd-input-mode');
       el.style.removeProperty('--bd-mode-border');
@@ -200,7 +189,7 @@ class InputModeColorFeature {
       el.classList.remove('bd-input-mode-colored');
     });
 
-    // Clean up mode button styling
+    // Clean up mode selection button styling
     document.querySelectorAll('.bd-mode-button-colored').forEach(el => {
       el.removeAttribute('data-bd-mode-styled');
       el.style.removeProperty('--bd-button-rgb');

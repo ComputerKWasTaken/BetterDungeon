@@ -109,7 +109,8 @@ function loadFeatureStates() {
 
 // Setup event listeners for feature toggles
 function setupFeatureToggles() {
-  const toggles = document.querySelectorAll('.card input[type="checkbox"][id^="feature-"]');
+  // Select toggles from both .card and .enhancement-card elements
+  const toggles = document.querySelectorAll('input[type="checkbox"][id^="feature-"]');
   
   toggles.forEach(toggle => {
     toggle.addEventListener('change', function() {

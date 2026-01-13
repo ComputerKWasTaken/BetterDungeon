@@ -651,25 +651,21 @@
   right: 0;
   bottom: 0;
   background: linear-gradient(
-    135deg,
-    rgba(var(--bd-button-rgb), 0.15) 0%,
-    rgba(var(--bd-button-rgb), 0.05) 50%,
-    rgba(var(--bd-button-rgb), 0.12) 100%
+    to bottom,
+    transparent 0%,
+    rgba(var(--bd-button-rgb), 0.18) 100%
   );
   border-radius: inherit;
   pointer-events: none;
   z-index: 0;
-  opacity: 1;
   transition: opacity 0.2s ease;
 }
 
 .bd-mode-button-colored:hover::before {
-  opacity: 1;
   background: linear-gradient(
-    135deg,
-    rgba(var(--bd-button-rgb), 0.25) 0%,
-    rgba(var(--bd-button-rgb), 0.1) 50%,
-    rgba(var(--bd-button-rgb), 0.2) 100%
+    to bottom,
+    transparent 0%,
+    rgba(var(--bd-button-rgb), 0.3) 100%
   );
 }
 
