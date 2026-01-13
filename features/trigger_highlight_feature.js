@@ -106,11 +106,16 @@ class TriggerHighlightFeature {
   }
 
   async _doScanStoryCards() {
-    // Show loading screen
+    // Show loading screen with cancel button
     loadingScreen.show({
       title: 'Scanning Story Cards',
-      subtitle: 'Preparing to scan...',
-      showProgress: true
+      subtitle: 'Initializing scan...',
+      showProgress: true,
+      showCancel: true,
+      onCancel: () => {
+        console.log('TriggerHighlightFeature: User cancelled scan');
+        storyCardScanner.abort();
+      }
     });
 
     try {
@@ -126,8 +131,20 @@ class TriggerHighlightFeature {
           }
         },
         // onProgress callback
-        (current, total, status) => {
-          loadingScreen.updateProgress(current, total, status);
+        (current, total, status, estimatedTimeRemaining) => {
+          let progressText = status;
+          if (estimatedTimeRemaining !== null && estimatedTimeRemaining > 0) {
+            const minutes = Math.floor(estimatedTimeRemaining / 60);
+            const seconds = estimatedTimeRemaining % 60;
+            if (minutes > 0) {
+              progressText += ` (${minutes}m ${seconds}s remaining)`;
+            } else {
+              progressText += ` (${seconds}s remaining)`;
+            }
+          }
+          // Update subtitle to show actual progress
+          loadingScreen.updateSubtitle(`Scanning card ${current} of ${total}`);
+          loadingScreen.updateProgress(current, total, progressText);
         }
       );
 
@@ -141,9 +158,16 @@ class TriggerHighlightFeature {
         // Brief delay to show completion
         await new Promise(resolve => setTimeout(resolve, 1000));
       } else {
-        loadingScreen.updateTitle('Scan Failed');
-        loadingScreen.updateSubtitle(result.error || 'Unknown error');
-        loadingScreen.updateStatus('✗ Error');
+        // Check if scan was aborted
+        if (result.error && result.error.includes('aborted')) {
+          loadingScreen.updateTitle('Scan Cancelled');
+          loadingScreen.updateSubtitle('Scan was stopped by user');
+          loadingScreen.updateStatus('✓ Cancelled');
+        } else {
+          loadingScreen.updateTitle('Scan Failed');
+          loadingScreen.updateSubtitle(result.error || 'Unknown error');
+          loadingScreen.updateStatus('✗ Error');
+        }
         
         await new Promise(resolve => setTimeout(resolve, 2000));
       }

@@ -5,6 +5,9 @@ class StoryCardScanner {
   constructor() {
     this.isScanning = false;
     this.abortController = null;
+    this.scanStartTime = null;
+    this.cardTimes = [];
+    this.averageCardTime = null;
   }
 
   async scanAllCards(onTriggerFound, onProgress) {
@@ -15,6 +18,9 @@ class StoryCardScanner {
 
     this.isScanning = true;
     this.abortController = new AbortController();
+    this.scanStartTime = Date.now();
+    this.cardTimes = [];
+    this.averageCardTime = null;
     const results = new Map(); // trigger -> cardName
 
     try {
@@ -40,7 +46,7 @@ class StoryCardScanner {
       for (let i = 0; i < totalCards; i++) {
         if (this.abortController.signal.aborted) {
           console.log('StoryCardScanner: Scan aborted');
-          break;
+          return { success: false, error: 'Scan aborted by user' };
         }
 
         // Re-find cards each iteration as DOM may have changed
@@ -53,9 +59,18 @@ class StoryCardScanner {
         }
 
         const cardName = this.getCardNameFromElement(card);
+        const cardStartTime = Date.now();
+        
+        // Calculate estimated time remaining
+        let estimatedTimeRemaining = null;
+        if (this.cardTimes.length > 0) {
+          this.averageCardTime = this.cardTimes.reduce((a, b) => a + b, 0) / this.cardTimes.length;
+          const remainingCards = totalCards - i;
+          estimatedTimeRemaining = Math.round(this.averageCardTime * remainingCards / 1000);
+        }
         
         if (onProgress) {
-          onProgress(i + 1, totalCards, `Scanning: ${cardName}`);
+          onProgress(i + 1, totalCards, `Scanning: ${cardName}`, estimatedTimeRemaining);
         }
 
         try {
@@ -86,6 +101,11 @@ class StoryCardScanner {
           await this.closeCardEditor();
           await this.wait(300);
 
+          // Record the time taken for this card
+          const cardEndTime = Date.now();
+          const cardDuration = cardEndTime - cardStartTime;
+          this.cardTimes.push(cardDuration);
+
         } catch (cardError) {
           console.error(`StoryCardScanner: Error scanning card "${cardName}":`, cardError);
         }
@@ -96,6 +116,10 @@ class StoryCardScanner {
 
     } catch (error) {
       console.error('StoryCardScanner: Scan failed:', error);
+      // Check if this is an abort error
+      if (error.name === 'AbortError' || this.abortController?.signal.aborted) {
+        return { success: false, error: 'Scan aborted by user' };
+      }
       return { success: false, error: error.message };
     } finally {
       this.isScanning = false;
