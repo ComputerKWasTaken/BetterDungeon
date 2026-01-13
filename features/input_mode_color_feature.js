@@ -165,21 +165,8 @@ class InputModeColorFeature {
   }
 
   applyColorStyling(mode) {
-    // Find the input wrapper element
-    const inputWrapper = document.querySelector('.is_Row._bxsh-0px0px32pxr252905322');
-    if (!inputWrapper) {
-      // Try alternative selector
-      const textarea = document.querySelector('#game-text-input');
-      if (!textarea) return;
-      
-      // Find the container with the shadow class
-      let container = textarea.closest('div[class*="_bxsh-"]');
-      if (!container) return;
-      
-      this.inputContainer = container;
-    } else {
-      this.inputContainer = inputWrapper;
-    }
+    this.inputContainer = this.findInputContainer();
+    if (!this.inputContainer) return;
 
     const colors = this.getModeColor(mode);
     if (!colors || !this.inputContainer) return;
