@@ -102,14 +102,22 @@ class AttemptFeature {
     const menu = this.findInputModeMenu();
     if (!menu) return;
 
-    // Check if we already added the button
-    if (menu.querySelector('[aria-label="Set to \'Attempt\' mode"]')) {
-      return;
-    }
-
-    // Find the Do button to clone its structure
+    // Find the reference buttons for positioning
     const doButton = menu.querySelector('[aria-label="Set to \'Do\' mode"]');
     if (!doButton) return;
+    const sayButton = menu.querySelector('[aria-label="Set to \'Say\' mode"]');
+
+    // Check if we already added the button
+    const existingButton = menu.querySelector('[aria-label="Set to \'Attempt\' mode"]');
+    if (existingButton) {
+      // Verify it's in the correct position (should be between Do and Say)
+      // Correct position: doButton -> attemptButton -> sayButton
+      if (existingButton.previousElementSibling === doButton) {
+        return; // Already in correct position
+      }
+      // Wrong position - remove and re-add
+      existingButton.remove();
+    }
 
     // Clone the Do button as a template
     const attemptButton = doButton.cloneNode(true);
@@ -140,7 +148,6 @@ class AttemptFeature {
     });
 
     // Insert the button after the Do button (between Do and Say)
-    const sayButton = menu.querySelector('[aria-label="Set to \'Say\' mode"]');
     if (sayButton) {
       menu.insertBefore(cleanButton, sayButton);
     } else if (doButton.nextSibling) {

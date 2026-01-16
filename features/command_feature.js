@@ -67,14 +67,22 @@ class CommandFeature {
     const menu = this.findInputModeMenu();
     if (!menu) return;
 
-    // Check if we already added the button
-    if (menu.querySelector('[aria-label="Set to \'Command\' mode"]')) {
-      return;
-    }
-
-    // Find an existing button to clone its structure
+    // Find reference buttons for positioning
     const storyButton = menu.querySelector('[aria-label="Set to \'Story\' mode"]');
     if (!storyButton) return;
+    const seeButton = menu.querySelector('[aria-label="Set to \'See\' mode"]');
+
+    // Check if we already added the button
+    const existingButton = menu.querySelector('[aria-label="Set to \'Command\' mode"]');
+    if (existingButton) {
+      // Verify it's in the correct position (should be after See, at the end)
+      // Correct position: seeButton -> commandButton (last)
+      if (seeButton && existingButton.previousElementSibling === seeButton && !existingButton.nextElementSibling) {
+        return; // Already in correct position
+      }
+      // Wrong position - remove and re-add
+      existingButton.remove();
+    }
 
     // Clone the Story button as a template
     const commandButton = storyButton.cloneNode(true);
@@ -105,7 +113,6 @@ class CommandFeature {
     });
 
     // Insert the button after the See button (last one) or after Story button
-    const seeButton = menu.querySelector('[aria-label="Set to \'See\' mode"]');
     if (seeButton && seeButton.nextSibling) {
       menu.insertBefore(cleanButton, seeButton.nextSibling);
     } else if (seeButton) {
