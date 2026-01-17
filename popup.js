@@ -126,7 +126,6 @@ function setupFeatureToggles() {
         features[featureId] = enabled;
         
         chrome.storage.sync.set({ [STORAGE_KEY]: features }, function() {
-          console.log(`Feature "${featureId}" ${enabled ? 'enabled' : 'disabled'}`);
           
           // Notify content script of the change
           notifyContentScript(featureId, enabled);
@@ -237,9 +236,7 @@ function setupSettingsControls() {
         const settings = result[SETTINGS_KEY] || DEFAULT_SETTINGS;
         settings.attemptCriticalChance = value;
         
-        chrome.storage.sync.set({ [SETTINGS_KEY]: settings }, function() {
-          console.log('Critical chance set to', value + '%');
-        });
+        chrome.storage.sync.set({ [SETTINGS_KEY]: settings });
       });
     });
   }

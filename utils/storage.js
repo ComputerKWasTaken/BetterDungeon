@@ -20,7 +20,6 @@ class StorageManager {
   static async saveFeatures(features) {
     return new Promise((resolve) => {
       chrome.storage.sync.set({ [this.STORAGE_KEY]: features }, () => {
-        console.log('StorageManager: Features saved', features);
         resolve();
       });
     });
@@ -35,12 +34,10 @@ class StorageManager {
     const features = await this.getFeatures();
     features[featureId] = enabled;
     await this.saveFeatures(features);
-    console.log(`StorageManager: Feature "${featureId}" ${enabled ? 'enabled' : 'disabled'}`);
   }
 
   static async resetToDefaults() {
     await this.saveFeatures(this.DEFAULT_FEATURES);
-    console.log('StorageManager: Reset to default feature states');
   }
 }
 

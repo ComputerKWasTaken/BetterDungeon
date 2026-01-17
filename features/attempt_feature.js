@@ -26,7 +26,6 @@ class AttemptFeature {
   }
 
   destroy() {
-    console.log('AttemptFeature: Destroying...');
     if (this.observer) {
       this.observer.disconnect();
       this.observer = null;
@@ -64,7 +63,6 @@ class AttemptFeature {
       chrome.storage.sync.get('betterDungeonSettings', (result) => {
         const settings = result.betterDungeonSettings || {};
         this.criticalChance = settings.attemptCriticalChance ?? 5;
-        console.log('AttemptFeature: Critical chance set to', this.criticalChance + '%');
       });
 
       // Listen for settings changes
@@ -72,7 +70,6 @@ class AttemptFeature {
         if (namespace === 'sync' && changes.betterDungeonSettings) {
           const newSettings = changes.betterDungeonSettings.newValue || {};
           this.criticalChance = newSettings.attemptCriticalChance ?? 5;
-          console.log('AttemptFeature: Critical chance updated to', this.criticalChance + '%');
         }
       });
     }
@@ -157,7 +154,6 @@ class AttemptFeature {
     }
 
     this.attemptButton = cleanButton;
-    console.log('AttemptFeature: Attempt button injected');
 
     // Apply sprite theming for non-Dynamic themes
     this.applySpriteTheming(cleanButton, sayButton || doButton);
@@ -251,7 +247,6 @@ class AttemptFeature {
       // Add hover handling for the custom button
       this.addHoverHandling(customButton);
 
-      console.log('AttemptFeature: Applied sprite theming');
     }, 100);
   }
 
@@ -302,7 +297,6 @@ class AttemptFeature {
   }
 
   activateAttemptMode() {
-    console.log('AttemptFeature: Attempt mode activated');
     this.isAttemptMode = true;
 
     // Click the Do button first to set the base mode (action text, not story text)
@@ -366,7 +360,6 @@ class AttemptFeature {
     
     if (this.weight !== oldWeight) {
       this.updatePlaceholderWithWeight();
-      console.log('AttemptFeature: Weight adjusted to', this.weight);
     }
   }
 
@@ -404,7 +397,6 @@ class AttemptFeature {
       // If user clicks "Change input mode" or selects a different mode, cancel attempt mode
       if (ariaLabel === 'Change input mode' ||
           ariaLabel.startsWith("Set to '") && !ariaLabel.includes("Attempt")) {
-        console.log('AttemptFeature: User changed input mode, canceling attempt mode');
         this.deactivateAttemptMode();
       }
     };
@@ -511,7 +503,6 @@ class AttemptFeature {
             
             // Reset attempt mode after submission
             this.deactivateAttemptMode();
-            console.log('AttemptFeature: Attempt formatted via Enter key');
           }
         }
       }
@@ -549,7 +540,6 @@ class AttemptFeature {
           
           // Reset attempt mode after submission
           this.deactivateAttemptMode();
-          console.log('AttemptFeature: Attempt formatted via submit button');
         }
       }
     };
@@ -565,7 +555,6 @@ class AttemptFeature {
     setTimeout(() => {
       if (this.isAttemptMode) {
         this.deactivateAttemptMode();
-        console.log('AttemptFeature: Attempt mode timed out');
       }
     }, 30000);
   }
@@ -626,7 +615,6 @@ class AttemptFeature {
   watchForAttemptAction(attemptText) {
     // Store the text we're looking for (partial match since AI Dungeon may modify it)
     this.pendingAttemptText = attemptText.toLowerCase().substring(0, 30);
-    console.log('AttemptFeature: Watching for action with text:', this.pendingAttemptText);
     
     // Clean up any existing observer
     if (this.actionIconObserver) {
@@ -656,7 +644,6 @@ class AttemptFeature {
             const iconElement = actionContainer.querySelector('#action-icon');
             if (iconElement && iconElement.textContent === 'w_run') {
               iconElement.textContent = 'w_controller';
-              console.log('AttemptFeature: Updated action icon to w_controller');
             }
           }
           
@@ -681,7 +668,6 @@ class AttemptFeature {
         this.actionIconObserver.disconnect();
         this.actionIconObserver = null;
         this.pendingAttemptText = null;
-        console.log('AttemptFeature: Action icon observer timed out');
       }
     }, 30000);
   }

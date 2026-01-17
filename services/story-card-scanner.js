@@ -12,7 +12,6 @@ class StoryCardScanner {
 
   async scanAllCards(onTriggerFound, onProgress) {
     if (this.isScanning) {
-      console.log('StoryCardScanner: Scan already in progress');
       return { success: false, error: 'Scan already in progress' };
     }
 
@@ -37,15 +36,11 @@ class StoryCardScanner {
       const totalCards = cardElements.length;
 
       if (totalCards === 0) {
-        console.log('StoryCardScanner: No story cards found');
         return { success: true, triggers: results, message: 'No story cards found' };
       }
 
-      console.log(`StoryCardScanner: Found ${totalCards} story cards`);
-
       for (let i = 0; i < totalCards; i++) {
         if (this.abortController.signal.aborted) {
-          console.log('StoryCardScanner: Scan aborted');
           return { success: false, error: 'Scan aborted by user' };
         }
 
@@ -54,7 +49,6 @@ class StoryCardScanner {
         const card = currentCards[i];
         
         if (!card) {
-          console.log(`StoryCardScanner: Card ${i} not found, skipping`);
           continue;
         }
 
@@ -94,7 +88,6 @@ class StoryCardScanner {
                 onTriggerFound(trigger, cardName);
               }
             });
-            console.log(`StoryCardScanner: Found triggers for "${cardName}":`, triggers);
           }
 
           // Close the card editor by clicking outside or pressing escape
@@ -111,7 +104,6 @@ class StoryCardScanner {
         }
       }
 
-      console.log('StoryCardScanner: Scan complete. Found triggers:', Object.fromEntries(results));
       return { success: true, triggers: results };
 
     } catch (error) {

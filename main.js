@@ -140,28 +140,19 @@ class BetterDungeon {
   }
 
   async handleSaveCurrentAsPreset(name, includeComponents = null) {
-    console.log('BetterDungeon: handleSaveCurrentAsPreset called with name:', name);
-    console.log('BetterDungeon: includeComponents:', includeComponents);
-    console.log('BetterDungeon: Available features:', Array.from(this.featureManager.features.keys()));
-    
     const feature = this.featureManager.features.get('favoriteInstructions');
     if (feature) {
-      console.log('BetterDungeon: favoriteInstructions feature found, calling saveCurrentAsPreset');
       try {
-        const result = await feature.saveCurrentAsPreset(name, includeComponents);
-        console.log('BetterDungeon: saveCurrentAsPreset result:', result);
-        return result;
+        return await feature.saveCurrentAsPreset(name, includeComponents);
       } catch (error) {
         console.error('BetterDungeon: Error in saveCurrentAsPreset:', error);
         return { success: false, error: error.message };
       }
     }
-    console.log('BetterDungeon: favoriteInstructions feature NOT found');
     return { success: false, error: 'Favorite Instructions feature not enabled. Enable it in the Presets tab.' };
   }
 
   async handleUndoPresetApply(previousState) {
-    console.log('BetterDungeon: handleUndoPresetApply called');
     const feature = this.featureManager.features.get('favoriteInstructions');
     if (feature) {
       try {
@@ -267,7 +258,6 @@ class BetterDungeon {
 
   destroy() {
     this.featureManager.destroy();
-    console.log('BetterDungeon: Destroyed');
   }
 }
 

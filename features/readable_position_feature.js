@@ -24,7 +24,6 @@ class ReadablePositionFeature {
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
     }
-    console.log('ReadablePositionFeature: Destroyed');
   }
 
   debouncedRelocate() {
@@ -76,7 +75,6 @@ class ReadablePositionFeature {
     const parent = allTabWrapper.parentNode;
     if (parent && allTabWrapper.nextSibling) {
       parent.insertBefore(readableTabWrapper, allTabWrapper.nextSibling);
-      console.log('ReadablePositionFeature: Relocated Readable tab after All');
     }
   }
 
@@ -116,7 +114,6 @@ class ReadablePositionFeature {
       subtree: true
     });
 
-    console.log('ReadablePositionFeature: Observer started (watching for page changes)');
   }
 }
 

@@ -37,7 +37,6 @@ class CharacterPresetFeature {
   }
 
   destroy() {
-    console.log('CharacterPresetFeature: Destroying...');
     if (this.observer) {
       this.observer.disconnect();
       this.observer = null;
@@ -77,22 +76,18 @@ class CharacterPresetFeature {
     return new Promise((resolve) => {
       try {
         if (!chrome.runtime?.id) {
-          console.log('CharacterPresetFeature: Extension context invalidated, using cached presets');
           resolve(this.presets);
           return;
         }
         chrome.storage.sync.get(this.storageKey, (result) => {
           if (chrome.runtime.lastError) {
-            console.log('CharacterPresetFeature: Storage error, using cached presets');
             resolve(this.presets);
             return;
           }
           this.presets = result[this.storageKey] || [];
-          console.log('CharacterPresetFeature: Loaded', this.presets.length, 'presets');
           resolve(this.presets);
         });
       } catch (e) {
-        console.log('CharacterPresetFeature: Extension context invalidated');
         resolve(this.presets);
       }
     });
@@ -102,21 +97,17 @@ class CharacterPresetFeature {
     return new Promise((resolve) => {
       try {
         if (!chrome.runtime?.id) {
-          console.log('CharacterPresetFeature: Extension context invalidated, cannot save');
           resolve();
           return;
         }
         chrome.storage.sync.set({ [this.storageKey]: this.presets }, () => {
           if (chrome.runtime.lastError) {
-            console.log('CharacterPresetFeature: Storage error on save');
             resolve();
             return;
           }
-          console.log('CharacterPresetFeature: Saved', this.presets.length, 'presets');
           resolve();
         });
       } catch (e) {
-        console.log('CharacterPresetFeature: Extension context invalidated, cannot save');
         resolve();
       }
     });
@@ -135,7 +126,6 @@ class CharacterPresetFeature {
             return;
           }
           this.activePresetId = result[this.activePresetKey] || null;
-          console.log('CharacterPresetFeature: Active preset:', this.activePresetId);
           resolve(this.activePresetId);
         });
       } catch (e) {
@@ -157,7 +147,6 @@ class CharacterPresetFeature {
             resolve();
             return;
           }
-          console.log('CharacterPresetFeature: Set active preset to:', presetId);
           resolve();
         });
       } catch (e) {
@@ -179,7 +168,6 @@ class CharacterPresetFeature {
             return;
           }
           this.sessionCharacterId = result[this.sessionCharacterKey] || null;
-          console.log('CharacterPresetFeature: Loaded session character:', this.sessionCharacterId);
           resolve(this.sessionCharacterId);
         });
       } catch (e) {
@@ -201,7 +189,6 @@ class CharacterPresetFeature {
             resolve();
             return;
           }
-          console.log('CharacterPresetFeature: Set session character to:', presetId);
           resolve();
         });
       } catch (e) {
@@ -231,7 +218,6 @@ class CharacterPresetFeature {
             this.scenarioSessionUrl = session.url;
             this.isFirstFieldOfScenario = session.isFirstField !== false;
           }
-          console.log('CharacterPresetFeature: Loaded scenario session:', this.scenarioSessionUrl);
           resolve();
         });
       } catch (e) {
@@ -278,7 +264,6 @@ class CharacterPresetFeature {
     this.isFirstFieldOfScenario = true;
     await this.setSessionCharacter(null);
     await this.saveScenarioSession();
-    console.log('CharacterPresetFeature: Started new scenario session:', this.scenarioSessionUrl);
   }
 
   async markFirstFieldHandled() {
@@ -576,7 +561,6 @@ class CharacterPresetFeature {
         this.currentFieldKey = field.fieldKey;
         this.hasAutoFilled = false;
         
-        console.log('CharacterPresetFeature: Detected entry field:', field.label, '(aria-label:', field.ariaLabel, ') -> key:', field.fieldKey);
         
         // Clean up previous UI
         this.removeOverlay();
@@ -587,7 +571,6 @@ class CharacterPresetFeature {
       }
     } else {
       if (this.currentFieldLabel !== null) {
-        console.log('CharacterPresetFeature: Entry field no longer detected');
         this.currentFieldLabel = null;
         this.currentFieldKey = null;
         this.hasAutoFilled = false;
@@ -603,7 +586,6 @@ class CharacterPresetFeature {
     
     // Check if this is a new scenario (URL changed)
     if (this.isNewScenario()) {
-      console.log('CharacterPresetFeature: New scenario detected, resetting session');
       await this.startNewScenarioSession();
     }
     
@@ -693,7 +675,6 @@ class CharacterPresetFeature {
     // Find the input container to place our selector near it
     const inputContainer = field.input.closest('div[class*="css-175oi2r"]')?.parentElement;
     if (!inputContainer) {
-      console.log('CharacterPresetFeature: Could not find input container');
       return;
     }
     
@@ -710,7 +691,6 @@ class CharacterPresetFeature {
     
     this.setupCharacterSelectorHandlers(field);
     
-    console.log('CharacterPresetFeature: Showing character selector with', this.presets.length, 'presets');
   }
 
   buildCharacterSelectorHTML() {
@@ -779,7 +759,6 @@ class CharacterPresetFeature {
             field.input.dispatchEvent(new Event('change', { bubbles: true }));
             
             this.showToast(`Playing as ${character.name}`, 'success');
-            console.log('CharacterPresetFeature: Selected character:', character.name);
           }
         } else {
           await this.setSessionCharacter(null);
@@ -829,7 +808,6 @@ class CharacterPresetFeature {
     // Find the Continue button
     const continueBtn = this.findContinueButton();
     if (!continueBtn) {
-      console.log('CharacterPresetFeature: Could not find Continue button');
       return;
     }
     
@@ -879,7 +857,6 @@ class CharacterPresetFeature {
       });
     }
     
-    console.log('CharacterPresetFeature: Showing Save & Continue for field:', field.fieldKey);
   }
 
   async saveFieldAndContinue(field, continueBtn) {
@@ -994,14 +971,12 @@ class CharacterPresetFeature {
     field.input.dispatchEvent(new Event('input', { bubbles: true }));
     field.input.dispatchEvent(new Event('change', { bubbles: true }));
     
-    console.log('CharacterPresetFeature: Auto-filled field:', field.fieldKey, '=', savedValue);
     this.showToast(`Auto-filled: ${this.truncate(savedValue, 25)}`, 'success');
     
     // Wait a moment then click Continue
     setTimeout(() => {
       const continueBtn = this.findContinueButton();
       if (continueBtn) {
-        console.log('CharacterPresetFeature: Auto-clicking Continue');
         continueBtn.click();
       }
       this.isProcessing = false;
@@ -1061,5 +1036,4 @@ class CharacterPresetFeature {
 // Make available globally
 if (typeof window !== 'undefined') {
   window.CharacterPresetFeature = CharacterPresetFeature;
-  console.log('CharacterPresetFeature: Class loaded and registered globally');
 }

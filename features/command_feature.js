@@ -20,7 +20,6 @@ class CommandFeature {
   }
 
   destroy() {
-    console.log('CommandFeature: Destroying...');
     if (this.observer) {
       this.observer.disconnect();
       this.observer = null;
@@ -127,7 +126,6 @@ class CommandFeature {
     }
 
     this.commandButton = cleanButton;
-    console.log('CommandFeature: Command button injected');
 
     // Apply sprite theming for non-Dynamic themes
     // Command uses See's end-cap structure, and we convert See to middle button
@@ -212,7 +210,6 @@ class CommandFeature {
       // Add hover handling for See button (smaller, needs different offset)
       this.addHoverHandling(targetButton, -180);
 
-      console.log('CommandFeature: Converted See button to middle sprite');
     }, 100);
   }
 
@@ -292,7 +289,6 @@ class CommandFeature {
       // Add hover handling for Command button (3-part structure needs special handling)
       this.addEndCapHoverHandling(customButton);
 
-      console.log('CommandFeature: Applied sprite theming');
     }, 100);
   }
 
@@ -384,7 +380,6 @@ class CommandFeature {
   }
 
   activateCommandMode() {
-    console.log('CommandFeature: Command mode activated');
     this.isCommandMode = true;
 
     // Click the Story button first to set the base mode
@@ -431,7 +426,6 @@ class CommandFeature {
       // If user clicks "Change input mode" or selects a different mode, cancel command mode
       if (ariaLabel === 'Change input mode' ||
           ariaLabel.startsWith("Set to '") && !ariaLabel.includes("Command")) {
-        console.log('CommandFeature: User changed input mode, canceling command mode');
         this.deactivateCommandMode();
       }
     };
@@ -527,7 +521,6 @@ class CommandFeature {
             
             // Reset command mode after submission
             this.deactivateCommandMode();
-            console.log('CommandFeature: Command formatted via Enter key');
           }
         }
       }
@@ -562,7 +555,6 @@ class CommandFeature {
           
           // Reset command mode after submission
           this.deactivateCommandMode();
-          console.log('CommandFeature: Command formatted via submit button');
         }
       }
     };
@@ -578,7 +570,6 @@ class CommandFeature {
     setTimeout(() => {
       if (this.isCommandMode) {
         this.deactivateCommandMode();
-        console.log('CommandFeature: Command mode timed out');
       }
     }, 30000);
   }

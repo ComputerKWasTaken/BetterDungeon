@@ -41,9 +41,6 @@ class FeatureManager {
 
     if (typeof FavoriteInstructionsFeature !== 'undefined') {
       this.featureClasses.set('favoriteInstructions', FavoriteInstructionsFeature);
-      console.log('FeatureManager: FavoriteInstructionsFeature class registered');
-    } else {
-      console.warn('FeatureManager: FavoriteInstructionsFeature class NOT found!');
     }
 
     if (typeof InputModeColorFeature !== 'undefined') {
@@ -52,12 +49,7 @@ class FeatureManager {
 
     if (typeof CharacterPresetFeature !== 'undefined') {
       this.featureClasses.set('characterPreset', CharacterPresetFeature);
-      console.log('FeatureManager: CharacterPresetFeature class registered');
-    } else {
-      console.warn('FeatureManager: CharacterPresetFeature class NOT found!');
     }
-
-    console.log('FeatureManager: Registered feature classes:', Array.from(this.featureClasses.keys()));
   }
 
   async loadFeaturesFromStorage() {
@@ -73,7 +65,6 @@ class FeatureManager {
 
   enableFeature(id) {
     if (this.features.has(id)) {
-      console.log(`FeatureManager: Feature "${id}" already enabled`);
       return;
     }
 
@@ -90,8 +81,6 @@ class FeatureManager {
       if (typeof feature.init === 'function') {
         feature.init();
       }
-
-      console.log(`FeatureManager: Enabled feature "${id}"`);
     } catch (error) {
       console.error(`FeatureManager: Failed to enable feature "${id}":`, error);
     }
@@ -100,7 +89,6 @@ class FeatureManager {
   disableFeature(id) {
     const feature = this.features.get(id);
     if (!feature) {
-      console.log(`FeatureManager: Feature "${id}" not enabled`);
       return;
     }
 
@@ -110,7 +98,6 @@ class FeatureManager {
       }
 
       this.features.delete(id);
-      console.log(`FeatureManager: Disabled feature "${id}"`);
     } catch (error) {
       console.error(`FeatureManager: Failed to disable feature "${id}":`, error);
     }
@@ -143,7 +130,6 @@ class FeatureManager {
   }
 
   destroy() {
-    console.log('FeatureManager: Destroying all features...');
     this.features.forEach((feature, id) => {
       if (typeof feature.destroy === 'function') {
         try {

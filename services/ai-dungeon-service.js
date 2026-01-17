@@ -13,7 +13,6 @@ class AIDungeonService {
   }
 
   async navigateToPlotSettings() {
-    console.log('AIDungeonService: Navigating to Plot settings...');
 
     // Check if settings panel is already open
     let panelOpen = this.isSettingsPanelOpen();
@@ -22,17 +21,14 @@ class AIDungeonService {
       // Try to find and click the settings button
       const settingsBtn = document.querySelector('div[aria-label="Game settings"]');
       if (!settingsBtn) {
-        console.log('AIDungeonService: Settings button not found, checking if already in settings...');
         // Maybe we're already in a settings-like view, check for textareas
         const existingTextarea = document.querySelector('textarea[placeholder*="Influence the AI"]');
         if (existingTextarea) {
-          console.log('AIDungeonService: Found textarea, already in correct view');
           return { success: true };
         }
         return { success: false, error: 'Settings button not found' };
       }
 
-      console.log('AIDungeonService: Opening settings panel...');
       settingsBtn.click();
       await this.domUtils.wait(300);
       
@@ -54,7 +50,6 @@ class AIDungeonService {
     // Click Adventure tab (top level)
     const adventureTab = this.findTabButton('Adventure');
     if (adventureTab) {
-      console.log('AIDungeonService: Clicking Adventure tab');
       adventureTab.click();
       await this.domUtils.wait(300);
     }
@@ -62,7 +57,6 @@ class AIDungeonService {
     // Click Plot tab (section level) - look for it by aria-label or text
     const plotTab = this.findSectionTab('plot');
     if (plotTab) {
-      console.log('AIDungeonService: Clicking Plot tab');
       plotTab.click();
       await this.domUtils.wait(300);
     }
@@ -70,7 +64,6 @@ class AIDungeonService {
     // Verify we can see the textareas
     const textarea = document.querySelector('textarea[placeholder*="Influence the AI"]');
     if (!textarea) {
-      console.log('AIDungeonService: Textarea not visible, trying alternate navigation...');
       // Try clicking any visible Plot-related elements
       await this.domUtils.wait(500);
     }
@@ -139,11 +132,8 @@ class AIDungeonService {
 
   // Create a specific plot component
   async createPlotComponent(componentName) {
-    console.log(`AIDungeonService: Creating ${componentName} plot component...`);
-    
     const addButton = this.findAddPlotComponentButton();
     if (!addButton) {
-      console.log('AIDungeonService: Add Plot Component button not found');
       return { success: false, error: 'Add Plot Component button not found' };
     }
 
@@ -154,7 +144,6 @@ class AIDungeonService {
     for (let i = 0; i < 10; i++) {
       const option = this.findPlotComponentOption(componentName);
       if (option) {
-        console.log(`AIDungeonService: Found ${componentName} option, clicking...`);
         option.click();
         await this.domUtils.wait(500);
         return { success: true };
@@ -171,20 +160,14 @@ class AIDungeonService {
 
   // Create required plot components if they don't exist
   async ensurePlotComponentsExist() {
-    console.log('AIDungeonService: Checking for existing plot components...');
-    
     // Check if we're in the "no components" state
     if (!this.hasNoPlotComponents()) {
-      console.log('AIDungeonService: Plot components already exist or not in expected state');
       return { success: true, created: false };
     }
-
-    console.log('AIDungeonService: No plot components found, creating them...');
     
     // Create AI Instructions component
     const aiResult = await this.createPlotComponent('AI Instructions');
     if (!aiResult.success) {
-      console.log('AIDungeonService: Failed to create AI Instructions:', aiResult.error);
       // Continue to try Author's Note anyway
     } else {
       await this.domUtils.wait(500);
@@ -193,10 +176,7 @@ class AIDungeonService {
     // Check if we still need to add more (button might have moved)
     if (this.findAddPlotComponentButton()) {
       // Create Author's Note component
-      const noteResult = await this.createPlotComponent("Author's Note");
-      if (!noteResult.success) {
-        console.log('AIDungeonService: Failed to create Author\'s Note:', noteResult.error);
-      }
+      await this.createPlotComponent("Author's Note");
     }
 
     await this.domUtils.wait(500);
@@ -204,14 +184,12 @@ class AIDungeonService {
   }
 
   async waitForTextareas(maxAttempts = 20) {
-    console.log('AIDungeonService: Waiting for textareas...');
     
     for (let i = 0; i < maxAttempts; i++) {
       const aiInstructionsTextarea = document.querySelector('textarea[placeholder*="Influence the AI\'s responses"]');
       const authorsNoteTextarea = document.querySelector('textarea[placeholder*="Influence the AI\'s writing style"]');
       
       if (aiInstructionsTextarea && authorsNoteTextarea) {
-        console.log('AIDungeonService: Found both textareas');
         return { 
           success: true, 
           aiInstructionsTextarea, 
@@ -250,9 +228,7 @@ class AIDungeonService {
     ];
     
     // Return true if ANY marker is found
-    const found = markers.some(marker => currentValue.includes(marker));
-    console.log('AIDungeonService: Checking for instructions, found:', found);
-    return found;
+    return markers.some(marker => currentValue.includes(marker));
   }
 
   async applyInstructionsToTextareas(instructionsText, options = {}) {
@@ -271,7 +247,6 @@ class AIDungeonService {
     
     // If textareas not found, check if we need to create plot components
     if (!textareas.success) {
-      console.log('AIDungeonService: Textareas not found, checking if plot components need to be created...');
       
       // Notify caller that we're creating components
       if (onCreatingComponents) {
@@ -281,7 +256,6 @@ class AIDungeonService {
       const ensureResult = await this.ensurePlotComponentsExist();
       if (ensureResult.created) {
         componentsCreated = true;
-        console.log('AIDungeonService: Plot components created, waiting for textareas again...');
         textareas = await this.waitForTextareas(20);
       } else {
         // Try waiting longer in case they're just loading slowly
@@ -300,29 +274,21 @@ class AIDungeonService {
     const noteHasInstructions = this.containsInstructions(authorsNoteTextarea, instructionsText);
 
     if (aiHasInstructions && noteHasInstructions && !forceApply) {
-      console.log('AIDungeonService: Instructions already present in both fields');
       return { success: true, alreadyApplied: true };
     }
 
     let appliedCount = 0;
 
     if (!aiHasInstructions || forceApply) {
-      console.log('AIDungeonService: Appending to AI Instructions...');
       this.domUtils.appendToTextarea(aiInstructionsTextarea, instructionsText);
       appliedCount++;
-    } else {
-      console.log('AIDungeonService: AI Instructions already has BetterDungeon formatting');
     }
 
     if (!noteHasInstructions || forceApply) {
-      console.log('AIDungeonService: Appending to Author\'s Note...');
       this.domUtils.appendToTextarea(authorsNoteTextarea, instructionsText);
       appliedCount++;
-    } else {
-      console.log('AIDungeonService: Author\'s Note already has BetterDungeon formatting');
     }
 
-    console.log(`AIDungeonService: Applied instructions to ${appliedCount} field(s)`);
     return { success: true, appliedCount, componentsCreated };
   }
 

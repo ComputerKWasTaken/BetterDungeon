@@ -36,7 +36,6 @@ class MarkdownFeature {
     try {
       const result = await chrome.storage.sync.get('betterDungeon_autoApplyInstructions');
       this.autoApplyEnabled = result.betterDungeon_autoApplyInstructions ?? false;
-      console.log('MarkdownFeature: Auto-apply setting:', this.autoApplyEnabled);
     } catch (e) {
       this.autoApplyEnabled = false;
     }
@@ -45,7 +44,6 @@ class MarkdownFeature {
   setAutoApply(enabled) {
     this.autoApplyEnabled = enabled;
     chrome.storage.sync.set({ betterDungeon_autoApplyInstructions: enabled });
-    console.log('MarkdownFeature: Auto-apply set to:', enabled);
   }
 
   detectCurrentAdventure() {
@@ -55,7 +53,6 @@ class MarkdownFeature {
     
     // Auto-apply when entering a new adventure
     if (newAdventureId && adventureChanged && this.autoApplyEnabled) {
-      console.log('MarkdownFeature: Auto-applying instructions for new adventure...');
       setTimeout(() => this.applyInstructionsWithLoadingScreen(), 2500);
     }
     
@@ -182,14 +179,12 @@ class MarkdownFeature {
     if (this.animationCheckTimer) {
       clearTimeout(this.animationCheckTimer);
     }
-    console.log('MarkdownFeature: Destroyed');
   }
 
   // Wait for gameplay container to exist
   waitForContainer() {
     const container = this.findStoryContainer();
     if (container) {
-      console.log('MarkdownFeature: Found gameplay container');
       this.startObserving();
       this.processElements();
     } else {
@@ -237,8 +232,6 @@ class MarkdownFeature {
       subtree: true,
       characterData: true
     });
-
-    console.log('MarkdownFeature: Observer started');
   }
 
   // Check if node is relevant to this feature
@@ -301,10 +294,6 @@ class MarkdownFeature {
         processedCount++;
       }
     });
-
-    if (processedCount > 0) {
-      console.log(`MarkdownFeature: Processed ${processedCount} element(s)`);
-    }
 
     return processedCount;
   }

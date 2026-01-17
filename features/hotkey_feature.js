@@ -33,7 +33,6 @@ class HotkeyFeature {
   }
 
   destroy() {
-    console.log('HotkeyFeature: Destroying...');
     if (this.boundKeyHandler) {
       document.removeEventListener('keydown', this.boundKeyHandler, true);
       this.boundKeyHandler = null;
@@ -109,7 +108,6 @@ class HotkeyFeature {
     // Click "Take a Turn" to open the input area
     const takeATurnButton = document.querySelector('[aria-label="Command: take a turn"]');
     if (!takeATurnButton) {
-      console.log('HotkeyFeature: Could not find Take a Turn button');
       return false;
     }
     
@@ -125,7 +123,6 @@ class HotkeyFeature {
           resolve(true);
         } else if (attempts > 30) {
           clearInterval(checkInputArea);
-          console.log('HotkeyFeature: Timed out waiting for input area');
           resolve(false);
         }
       }, 50);
@@ -153,7 +150,6 @@ class HotkeyFeature {
         // First, ensure the input area is open (click Take a Turn if needed)
         const inputAreaOpen = await this.openInputArea();
         if (!inputAreaOpen) {
-          console.log('HotkeyFeature: Could not open input area');
           return;
         }
         
@@ -163,7 +159,6 @@ class HotkeyFeature {
         // Now open the input mode menu
         const menuOpened = await this.openInputModeMenu();
         if (!menuOpened) {
-          console.log('HotkeyFeature: Could not open input mode menu');
           return;
         }
         
@@ -172,7 +167,6 @@ class HotkeyFeature {
         
         // Check feature dependency AFTER menu is open (so we can see if button exists)
         if (hotkeyConfig.featureDependent && !this.isFeatureEnabled(hotkeyConfig.featureDependent)) {
-          console.log(`HotkeyFeature: ${hotkeyConfig.description} not available (feature disabled)`);
           this.closeInputModeMenu();
           return;
         }
@@ -184,15 +178,11 @@ class HotkeyFeature {
         // Check if element is disabled
         const isDisabled = targetElement.getAttribute('aria-disabled') === 'true';
         if (isDisabled) {
-          console.log(`HotkeyFeature: ${hotkeyConfig.description} is disabled`);
           return;
         }
         
         targetElement.click();
-        console.log(`HotkeyFeature: Activated "${hotkeyConfig.description}"`);
       } else {
-        console.log(`HotkeyFeature: Could not find element for "${hotkeyConfig.description}"`);
-        
         // Close menu if we opened it but couldn't find the option
         if (hotkeyConfig.requiresMenu) {
           this.closeInputModeMenu();
@@ -202,7 +192,6 @@ class HotkeyFeature {
 
     this.boundKeyHandler = handleKeyDown;
     document.addEventListener('keydown', handleKeyDown, true);
-    console.log('HotkeyFeature: Keyboard listener setup complete');
   }
 }
 

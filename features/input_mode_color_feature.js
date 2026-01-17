@@ -17,7 +17,6 @@ class InputModeColorFeature {
   }
 
   destroy() {
-    console.log('InputModeColorFeature: Destroying...');
     if (this.observer) {
       this.observer.disconnect();
       this.observer = null;

@@ -33,7 +33,6 @@ class DOMUtils {
                          tab.getAttribute('data-state') === 'active' ||
                          tab.classList.contains('active');
       if (!isSelected) {
-        console.log(`BetterDungeon: Clicking ${tabName} tab...`);
         tab.click();
         await this.wait(200);
         return true;
@@ -76,8 +75,6 @@ class DOMUtils {
     const separator = currentValue.trim() ? '\n\n' : '';
     const newValue = currentValue + separator + text;
     
-    console.log('BetterDungeon: Appending to textarea, current length:', currentValue.length, 'new length:', newValue.length);
-    
     const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
       window.HTMLTextAreaElement.prototype, 'value'
     ).set;
@@ -90,8 +87,6 @@ class DOMUtils {
       data: text
     });
     textarea.dispatchEvent(inputEvent);
-    
-    console.log('BetterDungeon: Textarea value after update:', textarea.value.length, 'chars');
   }
 
   static injectStyles(href, id) {
@@ -102,7 +97,6 @@ class DOMUtils {
     link.rel = 'stylesheet';
     link.href = href;
     document.head.appendChild(link);
-    console.log('BetterDungeon: Styles injected');
   }
 }
 

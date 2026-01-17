@@ -43,8 +43,6 @@ class TriggerHighlightFeature {
       this.autoScanEnabled = result.betterDungeon_autoScanTriggers ?? false;
       this.suggestedTriggersEnabled = result.betterDungeon_suggestedTriggers ?? true;
       this.suggestedTriggerThreshold = result.betterDungeon_suggestedTriggerThreshold ?? 3;
-      console.log('TriggerHighlightFeature: Auto-scan setting:', this.autoScanEnabled);
-      console.log('TriggerHighlightFeature: Suggested triggers:', this.suggestedTriggersEnabled, 'threshold:', this.suggestedTriggerThreshold);
     } catch (e) {
       this.autoScanEnabled = false;
       this.suggestedTriggersEnabled = true;
@@ -55,19 +53,16 @@ class TriggerHighlightFeature {
   setAutoScan(enabled) {
     this.autoScanEnabled = enabled;
     chrome.storage.sync.set({ betterDungeon_autoScanTriggers: enabled });
-    console.log('TriggerHighlightFeature: Auto-scan set to:', enabled);
   }
 
   setSuggestedTriggers(enabled) {
     this.suggestedTriggersEnabled = enabled;
     chrome.storage.sync.set({ betterDungeon_suggestedTriggers: enabled });
-    console.log('TriggerHighlightFeature: Suggested triggers set to:', enabled);
   }
 
   setSuggestedTriggerThreshold(threshold) {
     this.suggestedTriggerThreshold = Math.max(2, Math.min(10, threshold));
     chrome.storage.sync.set({ betterDungeon_suggestedTriggerThreshold: this.suggestedTriggerThreshold });
-    console.log('TriggerHighlightFeature: Suggested trigger threshold set to:', this.suggestedTriggerThreshold);
   }
 
   // Detect adventure ID from URL to scope triggers
@@ -78,20 +73,17 @@ class TriggerHighlightFeature {
     
     // If adventure changed, clear triggers
     if (adventureChanged && this.currentAdventureId !== null) {
-      console.log('TriggerHighlightFeature: Adventure changed, clearing triggers');
       this.cachedTriggers.clear();
       this.processedElements = new WeakSet();
     }
     
     // Auto-scan when entering a new adventure (either on change or initial load)
     if (newAdventureId && adventureChanged && this.autoScanEnabled) {
-      console.log('TriggerHighlightFeature: Auto-scanning adventure...');
       // Delay to let the adventure page load
       setTimeout(() => this.scanAllStoryCards(), 2000);
     }
     
     this.currentAdventureId = newAdventureId;
-    console.log('TriggerHighlightFeature: Current adventure:', this.currentAdventureId);
   }
 
   // Scan all story cards automatically using the loading screen
@@ -113,7 +105,6 @@ class TriggerHighlightFeature {
       showProgress: true,
       showCancel: true,
       onCancel: () => {
-        console.log('TriggerHighlightFeature: User cancelled scan');
         storyCardScanner.abort();
       }
     });
@@ -153,7 +144,6 @@ class TriggerHighlightFeature {
         loadingScreen.updateSubtitle(`Found ${this.cachedTriggers.size} unique triggers`);
         loadingScreen.updateStatus('Ready to highlight', 'success');
         
-        console.log('TriggerHighlightFeature: Scan complete, triggers:', Object.fromEntries(this.cachedTriggers));
         
         // Brief delay to show completion
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -207,7 +197,6 @@ class TriggerHighlightFeature {
   }
 
   destroy() {
-    console.log('TriggerHighlightFeature: Destroying...');
     if (this.observer) {
       this.observer.disconnect();
       this.observer = null;
@@ -293,9 +282,6 @@ class TriggerHighlightFeature {
       }
     });
 
-    if (this.cachedTriggers.size !== previousCount) {
-      console.log('TriggerHighlightFeature: Triggers updated:', Object.fromEntries(this.cachedTriggers));
-    }
   }
 
   // Find the story card name from the current editor/modal context
@@ -391,8 +377,6 @@ class TriggerHighlightFeature {
     if (existingModal && this.isAdventureModal(existingModal)) {
       this.handleAdventureModal(existingModal);
     }
-
-    console.log('TriggerHighlightFeature: Observer started');
   }
 
   isAdventureModal(element) {
@@ -402,9 +386,6 @@ class TriggerHighlightFeature {
   }
 
   handleAdventureModal(modal) {
-    console.log('TriggerHighlightFeature: Adventure modal detected');
-    console.log('TriggerHighlightFeature: Current cached triggers:', Array.from(this.cachedTriggers));
-    
     // Do a fresh scan in case triggers changed
     this.scanForTriggers();
     
@@ -576,7 +557,6 @@ class TriggerHighlightFeature {
       suggested.set(noun, count);
     });
     
-    console.log('TriggerHighlightFeature: Suggested triggers:', Object.fromEntries(suggested));
     return suggested;
   }
 
@@ -585,12 +565,7 @@ class TriggerHighlightFeature {
     const suggestedEnabled = this.suggestedTriggersEnabled;
     
     if (!hasTriggers && !suggestedEnabled) {
-      console.log('TriggerHighlightFeature: No triggers to highlight and suggested triggers disabled');
       return;
-    }
-    
-    if (hasTriggers) {
-      console.log('TriggerHighlightFeature: Highlighting with triggers:', Object.fromEntries(this.cachedTriggers));
     }
 
     // Find the story text content within the Adventure modal
@@ -605,9 +580,6 @@ class TriggerHighlightFeature {
     
     // Get suggested triggers from the combined text
     const suggestedTriggers = this.getSuggestedTriggers(allText);
-    if (suggestedTriggers.size > 0) {
-      console.log('TriggerHighlightFeature: Found suggested triggers:', Object.fromEntries(suggestedTriggers));
-    }
     
     storyTextElements.forEach(element => {
       if (!this.processedElements.has(element)) {
@@ -669,7 +641,6 @@ class TriggerHighlightFeature {
     // Only update if we made changes
     if (html !== this.escapeHtml(originalText)) {
       element.innerHTML = html;
-      console.log('TriggerHighlightFeature: Highlighted triggers in element');
     }
   }
 

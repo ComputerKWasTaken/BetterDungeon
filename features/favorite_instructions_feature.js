@@ -18,7 +18,6 @@ class FavoriteInstructionsFeature {
   }
 
   destroy() {
-    console.log('FavoriteInstructionsFeature: Destroying...');
     if (this.observer) {
       this.observer.disconnect();
       this.observer = null;
@@ -33,7 +32,6 @@ class FavoriteInstructionsFeature {
     return new Promise((resolve) => {
       chrome.storage.sync.get(this.storageKey, (result) => {
         this.presets = result[this.storageKey] || [];
-        console.log('FavoriteInstructionsFeature: Loaded', this.presets.length, 'presets');
         resolve(this.presets);
       });
     });
@@ -42,7 +40,6 @@ class FavoriteInstructionsFeature {
   async savePresets() {
     return new Promise((resolve) => {
       chrome.storage.sync.set({ [this.storageKey]: this.presets }, () => {
-        console.log('FavoriteInstructionsFeature: Saved', this.presets.length, 'presets');
         resolve();
       });
     });
@@ -126,12 +123,7 @@ class FavoriteInstructionsFeature {
       authorsNote: null
     };
 
-    // Debug: Log all textareas on the page
     const allTextareas = document.querySelectorAll('textarea');
-    console.log('FavoriteInstructionsFeature: Found', allTextareas.length, 'textareas');
-    allTextareas.forEach((ta, i) => {
-      console.log(`  Textarea ${i}: placeholder="${ta.placeholder}", value length=${ta.value?.length || 0}`);
-    });
 
     // Strategy 1: Find by placeholder text (multiple patterns)
     for (const textarea of allTextareas) {
@@ -141,17 +133,14 @@ class FavoriteInstructionsFeature {
       // AI Instructions patterns
       if (placeholder.includes('influence') && placeholder.includes('response')) {
         result.aiInstructions = textarea;
-        console.log('FavoriteInstructionsFeature: Found AI Instructions textarea');
       }
       // Author's Note patterns
       else if (placeholder.includes('influence') && (placeholder.includes('style') || placeholder.includes('writing'))) {
         result.authorsNote = textarea;
-        console.log('FavoriteInstructionsFeature: Found Author\'s Note textarea');
       }
       // Plot Essentials patterns
       else if (placeholder.includes('important') || placeholder.includes('essential')) {
         result.plotEssentials = textarea;
-        console.log('FavoriteInstructionsFeature: Found Plot Essentials textarea');
       }
     }
 
@@ -162,12 +151,6 @@ class FavoriteInstructionsFeature {
       if (plotComponents.authorsNote) result.authorsNote = plotComponents.authorsNote;
       if (plotComponents.plotEssentials) result.plotEssentials = plotComponents.plotEssentials;
     }
-
-    console.log('FavoriteInstructionsFeature: Final result:', {
-      aiInstructions: !!result.aiInstructions,
-      plotEssentials: !!result.plotEssentials,
-      authorsNote: !!result.authorsNote
-    });
 
     return result;
   }
@@ -200,7 +183,6 @@ class FavoriteInstructionsFeature {
               const textarea = container.querySelector('textarea');
               if (textarea && !result[key]) {
                 result[key] = textarea;
-                console.log(`FavoriteInstructionsFeature: Found ${key} via header lookup`);
                 break;
               }
             }
@@ -332,9 +314,6 @@ class FavoriteInstructionsFeature {
   }
 
   async saveCurrentAsPreset(name, includeComponents = null) {
-    console.log('FavoriteInstructionsFeature: saveCurrentAsPreset called with name:', name);
-    console.log('FavoriteInstructionsFeature: includeComponents:', includeComponents);
-    
     const textareas = this.findPlotComponentTextareas();
     
     const components = {};
@@ -346,39 +325,32 @@ class FavoriteInstructionsFeature {
     
     if (shouldIncludeAi && textareas.aiInstructions?.value?.trim()) {
       components.aiInstructions = textareas.aiInstructions.value;
-      console.log('FavoriteInstructionsFeature: Captured AI Instructions:', components.aiInstructions.substring(0, 50) + '...');
     }
     if (shouldIncludeEssentials && textareas.plotEssentials?.value?.trim()) {
       components.plotEssentials = textareas.plotEssentials.value;
-      console.log('FavoriteInstructionsFeature: Captured Plot Essentials:', components.plotEssentials.substring(0, 50) + '...');
     }
     if (shouldIncludeNote && textareas.authorsNote?.value?.trim()) {
       components.authorsNote = textareas.authorsNote.value;
-      console.log('FavoriteInstructionsFeature: Captured Author\'s Note:', components.authorsNote.substring(0, 50) + '...');
     }
 
     // Fallback: If no components found by type, try to grab any visible textareas with content
     if (Object.keys(components).length === 0) {
-      console.log('FavoriteInstructionsFeature: No typed components found, trying fallback...');
       const allTextareas = document.querySelectorAll('textarea');
       let fallbackIndex = 0;
       for (const ta of allTextareas) {
         if (ta.value?.trim()) {
           const key = `component_${fallbackIndex}`;
           components[key] = ta.value;
-          console.log(`FavoriteInstructionsFeature: Fallback captured ${key}:`, ta.value.substring(0, 50) + '...');
           fallbackIndex++;
         }
       }
     }
 
     if (Object.keys(components).length === 0) {
-      console.log('FavoriteInstructionsFeature: No content found in any textarea');
       return { success: false, error: 'No plot components with content found. Make sure you are on the Plot tab and have text in at least one component.' };
     }
 
     const preset = await this.createPreset(name, components);
-    console.log('FavoriteInstructionsFeature: Preset created:', preset);
     return { success: true, preset };
   }
 }
