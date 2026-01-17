@@ -18,14 +18,19 @@ class CharacterPresetFeature {
     this.currentFieldLabel = null;
     this.overlayElement = null;
     this.saveButtonElement = null;
+    this.characterIndicator = null;
     this.isProcessing = false;
     this.hasAutoFilled = false; // Track if we already auto-filled current field
+    this.scenarioSessionUrl = null; // Track the scenario URL to detect new scenarios
+    this.isFirstFieldOfScenario = true; // Track if this is the first field we've seen
   }
 
   async init() {
     console.log('CharacterPresetFeature: Initializing...');
     await this.loadPresets();
     await this.loadActivePreset();
+    await this.loadSessionCharacter();
+    await this.loadScenarioSession();
     this.setupObserver();
     this.startPolling();
     this.checkForEntryField();
@@ -43,6 +48,7 @@ class CharacterPresetFeature {
     }
     this.removeOverlay();
     this.removeSaveButton();
+    this.removeCharacterIndicator();
     this.sessionCharacterId = null;
   }
 
@@ -160,6 +166,126 @@ class CharacterPresetFeature {
     });
   }
 
+  async loadSessionCharacter() {
+    return new Promise((resolve) => {
+      try {
+        if (!chrome.runtime?.id) {
+          resolve(this.sessionCharacterId);
+          return;
+        }
+        chrome.storage.local.get(this.sessionCharacterKey, (result) => {
+          if (chrome.runtime.lastError) {
+            resolve(this.sessionCharacterId);
+            return;
+          }
+          this.sessionCharacterId = result[this.sessionCharacterKey] || null;
+          console.log('CharacterPresetFeature: Loaded session character:', this.sessionCharacterId);
+          resolve(this.sessionCharacterId);
+        });
+      } catch (e) {
+        resolve(this.sessionCharacterId);
+      }
+    });
+  }
+
+  async setSessionCharacter(presetId) {
+    this.sessionCharacterId = presetId;
+    return new Promise((resolve) => {
+      try {
+        if (!chrome.runtime?.id) {
+          resolve();
+          return;
+        }
+        chrome.storage.local.set({ [this.sessionCharacterKey]: presetId }, () => {
+          if (chrome.runtime.lastError) {
+            resolve();
+            return;
+          }
+          console.log('CharacterPresetFeature: Set session character to:', presetId);
+          resolve();
+        });
+      } catch (e) {
+        resolve();
+      }
+    });
+  }
+
+  // ============================================
+  // SCENARIO SESSION TRACKING
+  // ============================================
+
+  async loadScenarioSession() {
+    return new Promise((resolve) => {
+      try {
+        if (!chrome.runtime?.id) {
+          resolve();
+          return;
+        }
+        chrome.storage.local.get('betterDungeon_scenarioSession', (result) => {
+          if (chrome.runtime.lastError) {
+            resolve();
+            return;
+          }
+          const session = result['betterDungeon_scenarioSession'];
+          if (session) {
+            this.scenarioSessionUrl = session.url;
+            this.isFirstFieldOfScenario = session.isFirstField !== false;
+          }
+          console.log('CharacterPresetFeature: Loaded scenario session:', this.scenarioSessionUrl);
+          resolve();
+        });
+      } catch (e) {
+        resolve();
+      }
+    });
+  }
+
+  async saveScenarioSession() {
+    return new Promise((resolve) => {
+      try {
+        if (!chrome.runtime?.id) {
+          resolve();
+          return;
+        }
+        const session = {
+          url: this.scenarioSessionUrl,
+          isFirstField: this.isFirstFieldOfScenario
+        };
+        chrome.storage.local.set({ 'betterDungeon_scenarioSession': session }, () => {
+          if (chrome.runtime.lastError) {
+            resolve();
+            return;
+          }
+          resolve();
+        });
+      } catch (e) {
+        resolve();
+      }
+    });
+  }
+
+  isNewScenario() {
+    const currentUrl = window.location.href;
+    // Check if URL has changed (different scenario)
+    if (this.scenarioSessionUrl !== currentUrl) {
+      return true;
+    }
+    return false;
+  }
+
+  async startNewScenarioSession() {
+    this.scenarioSessionUrl = window.location.href;
+    this.isFirstFieldOfScenario = true;
+    await this.setSessionCharacter(null);
+    await this.saveScenarioSession();
+    console.log('CharacterPresetFeature: Started new scenario session:', this.scenarioSessionUrl);
+  }
+
+  async markFirstFieldHandled() {
+    this.isFirstFieldOfScenario = false;
+    await this.saveScenarioSession();
+  }
+
   async createPreset(name) {
     const preset = {
       id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
@@ -223,92 +349,166 @@ class CharacterPresetFeature {
   // FIELD KEY NORMALIZATION
   // ============================================
 
+  // Core field types that we recognize
+  static KNOWN_FIELDS = [
+    'name', 'age', 'gender', 'pronouns', 'species', 'race', 'class', 'title', 'role',
+    'appearance', 'looks', 'personality', 'traits', 'backstory', 'background', 'history',
+    'occupation', 'job', 'profession', 'goal', 'goals', 'objective', 'motivation',
+    'skills', 'abilities', 'powers', 'inventory', 'items', 'equipment', 'weapons',
+    'strengths', 'weaknesses', 'flaws', 'fears', 'likes', 'dislikes', 'hobbies',
+    'relationships', 'family', 'friends', 'allies', 'enemies', 'faction', 'affiliation',
+    'homeland', 'origin', 'birthplace', 'location', 'home'
+  ];
+
+  // Canonical mappings for field variations
+  static FIELD_MAPPINGS = {
+    // Name
+    'name': 'name', 'names': 'name', 'called': 'name', 'call': 'name',
+    // Age
+    'age': 'age', 'old': 'age', 'years': 'age',
+    // Gender
+    'gender': 'gender', 'sex': 'gender',
+    // Pronouns
+    'pronouns': 'pronouns', 'pronoun': 'pronouns',
+    // Species/Race
+    'species': 'species', 'race': 'species', 'creature': 'species', 'type': 'species',
+    // Class/Role
+    'class': 'class', 'role': 'class', 'title': 'title', 'rank': 'title',
+    // Appearance
+    'appearance': 'appearance', 'looks': 'appearance', 'look': 'appearance',
+    'physical': 'appearance', 'description': 'appearance', 'describe': 'appearance',
+    // Personality
+    'personality': 'personality', 'traits': 'personality', 'trait': 'personality',
+    'attitude': 'personality', 'demeanor': 'personality', 'temperament': 'personality',
+    // Backstory
+    'backstory': 'backstory', 'background': 'backstory', 'history': 'backstory',
+    'past': 'backstory', 'origin': 'backstory', 'story': 'backstory',
+    // Occupation
+    'occupation': 'occupation', 'job': 'occupation', 'profession': 'occupation',
+    'work': 'occupation', 'career': 'occupation', 'trade': 'occupation',
+    // Goals
+    'goal': 'goal', 'goals': 'goal', 'objective': 'goal', 'objectives': 'goal',
+    'motivation': 'goal', 'motivations': 'goal', 'ambition': 'goal', 'dream': 'goal',
+    // Skills
+    'skills': 'skills', 'skill': 'skills', 'abilities': 'skills', 'ability': 'skills',
+    'powers': 'skills', 'power': 'skills', 'talents': 'skills', 'talent': 'skills',
+    // Inventory
+    'inventory': 'inventory', 'items': 'inventory', 'equipment': 'inventory',
+    'gear': 'inventory', 'weapons': 'inventory', 'belongings': 'inventory',
+    // Strengths/Weaknesses
+    'strengths': 'strengths', 'strength': 'strengths', 'strong': 'strengths',
+    'weaknesses': 'weaknesses', 'weakness': 'weaknesses', 'weak': 'weaknesses',
+    'flaws': 'weaknesses', 'flaw': 'weaknesses',
+    // Preferences
+    'likes': 'likes', 'like': 'likes', 'love': 'likes', 'loves': 'likes', 'enjoy': 'likes',
+    'dislikes': 'dislikes', 'dislike': 'dislikes', 'hate': 'dislikes', 'hates': 'dislikes',
+    'fears': 'fears', 'fear': 'fears', 'afraid': 'fears', 'phobia': 'fears',
+    // Relationships
+    'relationships': 'relationships', 'relationship': 'relationships',
+    'family': 'family', 'parents': 'family', 'siblings': 'family',
+    'friends': 'friends', 'friend': 'friends', 'allies': 'friends', 'ally': 'friends',
+    'enemies': 'enemies', 'enemy': 'enemies', 'rivals': 'enemies', 'rival': 'enemies',
+    // Location
+    'homeland': 'homeland', 'home': 'homeland', 'birthplace': 'homeland',
+    'location': 'homeland', 'origin': 'homeland', 'from': 'homeland', 'where': 'homeland',
+  };
+
   normalizeFieldKey(label) {
     if (!label) return null;
     
-    // Clean up the label first - remove parenthetical content, dashes with qualifiers
+    const original = label;
+    
+    // Step 1: Clean up the label
     let cleaned = label.toLowerCase()
       .replace(/\s*\([^)]*\)/g, '')           // Remove (parenthetical content)
       .replace(/\s*-\s*preceded by.*$/i, '')  // Remove "- preceded by ..." suffix
       .replace(/\s*-\s*followed by.*$/i, '')  // Remove "- followed by ..." suffix
+      .replace(/[?!.:;,"']/g, '')             // Remove punctuation
       .trim();
     
+    // Step 2: Try to extract the core field using patterns
+    const extractedField = this.extractFieldFromPattern(cleaned);
+    if (extractedField) {
+      return extractedField;
+    }
+    
+    // Step 3: Normalize to underscore format and check direct mappings
     const normalized = cleaned
       .replace(/[^a-z0-9\s]/g, '')
       .trim()
       .replace(/\s+/g, '_');
     
-    const commonMappings = {
-      // Name variations
-      'your_name': 'name',
-      'character_name': 'name',
-      'enter_your_name': 'name',
-      'enter_your_characters_name': 'name',
-      'whats_your_name': 'name',
-      'name': 'name',
-      // Age variations
-      'your_age': 'age',
-      'character_age': 'age',
-      'how_old_are_you': 'age',
-      'age': 'age',
-      // Gender variations
-      'your_gender': 'gender',
-      'character_gender': 'gender',
-      'gender': 'gender',
-      // Species/Race variations
-      'your_race': 'species',
-      'character_race': 'species',
-      'your_species': 'species',
-      'species': 'species',
-      'race': 'species',
-      // Class variations
-      'your_class': 'class',
-      'character_class': 'class',
-      'class': 'class',
-      // Appearance variations
-      'your_appearance': 'appearance',
-      'describe_your_appearance': 'appearance',
-      'what_do_you_look_like': 'appearance',
-      'appearance': 'appearance',
-      'your_appearance_preceded_by_you_are': 'appearance',
-      // Personality variations
-      'your_personality': 'personality',
-      'describe_your_personality': 'personality',
-      'personality': 'personality',
-      // Backstory variations
-      'your_backstory': 'backstory',
-      'your_background': 'backstory',
-      'describe_your_backstory': 'backstory',
-      'backstory': 'backstory',
-      'background': 'backstory',
-      // Occupation variations
-      'your_occupation': 'occupation',
-      'what_is_your_occupation': 'occupation',
-      'occupation': 'occupation',
-      'job': 'occupation',
-      // Goal variations
-      'your_goal': 'goal',
-      'your_goals': 'goal',
-      'what_is_your_goal': 'goal',
-      'goal': 'goal',
-      'goals': 'goal',
-      // Title/Role variations
-      'your_title': 'title',
-      'title': 'title',
-      'role': 'title',
-      // Pronouns
-      'your_pronouns': 'pronouns',
-      'pronouns': 'pronouns',
-      'he_him_his': 'pronouns',
-      'she_her_hers': 'pronouns',
-      'they_them_theirs': 'pronouns',
-      // Skills/Abilities
-      'your_skills': 'skills',
-      'skills': 'skills',
-      'abilities': 'skills',
-    };
+    // Step 4: Check if any known field appears in the normalized string
+    const foundField = this.findFieldInText(normalized.replace(/_/g, ' '));
+    if (foundField) {
+      return foundField;
+    }
     
-    return commonMappings[normalized] || normalized;
+    // Step 5: Return the normalized string as-is (unknown field type)
+    return normalized;
+  }
+
+  extractFieldFromPattern(text) {
+    // Common patterns for field questions
+    const patterns = [
+      // "What is your [field]?" / "What's your [field]?"
+      /what(?:'s|\s+is)\s+(?:your|the|their)\s+(?:character'?s?\s+)?(.+)/i,
+      // "Enter your [field]" / "Enter [field]"
+      /enter\s+(?:your|the|a)?\s*(?:character'?s?\s+)?(.+)/i,
+      // "Your [field]" / "Character's [field]"
+      /^(?:your|the|their|character'?s?)\s+(.+)/i,
+      // "Describe your [field]" / "Describe [field]"
+      /describe\s+(?:your|the)?\s*(?:character'?s?\s+)?(.+)/i,
+      // "How old are you" -> age
+      /how\s+old/i,
+      // "What do you look like" -> appearance  
+      /what\s+do\s+(?:you|they)\s+look\s+like/i,
+      // "[field]:" at start
+      /^([a-z]+)\s*$/i,
+    ];
+    
+    // Special case patterns that map to specific fields
+    if (/how\s+old/i.test(text)) return 'age';
+    if (/what\s+do\s+(?:you|they)\s+look\s+like/i.test(text)) return 'appearance';
+    if (/who\s+are\s+you/i.test(text)) return 'backstory';
+    if (/tell\s+(?:me|us)\s+about\s+(?:yourself|your\s+character)/i.test(text)) return 'backstory';
+    if (/where\s+(?:are|do)\s+(?:you|they)\s+(?:come\s+)?from/i.test(text)) return 'homeland';
+    if (/what\s+(?:do|can)\s+(?:you|they)\s+do/i.test(text)) return 'skills';
+    
+    // Try extraction patterns
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match && match[1]) {
+        const extracted = match[1].trim();
+        // Look up the extracted word in mappings
+        const field = this.findFieldInText(extracted);
+        if (field) return field;
+      }
+    }
+    
+    return null;
+  }
+
+  findFieldInText(text) {
+    const words = text.toLowerCase().split(/\s+/);
+    
+    // Check each word against known field mappings
+    for (const word of words) {
+      if (CharacterPresetFeature.FIELD_MAPPINGS[word]) {
+        return CharacterPresetFeature.FIELD_MAPPINGS[word];
+      }
+    }
+    
+    // Check for partial matches (e.g., "personality" in "personality traits")
+    for (const word of words) {
+      for (const [key, value] of Object.entries(CharacterPresetFeature.FIELD_MAPPINGS)) {
+        if (word.includes(key) || key.includes(word)) {
+          return value;
+        }
+      }
+    }
+    
+    return null;
   }
 
   // ============================================
@@ -401,11 +601,35 @@ class CharacterPresetFeature {
     const isNameField = field.fieldKey === 'name';
     const sessionCharacter = this.getSessionCharacter();
     
-    if (isNameField) {
-      // Name field: Show character selector overlay
+    // Check if this is a new scenario (URL changed)
+    if (this.isNewScenario()) {
+      console.log('CharacterPresetFeature: New scenario detected, resetting session');
+      await this.startNewScenarioSession();
+    }
+    
+    // Determine if we should show the character selector
+    // Show it if: it's a name field, OR it's the first field of a scenario with no character selected
+    const shouldShowSelector = isNameField || (this.isFirstFieldOfScenario && !sessionCharacter);
+    
+    if (shouldShowSelector) {
+      if (isNameField) {
+        // Name field always resets the session (user might want to switch characters)
+        await this.setSessionCharacter(null);
+      }
+      this.removeCharacterIndicator();
+      
+      // Show character selector overlay
       await this.showCharacterSelectorOverlay(field);
+      
+      // Mark that we've shown the selector for first field
+      if (this.isFirstFieldOfScenario) {
+        await this.markFirstFieldHandled();
+      }
     } else if (sessionCharacter) {
-      // Non-name field with active character: check if we have a saved value
+      // We have a session character - show indicator and handle auto-fill
+      this.showCharacterIndicator(field, sessionCharacter);
+      
+      // Check if we have a saved value for this field
       const savedValue = sessionCharacter.fields[field.fieldKey];
       
       if (savedValue !== undefined && savedValue !== '') {
@@ -415,8 +639,18 @@ class CharacterPresetFeature {
         // No saved value - show "Save & Continue" button
         this.showSaveAndContinueButton(field);
       }
+      
+      // Mark first field as handled
+      if (this.isFirstFieldOfScenario) {
+        await this.markFirstFieldHandled();
+      }
+    } else {
+      // No session character and not first field - show nothing special
+      // but mark first field as handled so we don't keep asking
+      if (this.isFirstFieldOfScenario) {
+        await this.markFirstFieldHandled();
+      }
     }
-    // If no session character selected and not a name field, do nothing
   }
 
   getSessionCharacter() {
@@ -534,7 +768,7 @@ class CharacterPresetFeature {
       selector.addEventListener('change', async (e) => {
         const presetId = e.target.value;
         if (presetId) {
-          this.sessionCharacterId = presetId;
+          await this.setSessionCharacter(presetId);
           await this.setActivePreset(presetId);
           
           const character = this.getSessionCharacter();
@@ -548,7 +782,7 @@ class CharacterPresetFeature {
             console.log('CharacterPresetFeature: Selected character:', character.name);
           }
         } else {
-          this.sessionCharacterId = null;
+          await this.setSessionCharacter(null);
         }
       });
     }
@@ -575,7 +809,7 @@ class CharacterPresetFeature {
     const preset = await this.createPreset(name);
     await this.updatePresetField(preset.id, 'name', name);
     
-    this.sessionCharacterId = preset.id;
+    await this.setSessionCharacter(preset.id);
     await this.setActivePreset(preset.id);
     
     this.showToast(`Created: ${name}`, 'success');
@@ -690,6 +924,55 @@ class CharacterPresetFeature {
       setTimeout(() => el?.remove(), 200);
     }
     document.querySelectorAll('.bd-character-selector').forEach(el => el.remove());
+  }
+
+  // ============================================
+  // UI - ACTIVE CHARACTER INDICATOR
+  // ============================================
+
+  showCharacterIndicator(field, character) {
+    this.removeCharacterIndicator();
+    
+    // Find the input container
+    const inputContainer = field.input.closest('div[class*="css-175oi2r"]')?.parentElement;
+    if (!inputContainer) return;
+    
+    this.characterIndicator = document.createElement('div');
+    this.characterIndicator.className = 'bd-character-indicator';
+    this.characterIndicator.innerHTML = `
+      <div class="bd-indicator-content" style="
+        font-family: var(--bd-font-family-primary);
+        font-size: var(--bd-font-size-sm);
+        color: var(--bd-text-secondary);
+        background: var(--bd-bg-tertiary);
+        border: 1px solid var(--bd-border-default);
+        border-radius: var(--bd-radius-md);
+        padding: var(--bd-space-1) var(--bd-space-3);
+        display: inline-flex;
+        align-items: center;
+        gap: var(--bd-space-2);
+        margin-top: var(--bd-space-2);
+      ">
+        <span style="color: var(--bd-brand-primary);">●</span>
+        <span>Playing as <strong style="color: var(--bd-text-primary);">${this.escapeHtml(character.name)}</strong></span>
+      </div>
+    `;
+    
+    inputContainer.appendChild(this.characterIndicator);
+    
+    requestAnimationFrame(() => {
+      this.characterIndicator?.classList.add('bd-indicator-visible');
+    });
+  }
+
+  removeCharacterIndicator() {
+    if (this.characterIndicator) {
+      this.characterIndicator.classList.remove('bd-indicator-visible');
+      const el = this.characterIndicator;
+      this.characterIndicator = null;
+      setTimeout(() => el?.remove(), 200);
+    }
+    document.querySelectorAll('.bd-character-indicator').forEach(el => el.remove());
   }
 
   // ============================================

@@ -250,7 +250,7 @@ Browse all icons at [lucide.dev/icons](https://lucide.dev/icons)
 
 ## To-Do Before Launch
 - [x] Define a stylization standard for every feature or enhancement (like color schemes, fonts, etc.)
-- [ ] Polish and fix the styling inconsistencies with each feature
+- [x] Polish and fix the styling inconsistencies with each feature
 - [ ] Reduce console log spam
 - [ ] Add tutorial for the extension
 ---
