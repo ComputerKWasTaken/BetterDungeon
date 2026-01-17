@@ -50,6 +50,13 @@ class FeatureManager {
       this.featureClasses.set('inputModeColor', InputModeColorFeature);
     }
 
+    if (typeof CharacterPresetFeature !== 'undefined') {
+      this.featureClasses.set('characterPreset', CharacterPresetFeature);
+      console.log('FeatureManager: CharacterPresetFeature class registered');
+    } else {
+      console.warn('FeatureManager: CharacterPresetFeature class NOT found!');
+    }
+
     console.log('FeatureManager: Registered feature classes:', Array.from(this.featureClasses.keys()));
   }
 

@@ -44,6 +44,16 @@ An all-in-one browser extension that enhances AI Dungeon with additional QOL add
   - Adjust odds with arrow keys (↑↓)
   - Increases or decreases the chance of success or failure
 
+- **Character Presets**: Save character profiles to auto-fill scenario entry questions
+  - Tired of typing the same name, age, appearance, and personality for every new scenario? Character Presets solves this!
+  - **Create characters** in the extension popup's "Characters" tab with custom fields
+  - **Auto-detect** scenario entry fields when starting a new adventure
+  - **One-click fill**: When a scenario asks "Your name", "Your age", etc., BetterDungeon shows an overlay to auto-fill from your saved character
+  - **Learn as you play**: Save new field values directly from the scenario entry screen
+  - **Smart field matching**: Automatically maps common variations (e.g., "Your name", "Character name", "Enter your name" all map to "name")
+  - Supported fields include: name, age, gender, race, class, appearance, personality, backstory, occupation, goal, and any custom fields you add
+  - Can be toggled on/off in the extension popup
+
 ### Currently Implemented Enhancements
 
 - **Readable Tab Repositioning**: Automatically moves the "Readable" tab button to appear right after "All" in the Section Tabs
@@ -88,11 +98,23 @@ An all-in-one browser extension that enhances AI Dungeon with additional QOL add
   - Can be toggled on/off in the extension popup
 
 ### Planned Features
-- Scenario/Adventure categorization and sorting (allows you to put your scenarios and/or adventures into folders to make it easier to navigate)
 - And more...
 
 ### Planned Enhancements
 - And more...
+
+## To-Do Before Launch
+- [ ] Define a stylization standard for every feature or enhancement (like color schemes, fonts, etc.)
+- [ ] Polish and fix the styling inconsistencies with each feature
+- [ ] Add tutorial for the extension
+---
+- [ ] Launch Early Access
+- [ ] Gather feedback from users
+- [ ] Address critical bugs and issues
+- [ ] Add user suggestions and feature requests
+- [ ] Test all features thoroughly
+- [ ] Add to Chrome Web Store
+- [ ] Release to the public
 
 ## Bugs/Issues
 
@@ -156,7 +178,8 @@ BetterDungeon/
 │   ├── trigger_highlight_feature.js # Story card trigger highlighting
 │   ├── hotkey_feature.js   # Keyboard shortcuts
 │   ├── favorite_instructions_feature.js # Plot presets storage
-│   └── input_mode_color_feature.js # Input mode color coding
+│   ├── input_mode_color_feature.js # Input mode color coding
+│   └── character_preset_feature.js # Character preset auto-fill
 ├── styles.css              # CSS for all features
 ├── popup.html              # Extension popup interface
 ├── popup.js                # Popup settings script

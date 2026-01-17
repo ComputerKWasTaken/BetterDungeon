@@ -11,7 +11,8 @@ const DEFAULT_FEATURES = {
   triggerHighlight: true,
   hotkey: true,
   favoriteInstructions: true,
-  inputModeColor: true
+  inputModeColor: true,
+  characterPreset: true
 };
 
 const SETTINGS_KEY = 'betterDungeonSettings';
@@ -38,6 +39,8 @@ document.addEventListener('DOMContentLoaded', function() {
   setupProfileLinks();
   setupPresetManagement();
   loadPresets();
+  setupCharacterPresetManagement();
+  loadCharacterPresets();
 });
 
 // Setup tab navigation
@@ -918,4 +921,290 @@ function setupModalHandlers() {
   
   // Undo button
   document.getElementById('undo-preset-btn')?.addEventListener('click', undoLastApply);
+}
+
+// ============================================
+// CHARACTER PRESET MANAGEMENT
+// ============================================
+
+const CHARACTER_PRESETS_STORAGE_KEY = 'betterDungeon_characterPresets';
+let currentEditingCharacter = null;
+
+// Load character presets from storage
+async function loadCharacterPresets() {
+  chrome.storage.sync.get(CHARACTER_PRESETS_STORAGE_KEY, function(result) {
+    const presets = result[CHARACTER_PRESETS_STORAGE_KEY] || [];
+    renderCharacterPresets(presets);
+  });
+}
+
+// Render character preset list
+function renderCharacterPresets(presets) {
+  const listContainer = document.getElementById('character-list');
+  const emptyState = document.getElementById('character-empty');
+  
+  if (!listContainer) return;
+  
+  // Clear existing character cards (but keep empty state)
+  const existingCards = listContainer.querySelectorAll('.character-card');
+  existingCards.forEach(card => card.remove());
+  
+  if (presets.length === 0) {
+    if (emptyState) emptyState.style.display = 'flex';
+    return;
+  }
+  
+  if (emptyState) emptyState.style.display = 'none';
+  
+  presets.forEach(preset => {
+    const card = createCharacterCard(preset);
+    listContainer.appendChild(card);
+  });
+}
+
+// Create a character card element
+function createCharacterCard(preset) {
+  const card = document.createElement('div');
+  card.className = 'character-card';
+  card.dataset.characterId = preset.id;
+  
+  const fieldCount = Object.keys(preset.fields || {}).length;
+  const fieldNames = Object.keys(preset.fields || {}).slice(0, 3).join(', ');
+  
+  card.innerHTML = `
+    <div class="character-header">
+      <div class="character-info">
+        <h4 class="character-name">${escapeHtml(preset.name)}</h4>
+        <div class="character-meta">
+          <span class="character-field-count">${fieldCount} field${fieldCount !== 1 ? 's' : ''}</span>
+          ${fieldNames ? `<span class="character-fields-preview">${escapeHtml(fieldNames)}</span>` : ''}
+        </div>
+      </div>
+      <button class="character-edit-btn" aria-label="Edit character">✏️</button>
+    </div>
+  `;
+  
+  // Setup event handler for edit button
+  card.querySelector('.character-edit-btn').addEventListener('click', () => {
+    openCharacterModal(preset);
+  });
+  
+  return card;
+}
+
+// Setup character preset management
+function setupCharacterPresetManagement() {
+  const createBtn = document.getElementById('create-character-btn');
+  
+  if (createBtn) {
+    createBtn.addEventListener('click', async () => {
+      const name = prompt('Create a new character.\n\nEnter character name:');
+      if (!name || !name.trim()) return;
+      
+      // Create preset directly in storage
+      chrome.storage.sync.get(CHARACTER_PRESETS_STORAGE_KEY, async function(result) {
+        const presets = result[CHARACTER_PRESETS_STORAGE_KEY] || [];
+        const newPreset = {
+          id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
+          name: name.trim(),
+          fields: {},
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        };
+        presets.unshift(newPreset);
+        
+        chrome.storage.sync.set({ [CHARACTER_PRESETS_STORAGE_KEY]: presets }, () => {
+          loadCharacterPresets();
+          showCharacterStatus('Character created!', 'success');
+        });
+      });
+    });
+  }
+  
+  // Setup character modal handlers
+  setupCharacterModalHandlers();
+}
+
+// Open character edit modal
+function openCharacterModal(preset) {
+  currentEditingCharacter = preset;
+  
+  const modal = document.getElementById('character-modal');
+  const nameInput = document.getElementById('character-name-input');
+  const fieldsList = document.getElementById('character-fields-list');
+  
+  nameInput.value = preset.name;
+  
+  // Render fields
+  renderCharacterFields(preset.fields || {}, fieldsList);
+  
+  modal.style.display = 'flex';
+}
+
+// Priority fields for sorting (common fields appear first)
+const PRIORITY_FIELDS = [
+  'name', 'age', 'gender', 'pronouns', 'species', 'title', 'class',
+  'appearance', 'personality', 'backstory', 'occupation', 'goal',
+  'skills', 'inventory'
+];
+
+function getFieldPriority(fieldKey) {
+  const index = PRIORITY_FIELDS.indexOf(fieldKey);
+  return index === -1 ? 999 : index;
+}
+
+// Render character fields in modal
+function renderCharacterFields(fields, container) {
+  const entries = Object.entries(fields);
+  
+  if (entries.length === 0) {
+    container.innerHTML = '<p class="character-fields-empty">No fields saved yet. Fields are saved automatically when you fill in scenario entry questions.</p>';
+    return;
+  }
+  
+  // Sort by priority (common fields first)
+  const sortedEntries = entries.sort((a, b) => getFieldPriority(a[0]) - getFieldPriority(b[0]));
+  
+  container.innerHTML = sortedEntries.map(([key, value]) => `
+    <div class="character-field-item" data-field-key="${escapeHtml(key)}">
+      <span class="character-field-key">${escapeHtml(key)}</span>
+      <input type="text" class="character-field-value" value="${escapeHtml(value)}" data-key="${escapeHtml(key)}">
+      <button class="character-field-delete" data-key="${escapeHtml(key)}">×</button>
+    </div>
+  `).join('');
+  
+  // Setup delete handlers
+  container.querySelectorAll('.character-field-delete').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const key = e.target.dataset.key;
+      delete currentEditingCharacter.fields[key];
+      renderCharacterFields(currentEditingCharacter.fields, container);
+    });
+  });
+}
+
+// Close character modal
+function closeCharacterModal() {
+  const modal = document.getElementById('character-modal');
+  modal.style.display = 'none';
+  currentEditingCharacter = null;
+}
+
+// Save character modal changes
+async function saveCharacterModalChanges() {
+  if (!currentEditingCharacter) return;
+  
+  const nameInput = document.getElementById('character-name-input');
+  const fieldsList = document.getElementById('character-fields-list');
+  
+  // Update name
+  currentEditingCharacter.name = nameInput.value.trim() || currentEditingCharacter.name;
+  
+  // Update field values from inputs
+  const fieldInputs = fieldsList.querySelectorAll('.character-field-value');
+  fieldInputs.forEach(input => {
+    const key = input.dataset.key;
+    if (key && currentEditingCharacter.fields.hasOwnProperty(key)) {
+      currentEditingCharacter.fields[key] = input.value;
+    }
+  });
+  
+  currentEditingCharacter.updatedAt = Date.now();
+  
+  // Save to storage
+  chrome.storage.sync.get(CHARACTER_PRESETS_STORAGE_KEY, function(result) {
+    const presets = result[CHARACTER_PRESETS_STORAGE_KEY] || [];
+    const index = presets.findIndex(p => p.id === currentEditingCharacter.id);
+    
+    if (index !== -1) {
+      presets[index] = currentEditingCharacter;
+      chrome.storage.sync.set({ [CHARACTER_PRESETS_STORAGE_KEY]: presets }, () => {
+        loadCharacterPresets();
+        showCharacterStatus('Character updated!', 'success');
+        closeCharacterModal();
+      });
+    }
+  });
+}
+
+// Delete character
+async function deleteCharacter() {
+  if (!currentEditingCharacter) return;
+  
+  if (!confirm(`Delete character "${currentEditingCharacter.name}"?`)) return;
+  
+  chrome.storage.sync.get(CHARACTER_PRESETS_STORAGE_KEY, function(result) {
+    const presets = result[CHARACTER_PRESETS_STORAGE_KEY] || [];
+    const filtered = presets.filter(p => p.id !== currentEditingCharacter.id);
+    
+    chrome.storage.sync.set({ [CHARACTER_PRESETS_STORAGE_KEY]: filtered }, () => {
+      loadCharacterPresets();
+      showCharacterStatus('Character deleted', 'success');
+      closeCharacterModal();
+    });
+  });
+}
+
+// Add new field to character
+function addFieldToCharacter() {
+  if (!currentEditingCharacter) return;
+  
+  const keyInput = document.getElementById('new-field-key');
+  const valueInput = document.getElementById('new-field-value');
+  const fieldsList = document.getElementById('character-fields-list');
+  
+  const key = keyInput.value.trim().toLowerCase().replace(/\s+/g, '_');
+  const value = valueInput.value.trim();
+  
+  if (!key) {
+    keyInput.focus();
+    return;
+  }
+  
+  currentEditingCharacter.fields[key] = value;
+  renderCharacterFields(currentEditingCharacter.fields, fieldsList);
+  
+  // Clear inputs
+  keyInput.value = '';
+  valueInput.value = '';
+  keyInput.focus();
+}
+
+// Setup character modal event handlers
+function setupCharacterModalHandlers() {
+  document.getElementById('character-modal-close')?.addEventListener('click', closeCharacterModal);
+  document.getElementById('character-modal-cancel')?.addEventListener('click', closeCharacterModal);
+  document.getElementById('character-modal-save')?.addEventListener('click', saveCharacterModalChanges);
+  document.getElementById('character-delete-btn')?.addEventListener('click', deleteCharacter);
+  document.getElementById('add-field-btn')?.addEventListener('click', addFieldToCharacter);
+  
+  // Close modal on overlay click
+  document.getElementById('character-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'character-modal') closeCharacterModal();
+  });
+  
+  // Add field on Enter key
+  document.getElementById('new-field-value')?.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') addFieldToCharacter();
+  });
+}
+
+// Show status message for character operations
+function showCharacterStatus(message, type) {
+  const existingStatus = document.querySelector('.character-status');
+  if (existingStatus) existingStatus.remove();
+  
+  const status = document.createElement('div');
+  status.className = `character-status preset-status preset-status-${type}`;
+  status.textContent = message;
+  
+  const characterList = document.getElementById('character-list');
+  if (characterList) {
+    characterList.insertBefore(status, characterList.firstChild);
+    
+    setTimeout(() => {
+      status.classList.add('preset-status-fade');
+      setTimeout(() => status.remove(), 300);
+    }, 2000);
+  }
 }

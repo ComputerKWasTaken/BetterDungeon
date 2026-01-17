@@ -54,6 +54,21 @@ class BetterDungeon {
       } else if (message.type === 'UNDO_PRESET_APPLY') {
         this.handleUndoPresetApply(message.previousState).then(sendResponse);
         return true;
+      } else if (message.type === 'GET_CHARACTER_PRESETS') {
+        this.handleGetCharacterPresets().then(sendResponse);
+        return true;
+      } else if (message.type === 'CREATE_CHARACTER_PRESET') {
+        this.handleCreateCharacterPreset(message.name).then(sendResponse);
+        return true;
+      } else if (message.type === 'UPDATE_CHARACTER_PRESET') {
+        this.handleUpdateCharacterPreset(message.presetId, message.updates).then(sendResponse);
+        return true;
+      } else if (message.type === 'DELETE_CHARACTER_PRESET') {
+        this.handleDeleteCharacterPreset(message.presetId).then(sendResponse);
+        return true;
+      } else if (message.type === 'SET_ACTIVE_CHARACTER_PRESET') {
+        this.handleSetActiveCharacterPreset(message.presetId).then(sendResponse);
+        return true;
       }
     });
   }
@@ -157,6 +172,52 @@ class BetterDungeon {
       }
     }
     return { success: false, error: 'Feature not available' };
+  }
+
+  async handleGetCharacterPresets() {
+    const feature = this.featureManager.features.get('characterPreset');
+    if (feature) {
+      const presets = await feature.getAllPresets();
+      const activeId = feature.activePresetId;
+      return { success: true, presets, activePresetId: activeId };
+    }
+    return { success: false, error: 'Character Preset feature not available' };
+  }
+
+  async handleCreateCharacterPreset(name) {
+    const feature = this.featureManager.features.get('characterPreset');
+    if (feature) {
+      const preset = await feature.createPreset(name);
+      return { success: true, preset };
+    }
+    return { success: false, error: 'Character Preset feature not available' };
+  }
+
+  async handleUpdateCharacterPreset(presetId, updates) {
+    const feature = this.featureManager.features.get('characterPreset');
+    if (feature) {
+      const preset = await feature.updatePreset(presetId, updates);
+      return { success: !!preset, preset };
+    }
+    return { success: false, error: 'Character Preset feature not available' };
+  }
+
+  async handleDeleteCharacterPreset(presetId) {
+    const feature = this.featureManager.features.get('characterPreset');
+    if (feature) {
+      const deleted = await feature.deletePreset(presetId);
+      return { success: deleted };
+    }
+    return { success: false, error: 'Character Preset feature not available' };
+  }
+
+  async handleSetActiveCharacterPreset(presetId) {
+    const feature = this.featureManager.features.get('characterPreset');
+    if (feature) {
+      await feature.setActivePreset(presetId);
+      return { success: true };
+    }
+    return { success: false, error: 'Character Preset feature not available' };
   }
 
   async handleScanStoryCards() {

@@ -23,7 +23,7 @@
 }
 
 body {
-  width: 320px;
+  width: 380px;
   padding: 0;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   margin: 0;
@@ -81,8 +81,8 @@ body {
 
 .tab-btn {
   flex: 1;
-  padding: 10px 12px;
-  font-size: 12px;
+  padding: 10px 8px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-muted);
   background: transparent;
@@ -1320,4 +1320,211 @@ body {
   height: 12px;
   border-radius: 3px;
   flex-shrink: 0;
+}
+
+/* ============================================
+   CHARACTER PRESET STYLES
+   ============================================ */
+
+.character-preset-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.character-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.character-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.character-empty-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+  opacity: 0.6;
+}
+
+.character-empty p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.character-empty-hint {
+  margin-top: 6px !important;
+  font-size: 11px !important;
+  opacity: 0.7;
+}
+
+.character-card {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 12px;
+  transition: all 0.15s ease;
+}
+
+.character-card:hover {
+  border-color: rgba(168, 85, 247, 0.3);
+  box-shadow: 0 2px 8px rgba(168, 85, 247, 0.1);
+}
+
+.character-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.character-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.character-name {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.character-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.character-field-count {
+  color: rgba(168, 85, 247, 0.8);
+  font-weight: 500;
+}
+
+.character-fields-preview {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.character-edit-btn {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.character-edit-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.character-fields-section {
+  margin-top: 16px;
+}
+
+.character-fields-list {
+  background: var(--bg-primary);
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.character-fields-empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 8px 0;
+}
+
+.character-field-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.character-field-item:last-child {
+  border-bottom: none;
+}
+
+.character-field-key {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(168, 85, 247, 0.9);
+  text-transform: capitalize;
+  min-width: 80px;
+}
+
+.character-field-value {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+}
+
+.character-field-value:focus {
+  outline: none;
+  border-color: rgba(168, 85, 247, 0.5);
+}
+
+.character-field-delete {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.character-field-delete:hover {
+  color: var(--error);
+  background: rgba(248, 113, 113, 0.1);
+}
+
+.character-add-field {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.character-add-field .modal-input {
+  flex: 1;
+  font-size: 12px;
+  padding: 8px 10px;
+}
+
+.character-add-field .btn-sm {
+  flex-shrink: 0;
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.8) 0%, rgba(220, 38, 38, 0.8) 100%) !important;
+  color: #fff !important;
+}
+
+.btn-danger:hover {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 1) 0%, rgba(220, 38, 38, 1) 100%) !important;
 }

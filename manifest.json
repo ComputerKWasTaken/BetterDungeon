@@ -25,6 +25,7 @@
         "features/hotkey_feature.js",
         "features/favorite_instructions_feature.js",
         "features/input_mode_color_feature.js",
+        "features/character_preset_feature.js",
         "main.js"
       ],
       "css": ["styles.css"],

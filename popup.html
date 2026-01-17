@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=320">
+  <meta name="viewport" content="width=380">
   <title>BetterDungeon</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -22,6 +22,7 @@
     <button class="tab-btn active" data-tab="features">Features</button>
     <button class="tab-btn" data-tab="enhancements">Enhancements</button>
     <button class="tab-btn" data-tab="presets">Presets</button>
+    <button class="tab-btn" data-tab="characters">Characters</button>
   </nav>
 
   <main class="content">
@@ -209,6 +210,39 @@
       </div>
     </section>
 
+    <section class="tab-content" id="tab-characters">
+      <p class="tab-intro">Save character presets to auto-fill scenario entry questions.</p>
+
+      <article class="card" data-feature="characterPreset">
+        <div class="card-header">
+          <div class="card-info">
+            <h3 class="card-title">Character Presets</h3>
+            <p class="card-desc">Auto-fill scenario entry fields</p>
+          </div>
+          <div class="card-actions">
+            <label class="toggle">
+              <input type="checkbox" id="feature-characterPreset" checked>
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+        </div>
+      </article>
+
+      <div class="character-preset-actions">
+        <button class="btn-sm btn-full" id="create-character-btn">
+          <span class="btn-icon">➕</span> Create New Character
+        </button>
+      </div>
+
+      <div class="character-list" id="character-list">
+        <div class="character-empty" id="character-empty">
+          <span class="character-empty-icon">👤</span>
+          <p>No characters saved yet</p>
+          <p class="character-empty-hint">Create a character preset to auto-fill scenario entry fields like name, age, appearance, etc.</p>
+        </div>
+      </div>
+    </section>
+
     <section class="tab-content" id="tab-enhancements">
       <p class="tab-intro">Automatic improvements that are always active, no configuration needed.</p>
       <div class="enhancement-list">
@@ -366,6 +400,38 @@
       <div class="modal-footer">
         <button class="btn-sm btn-secondary" id="save-modal-cancel">Cancel</button>
         <button class="btn-sm btn-primary" id="save-modal-confirm">Save Preset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Character Edit Modal -->
+  <div class="modal-overlay" id="character-modal" style="display: none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="character-modal-title">Edit Character</h3>
+        <button class="modal-close" id="character-modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-field">
+          <label class="modal-label">Character Name</label>
+          <input type="text" class="modal-input" id="character-name-input" placeholder="Enter character name">
+        </div>
+        <div class="character-fields-section">
+          <label class="modal-label">Saved Fields</label>
+          <div class="character-fields-list" id="character-fields-list">
+            <p class="character-fields-empty">No fields saved yet. Fields are saved automatically when you fill in scenario entry questions.</p>
+          </div>
+          <div class="character-add-field">
+            <input type="text" class="modal-input" id="new-field-key" placeholder="Field name (e.g., hometown)">
+            <input type="text" class="modal-input" id="new-field-value" placeholder="Value">
+            <button class="btn-sm" id="add-field-btn">Add</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-sm btn-danger" id="character-delete-btn">Delete</button>
+        <button class="btn-sm btn-secondary" id="character-modal-cancel">Cancel</button>
+        <button class="btn-sm btn-primary" id="character-modal-save">Save</button>
       </div>
     </div>
   </div>
