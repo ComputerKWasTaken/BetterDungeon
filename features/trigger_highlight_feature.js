@@ -151,7 +151,7 @@ class TriggerHighlightFeature {
       if (result.success) {
         loadingScreen.updateTitle('Scan Complete!');
         loadingScreen.updateSubtitle(`Found ${this.cachedTriggers.size} unique triggers`);
-        loadingScreen.updateStatus('✓ Ready to highlight');
+        loadingScreen.updateStatus('Ready to highlight', 'success');
         
         console.log('TriggerHighlightFeature: Scan complete, triggers:', Object.fromEntries(this.cachedTriggers));
         
@@ -162,11 +162,11 @@ class TriggerHighlightFeature {
         if (result.error && result.error.includes('aborted')) {
           loadingScreen.updateTitle('Scan Cancelled');
           loadingScreen.updateSubtitle('Scan was stopped by user');
-          loadingScreen.updateStatus('✓ Cancelled');
+          loadingScreen.updateStatus('Cancelled', 'success');
         } else {
           loadingScreen.updateTitle('Scan Failed');
           loadingScreen.updateSubtitle(result.error || 'Unknown error');
-          loadingScreen.updateStatus('✗ Error');
+          loadingScreen.updateStatus('Error', 'error');
         }
         
         await new Promise(resolve => setTimeout(resolve, 2000));

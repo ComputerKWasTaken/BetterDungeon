@@ -149,8 +149,15 @@ class LoadingScreen {
     }
   }
 
-  updateStatus(message) {
+  updateStatus(message, type = 'default') {
     if (this.statusText) {
+      // Add status type class for styling
+      this.statusText.className = 'bd-loading-status';
+      if (type === 'success') {
+        this.statusText.classList.add('bd-status-success');
+      } else if (type === 'error') {
+        this.statusText.classList.add('bd-status-error');
+      }
       this.statusText.textContent = message;
     }
   }

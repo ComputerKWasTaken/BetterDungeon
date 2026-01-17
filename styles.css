@@ -534,6 +534,14 @@
   letter-spacing: 0.2px;
 }
 
+.bd-loading-status.bd-status-success {
+  color: #22c55e;
+}
+
+.bd-loading-status.bd-status-error {
+  color: #ef4444;
+}
+
 .bd-loading-cancel-btn {
   margin-top: 8px;
   padding: 10px 28px;

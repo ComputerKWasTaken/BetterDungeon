@@ -103,8 +103,153 @@ An all-in-one browser extension that enhances AI Dungeon with additional QOL add
 ### Planned Enhancements
 - And more...
 
+## Stylization Standard
+
+BetterDungeon follows a comprehensive dark mode design system to ensure consistency across all features and enhancements.
+
+### Color Palette
+
+#### Dark Theme Backgrounds
+- **Primary**: `#0d0d0f` - Deepest background for main content
+- **Secondary**: `#16161a` - Cards, panels, and containers
+- **Tertiary**: `#1e1e24` - Nested cards and hover states
+- **Elevated**: `#252530` - Inputs and raised elements
+
+#### Text Colors
+- **Primary**: `#e8e8ec` - Main text content
+- **Secondary**: `#a0a0a8` - Supporting text and descriptions
+- **Muted**: `#6b6b75` - Hints, disabled states, and subtle information
+
+#### Brand Colors
+- **Primary**: `#ff9500` - Main brand orange for accents and primary actions
+- **Secondary**: `#e07800` - Darker orange for hover states
+- **Light**: `#ffb84d` - Lighter orange for highlights
+
+#### Input Mode Colors
+Each input mode has its own distinct color for visual clarity:
+- **Do**: `#3b82f6` (Blue) - Action and physical interactions
+- **Attempt**: `#a855f7` (Purple) - Chance-based actions with RNG
+- **Say**: `#22c55e` (Green) - Dialogue and speech
+- **Story**: `#fbbf24` (Amber/Gold) - Narrative and storytelling
+- **See**: `#ec4899` (Pink) - Observations and descriptions
+- **Command**: `#06b6d4` (Cyan) - Direct commands to the AI
+
+#### Status Colors
+- **Success**: `#22c55e` - Successful operations and confirmations
+- **Error**: `#ef4444` - Errors and critical warnings
+- **Warning**: `#f59e0b` - Cautions and important notices
+- **Info**: `#3b82f6` - Informational messages
+
+### Typography
+
+#### Font Stack
+- **Primary**: `'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif` - Matches AI Dungeon's font
+- **Monospace**: `'Roboto Mono', 'Consolas', 'Monaco', 'Courier New', monospace` - Code and technical text
+
+#### Font Sizes
+- **XS**: 10px - Labels, captions, and metadata
+- **SM**: 11px - Small text and hints
+- **Base**: 12px - Default text size
+- **MD**: 13px - Body text and descriptions
+- **LG**: 14px - Important text and inputs
+- **XL**: 16px - Subheadings
+- **2XL**: 18px - Section titles
+- **3XL**: 22px - Main headings
+
+### Spacing
+
+Consistent spacing using 4px increments:
+- **1**: 4px - Tight spacing between related elements
+- **2**: 8px - Default spacing for most components
+- **3**: 12px - Section padding
+- **4**: 16px - Component separation
+- **5**: 20px - Large gaps
+- **6**: 24px - Section separation
+- **8**: 32px - Page-level spacing
+- **12**: 48px - Major sections
+
+### Border Radius
+
+- **SM**: 4px - Small elements like badges and tags
+- **MD**: 6px - Inputs and buttons
+- **LG**: 8px - Cards and containers
+- **XL**: 10px - Large cards
+- **2XL**: 12px - Modals and popups
+- **3XL**: 16px - Special containers
+
+### Visual Effects
+
+#### Shadows
+- **SM**: `0 1px 2px rgba(0, 0, 0, 0.2)` - Subtle elevation
+- **MD**: `0 2px 8px rgba(0, 0, 0, 0.3)` - Cards and dropdowns
+- **LG**: `0 4px 16px rgba(0, 0, 0, 0.4)` - Modals and overlays
+- **XL**: `0 8px 32px rgba(0, 0, 0, 0.5)` - Floating elements
+
+#### Transitions
+- **Fast**: 0.15s - Hover states and micro-interactions
+- **Normal**: 0.2s - Default transitions
+- **Slow**: 0.3s - Page transitions and complex animations
+
+### Implementation
+
+All theme variables are defined in `core/theme-variables.css` using CSS custom properties. For the popup styles, these variables are inlined directly in `popup.css` to ensure reliability in the browser extension context, as CSS imports can fail in extension environments.
+
+Use these variables in your CSS:
+
+```css
+.my-component {
+  background: var(--bd-card-bg);
+  border: 1px solid var(--bd-card-border);
+  border-radius: var(--bd-radius-lg);
+  padding: var(--bd-space-4);
+  transition: all var(--bd-transition-fast);
+}
+```
+
+### Icons
+
+BetterDungeon uses a standardized icon system:
+
+#### Icon Sources
+- **AI Dungeon Icons (w_icons)**: Keep using these for features that integrate with AI Dungeon's UI
+- **Lucide Icons**: Use for all BetterDungeon-specific UI elements (popup, overlays, etc.)
+
+#### Lucide Icon Font
+The Lucide icon font is included in `fonts/lucide/` and provides 1000+ consistent, white-fill icons.
+
+**Usage in HTML:**
+```html
+<span class="icon-star"></span>
+<span class="icon-user"></span>
+<span class="icon-keyboard"></span>
+```
+
+**Common icons used:**
+| Icon | Class | Usage |
+|------|-------|-------|
+| Star | `icon-star` | Save/favorite actions |
+| Plus | `icon-plus` | Create/add actions |
+| Undo | `icon-undo-2` | Undo actions |
+| User | `icon-user` | Character/profile |
+| Clipboard | `icon-clipboard` | Presets/copy |
+| Keyboard | `icon-keyboard` | Hotkeys |
+| Palette | `icon-palette` | Color/theme settings |
+| Book | `icon-book-open` | Documentation/readable |
+| Warning | `icon-triangle-alert` | Warnings |
+| Check | `icon-check` | Success/confirmation |
+| X | `icon-x` | Error/close |
+
+Browse all icons at [lucide.dev/icons](https://lucide.dev/icons)
+
+### Accessibility
+
+- All interactive elements have a focus state with visible outline
+- Text contrast ratios meet WCAG AA standards
+- Supports `prefers-reduced-motion` for users sensitive to animations
+- Semantic HTML elements used for proper screen reader support
+
 ## To-Do Before Launch
-- [ ] Define a stylization standard for every feature or enhancement (like color schemes, fonts, etc.)
+- [x] Define a stylization standard for every feature or enhancement (like color schemes, fonts, etc.)
 - [ ] Polish and fix the styling inconsistencies with each feature
 - [ ] Add tutorial for the extension
 ---

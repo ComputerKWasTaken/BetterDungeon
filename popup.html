@@ -4,29 +4,26 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=380">
   <title>BetterDungeon</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="fonts/lucide/lucide.css">
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <header class="header">
     <div class="logo">
-      <img src="icons/icon48.png" alt="" class="logo-icon">
+      <img src="icons/icon48.png" alt="BetterDungeon icon" class="logo-icon">
       <span class="logo-text">BetterDungeon</span>
     </div>
     <span class="version">v1.0.0</span>
   </header>
 
-  <nav class="tab-nav">
-    <button class="tab-btn active" data-tab="features">Features</button>
-    <button class="tab-btn" data-tab="enhancements">Enhancements</button>
-    <button class="tab-btn" data-tab="presets">Presets</button>
-    <button class="tab-btn" data-tab="characters">Characters</button>
+  <nav class="tab-nav" role="tablist">
+    <button class="tab-btn active" data-tab="features" role="tab" aria-selected="true" aria-controls="tab-features">Features</button>
+    <button class="tab-btn" data-tab="enhancements" role="tab" aria-selected="false" aria-controls="tab-enhancements">Enhancements</button>
+    <button class="tab-btn" data-tab="presets" role="tab" aria-selected="false" aria-controls="tab-presets">Presets</button>
   </nav>
 
   <main class="content">
-    <section class="tab-content active" id="tab-features">
+    <section class="tab-content active" id="tab-features" role="tabpanel" aria-labelledby="tab-features">
 
       <p class="tab-intro">Configurable additions that add new functionality to your AI Dungeon experience.</p>
 
@@ -43,7 +40,7 @@
               <p class="card-desc">Send narrative commands to the AI</p>
             </div>
             <div class="card-actions">
-              <button class="chevron-btn" data-expand="command" aria-label="Expand">
+              <button class="chevron-btn" data-expand="command" aria-label="Expand Command Mode" aria-expanded="false">
                 <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
               <label class="toggle">
@@ -65,7 +62,7 @@
               <p class="card-desc">Dice-roll action outcomes</p>
             </div>
             <div class="card-actions">
-              <button class="chevron-btn" data-expand="attempt" aria-label="Expand">
+              <button class="chevron-btn" data-expand="attempt" aria-label="Expand Attempt Mode" aria-expanded="false">
                 <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
               <label class="toggle">
@@ -100,7 +97,7 @@
             <p class="card-desc">Rich text in AI responses</p>
           </div>
           <div class="card-actions">
-            <button class="chevron-btn" data-expand="markdown" aria-label="Expand">
+            <button class="chevron-btn" data-expand="markdown" aria-label="Expand Markdown Formatting" aria-expanded="false">
               <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
             <label class="toggle">
@@ -138,7 +135,7 @@
                 <span class="option-label">Apply Instructions</span>
                 <span class="option-hint">Manually inject formatting guidelines into current adventure</span>
               </div>
-              <button class="btn-sm" id="apply-instructions-btn">Apply</button>
+              <button class="btn-sm" id="apply-instructions-btn" aria-label="Apply Formatting Instructions">Apply</button>
             </div>
           </div>
           <p class="card-note"><strong>Big thanks to <a href="https://play.aidungeon.com/profile/OffMetaGamer">OffMetaGamer</a> and <a href="https://play.aidungeon.com/profile/effortlyss">Shiny</a> for their help with this feature!</strong></p>
@@ -152,7 +149,7 @@
             <p class="card-desc">Visualize story card triggers</p>
           </div>
           <div class="card-actions">
-            <button class="chevron-btn" data-expand="triggerHighlight" aria-label="Expand">
+            <button class="chevron-btn" data-expand="triggerHighlight" aria-label="Expand Trigger Highlighting" aria-expanded="false">
               <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
             <label class="toggle">
@@ -175,13 +172,13 @@
                 <span class="toggle-track"></span>
               </label>
             </div>
-            <p class="option-warning">⚠️ Auto-scan will increase load times on adventures with many story cards.</p>
+            <p class="option-warning"><span class="icon-triangle-alert"></span> Auto-scan will increase load times on adventures with many story cards.</p>
             <div class="option-row">
               <div class="option-info">
                 <span class="option-label">Scan Story Cards</span>
                 <span class="option-hint">Manually scan triggers for current adventure</span>
               </div>
-              <button class="btn-sm" id="scan-triggers-btn">Scan</button>
+              <button class="btn-sm" id="scan-triggers-btn" aria-label="Scan Story Cards for Triggers">Scan</button>
             </div>
           </div>
         </div>
@@ -189,71 +186,77 @@
 
     </section>
 
-    <section class="tab-content" id="tab-presets">
-      <p class="tab-intro">Save and manage your favorite plot component configurations.</p>
+    <section class="tab-content" id="tab-presets" role="tabpanel" aria-labelledby="tab-presets" hidden>
+      <p class="tab-intro">Save and manage your favorite plot component configurations and character presets.</p>
 
-      <div class="preset-actions">
-        <button class="btn-sm btn-full" id="save-current-preset-btn">
-          <span class="btn-icon">★</span> Save Current Plot as Preset
-        </button>
-        <button class="btn-sm btn-secondary" id="undo-preset-btn" style="display: none;">
-          <span class="btn-icon">↩</span> Undo Last Apply
-        </button>
+      <!-- Plot Presets Section -->
+      <div class="presets-section">
+        <h3 class="section-title">Plot Presets</h3>
+        <div class="preset-actions">
+          <button class="btn-sm btn-full" id="save-current-preset-btn" aria-label="Save Current Plot as Preset">
+            <span class="btn-icon icon-star"></span> Save Current Plot as Preset
+          </button>
+          <button class="btn-sm btn-secondary" id="undo-preset-btn" style="display: none;" aria-label="Undo Last Preset Apply">
+            <span class="btn-icon icon-undo-2"></span> Undo Last Apply
+          </button>
+        </div>
+
+        <div class="preset-list" id="preset-list">
+          <div class="preset-empty" id="preset-empty">
+            <span class="preset-empty-icon icon-clipboard"></span>
+            <p>No presets saved yet</p>
+            <p class="preset-empty-hint">Navigate to an adventure's Plot tab and save your current configuration.</p>
+          </div>
+        </div>
       </div>
 
-      <div class="preset-list" id="preset-list">
-        <div class="preset-empty" id="preset-empty">
-          <span class="preset-empty-icon">📋</span>
-          <p>No presets saved yet</p>
-          <p class="preset-empty-hint">Navigate to an adventure's Plot tab and save your current configuration.</p>
+      <!-- Character Presets Section -->
+      <div class="presets-section">
+        <h3 class="section-title">Character Sheets</h3>
+        
+        <article class="card" data-feature="characterPreset">
+          <div class="card-header">
+            <div class="card-info">
+              <h3 class="card-title">Character Presets</h3>
+              <p class="card-desc">Auto-fill scenario entry fields</p>
+            </div>
+            <div class="card-actions">
+              <label class="toggle">
+                <input type="checkbox" id="feature-characterPreset" checked>
+                <span class="toggle-track"></span>
+              </label>
+            </div>
+          </div>
+        </article>
+
+        <div class="character-preset-actions">
+          <button class="btn-sm btn-full" id="create-character-btn" aria-label="Create New Character">
+            <span class="btn-icon icon-plus"></span> Create New Character
+          </button>
+        </div>
+
+        <div class="character-list" id="character-list">
+          <div class="character-empty" id="character-empty">
+            <span class="character-empty-icon icon-user"></span>
+            <p>No characters saved yet</p>
+            <p class="character-empty-hint">Create a character preset to auto-fill scenario entry fields like name, age, appearance, etc.</p>
+          </div>
         </div>
       </div>
     </section>
 
-    <section class="tab-content" id="tab-characters">
-      <p class="tab-intro">Save character presets to auto-fill scenario entry questions.</p>
 
-      <article class="card" data-feature="characterPreset">
-        <div class="card-header">
-          <div class="card-info">
-            <h3 class="card-title">Character Presets</h3>
-            <p class="card-desc">Auto-fill scenario entry fields</p>
-          </div>
-          <div class="card-actions">
-            <label class="toggle">
-              <input type="checkbox" id="feature-characterPreset" checked>
-              <span class="toggle-track"></span>
-            </label>
-          </div>
-        </div>
-      </article>
-
-      <div class="character-preset-actions">
-        <button class="btn-sm btn-full" id="create-character-btn">
-          <span class="btn-icon">➕</span> Create New Character
-        </button>
-      </div>
-
-      <div class="character-list" id="character-list">
-        <div class="character-empty" id="character-empty">
-          <span class="character-empty-icon">👤</span>
-          <p>No characters saved yet</p>
-          <p class="character-empty-hint">Create a character preset to auto-fill scenario entry fields like name, age, appearance, etc.</p>
-        </div>
-      </div>
-    </section>
-
-    <section class="tab-content" id="tab-enhancements">
+    <section class="tab-content" id="tab-enhancements" role="tabpanel" aria-labelledby="tab-enhancements" hidden>
       <p class="tab-intro">Automatic improvements that are always active, no configuration needed.</p>
       <div class="enhancement-list">
         <article class="enhancement-card" data-feature="hotkey">
-          <span class="enhancement-icon">⌨️</span>
+          <span class="enhancement-icon icon-keyboard"></span>
           <div class="enhancement-info">
             <h3 class="enhancement-title">Hotkeys</h3>
             <p class="enhancement-desc">Keyboard shortcuts for quick actions.</p>
           </div>
           <div class="enhancement-actions">
-            <button class="chevron-btn" data-expand="hotkey-details" aria-label="Expand">
+            <button class="chevron-btn" data-expand="hotkey-details" aria-label="Expand Hotkey Details" aria-expanded="false">
               <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
             <label class="toggle">
@@ -289,13 +292,13 @@
           </div>
         </div>
         <article class="enhancement-card" data-feature="inputModeColor">
-          <span class="enhancement-icon">🎨</span>
+          <span class="enhancement-icon icon-palette"></span>
           <div class="enhancement-info">
             <h3 class="enhancement-title">Input Mode Colors</h3>
             <p class="enhancement-desc">Subtle color-coded border on the input box based on current mode.</p>
           </div>
           <div class="enhancement-actions">
-            <button class="chevron-btn" data-expand="inputModeColor-details" aria-label="Expand">
+            <button class="chevron-btn" data-expand="inputModeColor-details" aria-label="Expand Input Mode Color Details" aria-expanded="false">
               <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
             <label class="toggle">
@@ -316,7 +319,7 @@
           </div>
         </div>
         <article class="enhancement-card">
-          <span class="enhancement-icon">📖</span>
+          <span class="enhancement-icon icon-book-open"></span>
           <div class="enhancement-info">
             <h3 class="enhancement-title">Readable Tab Fix</h3>
             <p class="enhancement-desc">Moves "Readable" tab back to its rightful place after "All" in Section Tabs.</p>
@@ -331,7 +334,7 @@
     <div class="modal">
       <div class="modal-header">
         <h3 class="modal-title" id="modal-title">Preview Preset</h3>
-        <button class="modal-close" id="modal-close">&times;</button>
+        <button class="modal-close" id="modal-close" aria-label="Close Modal">&times;</button>
       </div>
       <div class="modal-body">
         <div class="modal-field">
@@ -361,8 +364,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-sm btn-secondary" id="modal-cancel">Cancel</button>
-        <button class="btn-sm btn-primary" id="modal-save">Save Changes</button>
+        <button class="btn-sm btn-secondary" id="modal-cancel" aria-label="Cancel Modal">Cancel</button>
+        <button class="btn-sm btn-primary" id="modal-save" aria-label="Save Preset Changes">Save Changes</button>
       </div>
     </div>
   </div>
@@ -372,7 +375,7 @@
     <div class="modal modal-sm">
       <div class="modal-header">
         <h3 class="modal-title">Save New Preset</h3>
-        <button class="modal-close" id="save-modal-close">&times;</button>
+        <button class="modal-close" id="save-modal-close" aria-label="Close Save Modal">&times;</button>
       </div>
       <div class="modal-body">
         <div class="modal-field">
@@ -381,7 +384,7 @@
         </div>
         <div class="modal-field">
           <label class="modal-label">Components to Save</label>
-          <div class="component-checklist">
+          <div class="component-checklist" role="group" aria-label="Components to Save">
             <label class="component-check">
               <input type="checkbox" id="save-check-ai" checked>
               <span>AI Instructions</span>
@@ -398,8 +401,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-sm btn-secondary" id="save-modal-cancel">Cancel</button>
-        <button class="btn-sm btn-primary" id="save-modal-confirm">Save Preset</button>
+        <button class="btn-sm btn-danger" id="save-modal-cancel" aria-label="Cancel Save Preset">Cancel</button>
+        <button class="btn-sm btn-primary" id="save-modal-confirm" aria-label="Confirm Save Preset">Save Preset</button>
       </div>
     </div>
   </div>
@@ -409,7 +412,7 @@
     <div class="modal">
       <div class="modal-header">
         <h3 class="modal-title" id="character-modal-title">Edit Character</h3>
-        <button class="modal-close" id="character-modal-close">&times;</button>
+        <button class="modal-close" id="character-modal-close" aria-label="Close Character Modal">&times;</button>
       </div>
       <div class="modal-body">
         <div class="modal-field">
@@ -418,20 +421,20 @@
         </div>
         <div class="character-fields-section">
           <label class="modal-label">Saved Fields</label>
-          <div class="character-fields-list" id="character-fields-list">
-            <p class="character-fields-empty">No fields saved yet. Fields are saved automatically when you fill in scenario entry questions.</p>
+          <div class="character-fields-list" id="character-fields-list" role="list">
+            <p class="character-fields-empty" role="status">No fields saved yet. Fields are saved automatically when you fill in scenario entry questions.</p>
           </div>
           <div class="character-add-field">
             <input type="text" class="modal-input" id="new-field-key" placeholder="Field name (e.g., hometown)">
             <input type="text" class="modal-input" id="new-field-value" placeholder="Value">
-            <button class="btn-sm" id="add-field-btn">Add</button>
+            <button class="btn-sm" id="add-field-btn" aria-label="Add Character Field">Add</button>
           </div>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-sm btn-danger" id="character-delete-btn">Delete</button>
-        <button class="btn-sm btn-secondary" id="character-modal-cancel">Cancel</button>
-        <button class="btn-sm btn-primary" id="character-modal-save">Save</button>
+        <button class="btn-sm btn-danger" id="character-delete-btn" aria-label="Delete Character">Delete</button>
+        <button class="btn-sm btn-secondary" id="character-modal-cancel" aria-label="Cancel Character Edit">Cancel</button>
+        <button class="btn-sm btn-primary" id="character-modal-save" aria-label="Save Character">Save</button>
       </div>
     </div>
   </div>
