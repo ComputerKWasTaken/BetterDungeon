@@ -980,7 +980,7 @@ function createCharacterCard(preset) {
           ${fieldNames ? `<span class="character-fields-preview">${escapeHtml(fieldNames)}</span>` : ''}
         </div>
       </div>
-      <button class="character-edit-btn" aria-label="Edit character">✏️</button>
+      <button class="character-edit-btn" aria-label="Edit character"><span class="icon-pencil"></span></button>
     </div>
   `;
   

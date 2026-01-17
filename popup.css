@@ -1422,7 +1422,7 @@ body {
 
 .btn-primary {
   background: linear-gradient(135deg, #ff9500 0%, #e68600 100%);
-  color: #000;
+  color: #ffffff;
   font-weight: var(--bd-font-weight-semibold);
   padding: 10px 20px;
   border-radius: var(--bd-radius-lg);
@@ -1592,8 +1592,8 @@ body {
 }
 
 .character-card:hover {
-  border-color: rgba(168, 85, 247, 0.3);
-  box-shadow: 0 2px var(--bd-space-2) rgba(168, 85, 247, 0.1);
+  border-color: rgba(251, 191, 36, 0.3);
+  box-shadow: 0 2px var(--bd-space-2) rgba(251, 191, 36, 0.1);
 }
 
 .character-header {
@@ -1624,7 +1624,7 @@ body {
 }
 
 .character-field-count {
-  color: rgba(168, 85, 247, 0.8);
+  color: rgba(251, 191, 36, 0.8);
   font-weight: var(--bd-font-weight-medium);
 }
 
@@ -1642,10 +1642,12 @@ body {
   padding: var(--bd-space-1) var(--bd-space-2);
   border-radius: var(--bd-radius-md);
   transition: background var(--bd-transition-fast);
+  color: var(--text-muted);
 }
 
 .character-edit-btn:hover {
   background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
 }
 
 .character-fields-section {
@@ -1684,7 +1686,7 @@ body {
 .character-field-key {
   font-size: 11px;
   font-weight: 600;
-  color: rgba(168, 85, 247, 0.9);
+  color: rgba(251, 191, 36, 0.9);
   text-transform: capitalize;
   min-width: 80px;
 }
@@ -1702,7 +1704,7 @@ body {
 
 .character-field-value:focus {
   outline: none;
-  border-color: rgba(168, 85, 247, 0.5);
+  border-color: rgba(251, 191, 36, 0.5);
 }
 
 .character-field-delete {
