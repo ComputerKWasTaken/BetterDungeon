@@ -40,43 +40,8 @@ class InputModeColorFeature {
     });
   }
 
-  // Mode color mapping - subtle, muted colors that complement the dark UI
-  getModeColor(mode) {
-    const colors = {
-      'do': {
-        border: 'rgba(59, 130, 246, 0.6)',      // Blue
-        glow: 'rgba(59, 130, 246, 0.15)',
-        rgb: '59, 130, 246'
-      },
-      'attempt': {
-        border: 'rgba(168, 85, 247, 0.6)',      // Purple
-        glow: 'rgba(168, 85, 247, 0.15)',
-        rgb: '168, 85, 247'
-      },
-      'say': {
-        border: 'rgba(34, 197, 94, 0.6)',       // Green
-        glow: 'rgba(34, 197, 94, 0.15)',
-        rgb: '34, 197, 94'
-      },
-      'story': {
-        border: 'rgba(251, 191, 36, 0.6)',      // Amber/Gold
-        glow: 'rgba(251, 191, 36, 0.15)',
-        rgb: '251, 191, 36'
-      },
-      'see': {
-        border: 'rgba(236, 72, 153, 0.6)',      // Pink
-        glow: 'rgba(236, 72, 153, 0.15)',
-        rgb: '236, 72, 153'
-      },
-      'command': {
-        border: 'rgba(6, 182, 212, 0.6)',       // Cyan
-        glow: 'rgba(6, 182, 212, 0.15)',
-        rgb: '6, 182, 212'
-      }
-    };
-    return colors[mode] || null;
-  }
-
+  // Mode color mapping handled in CSS via data attributes
+  
   detectCurrentMode() {
     // The "Change input mode" button displays the current mode name
     const modeButton = document.querySelector('[aria-label="Change input mode"]');
@@ -148,11 +113,21 @@ class InputModeColorFeature {
     modeSelectors.forEach(({ selector, mode }) => {
       const button = document.querySelector(selector);
       if (button && !button.hasAttribute('data-bd-mode-styled')) {
-        const colors = this.getModeColor(mode);
-        if (colors) {
-          button.setAttribute('data-bd-mode-styled', mode);
-          button.classList.add('bd-mode-button-colored');
-          button.style.setProperty('--bd-button-rgb', colors.rgb);
+        button.setAttribute('data-bd-mode-styled', mode);
+        button.classList.add('bd-mode-button-colored');
+        
+        // Map mode to CSS variable for button gradient
+        const modeColorMap = {
+          'do': 'var(--bd-mode-do-rgb)',
+          'attempt': 'var(--bd-mode-attempt-rgb)',
+          'say': 'var(--bd-mode-say-rgb)',
+          'story': 'var(--bd-mode-story-rgb)',
+          'see': 'var(--bd-mode-see-rgb)',
+          'command': 'var(--bd-mode-command-rgb)'
+        };
+        
+        if (modeColorMap[mode]) {
+          button.style.setProperty('--bd-button-rgb', modeColorMap[mode]);
         }
       }
     });
@@ -162,13 +137,8 @@ class InputModeColorFeature {
     this.inputContainer = this.findInputContainer();
     if (!this.inputContainer) return;
 
-    const colors = this.getModeColor(mode);
-    if (!colors) return;
-
-    // Apply mode-specific CSS custom properties and class for styling
+    // Apply mode-specific class for styling (handled in CSS)
     this.inputContainer.setAttribute('data-bd-input-mode', mode);
-    this.inputContainer.style.setProperty('--bd-mode-border', colors.border);
-    this.inputContainer.style.setProperty('--bd-mode-glow', colors.glow);
     this.inputContainer.classList.add('bd-input-mode-colored');
   }
 
@@ -176,16 +146,12 @@ class InputModeColorFeature {
     // Clean up input container styling
     if (this.inputContainer) {
       this.inputContainer.removeAttribute('data-bd-input-mode');
-      this.inputContainer.style.removeProperty('--bd-mode-border');
-      this.inputContainer.style.removeProperty('--bd-mode-glow');
       this.inputContainer.classList.remove('bd-input-mode-colored');
     }
 
     // Clean up any orphaned input containers
     document.querySelectorAll('.bd-input-mode-colored').forEach(el => {
       el.removeAttribute('data-bd-input-mode');
-      el.style.removeProperty('--bd-mode-border');
-      el.style.removeProperty('--bd-mode-glow');
       el.classList.remove('bd-input-mode-colored');
     });
 

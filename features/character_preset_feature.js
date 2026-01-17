@@ -489,19 +489,36 @@ class CharacterPresetFeature {
       ).join('');
       
       return `
-        <div class="bd-selector-row">
-          <span class="bd-selector-label">Character:</span>
-          <select class="bd-selector-dropdown" id="bd-preset-selector">
-            <option value="">Select...</option>
-            ${options}
+        <div class="bd-selector-row" style="font-family: var(--bd-font-family-primary);">
+          <span class="bd-selector-label" style="color: var(--bd-text-secondary);">Character:</span>
+          <select class="bd-selector-dropdown" id="bd-preset-selector" style="
+            font-family: var(--bd-font-family-primary);
+            color: var(--bd-text-primary);
+            background: var(--bd-bg-elevated);
+            border: 1px solid var(--bd-border-default);
+            border-radius: var(--bd-radius-md);
+          ">
+            <option value="" style="background: var(--bd-bg-secondary); color: var(--bd-text-primary);">Select...</option>
+            ${options.replace(/<option/g, '<option style="background: var(--bd-bg-secondary); color: var(--bd-text-primary);"') }
           </select>
-          <button class="bd-selector-add" id="bd-new-preset-btn" title="Create new character">+</button>
+          <button class="bd-selector-add" id="bd-new-preset-btn" title="Create new character" style="
+            color: var(--bd-text-secondary);
+            background: var(--bd-bg-tertiary);
+            border: 1px solid var(--bd-border-default);
+            border-radius: var(--bd-radius-md);
+          ">+</button>
         </div>
       `;
     } else {
       return `
-        <div class="bd-selector-row">
-          <button class="bd-selector-create" id="bd-new-preset-btn">
+        <div class="bd-selector-row" style="font-family: var(--bd-font-family-primary);">
+          <button class="bd-selector-create" id="bd-new-preset-btn" style="
+            font-family: var(--bd-font-family-primary);
+            color: #fff;
+            background: var(--bd-btn-primary-bg);
+            border: none;
+            border-radius: var(--bd-radius-md);
+          ">
             <span>+ Create Character Preset</span>
           </button>
         </div>
@@ -590,7 +607,23 @@ class CharacterPresetFeature {
     this.saveButtonElement = document.createElement('div');
     this.saveButtonElement.className = 'bd-save-continue-wrapper';
     this.saveButtonElement.innerHTML = `
-      <button class="bd-save-continue-btn" id="bd-save-continue" title="Save to ${this.escapeHtml(sessionCharacter.name)} and continue">
+      <button class="bd-save-continue-btn" id="bd-save-continue" title="Save to ${this.escapeHtml(sessionCharacter.name)} and continue" style="
+        font-family: var(--bd-font-family-primary);
+        font-size: var(--bd-font-size-md);
+        font-weight: var(--bd-font-weight-medium);
+        color: #fff;
+        background: var(--bd-success);
+        border: 1px solid var(--bd-success-border);
+        border-radius: var(--bd-radius-lg);
+        padding: var(--bd-space-3) var(--bd-space-6);
+        cursor: pointer;
+        transition: all var(--bd-transition-fast);
+        display: flex;
+        align-items: center;
+        gap: var(--bd-space-2);
+        box-shadow: var(--bd-shadow-md);
+      ">
+        <span style="font-size: 1.2em;">✓</span>
         <span>Save & Continue</span>
       </button>
     `;
