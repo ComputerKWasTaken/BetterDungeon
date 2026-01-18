@@ -167,7 +167,7 @@ function setupApplyInstructionsButton() {
       const isAIDungeon = url.includes('aidungeon.com') || url.includes('play.aidungeon.com');
 
       if (!isAIDungeon) {
-        showButtonStatus(btn, 'error', 'Not on AI Dungeon');
+        showApplyButtonStatus(btn, 'error', 'Not on AI Dungeon');
         return;
       }
 

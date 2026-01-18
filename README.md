@@ -79,5 +79,8 @@ See `core/theme-variables.css` for the design system if you want things to look 
 
 ## Changelog
 
+### v0.9.0.1
+- Fixed an issue with the Apply button, should fix Markdown instruction application
+
 ### v0.9.0
 - Early Access release
