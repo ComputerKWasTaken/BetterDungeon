@@ -687,10 +687,19 @@ class CharacterPresetFeature {
     
     requestAnimationFrame(() => {
       this.overlayElement.classList.add('bd-selector-visible');
+      
+      // Show first-use hint
+      this.showFirstUseHint();
     });
     
     this.setupCharacterSelectorHandlers(field);
     
+  }
+
+  showFirstUseHint() {
+    if (!window.BetterDungeonHints || !this.overlayElement) return;
+    
+    window.BetterDungeonHints.show('character-autofill', this.overlayElement, 'bottom');
   }
 
   buildCharacterSelectorHTML() {

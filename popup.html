@@ -13,7 +13,13 @@
       <img src="icons/icon48.png" alt="BetterDungeon icon" class="logo-icon">
       <span class="logo-text">BetterDungeon</span>
     </div>
-    <span class="version">v1.0.0</span>
+    <div class="header-actions">
+      <button class="tutorial-help-btn" id="tutorial-help-btn" aria-label="Start Tutorial" title="Start Tutorial">
+        <span class="icon-circle-question-mark"></span>
+      </button>
+      <span class="version-badge">Early Access</span>
+      <span class="version">v0.9.0</span>
+    </div>
   </header>
 
   <nav class="tab-nav" role="tablist">
@@ -439,6 +445,73 @@
     </div>
   </div>
 
+  <!-- Tutorial Welcome Banner (shown for new users) -->
+  <div class="tutorial-welcome-banner hidden" id="tutorial-welcome-banner">
+    <div class="tutorial-welcome-banner-icon">
+      <span class="icon-wand-sparkles"></span>
+    </div>
+    <div class="tutorial-welcome-banner-content">
+      <h4 class="tutorial-welcome-banner-title">Welcome to BetterDungeon!</h4>
+      <p class="tutorial-welcome-banner-text">Take a quick tour to learn the features.</p>
+    </div>
+    <div class="tutorial-welcome-banner-actions">
+      <button class="tutorial-btn tutorial-btn-secondary" id="tutorial-banner-dismiss">Later</button>
+      <button class="tutorial-btn tutorial-btn-primary" id="tutorial-banner-start">Start</button>
+    </div>
+  </div>
+
+  <!-- Tutorial Overlay System -->
+  <div class="tutorial-overlay" id="tutorial-overlay">
+    <div class="tutorial-spotlight" id="tutorial-spotlight"></div>
+  </div>
+
+  <!-- Tutorial Tooltip -->
+  <div class="tutorial-tooltip" id="tutorial-tooltip" data-position="bottom">
+    <div class="tutorial-tooltip-arrow"></div>
+    <div class="tutorial-tooltip-header">
+      <div class="tutorial-tooltip-icon">
+        <span class="icon-lightbulb" id="tutorial-tooltip-icon"></span>
+      </div>
+      <h4 class="tutorial-tooltip-title" id="tutorial-tooltip-title">Feature Title</h4>
+    </div>
+    <div class="tutorial-tooltip-body">
+      <p class="tutorial-tooltip-content" id="tutorial-tooltip-content">Description of the feature goes here.</p>
+    </div>
+    <div class="tutorial-tooltip-footer">
+      <div class="tutorial-progress">
+        <div class="tutorial-progress-bar">
+          <div class="tutorial-progress-fill" id="tutorial-progress-fill" style="width: 0%"></div>
+        </div>
+        <span class="tutorial-progress-text" id="tutorial-progress-text">1/12</span>
+      </div>
+      <div class="tutorial-nav">
+        <button class="tutorial-btn tutorial-btn-skip" id="tutorial-skip">Skip</button>
+        <button class="tutorial-btn tutorial-btn-secondary" id="tutorial-prev">Back</button>
+        <button class="tutorial-btn tutorial-btn-primary" id="tutorial-next">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tutorial Modal (Welcome/Complete) -->
+  <div class="tutorial-modal" id="tutorial-modal">
+    <div class="tutorial-modal-content">
+      <div class="tutorial-modal-header">
+        <div class="tutorial-modal-icon" id="tutorial-modal-icon">
+          <span class="icon-wand-sparkles"></span>
+        </div>
+        <h3 class="tutorial-modal-title" id="tutorial-modal-title">Welcome to BetterDungeon!</h3>
+      </div>
+      <div class="tutorial-modal-body">
+        <p class="tutorial-modal-text" id="tutorial-modal-text">This quick tour will introduce you to the features that enhance your AI Dungeon experience.</p>
+      </div>
+      <div class="tutorial-modal-footer">
+        <button class="tutorial-btn tutorial-btn-primary" id="tutorial-modal-primary">Start Tour</button>
+        <button class="tutorial-btn tutorial-btn-secondary" id="tutorial-modal-secondary">Maybe Later</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="services/tutorial-service.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

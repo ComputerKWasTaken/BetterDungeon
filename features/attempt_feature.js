@@ -315,6 +315,9 @@ class AttemptFeature {
       // After menu closes, update the UI to show "Attempt" mode
       setTimeout(() => {
         this.updateModeDisplay();
+        
+        // Show first-use hint
+        this.showFirstUseHint();
       }, 50);
     }, 50);
 
@@ -326,6 +329,15 @@ class AttemptFeature {
     
     // Watch for mode changes (user clicking on input mode button)
     this.watchForModeChanges();
+  }
+
+  showFirstUseHint() {
+    if (!window.BetterDungeonHints) return;
+    
+    const modeButton = document.querySelector('[aria-label="Change input mode"]');
+    if (modeButton) {
+      window.BetterDungeonHints.show('attempt-mode', modeButton, 'top');
+    }
   }
 
   setupWeightKeyHandler() {

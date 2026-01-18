@@ -41,6 +41,7 @@ document.addEventListener('DOMContentLoaded', function() {
   loadPresets();
   setupCharacterPresetManagement();
   loadCharacterPresets();
+  initTutorial();
 });
 
 // Setup tab navigation
@@ -1204,4 +1205,349 @@ function showCharacterStatus(message, type) {
       setTimeout(() => status.remove(), 300);
     }, 2000);
   }
+}
+
+// ============================================
+// TUTORIAL SYSTEM
+// ============================================
+
+let tutorialService = null;
+let previouslyExpandedCard = null;
+
+// Initialize tutorial system
+async function initTutorial() {
+  if (typeof TutorialService === 'undefined') {
+    console.warn('TutorialService not loaded');
+    return;
+  }
+  
+  tutorialService = new TutorialService();
+  await tutorialService.init();
+  
+  // Set up callbacks
+  tutorialService.onStepChange = handleTutorialStepChange;
+  tutorialService.onComplete = handleTutorialComplete;
+  tutorialService.onExit = handleTutorialExit;
+  
+  // Setup UI handlers
+  setupTutorialHandlers();
+  
+  // Check if we should show welcome banner for new users
+  if (tutorialService.shouldShowWelcome()) {
+    showWelcomeBanner();
+  }
+}
+
+// Setup tutorial event handlers
+function setupTutorialHandlers() {
+  // Help button in header
+  document.getElementById('tutorial-help-btn')?.addEventListener('click', () => {
+    startTutorial();
+  });
+  
+  // Welcome banner buttons
+  document.getElementById('tutorial-banner-start')?.addEventListener('click', () => {
+    hideWelcomeBanner();
+    startTutorial();
+  });
+  
+  document.getElementById('tutorial-banner-dismiss')?.addEventListener('click', () => {
+    hideWelcomeBanner();
+    tutorialService?.markSeenWelcome();
+  });
+  
+  // Tutorial navigation buttons
+  document.getElementById('tutorial-next')?.addEventListener('click', () => {
+    tutorialService?.next();
+  });
+  
+  document.getElementById('tutorial-prev')?.addEventListener('click', () => {
+    tutorialService?.previous();
+  });
+  
+  document.getElementById('tutorial-skip')?.addEventListener('click', () => {
+    exitTutorial();
+  });
+  
+  // Modal buttons
+  document.getElementById('tutorial-modal-primary')?.addEventListener('click', () => {
+    const step = tutorialService?.getCurrentStep();
+    if (step?.isComplete) {
+      closeTutorialModal();
+      handleTutorialComplete();
+    } else {
+      closeTutorialModal();
+      tutorialService?.next();
+    }
+  });
+  
+  document.getElementById('tutorial-modal-secondary')?.addEventListener('click', () => {
+    closeTutorialModal();
+    exitTutorial();
+  });
+  
+  // Click overlay to advance (for spotlight steps)
+  document.getElementById('tutorial-overlay')?.addEventListener('click', (e) => {
+    if (e.target.id === 'tutorial-overlay' || e.target.classList.contains('tutorial-overlay-bg')) {
+      tutorialService?.next();
+    }
+  });
+}
+
+// Show welcome banner
+function showWelcomeBanner() {
+  const banner = document.getElementById('tutorial-welcome-banner');
+  const content = document.querySelector('.content');
+  
+  if (banner && content) {
+    banner.classList.remove('hidden');
+    // Insert at top of content
+    content.insertBefore(banner, content.firstChild);
+  }
+}
+
+// Hide welcome banner
+function hideWelcomeBanner() {
+  const banner = document.getElementById('tutorial-welcome-banner');
+  if (banner) {
+    banner.classList.add('hidden');
+  }
+}
+
+// Start the tutorial
+function startTutorial() {
+  if (!tutorialService) return;
+  
+  hideWelcomeBanner();
+  tutorialService.start();
+}
+
+// Exit the tutorial
+function exitTutorial() {
+  if (!tutorialService) return;
+  
+  tutorialService.exit();
+}
+
+// Handle step changes
+function handleTutorialStepChange(step, currentIndex, totalSteps) {
+  if (!step) return;
+  
+  // Clean up previous state
+  cleanupTutorialStep();
+  
+  if (step.type === 'modal') {
+    showTutorialModal(step);
+  } else if (step.type === 'spotlight') {
+    // Execute any action first (like switching tabs)
+    if (step.action === 'switchTab') {
+      switchToTab(step.actionTarget);
+      // Small delay for DOM update
+      setTimeout(() => showSpotlight(step, currentIndex, totalSteps), 100);
+    } else {
+      showSpotlight(step, currentIndex, totalSteps);
+    }
+  }
+}
+
+// Show tutorial modal (welcome/complete)
+function showTutorialModal(step) {
+  const modal = document.getElementById('tutorial-modal');
+  const icon = document.getElementById('tutorial-modal-icon');
+  const title = document.getElementById('tutorial-modal-title');
+  const text = document.getElementById('tutorial-modal-text');
+  const primaryBtn = document.getElementById('tutorial-modal-primary');
+  const secondaryBtn = document.getElementById('tutorial-modal-secondary');
+  
+  if (!modal) return;
+  
+  // Update content
+  if (icon) {
+    icon.innerHTML = `<span class="${step.icon || 'icon-sparkles'}"></span>`;
+  }
+  if (title) title.textContent = step.title;
+  if (text) text.textContent = step.content;
+  
+  // Update buttons based on step
+  if (step.isComplete) {
+    if (primaryBtn) primaryBtn.textContent = 'Got It!';
+    if (secondaryBtn) secondaryBtn.style.display = 'none';
+  } else {
+    if (primaryBtn) primaryBtn.textContent = 'Start Tour';
+    if (secondaryBtn) {
+      secondaryBtn.textContent = 'Maybe Later';
+      secondaryBtn.style.display = 'block';
+    }
+  }
+  
+  modal.classList.add('visible');
+}
+
+// Close tutorial modal
+function closeTutorialModal() {
+  const modal = document.getElementById('tutorial-modal');
+  if (modal) {
+    modal.classList.remove('visible');
+  }
+}
+
+// Show spotlight on target element
+function showSpotlight(step, currentIndex, totalSteps) {
+  const target = document.querySelector(step.target);
+  if (!target) {
+    console.warn('Tutorial target not found:', step.target);
+    tutorialService?.next();
+    return;
+  }
+  
+  const overlay = document.getElementById('tutorial-overlay');
+  const spotlight = document.getElementById('tutorial-spotlight');
+  const tooltip = document.getElementById('tutorial-tooltip');
+  
+  if (!overlay || !spotlight || !tooltip) return;
+  
+  // Expand card if needed
+  if (step.expandCard) {
+    const card = target.closest('.card') || target;
+    if (card && !card.classList.contains('expanded')) {
+      previouslyExpandedCard = card;
+      card.classList.add('expanded');
+    }
+  }
+  
+  // Scroll target into view
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  
+  // Wait for scroll to complete
+  setTimeout(() => {
+    const rect = target.getBoundingClientRect();
+    const padding = 8;
+    
+    // Position spotlight
+    spotlight.style.left = `${rect.left - padding}px`;
+    spotlight.style.top = `${rect.top - padding}px`;
+    spotlight.style.width = `${rect.width + padding * 2}px`;
+    spotlight.style.height = `${rect.height + padding * 2}px`;
+    
+    // Add highlighted class to target
+    target.classList.add('tutorial-highlighted');
+    
+    // Show overlay
+    overlay.classList.add('active');
+    
+    // Position and show tooltip
+    positionTooltip(tooltip, rect, step.position || 'bottom');
+    updateTooltipContent(step, currentIndex, totalSteps);
+    
+    setTimeout(() => {
+      tooltip.classList.add('visible');
+    }, 200);
+  }, 300);
+}
+
+// Position tooltip relative to spotlight
+function positionTooltip(tooltip, targetRect, position) {
+  const tooltipWidth = 280;
+  const gap = 16;
+  const padding = 20;
+  
+  let left, top;
+  
+  tooltip.setAttribute('data-position', position);
+  
+  switch (position) {
+    case 'top':
+      left = targetRect.left + (targetRect.width / 2) - (tooltipWidth / 2);
+      top = targetRect.top - gap - tooltip.offsetHeight;
+      break;
+    case 'bottom':
+    default:
+      left = targetRect.left + (targetRect.width / 2) - (tooltipWidth / 2);
+      top = targetRect.bottom + gap;
+      break;
+    case 'left':
+      left = targetRect.left - tooltipWidth - gap;
+      top = targetRect.top + (targetRect.height / 2) - (tooltip.offsetHeight / 2);
+      break;
+    case 'right':
+      left = targetRect.right + gap;
+      top = targetRect.top + (targetRect.height / 2) - (tooltip.offsetHeight / 2);
+      break;
+  }
+  
+  // Keep tooltip within viewport
+  left = Math.max(padding, Math.min(left, window.innerWidth - tooltipWidth - padding));
+  top = Math.max(padding, top);
+  
+  tooltip.style.left = `${left}px`;
+  tooltip.style.top = `${top}px`;
+}
+
+// Update tooltip content
+function updateTooltipContent(step, currentIndex, totalSteps) {
+  const title = document.getElementById('tutorial-tooltip-title');
+  const content = document.getElementById('tutorial-tooltip-content');
+  const progressFill = document.getElementById('tutorial-progress-fill');
+  const progressText = document.getElementById('tutorial-progress-text');
+  const prevBtn = document.getElementById('tutorial-prev');
+  const nextBtn = document.getElementById('tutorial-next');
+  
+  if (title) title.textContent = step.title;
+  if (content) content.textContent = step.content;
+  
+  const progress = ((currentIndex + 1) / totalSteps) * 100;
+  if (progressFill) progressFill.style.width = `${progress}%`;
+  if (progressText) progressText.textContent = `${currentIndex + 1}/${totalSteps}`;
+  
+  // Update nav buttons
+  if (prevBtn) {
+    prevBtn.style.display = currentIndex > 1 ? 'block' : 'none'; // Hide on first spotlight step
+  }
+  if (nextBtn) {
+    nextBtn.textContent = currentIndex === totalSteps - 2 ? 'Finish' : 'Next';
+  }
+}
+
+// Clean up after tutorial step
+function cleanupTutorialStep() {
+  const overlay = document.getElementById('tutorial-overlay');
+  const tooltip = document.getElementById('tutorial-tooltip');
+  
+  // Remove overlay and tooltip visibility
+  overlay?.classList.remove('active');
+  tooltip?.classList.remove('visible');
+  
+  // Remove highlighted class from any elements
+  document.querySelectorAll('.tutorial-highlighted').forEach(el => {
+    el.classList.remove('tutorial-highlighted');
+  });
+  
+  // Collapse previously expanded card
+  if (previouslyExpandedCard) {
+    previouslyExpandedCard.classList.remove('expanded');
+    previouslyExpandedCard = null;
+  }
+}
+
+// Switch to a specific tab
+function switchToTab(tabName) {
+  const tabBtn = document.querySelector(`[data-tab="${tabName}"]`);
+  if (tabBtn) {
+    tabBtn.click();
+  }
+}
+
+// Handle tutorial completion
+function handleTutorialComplete() {
+  cleanupTutorialStep();
+  closeTutorialModal();
+  
+  // Switch back to features tab
+  switchToTab('features');
+}
+
+// Handle tutorial exit
+function handleTutorialExit() {
+  cleanupTutorialStep();
+  closeTutorialModal();
 }

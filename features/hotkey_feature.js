@@ -30,6 +30,26 @@ class HotkeyFeature {
   init() {
     console.log('HotkeyFeature: Initializing...');
     this.setupKeyboardListener();
+    this.showHotkeysAvailableHint();
+  }
+
+  showHotkeysAvailableHint() {
+    if (!window.BetterDungeonHints) return;
+    
+    // Show hint near the command bar when input area is ready
+    const checkForInput = setInterval(() => {
+      const commandBar = document.querySelector('[aria-label="Command: take a turn"]');
+      if (commandBar) {
+        clearInterval(checkForInput);
+        // Small delay to not overwhelm user immediately
+        setTimeout(() => {
+          window.BetterDungeonHints.show('hotkeys-available', commandBar, 'top');
+        }, 2000);
+      }
+    }, 1000);
+    
+    // Stop checking after 30 seconds
+    setTimeout(() => clearInterval(checkForInput), 30000);
   }
 
   destroy() {
@@ -182,6 +202,9 @@ class HotkeyFeature {
         }
         
         targetElement.click();
+        
+        // Show first-use hint
+        this.showFirstUseHint(targetElement);
       } else {
         // Close menu if we opened it but couldn't find the option
         if (hotkeyConfig.requiresMenu) {
@@ -192,6 +215,16 @@ class HotkeyFeature {
 
     this.boundKeyHandler = handleKeyDown;
     document.addEventListener('keydown', handleKeyDown, true);
+  }
+
+  showFirstUseHint(targetElement) {
+    if (!window.BetterDungeonHints) return;
+    
+    // Show hint near the input area
+    const inputArea = document.querySelector('#game-text-input');
+    if (inputArea) {
+      window.BetterDungeonHints.show('hotkey-used', inputArea, 'top');
+    }
   }
 }
 

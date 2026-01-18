@@ -398,6 +398,9 @@ class CommandFeature {
       // After menu closes, update the UI to show "Command" mode
       setTimeout(() => {
         this.updateModeDisplay();
+        
+        // Show first-use hint
+        this.showFirstUseHint();
       }, 50);
     }, 50);
 
@@ -406,6 +409,15 @@ class CommandFeature {
     
     // Watch for mode changes (user clicking on input mode button)
     this.watchForModeChanges();
+  }
+
+  showFirstUseHint() {
+    if (!window.BetterDungeonHints) return;
+    
+    const modeButton = document.querySelector('[aria-label="Change input mode"]');
+    if (modeButton) {
+      window.BetterDungeonHints.show('command-mode', modeButton, 'top');
+    }
   }
 
   watchForModeChanges() {

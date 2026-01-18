@@ -641,6 +641,26 @@ class TriggerHighlightFeature {
     // Only update if we made changes
     if (html !== this.escapeHtml(originalText)) {
       element.innerHTML = html;
+      
+      // Show first-use hint for trigger highlights
+      this.showTriggerHint(element);
+    }
+  }
+
+  showTriggerHint(element) {
+    if (!window.BetterDungeonHints) return;
+    
+    // Check for story card triggers first
+    const triggerSpan = element.querySelector('.bd-trigger-highlight');
+    if (triggerSpan) {
+      window.BetterDungeonHints.show('trigger-highlight', triggerSpan, 'top');
+      return;
+    }
+    
+    // Then check for suggested triggers
+    const suggestedSpan = element.querySelector('.bd-suggested-trigger');
+    if (suggestedSpan) {
+      window.BetterDungeonHints.show('suggested-trigger', suggestedSpan, 'top');
     }
   }
 
