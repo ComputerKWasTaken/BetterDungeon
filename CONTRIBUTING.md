@@ -2,6 +2,40 @@
 
 Developer documentation for contributors and maintainers.
 
+---
+
+## To-Do List
+
+### 🔴 Urgent
+<!-- Critical items blocking release or severely impacting users -->
+
+### 🟠 High
+<!-- Important features or improvements to prioritize -->
+
+### 🟢 Low
+<!-- Nice-to-have improvements when time permits -->
+
+### 📋 Backlog
+<!-- Future ideas and long-term goals -->
+
+---
+
+## Bug List
+
+### 🔴 Urgent
+<!-- Critical bugs causing crashes or data loss -->
+
+### 🟠 High
+<!-- Bugs significantly impacting user experience -->
+
+### 🟢 Low
+<!-- Minor bugs or edge cases -->
+
+### 📋 Backlog
+<!-- Known issues with workarounds or minimal impact -->
+
+---
+
 ## Project Structure
 
 ```

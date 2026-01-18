@@ -4,6 +4,24 @@
 
 The all-in-one browser extension for AI Dungeon that enhances the experience with QOL additions and brand new features.
 
+## Installation
+
+**For now (Chrome Web Store coming eventually):**
+
+1. Clone/download this repo
+2. Go to `chrome://extensions/`
+3. Enable "Developer mode" (top right)
+4. Click "Load unpacked" → select the `BetterDungeon` folder
+5. You're in
+
+## Usage
+
+1. Head to [AI Dungeon](https://aidungeon.com)
+2. Click the BetterDungeon icon to toggle features and access settings
+3. Play your adventure with all the new goodies
+
+Settings sync across Chromium browsers.
+
 ## Features
 
 ### New Input Modes
@@ -38,24 +56,6 @@ The all-in-one browser extension for AI Dungeon that enhances the experience wit
 
 - **Interactive Tutorial** — A guided tour that introduces you to the extension's features.
 
-## Installation
-
-**For now (Chrome Web Store coming eventually):**
-
-1. Clone/download this repo
-2. Go to `chrome://extensions/`
-3. Enable "Developer mode" (top right)
-4. Click "Load unpacked" → select the `BetterDungeon` folder
-5. You're in
-
-## Usage
-
-1. Head to [AI Dungeon](https://aidungeon.com)
-2. Click the BetterDungeon icon to toggle features and access settings
-3. Play your adventure with all the new goodies
-
-Settings sync across Chromium browsers.
-
 ## Development
 
 ### Project Structure
@@ -79,8 +79,9 @@ See `core/theme-variables.css` for the design system if you want things to look 
 
 ## Changelog
 
-### v0.9.0.1
+### v0.9.0.2
 - Fixed an issue with the Apply button, should fix Markdown instruction application
+- Improved MD file flow
 
 ### v0.9.0
 - Early Access release
