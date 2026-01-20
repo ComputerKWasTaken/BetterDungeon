@@ -103,7 +103,24 @@ class HotkeyFeature {
     // Click the close button with aria-label="Close text input"
     const closeButton = document.querySelector('[aria-label="Close text input"]');
     if (closeButton) {
+      // First blur the active element before clicking close
+      if (document.activeElement) {
+        document.activeElement.blur();
+      }
+      
       closeButton.click();
+      
+      // Remove focus from the input to prevent hidden keystrokes
+      // Use setTimeout to ensure focus change happens after the close action completes
+      setTimeout(() => {
+        if (document.activeElement && document.activeElement !== document.body) {
+          document.activeElement.blur();
+        }
+        // Make body focusable and focus it
+        document.body.setAttribute('tabindex', '-1');
+        document.body.focus();
+        document.body.removeAttribute('tabindex');
+      }, 50);
     }
   }
 

@@ -79,7 +79,7 @@ See `core/theme-variables.css` for the design system if you want things to look 
 
 ## Changelog
 
-### v0.9.1 (IN PROGRESS RN)
+### v0.9.1
 - Improved **Command** mode formatting to include brackets [] for better AI adherence
 - Added an option to automatically delete the command text after being sent
 - Improved the **Markdown** formatting instructions and system to use an alternative system that avoids asterisks AND underscores (new)
