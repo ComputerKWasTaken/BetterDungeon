@@ -697,9 +697,7 @@ class CharacterPresetFeature {
   }
 
   showFirstUseHint() {
-    if (!window.BetterDungeonHints || !this.overlayElement) return;
-    
-    window.BetterDungeonHints.show('character-autofill', this.overlayElement, 'bottom');
+    // Hint service removed - tutorial covers this
   }
 
   buildCharacterSelectorHTML() {

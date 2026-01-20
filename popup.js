@@ -1,9 +1,19 @@
-// Better Dungeon - Popup Script
-// Handles the extension popup interface and feature settings
+// BetterDungeon - Popup Script (Revamped)
+// Cleaner architecture with modular organization
 
-const STORAGE_KEY = 'betterDungeonFeatures';
+// ============================================
+// CONSTANTS & STATE
+// ============================================
 
-// Default feature states
+const STORAGE_KEYS = {
+  features: 'betterDungeonFeatures',
+  settings: 'betterDungeonSettings',
+  presets: 'betterDungeon_favoritePresets',
+  characters: 'betterDungeon_characterPresets',
+  autoScan: 'betterDungeon_autoScanTriggers',
+  autoApply: 'betterDungeon_autoApplyInstructions'
+};
+
 const DEFAULT_FEATURES = {
   markdown: true,
   command: true,
@@ -15,1268 +25,852 @@ const DEFAULT_FEATURES = {
   characterPreset: true
 };
 
-const SETTINGS_KEY = 'betterDungeonSettings';
-
 const DEFAULT_SETTINGS = {
   attemptCriticalChance: 5
 };
 
-document.addEventListener('DOMContentLoaded', function() {
-  loadFeatureStates();
-  loadSettings();
-  loadAutoScanSetting();
-  loadAutoApplySetting();
-  setupTabNavigation();
-  setupFeatureToggles();
-  setupExpandableCards();
-  setupSettingsControls();
-  setupApplyInstructionsButton();
-  setupScanTriggersButton();
-  setupAutoScanToggle();
-  setupAutoApplyToggle();
-  setupHotkeyDetailsToggle();
-  setupInputModeColorDetailsToggle();
-  setupProfileLinks();
-  setupPresetManagement();
-  loadPresets();
-  setupCharacterPresetManagement();
-  loadCharacterPresets();
+// State
+let currentEditingPreset = null;
+let currentEditingCharacter = null;
+let lastUndoState = null;
+
+// ============================================
+// INITIALIZATION
+// ============================================
+
+document.addEventListener('DOMContentLoaded', () => {
+  initNavigation();
+  initFeatureCards();
+  initToggles();
+  initSettings();
+  initPresets();
+  initCharacters();
+  initModals();
+  initTools();
   initTutorial();
 });
 
-// Setup tab navigation
-function setupTabNavigation() {
-  const tabButtons = document.querySelectorAll('.tab-btn');
-  const tabContents = document.querySelectorAll('.tab-content');
-  
-  tabButtons.forEach(btn => {
-    btn.addEventListener('click', function() {
-      const targetTab = this.dataset.tab;
+// ============================================
+// NAVIGATION
+// ============================================
+
+function initNavigation() {
+  const navItems = document.querySelectorAll('.nav-item');
+  const panels = document.querySelectorAll('.tab-panel');
+
+  navItems.forEach(item => {
+    item.addEventListener('click', () => {
+      const tab = item.dataset.tab;
       
-      // Update button states
-      tabButtons.forEach(b => b.classList.remove('active'));
-      this.classList.add('active');
+      // Update nav
+      navItems.forEach(n => n.classList.remove('active'));
+      item.classList.add('active');
       
-      // Update content visibility
-      tabContents.forEach(content => {
-        content.classList.toggle('active', content.id === `tab-${targetTab}`);
+      // Update panels
+      panels.forEach(p => {
+        p.classList.toggle('active', p.id === `tab-${tab}`);
       });
     });
   });
 }
 
-// Setup expandable cards
-function setupExpandableCards() {
-  const chevronBtns = document.querySelectorAll('.chevron-btn');
+// ============================================
+// FEATURE CARDS (Expandable)
+// ============================================
+
+function initFeatureCards() {
+  const cards = document.querySelectorAll('.feature-card');
   
-  chevronBtns.forEach(btn => {
-    btn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      const featureId = this.dataset.expand;
-      const card = document.querySelector(`.card[data-feature="${featureId}"]`);
-      
-      if (card) {
-        card.classList.toggle('expanded');
-      }
-    });
-  });
-  
-  // Also allow clicking the header to expand
-  const cardHeaders = document.querySelectorAll('.card-header');
-  cardHeaders.forEach(header => {
-    header.addEventListener('click', function(e) {
-      // Don't expand if clicking on toggle
+  cards.forEach(card => {
+    const row = card.querySelector('.feature-row');
+    if (!row) return;
+    
+    row.addEventListener('click', (e) => {
+      // Don't toggle if clicking on the toggle switch
       if (e.target.closest('.toggle')) return;
       
-      const card = this.closest('.card');
-      if (card) {
-        card.classList.toggle('expanded');
-      }
+      card.classList.toggle('expanded');
     });
   });
 }
 
-// Load saved feature states from storage
-function loadFeatureStates() {
-  chrome.storage.sync.get(STORAGE_KEY, function(result) {
-    const features = result[STORAGE_KEY] || DEFAULT_FEATURES;
+// ============================================
+// FEATURE TOGGLES
+// ============================================
+
+function initToggles() {
+  // Load saved states
+  chrome.storage.sync.get(STORAGE_KEYS.features, (result) => {
+    const features = result[STORAGE_KEYS.features] || DEFAULT_FEATURES;
     
-    // Update toggle states
-    Object.keys(features).forEach(featureId => {
-      const toggle = document.getElementById(`feature-${featureId}`);
-      if (toggle) {
-        toggle.checked = features[featureId];
-      }
+    Object.entries(features).forEach(([id, enabled]) => {
+      const toggle = document.getElementById(`feature-${id}`);
+      if (toggle) toggle.checked = enabled;
+    });
+  });
+
+  // Load auto-scan setting
+  chrome.storage.sync.get(STORAGE_KEYS.autoScan, (result) => {
+    const toggle = document.getElementById('auto-scan-triggers');
+    if (toggle) toggle.checked = result[STORAGE_KEYS.autoScan] ?? false;
+  });
+
+  // Load auto-apply setting
+  chrome.storage.sync.get(STORAGE_KEYS.autoApply, (result) => {
+    const toggle = document.getElementById('auto-apply-instructions');
+    if (toggle) toggle.checked = result[STORAGE_KEYS.autoApply] ?? false;
+  });
+
+  // Setup change handlers
+  document.querySelectorAll('input[type="checkbox"][id^="feature-"]').forEach(toggle => {
+    toggle.addEventListener('change', () => {
+      const featureId = toggle.id.replace('feature-', '');
+      saveFeatureState(featureId, toggle.checked);
+    });
+  });
+
+  // Auto-scan toggle
+  document.getElementById('auto-scan-triggers')?.addEventListener('change', (e) => {
+    chrome.storage.sync.set({ [STORAGE_KEYS.autoScan]: e.target.checked });
+    notifyContentScript('SET_AUTO_SCAN', { enabled: e.target.checked });
+  });
+
+  // Auto-apply toggle
+  document.getElementById('auto-apply-instructions')?.addEventListener('change', (e) => {
+    chrome.storage.sync.set({ [STORAGE_KEYS.autoApply]: e.target.checked });
+    notifyContentScript('SET_AUTO_APPLY', { enabled: e.target.checked });
+  });
+}
+
+function saveFeatureState(featureId, enabled) {
+  chrome.storage.sync.get(STORAGE_KEYS.features, (result) => {
+    const features = result[STORAGE_KEYS.features] || DEFAULT_FEATURES;
+    features[featureId] = enabled;
+    
+    chrome.storage.sync.set({ [STORAGE_KEYS.features]: features }, () => {
+      notifyContentScript('FEATURE_TOGGLE', { featureId, enabled });
     });
   });
 }
 
-// Setup event listeners for feature toggles
-function setupFeatureToggles() {
-  // Select toggles from both .card and .enhancement-card elements
-  const toggles = document.querySelectorAll('input[type="checkbox"][id^="feature-"]');
-  
-  toggles.forEach(toggle => {
-    toggle.addEventListener('change', function() {
-      const featureId = this.id.replace('feature-', '');
-      const enabled = this.checked;
-      
-      // Save to storage
-      chrome.storage.sync.get(STORAGE_KEY, function(result) {
-        const features = result[STORAGE_KEY] || DEFAULT_FEATURES;
-        features[featureId] = enabled;
-        
-        chrome.storage.sync.set({ [STORAGE_KEY]: features }, function() {
-          
-          // Notify content script of the change
-          notifyContentScript(featureId, enabled);
-        });
-      });
-    });
-  });
-}
+// ============================================
+// SETTINGS
+// ============================================
 
-// Notify content script about feature toggle
-function notifyContentScript(featureId, enabled) {
-  chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-    const tab = tabs[0];
-    if (tab?.id) {
-      chrome.tabs.sendMessage(tab.id, {
-        type: 'FEATURE_TOGGLE',
-        featureId: featureId,
-        enabled: enabled
-      }).catch(() => {
-        // Tab might not have content script loaded
-      });
+function initSettings() {
+  // Load settings
+  chrome.storage.sync.get(STORAGE_KEYS.settings, (result) => {
+    const settings = result[STORAGE_KEYS.settings] || DEFAULT_SETTINGS;
+    
+    const slider = document.getElementById('critical-chance');
+    const display = document.getElementById('critical-chance-value');
+    
+    if (slider && display) {
+      slider.value = settings.attemptCriticalChance;
+      display.textContent = `${settings.attemptCriticalChance}%`;
     }
   });
+
+  // Slider handler
+  const slider = document.getElementById('critical-chance');
+  const display = document.getElementById('critical-chance-value');
+  
+  if (slider && display) {
+    slider.addEventListener('input', () => {
+      const value = parseInt(slider.value);
+      display.textContent = `${value}%`;
+      
+      chrome.storage.sync.get(STORAGE_KEYS.settings, (result) => {
+        const settings = result[STORAGE_KEYS.settings] || DEFAULT_SETTINGS;
+        settings.attemptCriticalChance = value;
+        chrome.storage.sync.set({ [STORAGE_KEYS.settings]: settings });
+      });
+    });
+  }
 }
 
-// Setup Apply Instructions button
-function setupApplyInstructionsButton() {
-  const btn = document.getElementById('apply-instructions-btn');
-  if (!btn) return;
+// ============================================
+// TOOLS
+// ============================================
 
-  btn.addEventListener('click', function() {
-    btn.disabled = true;
-    btn.textContent = 'Applying...';
+function initTools() {
+  // Apply Instructions button (in Markdown feature card)
+  const applyBtn = document.getElementById('apply-instructions-btn');
+  if (applyBtn) {
+    applyBtn.addEventListener('click', () => applyInstructions(applyBtn));
+  }
 
-    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-      const tab = tabs[0];
-      const url = tab?.url || '';
-      const isAIDungeon = url.includes('aidungeon.com') || url.includes('play.aidungeon.com');
+  // Scan Triggers button (in Trigger Highlighting feature card)
+  const scanBtn = document.getElementById('scan-triggers-btn');
+  if (scanBtn) {
+    scanBtn.addEventListener('click', () => scanTriggers(scanBtn));
+  }
+}
 
-      if (!isAIDungeon) {
-        showApplyButtonStatus(btn, 'error', 'Not on AI Dungeon');
-        return;
-      }
+async function applyInstructions(btn) {
+  const originalText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="icon-loader"></span> Applying...';
 
-      if (tab?.id) {
-        chrome.tabs.sendMessage(tab.id, {
-          type: 'APPLY_INSTRUCTIONS_WITH_LOADING'
-        }).then(response => {
-          if (response?.success) {
-            showApplyButtonStatus(btn, 'success', 'Done!');
-          } else {
-            showApplyButtonStatus(btn, 'error', response?.error || 'Failed');
-          }
-        }).catch(() => {
-          showApplyButtonStatus(btn, 'error', 'Error');
-        });
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    if (!tab?.url?.includes('aidungeon.com')) {
+      showButtonStatus(btn, 'error', 'Not on AI Dungeon', originalText);
+      return;
+    }
+
+    const response = await chrome.tabs.sendMessage(tab.id, {
+      type: 'APPLY_INSTRUCTIONS_WITH_LOADING'
+    });
+
+    if (response?.success) {
+      showButtonStatus(btn, 'success', 'Done!', originalText);
+    } else {
+      showButtonStatus(btn, 'error', response?.error || 'Failed', originalText);
+    }
+  } catch (error) {
+    showButtonStatus(btn, 'error', 'Error', originalText);
+  }
+}
+
+async function scanTriggers(btn) {
+  const originalText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="icon-loader"></span> Scanning...';
+
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    if (!tab?.url?.includes('aidungeon.com')) {
+      showButtonStatus(btn, 'error', 'Not on AI Dungeon', originalText);
+      return;
+    }
+
+    chrome.tabs.sendMessage(tab.id, { type: 'SCAN_STORY_CARDS' }, (response) => {
+      if (chrome.runtime.lastError || !response?.success) {
+        showButtonStatus(btn, 'error', response?.error || 'Failed', originalText);
+      } else {
+        showButtonStatus(btn, 'success', 'Done!', originalText);
       }
     });
-  });
+  } catch (error) {
+    showButtonStatus(btn, 'error', 'Error', originalText);
+  }
 }
 
-// Show apply button status feedback
-function showApplyButtonStatus(btn, status, text) {
-  btn.textContent = text;
-  if (status === 'success') {
-    btn.style.background = 'linear-gradient(135deg, #4ade80 0%, #22c55e 100%)';
-  } else if (status === 'error') {
-    btn.style.background = 'linear-gradient(135deg, #f87171 0%, #ef4444 100%)';
-  }
-  
+function showButtonStatus(btn, status, text, originalText) {
+  btn.classList.remove('success', 'error');
+  btn.classList.add(status);
+  btn.innerHTML = text;
+
   setTimeout(() => {
     btn.disabled = false;
-    btn.textContent = 'Apply';
-    btn.style.background = '';
+    btn.classList.remove('success', 'error');
+    btn.innerHTML = originalText;
   }, 2000);
 }
 
-// Load saved settings from storage
-function loadSettings() {
-  chrome.storage.sync.get(SETTINGS_KEY, function(result) {
-    const settings = result[SETTINGS_KEY] || DEFAULT_SETTINGS;
-    
-    // Update critical chance slider
-    const slider = document.getElementById('critical-chance');
-    const valueDisplay = document.getElementById('critical-chance-value');
-    if (slider && valueDisplay) {
-      slider.value = settings.attemptCriticalChance;
-      valueDisplay.textContent = settings.attemptCriticalChance + '%';
-    }
-    
-    // Update visibility of attempt settings based on feature state
-    updateAttemptSettingsVisibility();
-  });
-}
-
-// Setup settings controls (sliders, etc.)
-function setupSettingsControls() {
-  const slider = document.getElementById('critical-chance');
-  const valueDisplay = document.getElementById('critical-chance-value');
-  
-  if (slider && valueDisplay) {
-    slider.addEventListener('input', function() {
-      const value = parseInt(this.value);
-      valueDisplay.textContent = value + '%';
-      
-      // Save to storage
-      chrome.storage.sync.get(SETTINGS_KEY, function(result) {
-        const settings = result[SETTINGS_KEY] || DEFAULT_SETTINGS;
-        settings.attemptCriticalChance = value;
-        
-        chrome.storage.sync.set({ [SETTINGS_KEY]: settings });
-      });
-    });
-  }
-  
-  // Watch for attempt feature toggle to show/hide settings
-  const attemptToggle = document.getElementById('feature-attempt');
-  if (attemptToggle) {
-    attemptToggle.addEventListener('change', function() {
-      updateAttemptSettingsVisibility();
-    });
-  }
-}
-
-// Update visibility of attempt settings based on feature state
-function updateAttemptSettingsVisibility() {
-  const attemptToggle = document.getElementById('feature-attempt');
-  const attemptOptionRow = document.querySelector('#expanded-attempt .option-row');
-  
-  if (attemptToggle && attemptOptionRow) {
-    attemptOptionRow.style.opacity = attemptToggle.checked ? '1' : '0.5';
-    const slider = attemptOptionRow.querySelector('.slider');
-    if (slider) {
-      slider.disabled = !attemptToggle.checked;
-    }
-  }
-}
-
-// Setup scan triggers button
-function setupScanTriggersButton() {
-  const scanBtn = document.getElementById('scan-triggers-btn');
-  
-  if (scanBtn) {
-    scanBtn.addEventListener('click', async function() {
-      // Disable button during scan
-      scanBtn.disabled = true;
-      scanBtn.textContent = 'Scanning...';
-      scanBtn.classList.add('scanning');
-      
-      try {
-        // Send message to content script to start scanning
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        
-        if (!tab?.id) {
-          throw new Error('No active tab found');
-        }
-        
-        // Check if we're on AI Dungeon
-        if (!tab.url?.includes('aidungeon.com')) {
-          throw new Error('Navigate to AI Dungeon first');
-        }
-        
-        chrome.tabs.sendMessage(tab.id, { type: 'SCAN_STORY_CARDS' }, function(response) {
-          if (chrome.runtime.lastError) {
-            console.error('Scan error:', chrome.runtime.lastError);
-            scanBtn.textContent = 'Error';
-            setTimeout(() => resetScanButton(scanBtn), 2000);
-            return;
-          }
-          
-          if (response?.success) {
-            scanBtn.textContent = 'Done!';
-            scanBtn.style.background = 'linear-gradient(135deg, #4ade80 0%, #22c55e 100%)';
-          } else {
-            scanBtn.textContent = response?.error || 'Failed';
-          }
-          
-          setTimeout(() => resetScanButton(scanBtn), 2000);
-        });
-        
-      } catch (error) {
-        console.error('Scan error:', error);
-        scanBtn.textContent = error.message || 'Error';
-        setTimeout(() => resetScanButton(scanBtn), 2000);
-      }
-    });
-  }
-}
-
-function resetScanButton(btn) {
-  btn.disabled = false;
-  btn.textContent = 'Scan';
-  btn.classList.remove('scanning');
-  btn.style.background = '';
-}
-
-// Load auto-scan setting
-function loadAutoScanSetting() {
-  chrome.storage.sync.get('betterDungeon_autoScanTriggers', function(result) {
-    const autoScanToggle = document.getElementById('auto-scan-triggers');
-    if (autoScanToggle) {
-      autoScanToggle.checked = result.betterDungeon_autoScanTriggers ?? false;
-    }
-  });
-}
-
-// Setup auto-scan toggle
-function setupAutoScanToggle() {
-  const autoScanToggle = document.getElementById('auto-scan-triggers');
-  
-  if (autoScanToggle) {
-    autoScanToggle.addEventListener('change', async function() {
-      const enabled = this.checked;
-      
-      // Save to storage
-      chrome.storage.sync.set({ betterDungeon_autoScanTriggers: enabled });
-      
-      // Notify content script
-      try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (tab?.id && tab.url?.includes('aidungeon.com')) {
-          chrome.tabs.sendMessage(tab.id, { 
-            type: 'SET_AUTO_SCAN', 
-            enabled: enabled 
-          });
-        }
-      } catch (e) {
-        console.log('Could not notify content script:', e);
-      }
-    });
-  }
-}
-
-// Setup hotkey details toggle
-function setupHotkeyDetailsToggle() {
-  const chevronBtn = document.querySelector('[data-expand="hotkey-details"]');
-  const detailsSection = document.getElementById('hotkey-details');
-  
-  if (chevronBtn && detailsSection) {
-    chevronBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      detailsSection.classList.toggle('expanded');
-      
-      // Rotate chevron
-      const svg = this.querySelector('svg');
-      if (svg) {
-        svg.style.transform = detailsSection.classList.contains('expanded') 
-          ? 'rotate(180deg)' 
-          : 'rotate(0deg)';
-      }
-    });
-  }
-}
-
-// Setup input mode color details toggle
-function setupInputModeColorDetailsToggle() {
-  const chevronBtn = document.querySelector('[data-expand="inputModeColor-details"]');
-  const detailsSection = document.getElementById('inputModeColor-details');
-  
-  if (chevronBtn && detailsSection) {
-    chevronBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      detailsSection.classList.toggle('expanded');
-      
-      // Rotate chevron
-      const svg = this.querySelector('svg');
-      if (svg) {
-        svg.style.transform = detailsSection.classList.contains('expanded') 
-          ? 'rotate(180deg)' 
-          : 'rotate(0deg)';
-      }
-    });
-  }
-}
-
-// Load auto-apply instructions setting
-function loadAutoApplySetting() {
-  chrome.storage.sync.get('betterDungeon_autoApplyInstructions', function(result) {
-    const autoApplyToggle = document.getElementById('auto-apply-instructions');
-    if (autoApplyToggle) {
-      autoApplyToggle.checked = result.betterDungeon_autoApplyInstructions ?? false;
-    }
-  });
-}
-
-// Setup auto-apply instructions toggle
-function setupAutoApplyToggle() {
-  const autoApplyToggle = document.getElementById('auto-apply-instructions');
-  
-  if (autoApplyToggle) {
-    autoApplyToggle.addEventListener('change', async function() {
-      const enabled = this.checked;
-      
-      // Save to storage
-      chrome.storage.sync.set({ betterDungeon_autoApplyInstructions: enabled });
-      
-      // Notify content script
-      try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (tab?.id && tab.url?.includes('aidungeon.com')) {
-          chrome.tabs.sendMessage(tab.id, { 
-            type: 'SET_AUTO_APPLY', 
-            enabled: enabled 
-          });
-        }
-      } catch (e) {
-        console.log('Could not notify content script:', e);
-      }
-    });
-  }
-}
-
-// Setup profile links to open in new tabs
-function setupProfileLinks() {
-  const profileLinks = document.querySelectorAll('.card-note a');
-  
-  profileLinks.forEach(link => {
-    link.addEventListener('click', function(e) {
-      e.preventDefault();
-      const url = this.href;
-      
-      if (url && url.includes('aidungeon.com/profile/')) {
-        chrome.tabs.create({ url: url });
-      }
-    });
-  });
-}
-
 // ============================================
-// PRESET MANAGEMENT
+// PRESETS
 // ============================================
 
-const PRESETS_STORAGE_KEY = 'betterDungeon_favoritePresets';
-let currentEditingPreset = null;
-let lastUndoState = null; // Store previous state for undo
+function initPresets() {
+  loadPresets();
+  
+  // Save button
+  document.getElementById('save-current-preset-btn')?.addEventListener('click', () => {
+    openModal('save-modal');
+    document.getElementById('save-preset-name')?.focus();
+  });
 
-// Load presets from storage and render them
+  // Undo button
+  document.getElementById('undo-preset-btn')?.addEventListener('click', undoLastApply);
+}
+
 async function loadPresets() {
-  chrome.storage.sync.get(PRESETS_STORAGE_KEY, function(result) {
-    const presets = result[PRESETS_STORAGE_KEY] || [];
+  chrome.storage.sync.get(STORAGE_KEYS.presets, (result) => {
+    const presets = result[STORAGE_KEYS.presets] || [];
     renderPresets(presets);
   });
 }
 
-// Render preset list
 function renderPresets(presets) {
-  const listContainer = document.getElementById('preset-list');
+  const container = document.getElementById('preset-list');
   const emptyState = document.getElementById('preset-empty');
-  
-  if (!listContainer) return;
-  
-  // Clear existing preset cards (but keep empty state)
-  const existingCards = listContainer.querySelectorAll('.preset-card');
-  existingCards.forEach(card => card.remove());
-  
+  if (!container) return;
+
+  // Clear existing cards
+  container.querySelectorAll('.preset-card').forEach(c => c.remove());
+
   if (presets.length === 0) {
     if (emptyState) emptyState.style.display = 'flex';
     return;
   }
-  
+
   if (emptyState) emptyState.style.display = 'none';
-  
-  // Sort by use count (most used first)
-  const sortedPresets = [...presets].sort((a, b) => b.useCount - a.useCount);
-  
-  sortedPresets.forEach(preset => {
+
+  // Sort by use count
+  const sorted = [...presets].sort((a, b) => b.useCount - a.useCount);
+
+  sorted.forEach(preset => {
     const card = createPresetCard(preset);
-    listContainer.appendChild(card);
+    container.appendChild(card);
   });
 }
 
-// Create a preset card element
 function createPresetCard(preset) {
   const card = document.createElement('div');
   card.className = 'preset-card';
   card.dataset.presetId = preset.id;
-  
-  // Build component badges
-  const componentBadges = [];
-  if (preset.components.aiInstructions) componentBadges.push('AI Instructions');
-  if (preset.components.plotEssentials) componentBadges.push('Plot Essentials');
-  if (preset.components.authorsNote) componentBadges.push("Author's Note");
-  
+
+  const components = [];
+  if (preset.components.aiInstructions) components.push('AI');
+  if (preset.components.plotEssentials) components.push('Plot');
+  if (preset.components.authorsNote) components.push('Note');
+
   card.innerHTML = `
     <div class="preset-header">
-      <div class="preset-info">
+      <div>
         <h4 class="preset-name">${escapeHtml(preset.name)}</h4>
         <div class="preset-meta">
           <span class="preset-uses">${preset.useCount} uses</span>
-          <span class="preset-components">${componentBadges.join(' • ')}</span>
+          <span class="preset-components">${components.join(' • ')}</span>
         </div>
       </div>
-      <button class="preset-menu-btn" aria-label="Preset options">⋮</button>
+      <button class="preset-menu-btn" aria-label="Options">⋮</button>
     </div>
-    <div class="preset-actions-row">
-      <button class="preset-apply-btn" data-mode="replace">Replace</button>
-      <button class="preset-apply-btn preset-apply-append" data-mode="append">Append</button>
+    <div class="preset-actions">
+      <button class="btn btn-primary" data-mode="replace">Replace</button>
+      <button class="btn btn-ghost" data-mode="append">Append</button>
     </div>
-    <div class="preset-menu" style="display: none;">
-      <button class="preset-menu-item preset-preview-btn">Preview / Edit</button>
-      <button class="preset-menu-item preset-delete-btn">Delete</button>
+    <div class="preset-menu">
+      <button class="preset-menu-item preset-edit-btn">Edit</button>
+      <button class="preset-menu-item danger preset-delete-btn">Delete</button>
     </div>
   `;
-  
-  // Setup event handlers
-  setupPresetCardHandlers(card, preset);
-  
-  return card;
-}
 
-// Setup handlers for a preset card
-function setupPresetCardHandlers(card, preset) {
   // Menu toggle
   const menuBtn = card.querySelector('.preset-menu-btn');
   const menu = card.querySelector('.preset-menu');
   
   menuBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    // Close all other menus first
-    document.querySelectorAll('.preset-menu').forEach(m => {
-      if (m !== menu) m.style.display = 'none';
-    });
-    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+    document.querySelectorAll('.preset-menu.open').forEach(m => m.classList.remove('open'));
+    menu.classList.toggle('open');
   });
-  
-  // Close menu when clicking elsewhere
-  document.addEventListener('click', () => {
-    menu.style.display = 'none';
-  });
-  
+
+  // Close menu on outside click
+  document.addEventListener('click', () => menu.classList.remove('open'));
+
   // Apply buttons
-  card.querySelectorAll('.preset-apply-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const mode = btn.dataset.mode;
-      await applyPreset(preset.id, mode);
-    });
+  card.querySelectorAll('[data-mode]').forEach(btn => {
+    btn.addEventListener('click', () => applyPreset(preset.id, btn.dataset.mode));
   });
-  
-  // Preview/Edit button
-  card.querySelector('.preset-preview-btn').addEventListener('click', async () => {
-    menu.style.display = 'none';
-    openPresetModal(preset);
+
+  // Edit button
+  card.querySelector('.preset-edit-btn').addEventListener('click', () => {
+    menu.classList.remove('open');
+    openPresetEditModal(preset);
   });
-  
+
   // Delete button
-  card.querySelector('.preset-delete-btn').addEventListener('click', async () => {
-    menu.style.display = 'none';
-    if (confirm(`Delete preset "${preset.name}"?`)) {
-      await deletePreset(preset.id);
+  card.querySelector('.preset-delete-btn').addEventListener('click', () => {
+    menu.classList.remove('open');
+    if (confirm(`Delete "${preset.name}"?`)) {
+      deletePreset(preset.id);
     }
   });
+
+  return card;
 }
 
-// Apply a preset to current adventure
 async function applyPreset(presetId, mode) {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
-    if (!tab?.id || !tab.url?.includes('aidungeon.com')) {
-      showPresetStatus('Navigate to AI Dungeon first', 'error');
+    if (!tab?.url?.includes('aidungeon.com')) {
+      showToast('Navigate to AI Dungeon first', 'error');
       return;
     }
-    
+
     const response = await chrome.tabs.sendMessage(tab.id, {
       type: 'APPLY_PRESET',
-      presetId: presetId,
-      mode: mode
+      presetId,
+      mode
     });
-    
+
     if (response?.success) {
-      // Store undo state if provided
       if (response.previousState) {
         lastUndoState = response.previousState;
         updateUndoButton();
       }
-      showPresetStatus(`Applied (${mode})!`, 'success');
-      // Reload presets to update use count
+      showToast(`Preset applied (${mode})`, 'success');
       loadPresets();
     } else {
-      showPresetStatus(response?.error || 'Failed to apply', 'error');
+      showToast(response?.error || 'Failed to apply', 'error');
     }
-  } catch (error) {
-    console.error('Apply preset error:', error);
-    showPresetStatus('Error applying preset', 'error');
+  } catch {
+    showToast('Error applying preset', 'error');
   }
 }
 
-// Update undo button visibility
-function updateUndoButton() {
-  const undoBtn = document.getElementById('undo-preset-btn');
-  if (undoBtn) {
-    undoBtn.style.display = lastUndoState ? 'flex' : 'none';
-  }
-}
-
-// Update a preset
-async function updatePreset(presetId, updates) {
-  chrome.storage.sync.get(PRESETS_STORAGE_KEY, function(result) {
-    const presets = result[PRESETS_STORAGE_KEY] || [];
-    const index = presets.findIndex(p => p.id === presetId);
-    
-    if (index !== -1) {
-      presets[index] = { ...presets[index], ...updates, updatedAt: Date.now() };
-      chrome.storage.sync.set({ [PRESETS_STORAGE_KEY]: presets }, () => {
-        loadPresets();
-        showPresetStatus('Preset updated!', 'success');
-      });
-    }
-  });
-}
-
-// Delete a preset
-async function deletePreset(presetId) {
-  chrome.storage.sync.get(PRESETS_STORAGE_KEY, function(result) {
-    const presets = result[PRESETS_STORAGE_KEY] || [];
-    const filtered = presets.filter(p => p.id !== presetId);
-    
-    chrome.storage.sync.set({ [PRESETS_STORAGE_KEY]: filtered }, () => {
-      loadPresets();
-      showPresetStatus('Preset deleted', 'success');
-    });
-  });
-}
-
-// Setup preset management buttons
-function setupPresetManagement() {
-  const saveBtn = document.getElementById('save-current-preset-btn');
-  
-  if (saveBtn) {
-    saveBtn.addEventListener('click', async () => {
-      try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        
-        if (!tab?.id || !tab.url?.includes('aidungeon.com')) {
-          showPresetStatus('Navigate to AI Dungeon first', 'error');
-          return;
-        }
-        
-        // Open save modal instead of prompt
-        openSaveModal();
-      } catch (error) {
-        console.error('Save preset error:', error);
-        showPresetStatus('Error opening save dialog', 'error');
-      }
-    });
-  }
-  
-  // Setup modal handlers
-  setupModalHandlers();
-}
-
-// Show status message for preset operations
-function showPresetStatus(message, type) {
-  // Remove existing status
-  const existingStatus = document.querySelector('.preset-status');
-  if (existingStatus) existingStatus.remove();
-  
-  const status = document.createElement('div');
-  status.className = `preset-status preset-status-${type}`;
-  status.textContent = message;
-  
-  const presetList = document.getElementById('preset-list');
-  if (presetList) {
-    presetList.insertBefore(status, presetList.firstChild);
-    
-    setTimeout(() => {
-      status.classList.add('preset-status-fade');
-      setTimeout(() => status.remove(), 300);
-    }, 2000);
-  }
-}
-
-// Escape HTML for safe rendering
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
-// ============================================
-// MODAL HANDLING
-// ============================================
-
-// Open preset preview/edit modal
-function openPresetModal(preset) {
-  currentEditingPreset = preset;
-  
-  const modal = document.getElementById('preset-modal');
-  const nameInput = document.getElementById('modal-preset-name');
-  const aiTextarea = document.getElementById('modal-ai-instructions');
-  const essentialsTextarea = document.getElementById('modal-plot-essentials');
-  const noteTextarea = document.getElementById('modal-authors-note');
-  const aiCheck = document.getElementById('modal-check-ai');
-  const essentialsCheck = document.getElementById('modal-check-essentials');
-  const noteCheck = document.getElementById('modal-check-note');
-  
-  // Populate fields
-  nameInput.value = preset.name;
-  aiTextarea.value = preset.components.aiInstructions || '';
-  essentialsTextarea.value = preset.components.plotEssentials || '';
-  noteTextarea.value = preset.components.authorsNote || '';
-  
-  // Set checkboxes based on whether content exists
-  aiCheck.checked = !!preset.components.aiInstructions;
-  essentialsCheck.checked = !!preset.components.plotEssentials;
-  noteCheck.checked = !!preset.components.authorsNote;
-  
-  // Update textarea disabled state
-  aiTextarea.disabled = !aiCheck.checked;
-  essentialsTextarea.disabled = !essentialsCheck.checked;
-  noteTextarea.disabled = !noteCheck.checked;
-  
-  modal.style.display = 'flex';
-}
-
-// Close preset modal
-function closePresetModal() {
-  const modal = document.getElementById('preset-modal');
-  modal.style.display = 'none';
-  currentEditingPreset = null;
-}
-
-// Save preset modal changes
-async function savePresetModalChanges() {
-  if (!currentEditingPreset) return;
-  
-  const nameInput = document.getElementById('modal-preset-name');
-  const aiTextarea = document.getElementById('modal-ai-instructions');
-  const essentialsTextarea = document.getElementById('modal-plot-essentials');
-  const noteTextarea = document.getElementById('modal-authors-note');
-  const aiCheck = document.getElementById('modal-check-ai');
-  const essentialsCheck = document.getElementById('modal-check-essentials');
-  const noteCheck = document.getElementById('modal-check-note');
-  
-  const updates = {
-    name: nameInput.value.trim() || currentEditingPreset.name,
-    components: {}
-  };
-  
-  // Only include checked components
-  if (aiCheck.checked && aiTextarea.value.trim()) {
-    updates.components.aiInstructions = aiTextarea.value;
-  }
-  if (essentialsCheck.checked && essentialsTextarea.value.trim()) {
-    updates.components.plotEssentials = essentialsTextarea.value;
-  }
-  if (noteCheck.checked && noteTextarea.value.trim()) {
-    updates.components.authorsNote = noteTextarea.value;
-  }
-  
-  await updatePreset(currentEditingPreset.id, updates);
-  closePresetModal();
-}
-
-// Open save modal (for new presets)
-function openSaveModal() {
-  const modal = document.getElementById('save-modal');
+async function saveNewPreset() {
   const nameInput = document.getElementById('save-preset-name');
-  
-  // Reset form
-  nameInput.value = '';
-  document.getElementById('save-check-ai').checked = true;
-  document.getElementById('save-check-essentials').checked = true;
-  document.getElementById('save-check-note').checked = true;
-  
-  modal.style.display = 'flex';
-  nameInput.focus();
-}
-
-// Close save modal
-function closeSaveModal() {
-  const modal = document.getElementById('save-modal');
-  modal.style.display = 'none';
-}
-
-// Confirm save from modal
-async function confirmSavePreset() {
-  const nameInput = document.getElementById('save-preset-name');
-  const name = nameInput.value.trim();
+  const name = nameInput?.value.trim();
   
   if (!name) {
-    nameInput.focus();
+    nameInput?.focus();
     return;
   }
-  
-  const includeAi = document.getElementById('save-check-ai').checked;
-  const includeEssentials = document.getElementById('save-check-essentials').checked;
-  const includeNote = document.getElementById('save-check-note').checked;
-  
+
+  const includeAi = document.getElementById('save-check-ai')?.checked;
+  const includeEssentials = document.getElementById('save-check-essentials')?.checked;
+  const includeNote = document.getElementById('save-check-note')?.checked;
+
   if (!includeAi && !includeEssentials && !includeNote) {
-    showPresetStatus('Select at least one component', 'error');
+    showToast('Select at least one component', 'error');
     return;
   }
-  
+
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
-    if (!tab?.id || !tab.url?.includes('aidungeon.com')) {
-      showPresetStatus('Navigate to AI Dungeon first', 'error');
+    if (!tab?.url?.includes('aidungeon.com')) {
+      showToast('Navigate to AI Dungeon first', 'error');
       return;
     }
-    
-    closeSaveModal();
-    
+
+    closeModal('save-modal');
+
     const response = await chrome.tabs.sendMessage(tab.id, {
       type: 'SAVE_CURRENT_AS_PRESET',
-      name: name,
+      name,
       includeComponents: {
         aiInstructions: includeAi,
         plotEssentials: includeEssentials,
         authorsNote: includeNote
       }
     });
-    
+
     if (response?.success) {
-      showPresetStatus('Preset saved!', 'success');
+      showToast('Preset saved!', 'success');
       loadPresets();
     } else {
-      showPresetStatus(response?.error || 'Failed to save preset', 'error');
+      showToast(response?.error || 'Failed to save', 'error');
     }
-  } catch (error) {
-    console.error('Save preset error:', error);
-    showPresetStatus('Error saving preset', 'error');
+  } catch {
+    showToast('Error saving preset', 'error');
   }
 }
 
-// Undo last apply
+function openPresetEditModal(preset) {
+  currentEditingPreset = preset;
+  
+  document.getElementById('modal-preset-name').value = preset.name;
+  document.getElementById('modal-ai-instructions').value = preset.components.aiInstructions || '';
+  document.getElementById('modal-plot-essentials').value = preset.components.plotEssentials || '';
+  document.getElementById('modal-authors-note').value = preset.components.authorsNote || '';
+  
+  document.getElementById('modal-check-ai').checked = !!preset.components.aiInstructions;
+  document.getElementById('modal-check-essentials').checked = !!preset.components.plotEssentials;
+  document.getElementById('modal-check-note').checked = !!preset.components.authorsNote;
+
+  updateTextareaStates();
+  openModal('preset-modal');
+}
+
+function savePresetChanges() {
+  if (!currentEditingPreset) return;
+
+  const updates = {
+    name: document.getElementById('modal-preset-name').value.trim() || currentEditingPreset.name,
+    components: {}
+  };
+
+  if (document.getElementById('modal-check-ai').checked) {
+    updates.components.aiInstructions = document.getElementById('modal-ai-instructions').value;
+  }
+  if (document.getElementById('modal-check-essentials').checked) {
+    updates.components.plotEssentials = document.getElementById('modal-plot-essentials').value;
+  }
+  if (document.getElementById('modal-check-note').checked) {
+    updates.components.authorsNote = document.getElementById('modal-authors-note').value;
+  }
+
+  chrome.storage.sync.get(STORAGE_KEYS.presets, (result) => {
+    const presets = result[STORAGE_KEYS.presets] || [];
+    const index = presets.findIndex(p => p.id === currentEditingPreset.id);
+    
+    if (index !== -1) {
+      presets[index] = { ...presets[index], ...updates, updatedAt: Date.now() };
+      chrome.storage.sync.set({ [STORAGE_KEYS.presets]: presets }, () => {
+        loadPresets();
+        showToast('Preset updated', 'success');
+        closeModal('preset-modal');
+      });
+    }
+  });
+}
+
+function deletePreset(presetId) {
+  chrome.storage.sync.get(STORAGE_KEYS.presets, (result) => {
+    const presets = (result[STORAGE_KEYS.presets] || []).filter(p => p.id !== presetId);
+    chrome.storage.sync.set({ [STORAGE_KEYS.presets]: presets }, () => {
+      loadPresets();
+      showToast('Preset deleted', 'success');
+    });
+  });
+}
+
 async function undoLastApply() {
   if (!lastUndoState) return;
-  
+
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
-    if (!tab?.id || !tab.url?.includes('aidungeon.com')) {
-      showPresetStatus('Navigate to AI Dungeon first', 'error');
+    if (!tab?.url?.includes('aidungeon.com')) {
+      showToast('Navigate to AI Dungeon first', 'error');
       return;
     }
-    
+
     const response = await chrome.tabs.sendMessage(tab.id, {
       type: 'UNDO_PRESET_APPLY',
       previousState: lastUndoState
     });
-    
+
     if (response?.success) {
-      showPresetStatus('Undone!', 'success');
+      showToast('Undone!', 'success');
       lastUndoState = null;
       updateUndoButton();
     } else {
-      showPresetStatus(response?.error || 'Failed to undo', 'error');
+      showToast(response?.error || 'Failed to undo', 'error');
     }
-  } catch (error) {
-    console.error('Undo error:', error);
-    showPresetStatus('Error undoing', 'error');
+  } catch {
+    showToast('Error undoing', 'error');
   }
 }
 
-// Setup modal event handlers
-function setupModalHandlers() {
-  // Preview/Edit modal
-  document.getElementById('modal-close')?.addEventListener('click', closePresetModal);
-  document.getElementById('modal-cancel')?.addEventListener('click', closePresetModal);
-  document.getElementById('modal-save')?.addEventListener('click', savePresetModalChanges);
-  
-  // Checkbox toggles for textareas
+function updateUndoButton() {
+  const btn = document.getElementById('undo-preset-btn');
+  if (btn) btn.style.display = lastUndoState ? 'flex' : 'none';
+}
+
+function updateTextareaStates() {
   ['ai', 'essentials', 'note'].forEach(type => {
-    const checkId = `modal-check-${type}`;
-    const textareaId = type === 'ai' ? 'modal-ai-instructions' : 
-                       type === 'essentials' ? 'modal-plot-essentials' : 'modal-authors-note';
+    const check = document.getElementById(`modal-check-${type}`);
+    const textarea = document.getElementById(
+      type === 'ai' ? 'modal-ai-instructions' :
+      type === 'essentials' ? 'modal-plot-essentials' : 'modal-authors-note'
+    );
+    if (check && textarea) {
+      textarea.disabled = !check.checked;
+    }
+  });
+}
+
+// ============================================
+// CHARACTERS
+// ============================================
+
+function initCharacters() {
+  loadCharacters();
+  
+  document.getElementById('create-character-btn')?.addEventListener('click', () => {
+    const name = prompt('Enter character name:');
+    if (!name?.trim()) return;
     
-    document.getElementById(checkId)?.addEventListener('change', (e) => {
-      const textarea = document.getElementById(textareaId);
-      if (textarea) {
-        textarea.disabled = !e.target.checked;
-      }
-    });
-  });
-  
-  // Save modal
-  document.getElementById('save-modal-close')?.addEventListener('click', closeSaveModal);
-  document.getElementById('save-modal-cancel')?.addEventListener('click', closeSaveModal);
-  document.getElementById('save-modal-confirm')?.addEventListener('click', confirmSavePreset);
-  
-  // Close modals on overlay click
-  document.getElementById('preset-modal')?.addEventListener('click', (e) => {
-    if (e.target.id === 'preset-modal') closePresetModal();
-  });
-  document.getElementById('save-modal')?.addEventListener('click', (e) => {
-    if (e.target.id === 'save-modal') closeSaveModal();
-  });
-  
-  // Undo button
-  document.getElementById('undo-preset-btn')?.addEventListener('click', undoLastApply);
-}
-
-// ============================================
-// CHARACTER PRESET MANAGEMENT
-// ============================================
-
-const CHARACTER_PRESETS_STORAGE_KEY = 'betterDungeon_characterPresets';
-let currentEditingCharacter = null;
-
-// Load character presets from storage
-async function loadCharacterPresets() {
-  chrome.storage.sync.get(CHARACTER_PRESETS_STORAGE_KEY, function(result) {
-    const presets = result[CHARACTER_PRESETS_STORAGE_KEY] || [];
-    renderCharacterPresets(presets);
+    createCharacter(name.trim());
   });
 }
 
-// Render character preset list
-function renderCharacterPresets(presets) {
-  const listContainer = document.getElementById('character-list');
+async function loadCharacters() {
+  chrome.storage.sync.get(STORAGE_KEYS.characters, (result) => {
+    const characters = result[STORAGE_KEYS.characters] || [];
+    renderCharacters(characters);
+  });
+}
+
+function renderCharacters(characters) {
+  const container = document.getElementById('character-list');
   const emptyState = document.getElementById('character-empty');
-  
-  if (!listContainer) return;
-  
-  // Clear existing character cards (but keep empty state)
-  const existingCards = listContainer.querySelectorAll('.character-card');
-  existingCards.forEach(card => card.remove());
-  
-  if (presets.length === 0) {
+  if (!container) return;
+
+  container.querySelectorAll('.character-card').forEach(c => c.remove());
+
+  if (characters.length === 0) {
     if (emptyState) emptyState.style.display = 'flex';
     return;
   }
-  
+
   if (emptyState) emptyState.style.display = 'none';
-  
-  presets.forEach(preset => {
-    const card = createCharacterCard(preset);
-    listContainer.appendChild(card);
+
+  characters.forEach(char => {
+    const card = createCharacterCard(char);
+    container.appendChild(card);
   });
 }
 
-// Create a character card element
-function createCharacterCard(preset) {
+function createCharacterCard(character) {
   const card = document.createElement('div');
   card.className = 'character-card';
-  card.dataset.characterId = preset.id;
   
-  const fieldCount = Object.keys(preset.fields || {}).length;
-  const fieldNames = Object.keys(preset.fields || {}).slice(0, 3).join(', ');
-  
+  const fieldCount = Object.keys(character.fields || {}).length;
+
   card.innerHTML = `
-    <div class="character-header">
-      <div class="character-info">
-        <h4 class="character-name">${escapeHtml(preset.name)}</h4>
-        <div class="character-meta">
-          <span class="character-field-count">${fieldCount} field${fieldCount !== 1 ? 's' : ''}</span>
-          ${fieldNames ? `<span class="character-fields-preview">${escapeHtml(fieldNames)}</span>` : ''}
-        </div>
+    <div>
+      <h4 class="character-name">${escapeHtml(character.name)}</h4>
+      <div class="character-meta">
+        <span class="character-field-count">${fieldCount} field${fieldCount !== 1 ? 's' : ''}</span>
       </div>
-      <button class="character-edit-btn" aria-label="Edit character"><span class="icon-pencil"></span></button>
     </div>
+    <button class="character-edit-btn" aria-label="Edit">
+      <span class="icon-pencil"></span>
+    </button>
   `;
-  
-  // Setup event handler for edit button
+
   card.querySelector('.character-edit-btn').addEventListener('click', () => {
-    openCharacterModal(preset);
+    openCharacterModal(character);
   });
-  
+
   return card;
 }
 
-// Setup character preset management
-function setupCharacterPresetManagement() {
-  const createBtn = document.getElementById('create-character-btn');
-  
-  if (createBtn) {
-    createBtn.addEventListener('click', async () => {
-      const name = prompt('Create a new character.\n\nEnter character name:');
-      if (!name || !name.trim()) return;
-      
-      // Create preset directly in storage
-      chrome.storage.sync.get(CHARACTER_PRESETS_STORAGE_KEY, async function(result) {
-        const presets = result[CHARACTER_PRESETS_STORAGE_KEY] || [];
-        const newPreset = {
-          id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
-          name: name.trim(),
-          fields: {},
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        };
-        presets.unshift(newPreset);
-        
-        chrome.storage.sync.set({ [CHARACTER_PRESETS_STORAGE_KEY]: presets }, () => {
-          loadCharacterPresets();
-          showCharacterStatus('Character created!', 'success');
-        });
-      });
+function createCharacter(name) {
+  chrome.storage.sync.get(STORAGE_KEYS.characters, (result) => {
+    const characters = result[STORAGE_KEYS.characters] || [];
+    
+    const newChar = {
+      id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
+      name,
+      fields: {},
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    
+    characters.unshift(newChar);
+    
+    chrome.storage.sync.set({ [STORAGE_KEYS.characters]: characters }, () => {
+      loadCharacters();
+      showToast('Character created!', 'success');
     });
-  }
-  
-  // Setup character modal handlers
-  setupCharacterModalHandlers();
+  });
 }
 
-// Open character edit modal
-function openCharacterModal(preset) {
-  currentEditingCharacter = preset;
+function openCharacterModal(character) {
+  currentEditingCharacter = character;
   
-  const modal = document.getElementById('character-modal');
-  const nameInput = document.getElementById('character-name-input');
-  const fieldsList = document.getElementById('character-fields-list');
+  document.getElementById('character-name-input').value = character.name;
+  renderCharacterFields(character.fields || {});
   
-  nameInput.value = preset.name;
-  
-  // Render fields
-  renderCharacterFields(preset.fields || {}, fieldsList);
-  
-  modal.style.display = 'flex';
+  openModal('character-modal');
 }
 
-// Priority fields for sorting (common fields appear first)
 const PRIORITY_FIELDS = [
   'name', 'age', 'gender', 'pronouns', 'species', 'title', 'class',
-  'appearance', 'personality', 'backstory', 'occupation', 'goal',
-  'skills', 'inventory'
+  'appearance', 'personality', 'backstory', 'occupation', 'goal'
 ];
 
-function getFieldPriority(fieldKey) {
-  const index = PRIORITY_FIELDS.indexOf(fieldKey);
-  return index === -1 ? 999 : index;
-}
+function renderCharacterFields(fields) {
+  const container = document.getElementById('character-fields-list');
+  if (!container) return;
 
-// Render character fields in modal
-function renderCharacterFields(fields, container) {
   const entries = Object.entries(fields);
   
   if (entries.length === 0) {
-    container.innerHTML = '<p class="character-fields-empty">No fields saved yet. Fields are saved automatically when you fill in scenario entry questions.</p>';
+    container.innerHTML = '<p class="fields-empty">No fields saved yet.</p>';
     return;
   }
-  
-  // Sort by priority (common fields first)
-  const sortedEntries = entries.sort((a, b) => getFieldPriority(a[0]) - getFieldPriority(b[0]));
-  
-  container.innerHTML = sortedEntries.map(([key, value]) => `
-    <div class="character-field-item" data-field-key="${escapeHtml(key)}">
-      <span class="character-field-key">${escapeHtml(key)}</span>
-      <input type="text" class="character-field-value" value="${escapeHtml(value)}" data-key="${escapeHtml(key)}">
-      <button class="character-field-delete" data-key="${escapeHtml(key)}">×</button>
+
+  // Sort by priority
+  const sorted = entries.sort((a, b) => {
+    const aIdx = PRIORITY_FIELDS.indexOf(a[0]);
+    const bIdx = PRIORITY_FIELDS.indexOf(b[0]);
+    return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
+  });
+
+  container.innerHTML = sorted.map(([key, value]) => `
+    <div class="field-item" data-key="${escapeHtml(key)}">
+      <span class="field-key">${escapeHtml(key)}</span>
+      <input type="text" class="field-value" value="${escapeHtml(value)}" data-key="${escapeHtml(key)}">
+      <button class="field-delete" data-key="${escapeHtml(key)}">×</button>
     </div>
   `).join('');
-  
-  // Setup delete handlers
-  container.querySelectorAll('.character-field-delete').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const key = e.target.dataset.key;
+
+  // Delete handlers
+  container.querySelectorAll('.field-delete').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.key;
       delete currentEditingCharacter.fields[key];
-      renderCharacterFields(currentEditingCharacter.fields, container);
+      renderCharacterFields(currentEditingCharacter.fields);
     });
   });
 }
 
-// Close character modal
-function closeCharacterModal() {
-  const modal = document.getElementById('character-modal');
-  modal.style.display = 'none';
-  currentEditingCharacter = null;
-}
-
-// Save character modal changes
-async function saveCharacterModalChanges() {
+function addCharacterField() {
   if (!currentEditingCharacter) return;
-  
-  const nameInput = document.getElementById('character-name-input');
-  const fieldsList = document.getElementById('character-fields-list');
-  
-  // Update name
-  currentEditingCharacter.name = nameInput.value.trim() || currentEditingCharacter.name;
-  
-  // Update field values from inputs
-  const fieldInputs = fieldsList.querySelectorAll('.character-field-value');
-  fieldInputs.forEach(input => {
-    const key = input.dataset.key;
-    if (key && currentEditingCharacter.fields.hasOwnProperty(key)) {
-      currentEditingCharacter.fields[key] = input.value;
-    }
-  });
-  
-  currentEditingCharacter.updatedAt = Date.now();
-  
-  // Save to storage
-  chrome.storage.sync.get(CHARACTER_PRESETS_STORAGE_KEY, function(result) {
-    const presets = result[CHARACTER_PRESETS_STORAGE_KEY] || [];
-    const index = presets.findIndex(p => p.id === currentEditingCharacter.id);
-    
-    if (index !== -1) {
-      presets[index] = currentEditingCharacter;
-      chrome.storage.sync.set({ [CHARACTER_PRESETS_STORAGE_KEY]: presets }, () => {
-        loadCharacterPresets();
-        showCharacterStatus('Character updated!', 'success');
-        closeCharacterModal();
-      });
-    }
-  });
-}
 
-// Delete character
-async function deleteCharacter() {
-  if (!currentEditingCharacter) return;
-  
-  if (!confirm(`Delete character "${currentEditingCharacter.name}"?`)) return;
-  
-  chrome.storage.sync.get(CHARACTER_PRESETS_STORAGE_KEY, function(result) {
-    const presets = result[CHARACTER_PRESETS_STORAGE_KEY] || [];
-    const filtered = presets.filter(p => p.id !== currentEditingCharacter.id);
-    
-    chrome.storage.sync.set({ [CHARACTER_PRESETS_STORAGE_KEY]: filtered }, () => {
-      loadCharacterPresets();
-      showCharacterStatus('Character deleted', 'success');
-      closeCharacterModal();
-    });
-  });
-}
-
-// Add new field to character
-function addFieldToCharacter() {
-  if (!currentEditingCharacter) return;
-  
   const keyInput = document.getElementById('new-field-key');
   const valueInput = document.getElementById('new-field-value');
-  const fieldsList = document.getElementById('character-fields-list');
   
   const key = keyInput.value.trim().toLowerCase().replace(/\s+/g, '_');
   const value = valueInput.value.trim();
-  
+
   if (!key) {
     keyInput.focus();
     return;
   }
-  
+
   currentEditingCharacter.fields[key] = value;
-  renderCharacterFields(currentEditingCharacter.fields, fieldsList);
+  renderCharacterFields(currentEditingCharacter.fields);
   
-  // Clear inputs
   keyInput.value = '';
   valueInput.value = '';
   keyInput.focus();
 }
 
-// Setup character modal event handlers
-function setupCharacterModalHandlers() {
-  document.getElementById('character-modal-close')?.addEventListener('click', closeCharacterModal);
-  document.getElementById('character-modal-cancel')?.addEventListener('click', closeCharacterModal);
-  document.getElementById('character-modal-save')?.addEventListener('click', saveCharacterModalChanges);
-  document.getElementById('character-delete-btn')?.addEventListener('click', deleteCharacter);
-  document.getElementById('add-field-btn')?.addEventListener('click', addFieldToCharacter);
-  
-  // Close modal on overlay click
-  document.getElementById('character-modal')?.addEventListener('click', (e) => {
-    if (e.target.id === 'character-modal') closeCharacterModal();
+function saveCharacterChanges() {
+  if (!currentEditingCharacter) return;
+
+  const nameInput = document.getElementById('character-name-input');
+  currentEditingCharacter.name = nameInput.value.trim() || currentEditingCharacter.name;
+
+  // Update field values from inputs
+  document.querySelectorAll('#character-fields-list .field-value').forEach(input => {
+    const key = input.dataset.key;
+    if (key && currentEditingCharacter.fields.hasOwnProperty(key)) {
+      currentEditingCharacter.fields[key] = input.value;
+    }
   });
-  
-  // Add field on Enter key
-  document.getElementById('new-field-value')?.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') addFieldToCharacter();
+
+  currentEditingCharacter.updatedAt = Date.now();
+
+  chrome.storage.sync.get(STORAGE_KEYS.characters, (result) => {
+    const characters = result[STORAGE_KEYS.characters] || [];
+    const index = characters.findIndex(c => c.id === currentEditingCharacter.id);
+    
+    if (index !== -1) {
+      characters[index] = currentEditingCharacter;
+      chrome.storage.sync.set({ [STORAGE_KEYS.characters]: characters }, () => {
+        loadCharacters();
+        showToast('Character updated', 'success');
+        closeModal('character-modal');
+      });
+    }
   });
 }
 
-// Show status message for character operations
-function showCharacterStatus(message, type) {
-  const existingStatus = document.querySelector('.character-status');
-  if (existingStatus) existingStatus.remove();
-  
-  const status = document.createElement('div');
-  status.className = `character-status preset-status preset-status-${type}`;
-  status.textContent = message;
-  
-  const characterList = document.getElementById('character-list');
-  if (characterList) {
-    characterList.insertBefore(status, characterList.firstChild);
+function deleteCharacter() {
+  if (!currentEditingCharacter) return;
+  if (!confirm(`Delete "${currentEditingCharacter.name}"?`)) return;
+
+  chrome.storage.sync.get(STORAGE_KEYS.characters, (result) => {
+    const characters = (result[STORAGE_KEYS.characters] || [])
+      .filter(c => c.id !== currentEditingCharacter.id);
     
-    setTimeout(() => {
-      status.classList.add('preset-status-fade');
-      setTimeout(() => status.remove(), 300);
-    }, 2000);
-  }
+    chrome.storage.sync.set({ [STORAGE_KEYS.characters]: characters }, () => {
+      loadCharacters();
+      showToast('Character deleted', 'success');
+      closeModal('character-modal');
+    });
+  });
 }
 
 // ============================================
-// TUTORIAL SYSTEM
+// MODALS
+// ============================================
+
+function initModals() {
+  // Close buttons
+  document.querySelectorAll('.modal-close, [id$="-cancel"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const modal = btn.closest('.modal-backdrop');
+      if (modal) closeModal(modal.id);
+    });
+  });
+
+  // Backdrop click to close
+  document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) closeModal(backdrop.id);
+    });
+  });
+
+  // Preset modal
+  document.getElementById('modal-save')?.addEventListener('click', savePresetChanges);
+  
+  // Checkbox toggles for textareas
+  ['ai', 'essentials', 'note'].forEach(type => {
+    document.getElementById(`modal-check-${type}`)?.addEventListener('change', updateTextareaStates);
+  });
+
+  // Save modal
+  document.getElementById('save-modal-confirm')?.addEventListener('click', saveNewPreset);
+
+  // Character modal
+  document.getElementById('character-modal-save')?.addEventListener('click', saveCharacterChanges);
+  document.getElementById('character-delete-btn')?.addEventListener('click', deleteCharacter);
+  document.getElementById('add-field-btn')?.addEventListener('click', addCharacterField);
+  
+  document.getElementById('new-field-value')?.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') addCharacterField();
+  });
+}
+
+function openModal(id) {
+  document.getElementById(id)?.classList.add('open');
+}
+
+function closeModal(id) {
+  document.getElementById(id)?.classList.remove('open');
+  
+  if (id === 'preset-modal') currentEditingPreset = null;
+  if (id === 'character-modal') currentEditingCharacter = null;
+}
+
+// ============================================
+// TUTORIAL
 // ============================================
 
 let tutorialService = null;
-let previouslyExpandedCard = null;
 
-// Initialize tutorial system
 async function initTutorial() {
-  if (typeof TutorialService === 'undefined') {
-    console.warn('TutorialService not loaded');
-    return;
-  }
-  
+  if (typeof TutorialService === 'undefined') return;
+
   tutorialService = new TutorialService();
   await tutorialService.init();
-  
-  // Set up callbacks
-  tutorialService.onStepChange = handleTutorialStepChange;
+
+  tutorialService.onStepChange = handleTutorialStep;
   tutorialService.onComplete = handleTutorialComplete;
   tutorialService.onExit = handleTutorialExit;
-  
-  // Setup UI handlers
+
   setupTutorialHandlers();
-  
-  // Check if we should show welcome banner for new users
+
   if (tutorialService.shouldShowWelcome()) {
-    showWelcomeBanner();
+    showTutorialBanner();
   }
 }
 
-// Setup tutorial event handlers
 function setupTutorialHandlers() {
-  // Help button in header
-  document.getElementById('tutorial-help-btn')?.addEventListener('click', () => {
-    startTutorial();
-  });
-  
-  // Welcome banner buttons
+  document.getElementById('tutorial-help-btn')?.addEventListener('click', startTutorial);
   document.getElementById('tutorial-banner-start')?.addEventListener('click', () => {
-    hideWelcomeBanner();
+    hideTutorialBanner();
     startTutorial();
   });
-  
   document.getElementById('tutorial-banner-dismiss')?.addEventListener('click', () => {
-    hideWelcomeBanner();
+    hideTutorialBanner();
     tutorialService?.markSeenWelcome();
   });
+  document.getElementById('tutorial-next')?.addEventListener('click', () => tutorialService?.next());
+  document.getElementById('tutorial-prev')?.addEventListener('click', () => tutorialService?.previous());
+  document.getElementById('tutorial-skip')?.addEventListener('click', exitTutorial);
   
-  // Tutorial navigation buttons
-  document.getElementById('tutorial-next')?.addEventListener('click', () => {
-    tutorialService?.next();
-  });
-  
-  document.getElementById('tutorial-prev')?.addEventListener('click', () => {
-    tutorialService?.previous();
-  });
-  
-  document.getElementById('tutorial-skip')?.addEventListener('click', () => {
-    exitTutorial();
-  });
-  
-  // Modal buttons
   document.getElementById('tutorial-modal-primary')?.addEventListener('click', () => {
+    closeTutorialModal();
     const step = tutorialService?.getCurrentStep();
     if (step?.isComplete) {
-      closeTutorialModal();
       handleTutorialComplete();
     } else {
-      closeTutorialModal();
       tutorialService?.next();
     }
   });
@@ -1285,64 +879,48 @@ function setupTutorialHandlers() {
     closeTutorialModal();
     exitTutorial();
   });
-  
-  // Click overlay to advance (for spotlight steps)
+
   document.getElementById('tutorial-overlay')?.addEventListener('click', (e) => {
-    if (e.target.id === 'tutorial-overlay' || e.target.classList.contains('tutorial-overlay-bg')) {
-      tutorialService?.next();
-    }
+    if (e.target.id === 'tutorial-overlay') tutorialService?.next();
   });
 }
 
-// Show welcome banner
-function showWelcomeBanner() {
+function showTutorialBanner() {
   const banner = document.getElementById('tutorial-welcome-banner');
-  const content = document.querySelector('.content');
-  
-  if (banner && content) {
+  const main = document.querySelector('.main');
+  if (banner && main) {
     banner.classList.remove('hidden');
-    // Insert at top of content
-    content.insertBefore(banner, content.firstChild);
+    main.insertBefore(banner, main.firstChild);
   }
 }
 
-// Hide welcome banner
-function hideWelcomeBanner() {
-  const banner = document.getElementById('tutorial-welcome-banner');
-  if (banner) {
-    banner.classList.add('hidden');
-  }
+function hideTutorialBanner() {
+  document.getElementById('tutorial-welcome-banner')?.classList.add('hidden');
 }
 
-// Start the tutorial
 function startTutorial() {
   if (!tutorialService) return;
-  
-  hideWelcomeBanner();
+  hideTutorialBanner();
+  // Always start on Features tab to ensure tutorial elements are visible
+  switchToTab('features');
   tutorialService.start();
 }
 
-// Exit the tutorial
 function exitTutorial() {
-  if (!tutorialService) return;
-  
-  tutorialService.exit();
+  tutorialService?.exit();
 }
 
-// Handle step changes
-function handleTutorialStepChange(step, currentIndex, totalSteps) {
+let previouslyExpandedCard = null;
+
+function handleTutorialStep(step, currentIndex, totalSteps) {
   if (!step) return;
-  
-  // Clean up previous state
   cleanupTutorialStep();
-  
+
   if (step.type === 'modal') {
     showTutorialModal(step);
   } else if (step.type === 'spotlight') {
-    // Execute any action first (like switching tabs)
     if (step.action === 'switchTab') {
       switchToTab(step.actionTarget);
-      // Small delay for DOM update
       setTimeout(() => showSpotlight(step, currentIndex, totalSteps), 100);
     } else {
       showSpotlight(step, currentIndex, totalSteps);
@@ -1350,204 +928,218 @@ function handleTutorialStepChange(step, currentIndex, totalSteps) {
   }
 }
 
-// Show tutorial modal (welcome/complete)
 function showTutorialModal(step) {
   const modal = document.getElementById('tutorial-modal');
-  const icon = document.getElementById('tutorial-modal-icon');
-  const title = document.getElementById('tutorial-modal-title');
-  const text = document.getElementById('tutorial-modal-text');
+  if (!modal) return;
+
+  document.getElementById('tutorial-modal-icon').innerHTML = `<span class="${step.icon || 'icon-sparkles'}"></span>`;
+  document.getElementById('tutorial-modal-title').textContent = step.title;
+  document.getElementById('tutorial-modal-text').textContent = step.content;
+
   const primaryBtn = document.getElementById('tutorial-modal-primary');
   const secondaryBtn = document.getElementById('tutorial-modal-secondary');
-  
-  if (!modal) return;
-  
-  // Update content
-  if (icon) {
-    icon.innerHTML = `<span class="${step.icon || 'icon-sparkles'}"></span>`;
-  }
-  if (title) title.textContent = step.title;
-  if (text) text.textContent = step.content;
-  
-  // Update buttons based on step
+
   if (step.isComplete) {
-    if (primaryBtn) primaryBtn.textContent = 'Got It!';
-    if (secondaryBtn) secondaryBtn.style.display = 'none';
+    primaryBtn.textContent = 'Got It!';
+    secondaryBtn.style.display = 'none';
   } else {
-    if (primaryBtn) primaryBtn.textContent = 'Start Tour';
-    if (secondaryBtn) {
-      secondaryBtn.textContent = 'Maybe Later';
-      secondaryBtn.style.display = 'block';
-    }
+    primaryBtn.textContent = 'Start Tour';
+    secondaryBtn.style.display = 'block';
+    secondaryBtn.textContent = 'Maybe Later';
   }
-  
+
   modal.classList.add('visible');
 }
 
-// Close tutorial modal
 function closeTutorialModal() {
-  const modal = document.getElementById('tutorial-modal');
-  if (modal) {
-    modal.classList.remove('visible');
-  }
+  document.getElementById('tutorial-modal')?.classList.remove('visible');
 }
 
-// Show spotlight on target element
 function showSpotlight(step, currentIndex, totalSteps) {
   const target = document.querySelector(step.target);
   if (!target) {
-    console.warn('Tutorial target not found:', step.target);
     tutorialService?.next();
     return;
   }
-  
+
   const overlay = document.getElementById('tutorial-overlay');
   const spotlight = document.getElementById('tutorial-spotlight');
   const tooltip = document.getElementById('tutorial-tooltip');
-  
   if (!overlay || !spotlight || !tooltip) return;
-  
+
   // Expand card if needed
   if (step.expandCard) {
-    const card = target.closest('.card') || target;
+    const card = target.closest('.feature-card') || target;
     if (card && !card.classList.contains('expanded')) {
       previouslyExpandedCard = card;
       card.classList.add('expanded');
     }
   }
-  
-  // Scroll target into view
-  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  
-  // Wait for scroll to complete
+
+  // Scroll with extra space for tooltip (scroll to start to leave room below)
+  target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
   setTimeout(() => {
     const rect = target.getBoundingClientRect();
     const padding = 8;
+    const tooltipHeight = 150; // Approximate tooltip height
+    const viewportHeight = window.innerHeight;
     
-    // Position spotlight
-    spotlight.style.left = `${rect.left - padding}px`;
-    spotlight.style.top = `${rect.top - padding}px`;
-    spotlight.style.width = `${rect.width + padding * 2}px`;
-    spotlight.style.height = `${rect.height + padding * 2}px`;
-    
-    // Add highlighted class to target
+    // If target is too close to bottom, scroll up more to make room for tooltip
+    if (rect.bottom + tooltipHeight + 32 > viewportHeight) {
+      const main = document.querySelector('.main');
+      if (main) {
+        main.scrollTop = Math.max(0, main.scrollTop - (rect.bottom + tooltipHeight + 32 - viewportHeight));
+      }
+    }
+
+    // Re-get rect after potential scroll adjustment
+    const finalRect = target.getBoundingClientRect();
+
+    spotlight.style.left = `${finalRect.left - padding}px`;
+    spotlight.style.top = `${finalRect.top - padding}px`;
+    spotlight.style.width = `${finalRect.width + padding * 2}px`;
+    spotlight.style.height = `${finalRect.height + padding * 2}px`;
+
     target.classList.add('tutorial-highlighted');
-    
-    // Show overlay
     overlay.classList.add('active');
-    
-    // Position and show tooltip
-    positionTooltip(tooltip, rect, step.position || 'bottom');
+
+    positionTooltip(tooltip, finalRect, step.position || 'bottom');
     updateTooltipContent(step, currentIndex, totalSteps);
-    
-    setTimeout(() => {
-      tooltip.classList.add('visible');
-    }, 200);
+
+    setTimeout(() => tooltip.classList.add('visible'), 200);
   }, 300);
 }
 
-// Position tooltip relative to spotlight
 function positionTooltip(tooltip, targetRect, position) {
-  const tooltipWidth = 280;
+  const width = 260;
   const gap = 16;
-  const padding = 20;
+  const padding = 16;
+  const tooltipHeight = tooltip.offsetHeight || 150; // Estimate if not yet rendered
+  const viewportHeight = window.innerHeight;
+  const viewportWidth = window.innerWidth;
   
   let left, top;
+  let actualPosition = position;
+
+  // Calculate positions for both top and bottom
+  const bottomTop = targetRect.bottom + gap;
+  const topTop = targetRect.top - gap - tooltipHeight;
   
-  tooltip.setAttribute('data-position', position);
-  
-  switch (position) {
+  // Check if preferred position would clip, and flip if needed
+  if (position === 'bottom' && bottomTop + tooltipHeight > viewportHeight - padding) {
+    // Would clip at bottom, try top instead
+    if (topTop >= padding) {
+      actualPosition = 'top';
+    }
+  } else if (position === 'top' && topTop < padding) {
+    // Would clip at top, try bottom instead
+    if (bottomTop + tooltipHeight <= viewportHeight - padding) {
+      actualPosition = 'bottom';
+    }
+  }
+
+  tooltip.setAttribute('data-position', actualPosition);
+
+  switch (actualPosition) {
     case 'top':
-      left = targetRect.left + (targetRect.width / 2) - (tooltipWidth / 2);
-      top = targetRect.top - gap - tooltip.offsetHeight;
+      left = targetRect.left + (targetRect.width / 2) - (width / 2);
+      top = targetRect.top - gap - tooltipHeight;
       break;
     case 'bottom':
     default:
-      left = targetRect.left + (targetRect.width / 2) - (tooltipWidth / 2);
+      left = targetRect.left + (targetRect.width / 2) - (width / 2);
       top = targetRect.bottom + gap;
       break;
-    case 'left':
-      left = targetRect.left - tooltipWidth - gap;
-      top = targetRect.top + (targetRect.height / 2) - (tooltip.offsetHeight / 2);
-      break;
-    case 'right':
-      left = targetRect.right + gap;
-      top = targetRect.top + (targetRect.height / 2) - (tooltip.offsetHeight / 2);
-      break;
   }
-  
-  // Keep tooltip within viewport
-  left = Math.max(padding, Math.min(left, window.innerWidth - tooltipWidth - padding));
-  top = Math.max(padding, top);
-  
+
+  // Constrain to viewport
+  left = Math.max(padding, Math.min(left, viewportWidth - width - padding));
+  top = Math.max(padding, Math.min(top, viewportHeight - tooltipHeight - padding));
+
   tooltip.style.left = `${left}px`;
   tooltip.style.top = `${top}px`;
 }
 
-// Update tooltip content
 function updateTooltipContent(step, currentIndex, totalSteps) {
-  const title = document.getElementById('tutorial-tooltip-title');
-  const content = document.getElementById('tutorial-tooltip-content');
-  const progressFill = document.getElementById('tutorial-progress-fill');
-  const progressText = document.getElementById('tutorial-progress-text');
+  document.getElementById('tutorial-tooltip-title').textContent = step.title;
+  document.getElementById('tutorial-tooltip-content').textContent = step.content;
+
+  const progress = ((currentIndex + 1) / totalSteps) * 100;
+  document.getElementById('tutorial-progress-fill').style.width = `${progress}%`;
+  document.getElementById('tutorial-progress-text').textContent = `${currentIndex + 1}/${totalSteps}`;
+
   const prevBtn = document.getElementById('tutorial-prev');
   const nextBtn = document.getElementById('tutorial-next');
   
-  if (title) title.textContent = step.title;
-  if (content) content.textContent = step.content;
-  
-  const progress = ((currentIndex + 1) / totalSteps) * 100;
-  if (progressFill) progressFill.style.width = `${progress}%`;
-  if (progressText) progressText.textContent = `${currentIndex + 1}/${totalSteps}`;
-  
-  // Update nav buttons
-  if (prevBtn) {
-    prevBtn.style.display = currentIndex > 1 ? 'block' : 'none'; // Hide on first spotlight step
-  }
-  if (nextBtn) {
-    nextBtn.textContent = currentIndex === totalSteps - 2 ? 'Finish' : 'Next';
-  }
+  if (prevBtn) prevBtn.style.display = currentIndex > 1 ? 'block' : 'none';
+  if (nextBtn) nextBtn.textContent = currentIndex === totalSteps - 2 ? 'Finish' : 'Next';
 }
 
-// Clean up after tutorial step
 function cleanupTutorialStep() {
-  const overlay = document.getElementById('tutorial-overlay');
-  const tooltip = document.getElementById('tutorial-tooltip');
-  
-  // Remove overlay and tooltip visibility
-  overlay?.classList.remove('active');
-  tooltip?.classList.remove('visible');
-  
-  // Remove highlighted class from any elements
-  document.querySelectorAll('.tutorial-highlighted').forEach(el => {
-    el.classList.remove('tutorial-highlighted');
-  });
-  
-  // Collapse previously expanded card
+  document.getElementById('tutorial-overlay')?.classList.remove('active');
+  document.getElementById('tutorial-tooltip')?.classList.remove('visible');
+  document.querySelectorAll('.tutorial-highlighted').forEach(el => el.classList.remove('tutorial-highlighted'));
+
   if (previouslyExpandedCard) {
     previouslyExpandedCard.classList.remove('expanded');
     previouslyExpandedCard = null;
   }
 }
 
-// Switch to a specific tab
 function switchToTab(tabName) {
-  const tabBtn = document.querySelector(`[data-tab="${tabName}"]`);
-  if (tabBtn) {
-    tabBtn.click();
-  }
+  document.querySelector(`[data-tab="${tabName}"]`)?.click();
 }
 
-// Handle tutorial completion
 function handleTutorialComplete() {
   cleanupTutorialStep();
   closeTutorialModal();
-  
-  // Switch back to features tab
   switchToTab('features');
 }
 
-// Handle tutorial exit
 function handleTutorialExit() {
   cleanupTutorialStep();
   closeTutorialModal();
 }
+
+// ============================================
+// UTILITIES
+// ============================================
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function notifyContentScript(type, data = {}) {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const tab = tabs[0];
+    if (tab?.id && tab.url?.includes('aidungeon.com')) {
+      chrome.tabs.sendMessage(tab.id, { type, ...data }).catch(() => {});
+    }
+  });
+}
+
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.add('fade-out');
+    setTimeout(() => toast.remove(), 300);
+  }, 2500);
+}
+
+// Setup profile links
+document.querySelectorAll('.feature-credit a').forEach(link => {
+  link.addEventListener('click', (e) => {
+    e.preventDefault();
+    chrome.tabs.create({ url: link.href });
+  });
+});

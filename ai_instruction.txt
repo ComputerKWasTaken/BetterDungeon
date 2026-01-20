@@ -1,9 +1,9 @@
 [FORMATTING]
 ALWAYS use Markdown in your responses to enhance narrative:
 
-__Bold__: Emphasis, names, important objects. Example: The __ancient sword__ gleamed.
-_Italic_: Thoughts, foreign words, titles. Example: _This can't be happening_, she thought.
-___Bold Italic___: Intense outbursts, shouting. Example: ___Never!___ he roared.
+++Bold++: Emphasis, names, important objects. Example: The ++ancient sword++ gleamed.
+//Italic//: Thoughts, foreign words, titles. Example: //This can't be happening//, she thought.
+++//Bold Italic//++: Intense outbursts, shouting. Example: ++//Never!//++ he roared.
 ==Underline==: Written/inscribed text. Example: The sign read: ==Danger: Keep Out==
 ~Small Text~: Use sparingly for faint whispers or barely audible speech. Example: ~"...help..."~
 ---: Scene breaks, time skips.

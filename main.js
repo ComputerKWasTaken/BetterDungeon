@@ -11,15 +11,8 @@ class BetterDungeon {
   init() {
     console.log('BetterDungeon: Initializing...');
     this.injectStyles();
-    this.initHintService();
     this.setupMessageListener();
     this.featureManager.initialize();
-  }
-
-  async initHintService() {
-    if (window.BetterDungeonHints) {
-      await window.BetterDungeonHints.init();
-    }
   }
 
   // Setup listener for messages from popup

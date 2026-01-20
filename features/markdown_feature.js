@@ -53,10 +53,31 @@ class MarkdownFeature {
     
     // Auto-apply when entering a new adventure
     if (newAdventureId && adventureChanged && this.autoApplyEnabled) {
-      setTimeout(() => this.applyInstructionsWithLoadingScreen(), 2500);
+      // Wait for the adventure page to fully load before applying
+      this.waitForAdventureReady().then(() => {
+        this.applyInstructionsWithLoadingScreen();
+      });
     }
     
     this.currentAdventureId = newAdventureId;
+  }
+
+  // Wait for the adventure page to be ready (gameplay output visible)
+  async waitForAdventureReady(maxAttempts = 20) {
+    for (let i = 0; i < maxAttempts; i++) {
+      // Check if we're on an adventure page with gameplay output
+      const gameplayOutput = document.querySelector('#gameplay-output');
+      const settingsButton = document.querySelector('div[aria-label="Game settings"]');
+      
+      if (gameplayOutput && settingsButton) {
+        // Additional delay to ensure everything is loaded
+        await this.wait(500);
+        return true;
+      }
+      await this.wait(250);
+    }
+    console.warn('MarkdownFeature: Adventure page not ready for auto-apply');
+    return false;
   }
 
   startAdventureChangeDetection() {
@@ -89,7 +110,7 @@ class MarkdownFeature {
   async _doApplyInstructions() {
     loadingScreen.show({
       title: 'Applying Instructions',
-      subtitle: 'Preparing...',
+      subtitle: 'Initializing...',
       showProgress: false
     });
 
@@ -99,7 +120,18 @@ class MarkdownFeature {
       }
 
       const service = new AIDungeonService();
+
+      // Step 1: Validate we're on AI Dungeon
+      if (!service.isOnAIDungeon()) {
+        throw new Error('Not on AI Dungeon - navigate to aidungeon.com');
+      }
+
+      // Step 2: Validate we're on an adventure page
+      if (!service.isOnAdventurePage()) {
+        throw new Error('Open an adventure first');
+      }
       
+      // Step 3: Load instruction file
       loadingScreen.updateSubtitle('Loading instruction file...');
       const instructionsResult = await service.fetchInstructionsFile();
       
@@ -107,13 +139,20 @@ class MarkdownFeature {
         throw new Error(instructionsResult.error || 'Failed to fetch instructions');
       }
 
-      loadingScreen.updateSubtitle('Opening adventure settings...');
-      await this.wait(300);
+      // Step 4: Navigate to settings and apply (with live status updates)
+      await this.wait(200);
       
-      // Pass a callback to update loading screen during component creation
+      // Pass callbacks to update loading screen during the process
       const applyResult = await service.applyInstructionsToTextareas(instructionsResult.data, {
-        onCreatingComponents: () => {
-          loadingScreen.updateSubtitle('Creating plot components...');
+        onStepUpdate: (message) => {
+          loadingScreen.updateSubtitle(message);
+        },
+        onCreatingComponents: (message) => {
+          if (message) {
+            loadingScreen.updateSubtitle(message);
+          } else {
+            loadingScreen.updateSubtitle('Creating plot components...');
+          }
         }
       });
       
@@ -335,9 +374,9 @@ class MarkdownFeature {
     if (!text) return false;
 
     const markdownIndicators = [
-      /___.+?___/,         // Bold Italic ___text___
-      /(?:^|[^_])__.+?__(?:[^_]|$)/, // Bold __text__
-      /(?:^|[^_])_[^_]+?_(?:[^_]|$)/, // Italic _text_
+      /\+\+\/\/.+?\/\/\+\+/, // Bold Italic ++//text//++
+      /(?:^|[^+])\+\+[^+]+?\+\+(?:[^+]|$)/, // Bold ++text++
+      /(?:^|[^\/])\/\/[^\/]+?\/\/(?:[^\/]|$)/, // Italic //text//
       /==.+?==/,           // Underline ==text==
       /(?:^|[^~])~[^~]+?~(?:[^~]|$)/, // Small text ~text~
       /^\s*[-]{3,}\s*$/m,  // Horizontal rules ---
@@ -385,26 +424,28 @@ class MarkdownFeature {
 
     let html = this.escapeHtml(text);
 
-    // Bold + Italic: ___text___
-    html = html.replace(/___(.+?)___/g, '<strong><em>$1</em></strong>');
+    // Bold + Italic: ++//text//++
+    html = html.replace(/\+\+\/\/(.+?)\/\/\+\+/g, '<strong><em>$1</em></strong>');
 
-    // Bold + Underline: __==text==__ or ==__text__==
-    html = html.replace(/__==(.+?)==__/g, '<strong><u>$1</u></strong>');
-    html = html.replace(/==__(.+?)__==/g, '<u><strong>$1</strong></u>');
+    // Bold + Underline: ++==text==++ or ==++text++==
+    html = html.replace(/\+\+==(.+?)==\+\+/g, '<strong><u>$1</u></strong>');
+    html = html.replace(/==\+\+(.+?)\+\+==/g, '<u><strong>$1</strong></u>');
     
-    // Bold: __text__ (not preceded/followed by another _)
-    html = html.replace(/(^|[^_])__([^_]+?)__([^_]|$)/g, '$1<strong>$2</strong>$3');
+    // Bold: ++text++ (not preceded/followed by another +)
+    // Use lookahead/lookbehind to avoid consuming characters needed for consecutive matches
+    html = html.replace(/(?<![+])\+\+([^+]+?)\+\+(?![+])/g, '<strong>$1</strong>');
 
-    // Italic: _text_ (not preceded/followed by another _)
-    html = html.replace(/(^|[^_])_([^_]+?)_([^_]|$)/g, '$1<em>$2</em>$3');
+    // Italic: //text// (not preceded/followed by another /)
+    // Use lookahead/lookbehind to handle consecutive patterns like //test// //test//
+    html = html.replace(/(?<![/])\/\/([^/]+?)\/\/(?![/])/g, '<em>$1</em>');
 
     // Underline: ==text==
     html = html.replace(/==(.+?)==/g, '<u>$1</u>');
 
     // Small/faint text: ~text~
-    html = html.replace(/(^|[^~])~([^~]+?)~([^~]|$)/g, '$1<span class="bd-small-text">$2</span>$3');
+    html = html.replace(/(?<![~])~([^~]+?)~(?![~])/g, '<span class="bd-small-text">$1</span>');
 
-    // Horizontal rules (--- only, no underscores to avoid conflicts)
+    // Horizontal rules (--- only)
     html = html.replace(/^(\s*)[-]{3,}\s*$/gm, '$1<hr class="bd-hr">');
 
     // Unordered lists

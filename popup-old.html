@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=380">
+  <title>BetterDungeon</title>
+  <link rel="stylesheet" href="fonts/lucide/lucide.css">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="header">
+    <div class="logo">
+      <img src="icons/icon48.png" alt="BetterDungeon icon" class="logo-icon">
+      <span class="logo-text">BetterDungeon</span>
+    </div>
+    <div class="header-actions">
+      <button class="tutorial-help-btn" id="tutorial-help-btn" aria-label="Start Tutorial" title="Start Tutorial">
+        <span class="icon-circle-question-mark"></span>
+      </button>
+      <span class="version-badge">Early Access</span>
+      <span class="version">v0.9.0</span>
+    </div>
+  </header>
+
+  <nav class="tab-nav" role="tablist">
+    <button class="tab-btn active" data-tab="features" role="tab" aria-selected="true" aria-controls="tab-features">Features</button>
+    <button class="tab-btn" data-tab="enhancements" role="tab" aria-selected="false" aria-controls="tab-enhancements">Enhancements</button>
+    <button class="tab-btn" data-tab="presets" role="tab" aria-selected="false" aria-controls="tab-presets">Presets</button>
+  </nav>
+
+  <main class="content">
+    <section class="tab-content active" id="tab-features" role="tabpanel" aria-labelledby="tab-features">
+
+      <p class="tab-intro">Configurable additions that add new functionality to your AI Dungeon experience.</p>
+
+      <div class="card-group">
+        <header class="card-group-header">
+          <h3 class="card-group-title">Story Input Options</h3>
+          <p class="card-group-desc">New input modes in the action menu</p>
+        </header>
+
+        <article class="card nested" data-feature="command">
+          <div class="card-header">
+            <div class="card-info">
+              <h3 class="card-title">Command Mode</h3>
+              <p class="card-desc">Send narrative commands to the AI</p>
+            </div>
+            <div class="card-actions">
+              <button class="chevron-btn" data-expand="command" aria-label="Expand Command Mode" aria-expanded="false">
+                <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <label class="toggle">
+                <input type="checkbox" id="feature-command" checked>
+                <span class="toggle-track"></span>
+              </label>
+            </div>
+          </div>
+          <div class="card-body" id="expanded-command">
+            <p class="card-detail">Adds a <strong>Command</strong> button to the input menu. Text is formatted as <code>## Your Command:</code> for direct AI instructions.</p>
+            <p class="card-hint">Great for: Time skips, scene changes, and guiding story direction.</p>
+          </div>
+        </article>
+
+        <article class="card nested" data-feature="attempt">
+          <div class="card-header">
+            <div class="card-info">
+              <h3 class="card-title">Attempt Mode</h3>
+              <p class="card-desc">Dice-roll action outcomes</p>
+            </div>
+            <div class="card-actions">
+              <button class="chevron-btn" data-expand="attempt" aria-label="Expand Attempt Mode" aria-expanded="false">
+                <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <label class="toggle">
+                <input type="checkbox" id="feature-attempt" checked>
+                <span class="toggle-track"></span>
+              </label>
+            </div>
+          </div>
+          <div class="card-body" id="expanded-attempt">
+            <p class="card-detail">RNG determines if actions succeed or fail. Formats as: <code>You attempt to [action], you [result].</code></p>
+            <p class="card-hint">Outcomes: critically fail, fail, succeed, critically succeed. Use arrow keys (↑↓) to adjust odds.</p>
+            <div class="card-options">
+              <div class="option-row">
+                <div class="option-info">
+                  <span class="option-label">Critical Chance</span>
+                  <span class="option-hint">Chance for critical success/failure (0-20%)</span>
+                </div>
+                <div class="slider-group">
+                  <input type="range" id="critical-chance" min="0" max="20" value="5" class="slider">
+                  <span class="slider-value" id="critical-chance-value">5%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <article class="card" data-feature="markdown">
+        <div class="card-header">
+          <div class="card-info">
+            <h3 class="card-title">Markdown Formatting</h3>
+            <p class="card-desc">Rich text in AI responses</p>
+          </div>
+          <div class="card-actions">
+            <button class="chevron-btn" data-expand="markdown" aria-label="Expand Markdown Formatting" aria-expanded="false">
+              <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <label class="toggle">
+              <input type="checkbox" id="feature-markdown" checked>
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+        </div>
+        <div class="card-body" id="expanded-markdown">
+          <p class="card-detail">Renders <strong>bold</strong>, <em>italic</em>, <u>underline</u>, and more using a custom asterisk-free markdown syntax.</p>
+          <div class="syntax-reference">
+            <h4 class="syntax-title">Syntax Reference</h4>
+            <div class="syntax-grid">
+              <code>__text__</code><span><strong>bold</strong></span>
+              <code>_text_</code><span><em>italic</em></span>
+              <code>==text==</code><span><u>underline</u></span>
+              <code>~text~</code><span><sub>small, faint text</sub></span>
+              <code>---</code><span>scene break</span>
+              <code>- item</code><span>• list item</span>
+            </div>
+          </div>
+          <div class="card-options">
+            <div class="option-row">
+              <div class="option-info">
+                <span class="option-label">Auto-apply on adventure</span>
+                <span class="option-hint">Inject formatting instructions when entering an adventure</span>
+              </div>
+              <label class="toggle sm">
+                <input type="checkbox" id="auto-apply-instructions">
+                <span class="toggle-track"></span>
+              </label>
+            </div>
+            <div class="option-row">
+              <div class="option-info">
+                <span class="option-label">Apply Instructions</span>
+                <span class="option-hint">Manually inject formatting guidelines into current adventure</span>
+              </div>
+              <button class="btn-sm" id="apply-instructions-btn" aria-label="Apply Formatting Instructions">Apply</button>
+            </div>
+          </div>
+          <p class="card-note"><strong>Big thanks to <a href="https://play.aidungeon.com/profile/OffMetaGamer">OffMetaGamer</a> and <a href="https://play.aidungeon.com/profile/effortlyss">Shiny</a> for their help with this feature!</strong></p>
+        </div>
+      </article>
+
+      <article class="card" data-feature="triggerHighlight">
+        <div class="card-header">
+          <div class="card-info">
+            <h3 class="card-title">Trigger Highlighting</h3>
+            <p class="card-desc">Visualize story card triggers</p>
+          </div>
+          <div class="card-actions">
+            <button class="chevron-btn" data-expand="triggerHighlight" aria-label="Expand Trigger Highlighting" aria-expanded="false">
+              <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <label class="toggle">
+              <input type="checkbox" id="feature-triggerHighlight" checked>
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+        </div>
+        <div class="card-body" id="expanded-triggerHighlight">
+          <p class="card-detail">Highlights story card triggers in the context viewer. Hover for card name tooltips.</p>
+          <p class="card-hint"><strong>Suggested Triggers:</strong> Frequently mentioned names/places without story cards appear in cyan with dashed underlines.</p>
+          <div class="card-options">
+            <div class="option-row">
+              <div class="option-info">
+                <span class="option-label">Auto-scan on adventure</span>
+                <span class="option-hint">Scan story cards when entering an adventure</span>
+              </div>
+              <label class="toggle sm">
+                <input type="checkbox" id="auto-scan-triggers">
+                <span class="toggle-track"></span>
+              </label>
+            </div>
+            <p class="option-warning"><span class="icon-triangle-alert"></span> Auto-scan will increase load times on adventures with many story cards.</p>
+            <div class="option-row">
+              <div class="option-info">
+                <span class="option-label">Scan Story Cards</span>
+                <span class="option-hint">Manually scan triggers for current adventure</span>
+              </div>
+              <button class="btn-sm" id="scan-triggers-btn" aria-label="Scan Story Cards for Triggers">Scan</button>
+            </div>
+          </div>
+        </div>
+      </article>
+
+    </section>
+
+    <section class="tab-content" id="tab-presets" role="tabpanel" aria-labelledby="tab-presets" hidden>
+      <p class="tab-intro">Save and manage your favorite plot component configurations and character presets.</p>
+
+      <!-- Plot Presets Section -->
+      <div class="presets-section">
+        <h3 class="section-title">Plot Presets</h3>
+        <div class="preset-actions">
+          <button class="btn-sm btn-full" id="save-current-preset-btn" aria-label="Save Current Plot as Preset">
+            <span class="btn-icon icon-star"></span> Save Current Plot as Preset
+          </button>
+          <button class="btn-sm btn-secondary" id="undo-preset-btn" style="display: none;" aria-label="Undo Last Preset Apply">
+            <span class="btn-icon icon-undo-2"></span> Undo Last Apply
+          </button>
+        </div>
+
+        <div class="preset-list" id="preset-list">
+          <div class="preset-empty" id="preset-empty">
+            <span class="preset-empty-icon icon-clipboard"></span>
+            <p>No presets saved yet</p>
+            <p class="preset-empty-hint">Navigate to an adventure's Plot tab and save your current configuration.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Character Presets Section -->
+      <div class="presets-section">
+        <h3 class="section-title">Character Presets</h3>
+        
+        <article class="card" data-feature="characterPreset">
+          <div class="card-header">
+            <div class="card-info">
+              <h3 class="card-title">Character Presets</h3>
+              <p class="card-desc">Auto-fill scenario entry fields that relate to character creation</p>
+            </div>
+            <div class="card-actions">
+              <label class="toggle">
+                <input type="checkbox" id="feature-characterPreset" checked>
+                <span class="toggle-track"></span>
+              </label>
+            </div>
+          </div>
+        </article>
+
+        <div class="character-preset-actions">
+          <button class="btn-sm btn-full" id="create-character-btn" aria-label="Create New Character">
+            <span class="btn-icon icon-plus"></span> Create New Character
+          </button>
+        </div>
+
+        <div class="character-list" id="character-list">
+          <div class="character-empty" id="character-empty">
+            <span class="character-empty-icon icon-user"></span>
+            <p>No characters saved yet</p>
+            <p class="character-empty-hint">Create a character preset to auto-fill scenario entry fields like name, age, appearance, etc.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <section class="tab-content" id="tab-enhancements" role="tabpanel" aria-labelledby="tab-enhancements" hidden>
+      <p class="tab-intro">Automatic improvements that are always active, no configuration needed.</p>
+      <div class="enhancement-list">
+        <article class="enhancement-card" data-feature="hotkey">
+          <span class="enhancement-icon icon-keyboard"></span>
+          <div class="enhancement-info">
+            <h3 class="enhancement-title">Hotkeys</h3>
+            <p class="enhancement-desc">Keyboard shortcuts for quick actions.</p>
+          </div>
+          <div class="enhancement-actions">
+            <button class="chevron-btn" data-expand="hotkey-details" aria-label="Expand Hotkey Details" aria-expanded="false">
+              <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <label class="toggle">
+              <input type="checkbox" id="feature-hotkey" checked>
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+        </article>
+        <div class="enhancement-details" id="hotkey-details">
+          <div class="hotkey-list">
+            <div class="hotkey-group">
+              <h4 class="hotkey-group-title">Actions</h4>
+              <div class="hotkey-item"><kbd>T</kbd> Take a Turn</div>
+              <div class="hotkey-item"><kbd>C</kbd> Continue</div>
+              <div class="hotkey-item"><kbd>R</kbd> Retry</div>
+              <div class="hotkey-item"><kbd>E</kbd> Erase</div>
+              <div class="hotkey-item"><kbd>Esc</kbd> Exit Input</div>
+            </div>
+            <div class="hotkey-group">
+              <h4 class="hotkey-group-title">History</h4>
+              <div class="hotkey-item"><kbd>Z</kbd> Undo</div>
+              <div class="hotkey-item"><kbd>Y</kbd> Redo</div>
+            </div>
+            <div class="hotkey-group">
+              <h4 class="hotkey-group-title">Input Modes</h4>
+              <div class="hotkey-item"><kbd>1</kbd> Do</div>
+              <div class="hotkey-item"><kbd>2</kbd> Attempt*</div>
+              <div class="hotkey-item"><kbd>3</kbd> Say</div>
+              <div class="hotkey-item"><kbd>4</kbd> Story</div>
+              <div class="hotkey-item"><kbd>5</kbd> See</div>
+              <div class="hotkey-item"><kbd>6</kbd> Command*</div>
+            </div>
+            <p class="hotkey-note">*Requires feature to be enabled</p>
+          </div>
+        </div>
+        <article class="enhancement-card" data-feature="inputModeColor">
+          <span class="enhancement-icon icon-palette"></span>
+          <div class="enhancement-info">
+            <h3 class="enhancement-title">Input Mode Colors</h3>
+            <p class="enhancement-desc">Subtle color-coded border on the input box based on current mode.</p>
+          </div>
+          <div class="enhancement-actions">
+            <button class="chevron-btn" data-expand="inputModeColor-details" aria-label="Expand Input Mode Color Details" aria-expanded="false">
+              <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <label class="toggle">
+              <input type="checkbox" id="feature-inputModeColor" checked>
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+        </article>
+        <div class="enhancement-details" id="inputModeColor-details">
+          <div class="color-legend">
+            <h4 class="color-legend-title">Mode Colors</h4>
+            <div class="color-item"><span class="color-swatch" style="background: rgba(59, 130, 246, 0.8);"></span> Do</div>
+            <div class="color-item"><span class="color-swatch" style="background: rgba(168, 85, 247, 0.8);"></span> Attempt</div>
+            <div class="color-item"><span class="color-swatch" style="background: rgba(34, 197, 94, 0.8);"></span> Say</div>
+            <div class="color-item"><span class="color-swatch" style="background: rgba(251, 191, 36, 0.8);"></span> Story</div>
+            <div class="color-item"><span class="color-swatch" style="background: rgba(236, 72, 153, 0.8);"></span> See</div>
+            <div class="color-item"><span class="color-swatch" style="background: rgba(6, 182, 212, 0.8);"></span> Command</div>
+          </div>
+        </div>
+        <article class="enhancement-card">
+          <span class="enhancement-icon icon-book-open"></span>
+          <div class="enhancement-info">
+            <h3 class="enhancement-title">Readable Tab Fix</h3>
+            <p class="enhancement-desc">Moves "Readable" tab back to its rightful place after "All" in Section Tabs.</p>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <!-- Preset Preview/Edit Modal -->
+  <div class="modal-overlay" id="preset-modal" style="display: none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-title">Preview Preset</h3>
+        <button class="modal-close" id="modal-close" aria-label="Close Modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-field">
+          <label class="modal-label">Preset Name</label>
+          <input type="text" class="modal-input" id="modal-preset-name" placeholder="My Preset">
+        </div>
+        <div class="modal-field" id="modal-field-ai">
+          <label class="modal-label">
+            <input type="checkbox" id="modal-check-ai" checked>
+            AI Instructions
+          </label>
+          <textarea class="modal-textarea" id="modal-ai-instructions" placeholder="No AI Instructions saved"></textarea>
+        </div>
+        <div class="modal-field" id="modal-field-essentials">
+          <label class="modal-label">
+            <input type="checkbox" id="modal-check-essentials" checked>
+            Plot Essentials
+          </label>
+          <textarea class="modal-textarea" id="modal-plot-essentials" placeholder="No Plot Essentials saved"></textarea>
+        </div>
+        <div class="modal-field" id="modal-field-note">
+          <label class="modal-label">
+            <input type="checkbox" id="modal-check-note" checked>
+            Author's Note
+          </label>
+          <textarea class="modal-textarea" id="modal-authors-note" placeholder="No Author's Note saved"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-sm btn-secondary" id="modal-cancel" aria-label="Cancel Modal">Cancel</button>
+        <button class="btn-sm btn-primary" id="modal-save" aria-label="Save Preset Changes">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Save Preset Modal (for selecting components) -->
+  <div class="modal-overlay" id="save-modal" style="display: none;">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h3 class="modal-title">Save New Preset</h3>
+        <button class="modal-close" id="save-modal-close" aria-label="Close Save Modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-field">
+          <label class="modal-label">Preset Name</label>
+          <input type="text" class="modal-input" id="save-preset-name" placeholder="My Preset">
+        </div>
+        <div class="modal-field">
+          <label class="modal-label">Components to Save</label>
+          <div class="component-checklist" role="group" aria-label="Components to Save">
+            <label class="component-check">
+              <input type="checkbox" id="save-check-ai" checked>
+              <span>AI Instructions</span>
+            </label>
+            <label class="component-check">
+              <input type="checkbox" id="save-check-essentials" checked>
+              <span>Plot Essentials</span>
+            </label>
+            <label class="component-check">
+              <input type="checkbox" id="save-check-note" checked>
+              <span>Author's Note</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-sm btn-danger" id="save-modal-cancel" aria-label="Cancel Save Preset">Cancel</button>
+        <button class="btn-sm btn-primary" id="save-modal-confirm" aria-label="Confirm Save Preset">Save Preset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Character Edit Modal -->
+  <div class="modal-overlay" id="character-modal" style="display: none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="character-modal-title">Edit Character</h3>
+        <button class="modal-close" id="character-modal-close" aria-label="Close Character Modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-field">
+          <label class="modal-label">Character Name</label>
+          <input type="text" class="modal-input" id="character-name-input" placeholder="Enter character name">
+        </div>
+        <div class="character-fields-section">
+          <label class="modal-label">Saved Fields</label>
+          <div class="character-fields-list" id="character-fields-list" role="list">
+            <p class="character-fields-empty" role="status">No fields saved yet. Fields are saved automatically when you fill in scenario entry questions.</p>
+          </div>
+          <div class="character-add-field">
+            <input type="text" class="modal-input" id="new-field-key" placeholder="Field name (e.g., hometown)">
+            <input type="text" class="modal-input" id="new-field-value" placeholder="Value">
+            <button class="btn-sm" id="add-field-btn" aria-label="Add Character Field">Add</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-sm btn-danger" id="character-delete-btn" aria-label="Delete Character">Delete</button>
+        <button class="btn-sm btn-secondary" id="character-modal-cancel" aria-label="Cancel Character Edit">Cancel</button>
+        <button class="btn-sm btn-primary" id="character-modal-save" aria-label="Save Character">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tutorial Welcome Banner (shown for new users) -->
+  <div class="tutorial-welcome-banner hidden" id="tutorial-welcome-banner">
+    <div class="tutorial-welcome-banner-icon">
+      <span class="icon-wand-sparkles"></span>
+    </div>
+    <div class="tutorial-welcome-banner-content">
+      <h4 class="tutorial-welcome-banner-title">Welcome to BetterDungeon!</h4>
+      <p class="tutorial-welcome-banner-text">Take a quick tour to learn the features.</p>
+    </div>
+    <div class="tutorial-welcome-banner-actions">
+      <button class="tutorial-btn tutorial-btn-secondary" id="tutorial-banner-dismiss">Later</button>
+      <button class="tutorial-btn tutorial-btn-primary" id="tutorial-banner-start">Start</button>
+    </div>
+  </div>
+
+  <!-- Tutorial Overlay System -->
+  <div class="tutorial-overlay" id="tutorial-overlay">
+    <div class="tutorial-spotlight" id="tutorial-spotlight"></div>
+  </div>
+
+  <!-- Tutorial Tooltip -->
+  <div class="tutorial-tooltip" id="tutorial-tooltip" data-position="bottom">
+    <div class="tutorial-tooltip-arrow"></div>
+    <div class="tutorial-tooltip-header">
+      <div class="tutorial-tooltip-icon">
+        <span class="icon-lightbulb" id="tutorial-tooltip-icon"></span>
+      </div>
+      <h4 class="tutorial-tooltip-title" id="tutorial-tooltip-title">Feature Title</h4>
+    </div>
+    <div class="tutorial-tooltip-body">
+      <p class="tutorial-tooltip-content" id="tutorial-tooltip-content">Description of the feature goes here.</p>
+    </div>
+    <div class="tutorial-tooltip-footer">
+      <div class="tutorial-progress">
+        <div class="tutorial-progress-bar">
+          <div class="tutorial-progress-fill" id="tutorial-progress-fill" style="width: 0%"></div>
+        </div>
+        <span class="tutorial-progress-text" id="tutorial-progress-text">1/12</span>
+      </div>
+      <div class="tutorial-nav">
+        <button class="tutorial-btn tutorial-btn-skip" id="tutorial-skip">Skip</button>
+        <button class="tutorial-btn tutorial-btn-secondary" id="tutorial-prev">Back</button>
+        <button class="tutorial-btn tutorial-btn-primary" id="tutorial-next">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tutorial Modal (Welcome/Complete) -->
+  <div class="tutorial-modal" id="tutorial-modal">
+    <div class="tutorial-modal-content">
+      <div class="tutorial-modal-header">
+        <div class="tutorial-modal-icon" id="tutorial-modal-icon">
+          <span class="icon-wand-sparkles"></span>
+        </div>
+        <h3 class="tutorial-modal-title" id="tutorial-modal-title">Welcome to BetterDungeon!</h3>
+      </div>
+      <div class="tutorial-modal-body">
+        <p class="tutorial-modal-text" id="tutorial-modal-text">This quick tour will introduce you to the features that enhance your AI Dungeon experience.</p>
+      </div>
+      <div class="tutorial-modal-footer">
+        <button class="tutorial-btn tutorial-btn-primary" id="tutorial-modal-primary">Start Tour</button>
+        <button class="tutorial-btn tutorial-btn-secondary" id="tutorial-modal-secondary">Maybe Later</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="services/tutorial-service.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

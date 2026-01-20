@@ -332,12 +332,7 @@ class AttemptFeature {
   }
 
   showFirstUseHint() {
-    if (!window.BetterDungeonHints) return;
-    
-    const modeButton = document.querySelector('[aria-label="Change input mode"]');
-    if (modeButton) {
-      window.BetterDungeonHints.show('attempt-mode', modeButton, 'top');
-    }
+    // Hint service removed - tutorial covers this
   }
 
   setupWeightKeyHandler() {
@@ -563,10 +558,24 @@ class AttemptFeature {
     this.submitClickHandler = handleClick;
     document.addEventListener('click', handleClick, true);
     
-    // Auto-cleanup after 30 seconds
-    setTimeout(() => {
+    // Auto-cleanup after 30 seconds, but only if user isn't actively using the input
+    this.autoCleanupTimer = setTimeout(() => {
       if (this.isAttemptMode) {
-        this.deactivateAttemptMode();
+        const textarea = document.querySelector('#game-text-input');
+        const isUserTyping = textarea && (document.activeElement === textarea || textarea.value.trim().length > 0);
+        const isInStorySection = document.querySelector('#gameplay-output') !== null;
+        
+        // Don't auto-deactivate if user is actively typing or has content in the input
+        if (!isUserTyping && isInStorySection) {
+          this.deactivateAttemptMode();
+        } else if (this.isAttemptMode) {
+          // Reschedule check if user is still active
+          this.autoCleanupTimer = setTimeout(() => {
+            if (this.isAttemptMode) {
+              this.deactivateAttemptMode();
+            }
+          }, 30000);
+        }
       }
     }, 30000);
   }
@@ -574,6 +583,12 @@ class AttemptFeature {
   deactivateAttemptMode() {
     this.isAttemptMode = false;
     this.restoreModeDisplay();
+    
+    // Clean up auto-cleanup timer
+    if (this.autoCleanupTimer) {
+      clearTimeout(this.autoCleanupTimer);
+      this.autoCleanupTimer = null;
+    }
     
     // Reset weight for next attempt
     this.weight = 0;

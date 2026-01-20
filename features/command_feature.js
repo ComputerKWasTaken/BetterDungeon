@@ -11,18 +11,47 @@ class CommandFeature {
     this.boundKeyHandler = null;
     this.submitClickHandler = null;
     this.modeChangeHandler = null;
+    this.autoDeleteEnabled = false;
+    this.pendingCommandDelete = null;
+    this.responseObserver = null;
   }
 
   init() {
     console.log('CommandFeature: Initializing...');
     this.setupObserver();
     this.injectCommandButton();
+    this.loadAutoDeleteSetting();
+    this.setupMessageListener();
+  }
+
+  loadAutoDeleteSetting() {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.sync.get('betterDungeon_commandAutoDelete', (result) => {
+        this.autoDeleteEnabled = result.betterDungeon_commandAutoDelete ?? false;
+      });
+    }
+  }
+
+  setupMessageListener() {
+    if (typeof chrome !== 'undefined' && chrome.runtime) {
+      chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        if (message.type === 'SET_COMMAND_AUTO_DELETE') {
+          this.autoDeleteEnabled = message.enabled;
+          sendResponse({ success: true });
+        }
+        return false;
+      });
+    }
   }
 
   destroy() {
     if (this.observer) {
       this.observer.disconnect();
       this.observer = null;
+    }
+    if (this.responseObserver) {
+      this.responseObserver.disconnect();
+      this.responseObserver = null;
     }
     if (this.modeChangeHandler) {
       document.removeEventListener('click', this.modeChangeHandler, true);
@@ -412,12 +441,7 @@ class CommandFeature {
   }
 
   showFirstUseHint() {
-    if (!window.BetterDungeonHints) return;
-    
-    const modeButton = document.querySelector('[aria-label="Change input mode"]');
-    if (modeButton) {
-      window.BetterDungeonHints.show('command-mode', modeButton, 'top');
-    }
+    // Hint service removed - tutorial covers this
   }
 
   watchForModeChanges() {
@@ -531,6 +555,9 @@ class CommandFeature {
             // Trigger input event so React picks up the change
             textarea.dispatchEvent(new Event('input', { bubbles: true }));
             
+            // Schedule deletion if auto-delete is enabled
+            this.scheduleCommandDeletion(formattedContent.trim());
+            
             // Reset command mode after submission
             this.deactivateCommandMode();
           }
@@ -565,6 +592,9 @@ class CommandFeature {
           // Trigger input event so React picks up the change
           textarea.dispatchEvent(new Event('input', { bubbles: true }));
           
+          // Schedule deletion if auto-delete is enabled
+          this.scheduleCommandDeletion(formattedContent.trim());
+          
           // Reset command mode after submission
           this.deactivateCommandMode();
         }
@@ -578,10 +608,24 @@ class CommandFeature {
     this.submitClickHandler = handleClick;
     document.addEventListener('click', handleClick, true);
     
-    // Auto-cleanup after 30 seconds
-    setTimeout(() => {
+    // Auto-cleanup after 30 seconds, but only if user isn't actively using the input
+    this.autoCleanupTimer = setTimeout(() => {
       if (this.isCommandMode) {
-        this.deactivateCommandMode();
+        const textarea = document.querySelector('#game-text-input');
+        const isUserTyping = textarea && (document.activeElement === textarea || textarea.value.trim().length > 0);
+        const isInStorySection = document.querySelector('#gameplay-output') !== null;
+        
+        // Don't auto-deactivate if user is actively typing or has content in the input
+        if (!isUserTyping && isInStorySection) {
+          this.deactivateCommandMode();
+        } else if (this.isCommandMode) {
+          // Reschedule check if user is still active
+          this.autoCleanupTimer = setTimeout(() => {
+            if (this.isCommandMode) {
+              this.deactivateCommandMode();
+            }
+          }, 30000);
+        }
       }
     }, 30000);
   }
@@ -589,6 +633,12 @@ class CommandFeature {
   deactivateCommandMode() {
     this.isCommandMode = false;
     this.restoreModeDisplay();
+    
+    // Clean up auto-cleanup timer
+    if (this.autoCleanupTimer) {
+      clearTimeout(this.autoCleanupTimer);
+      this.autoCleanupTimer = null;
+    }
     
     // Clean up listeners
     if (this.boundKeyHandler) {
@@ -606,12 +656,177 @@ class CommandFeature {
   }
 
   formatAsCommand(content) {
-    // Format: \n\n## ${content.replace(/^[\s#]+/, "").replace(/[\s.?!:]+$/, "")}:\n\n
+    // Format: [ ## User Input: ]
     const cleanedContent = content
       .replace(/^[\s#]+/, '')  // Remove leading whitespace and # characters
       .replace(/[\s.?!:]+$/, ''); // Remove trailing punctuation and whitespace
     
-    return `\n\n## ${cleanedContent}:\n\n`;
+    return `\n\n[ ## ${cleanedContent}: ]\n\n`;
+  }
+
+  scheduleCommandDeletion(commandText) {
+    if (!this.autoDeleteEnabled) return;
+    
+    this.pendingCommandDelete = commandText;
+    this.watchForResponseCompletion();
+  }
+
+  watchForResponseCompletion() {
+    if (this.responseObserver) {
+      this.responseObserver.disconnect();
+    }
+
+    const storyOutput = document.querySelector('#gameplay-output');
+    if (!storyOutput) return;
+
+    let responseStarted = false;
+    let stabilityTimer = null;
+
+    this.responseObserver = new MutationObserver((mutations) => {
+      // Check if new content is being added (AI is responding)
+      const hasNewContent = mutations.some(m => 
+        m.addedNodes.length > 0 || 
+        (m.type === 'characterData' && m.target.textContent)
+      );
+
+      if (hasNewContent) {
+        responseStarted = true;
+        
+        // Reset stability timer - wait for response to stabilize
+        if (stabilityTimer) clearTimeout(stabilityTimer);
+        
+        stabilityTimer = setTimeout(() => {
+          this.deleteCommandFromStory();
+          
+          // Clean up
+          if (this.responseObserver) {
+            this.responseObserver.disconnect();
+            this.responseObserver = null;
+          }
+          this.pendingCommandDelete = null;
+        }, 2000); // Wait 2 seconds of no changes
+      }
+    });
+
+    this.responseObserver.observe(storyOutput, {
+      childList: true,
+      subtree: true,
+      characterData: true
+    });
+
+    // Timeout after 60 seconds if no response
+    setTimeout(() => {
+      if (this.responseObserver) {
+        this.responseObserver.disconnect();
+        this.responseObserver = null;
+      }
+      this.pendingCommandDelete = null;
+    }, 60000);
+  }
+
+  deleteCommandFromStory() {
+    if (!this.pendingCommandDelete) return;
+
+    const storyOutput = document.querySelector('#gameplay-output');
+    if (!storyOutput) return;
+
+    const commandPattern = this.pendingCommandDelete;
+    const allSpans = storyOutput.querySelectorAll('span[id="transition-opacity"]');
+    
+    for (const span of allSpans) {
+      const text = span.textContent || '';
+      if (text.includes(commandPattern)) {
+        span.click();
+        setTimeout(() => this.clearAndSaveEdit(), 500);
+        break;
+      }
+    }
+  }
+
+  clearAndSaveEdit() {
+    const allTextareas = document.querySelectorAll('textarea');
+    
+    // Find the edit textarea (not the main game input)
+    for (const textarea of allTextareas) {
+      if (textarea.id === 'game-text-input') continue;
+      this.clearTextareaAndSave(textarea);
+      return;
+    }
+
+    // Fallback: check for contenteditable elements
+    const editables = document.querySelectorAll('[contenteditable="true"]');
+    for (const editable of editables) {
+      const searchText = this.pendingCommandDelete?.trim();
+      if (searchText && editable.textContent.includes(searchText)) {
+        this.clearContentEditableAndSave(editable);
+        return;
+      }
+    }
+  }
+
+  clearTextareaAndSave(textarea) {
+    textarea.focus();
+    textarea.select();
+    // Replace with two newlines for better formatting
+    textarea.value = '\n\n';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    textarea.dispatchEvent(new Event('change', { bubbles: true }));
+    
+    setTimeout(() => this.clickOutsideToClose(), 200);
+  }
+
+  clearContentEditableAndSave(element) {
+    // Select all content and delete
+    element.focus();
+    
+    // Select all text
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    
+    // Delete the content
+    document.execCommand('delete', false, null);
+    
+    // Dispatch events
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+    
+    // Click outside to close edit field
+    setTimeout(() => this.clickOutsideToClose(), 200);
+  }
+
+  clearInputAndSave(input) {
+    input.focus();
+    input.select();
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    
+    // Click outside to close edit field
+    setTimeout(() => this.clickOutsideToClose(), 200);
+  }
+
+  clickOutsideToClose() {
+    // Press Escape to close any popup
+    document.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Escape',
+      code: 'Escape',
+      keyCode: 27,
+      which: 27,
+      bubbles: true
+    }));
+    
+    // Blur and click outside as backup
+    setTimeout(() => {
+      document.activeElement?.blur();
+      const outsideTarget = document.querySelector('header') ||
+                            document.querySelector('nav') ||
+                            document.querySelector('[class*="sidebar"]') ||
+                            document.body;
+      if (outsideTarget) outsideTarget.click();
+    }, 100);
   }
 }
 

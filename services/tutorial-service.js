@@ -10,7 +10,7 @@ class TutorialService {
     this.onComplete = null;
     this.onExit = null;
     
-    // Define tutorial steps
+    // Define tutorial steps - Updated for new popup layout
     this.steps = [
       {
         id: 'welcome',
@@ -24,7 +24,7 @@ class TutorialService {
         type: 'spotlight',
         target: '[data-tab="features"]',
         title: 'Features Tab',
-        content: 'This is where you\'ll find configurable additions that add new functionality to AI Dungeon.',
+        content: 'All your configurable features are organized here by category. Click any card to expand and see more options!',
         position: 'bottom'
       },
       {
@@ -32,7 +32,7 @@ class TutorialService {
         type: 'spotlight',
         target: '[data-feature="command"]',
         title: 'Command Mode',
-        content: 'Send narrative commands like "Time Skip" or "Scene Change" directly to the AI. Great for guiding your story\'s direction!',
+        content: 'Send narrative commands like "Time Skip" or "Scene Change" directly to the AI. Great for guiding your story!',
         position: 'bottom',
         expandCard: true
       },
@@ -50,7 +50,7 @@ class TutorialService {
         type: 'spotlight',
         target: '[data-feature="markdown"]',
         title: 'Markdown Formatting',
-        content: 'Renders rich text formatting in AI responses. Click "Apply Instructions" to teach the AI the syntax!',
+        content: 'Renders rich text in AI responses. Click "Apply Instructions" to teach the AI the syntax!',
         position: 'bottom',
         expandCard: true
       },
@@ -60,17 +60,8 @@ class TutorialService {
         target: '[data-feature="triggerHighlight"]',
         title: 'Trigger Highlighting',
         content: 'Visualizes story card triggers in the context viewer. Hover over highlights to see which cards are active!',
-        position: 'bottom'
-      },
-      {
-        id: 'enhancements-tab',
-        type: 'spotlight',
-        target: '[data-tab="enhancements"]',
-        title: 'Enhancements Tab',
-        content: 'Automatic improvements that work in the background. Let\'s take a look!',
         position: 'bottom',
-        action: 'switchTab',
-        actionTarget: 'enhancements'
+        expandCard: true
       },
       {
         id: 'hotkeys',
@@ -78,22 +69,15 @@ class TutorialService {
         target: '[data-feature="hotkey"]',
         title: 'Keyboard Shortcuts',
         content: 'Quick hotkeys for common actions! Press T to take a turn, C to continue, R to retry, and number keys to switch input modes.',
-        position: 'bottom'
-      },
-      {
-        id: 'input-colors',
-        type: 'spotlight',
-        target: '[data-feature="inputModeColor"]',
-        title: 'Input Mode Colors',
-        content: 'Color-coded borders on the input box help you instantly know which mode you\'re in.',
-        position: 'top'
+        position: 'bottom',
+        expandCard: true
       },
       {
         id: 'presets-tab',
         type: 'spotlight',
         target: '[data-tab="presets"]',
         title: 'Presets Tab',
-        content: 'Save your favorite plot configurations and character presets here!',
+        content: 'Save and manage your plot configurations and character presets here!',
         position: 'bottom',
         action: 'switchTab',
         actionTarget: 'presets'
@@ -101,7 +85,7 @@ class TutorialService {
       {
         id: 'character-presets',
         type: 'spotlight',
-        target: '.presets-section:last-child',
+        target: '#character-list',
         title: 'Character Presets',
         content: 'Tired of retyping character info? Save character profiles and auto-fill scenario entry questions with one click!',
         position: 'top'
@@ -111,7 +95,7 @@ class TutorialService {
         type: 'modal',
         title: 'You\'re All Set!',
         content: 'You now know the essentials of BetterDungeon. Toggle features on/off anytime, and enjoy your enhanced AI Dungeon experience!',
-        icon: 'icon-circle-check',
+        icon: 'icon-badge-check',
         isComplete: true
       }
     ];

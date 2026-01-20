@@ -101,7 +101,7 @@ class TriggerHighlightFeature {
     // Show loading screen with cancel button
     loadingScreen.show({
       title: 'Scanning Story Cards',
-      subtitle: 'Initializing scan...',
+      subtitle: 'Initializing...',
       showProgress: true,
       showCancel: true,
       onCancel: () => {
@@ -110,6 +110,25 @@ class TriggerHighlightFeature {
     });
 
     try {
+      // First, navigate to the Story Cards tab autonomously
+      if (typeof AIDungeonService !== 'undefined') {
+        const service = new AIDungeonService();
+        const navResult = await service.navigateToStoryCardsSettings({
+          onStepUpdate: (message) => {
+            loadingScreen.updateSubtitle(message);
+          }
+        });
+        
+        if (!navResult.success) {
+          throw new Error(navResult.error || 'Failed to navigate to Story Cards');
+        }
+        
+        // Wait for Story Cards content to load
+        loadingScreen.updateSubtitle('Loading story cards...');
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      loadingScreen.updateSubtitle('Starting scan...');
       const result = await storyCardScanner.scanAllCards(
         // onTriggerFound callback
         (trigger, cardName) => {
@@ -648,20 +667,7 @@ class TriggerHighlightFeature {
   }
 
   showTriggerHint(element) {
-    if (!window.BetterDungeonHints) return;
-    
-    // Check for story card triggers first
-    const triggerSpan = element.querySelector('.bd-trigger-highlight');
-    if (triggerSpan) {
-      window.BetterDungeonHints.show('trigger-highlight', triggerSpan, 'top');
-      return;
-    }
-    
-    // Then check for suggested triggers
-    const suggestedSpan = element.querySelector('.bd-suggested-trigger');
-    if (suggestedSpan) {
-      window.BetterDungeonHints.show('suggested-trigger', suggestedSpan, 'top');
-    }
+    // Hint service removed - tutorial covers this
   }
 
   escapeHtml(text) {

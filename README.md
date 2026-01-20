@@ -46,7 +46,7 @@ Settings sync across Chromium browsers.
   | `T` | Take a Turn | | `1-6` | Input modes |
   | `C` | Continue | | `Z` | Undo |
   | `R` | Retry | | `Y` | Redo |
-  | `E` | Erase | | | |
+  | `E` | Erase | | `Esc` | Exit Input |
 
 - **Input Mode Colors** — Color-coded input box so you know what mode you're in at a glance. Blue for Do, Purple for Attempt, Green for Say, Gold for Story, Pink for See, Cyan for Command.
 
@@ -78,6 +78,16 @@ Each feature is a class with `static id`, `init()`, and `destroy()` methods. Dro
 See `core/theme-variables.css` for the design system if you want things to look consistent.
 
 ## Changelog
+
+### v0.9.1 (IN PROGRESS RN)
+- Improved **Command** mode formatting to include brackets [] for better AI adherence
+- Added an option to automatically delete the command text after being sent
+- Improved the **Markdown** formatting instructions and system to use an alternative system that avoids asterisks AND underscores (new)
+- **Improved the popup UI** to be more compact, organized, and easier to navigate
+- **Improved the Tutorial** to be more adaptive and handle edge cases better
+- **Removed the Tip popup/tooltip system** as it was too intrusive
+- Added **"Exit Input" hotkey (Esc)** to exit input mode
+- Bugfixes
 
 ### v0.9.0.2
 - Fixed an issue with the Apply button, should fix Markdown instruction application

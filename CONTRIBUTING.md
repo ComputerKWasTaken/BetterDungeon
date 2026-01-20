@@ -9,13 +9,13 @@ Developer documentation for contributors and maintainers.
 These are future additions to the extension that I want to implement, both before Early Access, at launch, and after.
 
 ### Most Likely Happening
-- **Automatic Model Selection** - Automatically selects the best model for the user based on their preferences and the current adventure context length. As an example, early in an adventure, a model with a shorter context window would be sufficient, but as the adventure progresses and the context window grows, a model with a longer context window would be better.
+- **Automatic Model Selection** - A system added to the AI Dungeon that can automatically switch and select the best model for the user's needs, depending on their configuration.
 - **Automatic See Actions** - Automatically perform the "See" action after a user takes a turn, or after a set number of turns.
 - **Scenario/Adventure Folder Organization** - Group scenarios and adventures into collapsible folders for better management. (WARNING: This is an extensively difficult task from what I've experimented with)
-- **Auto-Save Drafts** — Automatically save input text to prevent loss on accidental navigation.
 
 ### Considering
 - **Custom Hotkey Bindings** — Let users remap keyboard shortcuts to their preferences.
+- **BetterScripts** - A system that allows AI Dungeon scripts to interface and interact with the extension, allowing for things like an "in game clock" with actual UI elements on the page, with a time management script.
 - **Story Card Folder Organization** — Group story cards into collapsible folders for better management. In fact, just improve Story Cards overall. They lowkey reek.
 - **Quick Actions Menu** — A floating action button with common actions like "Add Story Card", "View Context", etc.
 - **Adventure Statistics** — Track word count, turn count, and session duration for your adventures. Just for funsies.
@@ -23,6 +23,8 @@ These are future additions to the extension that I want to implement, both befor
 ### Long-Term Ideas
 - **Community Resources** — Browse and find story card templates, scripts, etc. from other users.
 - **Text to Speech** - Reads your story aloud with text to speech.
+- **Background Music** - Plays background music while you play.
+- **Customizable UI** - Let users customize the UI to their liking.
 
 ---
 
@@ -33,13 +35,9 @@ These are future additions to the extension that I want to implement, both befor
 
 ### 🟠 High
 <!-- Important features or improvements to prioritize -->
-- Improving the Markdown system to avoid underscores to accomodate for Deepseek's additional output preprocessing. (Thanks to *bluestar* for the suggestion)
 
 ### 🟢 Low
 <!-- Nice-to-have improvements when time permits -->
-- Improve the tutorial segment formatting to be more user-friendly and easier to read.
-- Better on-site tutorial popup management and display.
-- Add an additional hotkey for pressing Escape to exit out of the Take a Turn segment.
 
 ### 📋 Backlog
 <!-- Future ideas and long-term goals -->
@@ -53,18 +51,16 @@ These are future additions to the extension that I want to implement, both befor
 
 ### 🟠 High
 <!-- Bugs significantly impacting user experience -->
-- The Continue button doesn't properly appear in the scenario entry questions segment when the user is designated to enter a characters name.
-- Automatic markdown formatting application breaks when on the wrong tab.
-- The tutorial segment walkthrough breaks when on the wrong tab (not on the Feature tab) in popup.
+- The Continue button doesn't properly appear in the scenario entry questions segment when the user is designated to enter a characters name. This is because artificially inserting the characters name into the input box doesn't trigger the Continue button to appear.
+- The system that automatically applies the Markdown formatting instructions is very finicky and needs work (I'll work on it to be more adaptable and have better error handling and fallbacks)
+- The system that checks for Story Cards and saves them to allow for the trigger highlighting to work is finicky and needs work
 
 ### 🟢 Low
 <!-- Minor bugs or edge cases -->
-- Markdown formatting breaks when formatting is like this: `_test_ _test_` (the underscore is not properly escaped and results in formatting breaking)
 - The custom injected story input option buttons have a fallback mechanism that resets them after 30 seconds all the time, when it should only reset them if the user has not manually selected an option or is not in the story input section.
 
 ### 📋 Backlog
 <!-- Known issues with workarounds or minimal impact -->
-- The Presets tab in the popup has additional empty space at the bottom that should be removed.
 
 ---
 

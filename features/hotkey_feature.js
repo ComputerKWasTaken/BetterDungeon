@@ -13,6 +13,9 @@ class HotkeyFeature {
       'r': { selector: '[aria-label="Command: retry"]', description: 'Retry' },
       'e': { selector: '[aria-label="Command: erase"]', description: 'Erase' },
       
+      // Input area control
+      'escape': { action: 'closeInputArea', description: 'Exit Input Area' },
+      
       // Undo/Redo
       'z': { selector: '[aria-label="Undo change"]', description: 'Undo' },
       'y': { selector: '[aria-label="Redo change"]', description: 'Redo' },
@@ -30,26 +33,6 @@ class HotkeyFeature {
   init() {
     console.log('HotkeyFeature: Initializing...');
     this.setupKeyboardListener();
-    this.showHotkeysAvailableHint();
-  }
-
-  showHotkeysAvailableHint() {
-    if (!window.BetterDungeonHints) return;
-    
-    // Show hint near the command bar when input area is ready
-    const checkForInput = setInterval(() => {
-      const commandBar = document.querySelector('[aria-label="Command: take a turn"]');
-      if (commandBar) {
-        clearInterval(checkForInput);
-        // Small delay to not overwhelm user immediately
-        setTimeout(() => {
-          window.BetterDungeonHints.show('hotkeys-available', commandBar, 'top');
-        }, 2000);
-      }
-    }, 1000);
-    
-    // Stop checking after 30 seconds
-    setTimeout(() => clearInterval(checkForInput), 30000);
   }
 
   destroy() {
@@ -116,6 +99,14 @@ class HotkeyFeature {
     }
   }
 
+  closeInputArea() {
+    // Click the close button with aria-label="Close text input"
+    const closeButton = document.querySelector('[aria-label="Close text input"]');
+    if (closeButton) {
+      closeButton.click();
+    }
+  }
+
   isInputAreaOpen() {
     // Check if the input area is visible by looking for the "Change input mode" button
     return !!document.querySelector('[aria-label="Change input mode"]');
@@ -151,8 +142,8 @@ class HotkeyFeature {
 
   setupKeyboardListener() {
     const handleKeyDown = async (e) => {
-      // Don't trigger hotkeys when user is typing
-      if (this.isUserTyping()) return;
+      // Don't trigger hotkeys when user is typing, EXCEPT for Escape key
+      if (this.isUserTyping() && e.key.toLowerCase() !== 'escape') return;
       
       // Don't trigger on modifier key combinations (except our own)
       if (e.ctrlKey || e.altKey || e.metaKey) return;
@@ -164,6 +155,14 @@ class HotkeyFeature {
       
       e.preventDefault();
       e.stopPropagation();
+      
+      // Handle special actions (like closeInputArea)
+      if (hotkeyConfig.action) {
+        if (hotkeyConfig.action === 'closeInputArea') {
+          this.closeInputArea();
+        }
+        return;
+      }
       
       // Handle input mode selection (requires opening input area and menu first)
       if (hotkeyConfig.requiresMenu) {
@@ -202,9 +201,6 @@ class HotkeyFeature {
         }
         
         targetElement.click();
-        
-        // Show first-use hint
-        this.showFirstUseHint(targetElement);
       } else {
         // Close menu if we opened it but couldn't find the option
         if (hotkeyConfig.requiresMenu) {
@@ -217,15 +213,6 @@ class HotkeyFeature {
     document.addEventListener('keydown', handleKeyDown, true);
   }
 
-  showFirstUseHint(targetElement) {
-    if (!window.BetterDungeonHints) return;
-    
-    // Show hint near the input area
-    const inputArea = document.querySelector('#game-text-input');
-    if (inputArea) {
-      window.BetterDungeonHints.show('hotkey-used', inputArea, 'top');
-    }
-  }
 }
 
 // Make available globally
