@@ -386,11 +386,30 @@ class MarkdownFeature {
     return markdownIndicators.some(pattern => pattern.test(text));
   }
 
+  // Check if element contains icons or other HTML elements that should be preserved
+  containsPreservableElements(element) {
+    if (!element) return false;
+    // Check for SVG icons, icon classes (like AI Dungeon's w_triangle_warn), or any nested SVG/icon elements
+    const preservableSelectors = [
+      'svg',
+      '[class*="icon"]',
+      '[class*="w_"]',  // AI Dungeon's icon class naming convention (e.g., w_triangle_warn)
+      'i[class]',       // Common icon element pattern
+      'img'
+    ];
+    return element.querySelector(preservableSelectors.join(', ')) !== null;
+  }
+
   convertMarkdown(element) {
     try {
       if (!element) return false;
 
       if (element.getAttribute(MarkdownFeature.PROCESSED_ATTR) === 'true') {
+        return false;
+      }
+
+      // Skip elements that contain icons or other HTML that should be preserved
+      if (this.containsPreservableElements(element)) {
         return false;
       }
 

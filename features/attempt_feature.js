@@ -559,23 +559,27 @@ class AttemptFeature {
     document.addEventListener('click', handleClick, true);
     
     // Auto-cleanup after 30 seconds, but only if user isn't actively using the input
+    this.scheduleAutoCleanup();
+  }
+
+  scheduleAutoCleanup() {
+    if (this.autoCleanupTimer) {
+      clearTimeout(this.autoCleanupTimer);
+    }
+    
     this.autoCleanupTimer = setTimeout(() => {
-      if (this.isAttemptMode) {
-        const textarea = document.querySelector('#game-text-input');
-        const isUserTyping = textarea && (document.activeElement === textarea || textarea.value.trim().length > 0);
-        const isInStorySection = document.querySelector('#gameplay-output') !== null;
-        
-        // Don't auto-deactivate if user is actively typing or has content in the input
-        if (!isUserTyping && isInStorySection) {
-          this.deactivateAttemptMode();
-        } else if (this.isAttemptMode) {
-          // Reschedule check if user is still active
-          this.autoCleanupTimer = setTimeout(() => {
-            if (this.isAttemptMode) {
-              this.deactivateAttemptMode();
-            }
-          }, 30000);
-        }
+      if (!this.isAttemptMode) return;
+      
+      const textarea = document.querySelector('#game-text-input');
+      const isUserTyping = textarea && (document.activeElement === textarea || textarea.value.trim().length > 0);
+      const isInStorySection = document.querySelector('#gameplay-output') !== null;
+      
+      // Don't auto-deactivate if user is actively typing, has content, or is not in story section
+      if (isUserTyping || !isInStorySection) {
+        // Reschedule check - user is still active or not in story section
+        this.scheduleAutoCleanup();
+      } else {
+        this.deactivateAttemptMode();
       }
     }, 30000);
   }

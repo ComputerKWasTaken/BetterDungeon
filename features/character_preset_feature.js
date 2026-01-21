@@ -761,11 +761,10 @@ class CharacterPresetFeature {
           const character = this.getSessionCharacter();
           if (character) {
             const nameValue = character.fields.name || character.name;
-            field.input.value = nameValue;
-            field.input.dispatchEvent(new Event('input', { bubbles: true }));
-            field.input.dispatchEvent(new Event('change', { bubbles: true }));
-            
-            this.showToast(`Playing as ${character.name}`, 'success');
+            // Use typewriter effect to properly trigger Continue button
+            this.typewriterFill(field.input, nameValue).then(() => {
+              this.showToast(`Playing as ${character.name}`, 'success');
+            });
           }
         } else {
           await this.setSessionCharacter(null);
@@ -787,9 +786,8 @@ class CharacterPresetFeature {
     if (!name) return;
     
     if (!currentValue) {
-      field.input.value = name;
-      field.input.dispatchEvent(new Event('input', { bubbles: true }));
-      field.input.dispatchEvent(new Event('change', { bubbles: true }));
+      // Use typewriter effect to properly trigger Continue button
+      await this.typewriterFill(field.input, name);
     }
     
     const preset = await this.createPreset(name);
@@ -973,21 +971,85 @@ class CharacterPresetFeature {
     this.hasAutoFilled = true;
     this.isProcessing = true;
     
-    // Fill the field
-    field.input.value = savedValue;
-    field.input.dispatchEvent(new Event('input', { bubbles: true }));
-    field.input.dispatchEvent(new Event('change', { bubbles: true }));
-    
-    this.showToast(`Auto-filled: ${this.truncate(savedValue, 25)}`, 'success');
-    
-    // Wait a moment then click Continue
-    setTimeout(() => {
-      const continueBtn = this.findContinueButton();
-      if (continueBtn) {
-        continueBtn.click();
-      }
-      this.isProcessing = false;
-    }, 300);
+    // Use typewriter effect to properly trigger React state updates
+    // This ensures the Continue button appears correctly
+    this.typewriterFill(field.input, savedValue).then(() => {
+      this.showToast(`Auto-filled: ${this.truncate(savedValue, 25)}`, 'success');
+      
+      // Wait a moment then click Continue
+      setTimeout(() => {
+        const continueBtn = this.findContinueButton();
+        if (continueBtn) {
+          continueBtn.click();
+        }
+        this.isProcessing = false;
+      }, 300);
+    });
+  }
+  
+  typewriterFill(input, text, charDelay = 15) {
+    return new Promise((resolve) => {
+      // Clear any existing content first
+      input.value = '';
+      input.focus();
+      
+      const characters = text.split('');
+      let currentIndex = 0;
+      
+      const typeNextChar = () => {
+        if (currentIndex >= characters.length) {
+          // Typing complete - dispatch final events
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          resolve();
+          return;
+        }
+        
+        const char = characters[currentIndex];
+        
+        // Simulate keydown event
+        const keydownEvent = new KeyboardEvent('keydown', {
+          key: char,
+          code: `Key${char.toUpperCase()}`,
+          charCode: char.charCodeAt(0),
+          keyCode: char.charCodeAt(0),
+          which: char.charCodeAt(0),
+          bubbles: true,
+          cancelable: true
+        });
+        input.dispatchEvent(keydownEvent);
+        
+        // Add character to input value
+        input.value += char;
+        
+        // Simulate input event (critical for React)
+        const inputEvent = new InputEvent('input', {
+          bubbles: true,
+          cancelable: true,
+          inputType: 'insertText',
+          data: char
+        });
+        input.dispatchEvent(inputEvent);
+        
+        // Simulate keyup event
+        const keyupEvent = new KeyboardEvent('keyup', {
+          key: char,
+          code: `Key${char.toUpperCase()}`,
+          charCode: char.charCodeAt(0),
+          keyCode: char.charCodeAt(0),
+          which: char.charCodeAt(0),
+          bubbles: true,
+          cancelable: true
+        });
+        input.dispatchEvent(keyupEvent);
+        
+        currentIndex++;
+        setTimeout(typeNextChar, charDelay);
+      };
+      
+      // Start typing
+      typeNextChar();
+    });
   }
 
   // ============================================

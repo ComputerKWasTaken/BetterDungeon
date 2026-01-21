@@ -51,13 +51,12 @@ These are future additions to the extension that I want to implement, both befor
 
 ### 🟠 High
 <!-- Bugs significantly impacting user experience -->
-- The Continue button doesn't properly appear in the scenario entry questions segment when the user is designated to enter a characters name. This is because artificially inserting the characters name into the input box doesn't trigger the Continue button to appear.
-- The system that automatically applies the Markdown formatting instructions is very finicky and needs work (I'll work on it to be more adaptable and have better error handling and fallbacks)
-- The system that checks for Story Cards and saves them to allow for the trigger highlighting to work is finicky and needs work
 
 ### 🟢 Low
 <!-- Minor bugs or edge cases -->
-- The custom injected story input option buttons have a fallback mechanism that resets them after 30 seconds all the time, when it should only reset them if the user has not manually selected an option or is not in the story input section.
+- The custom injected story input option buttons have a fallback mechanism that resets them after 30 seconds all the time, when it should only reset them if the user has not manually selected an option or is not in the story input section. 
+- The Story Card scanner can only scan about ~57 cards at a time due to all of the cards not being loaded in the DOM at once. A minor issue, but for scenarios with 100+ cards, it's a bit of a nuisance.
+- The Story Card scanner does not work when the sorting style of the Story Card menu is anything other than Large.
 
 ### 📋 Backlog
 <!-- Known issues with workarounds or minimal impact -->
