@@ -303,8 +303,8 @@ class StoryCardScanner {
       return false;
     }
 
-    // Scroll by approximately 60% of viewport to ensure overlap for card detection
-    const scrollAmount = scrollContainer.clientHeight * 0.6;
+    // Scroll by approximately 85% of viewport to ensure overlap for card detection
+    const scrollAmount = scrollContainer.clientHeight * 0.85;
     const targetScroll = Math.min(beforeScroll + scrollAmount, maxScroll);
     this.log(`Scrolling from ${beforeScroll} to ${targetScroll} (amount: ${scrollAmount})`);
     
