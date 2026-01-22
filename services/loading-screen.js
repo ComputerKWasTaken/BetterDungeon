@@ -117,14 +117,6 @@ class LoadingScreen {
 
     // Always append to body as the very last element
     document.body.appendChild(this.overlay);
-    
-    // Debug: Log overlay info
-    console.log('LoadingScreen: Overlay created', {
-      parent: this.overlay.parentElement?.tagName,
-      zIndex: window.getComputedStyle(this.overlay).zIndex,
-      position: window.getComputedStyle(this.overlay).position,
-      pointerEvents: window.getComputedStyle(this.overlay).pointerEvents
-    });
 
     // Cache references
     this.progressBar = this.overlay.querySelector('.bd-loading-progress-bar');
@@ -146,9 +138,8 @@ class LoadingScreen {
         const onCancelFn = this.onCancel;
         const hideOverlay = () => this.hide();
         
-        // Try multiple event types - pointerdown fires before click
+        // Use pointerdown which fires before click and isn't affected by interference
         const handleCancel = (e) => {
-          console.log('LoadingScreen: Cancel triggered via', e.type);
           e.stopPropagation();
           e.stopImmediatePropagation();
           e.preventDefault();
@@ -245,23 +236,6 @@ class LoadingScreen {
     return div.innerHTML;
   }
 
-  // Find the best container to append loading screen to
-  // This ensures we're in the same stacking context as AI Dungeon's modals
-  findBestContainer() {
-    // Strategy: Insert INSIDE the topmost modal to be in the same stacking context
-    // This guarantees our z-index works relative to modal content
-    
-    // Find the topmost open modal
-    const modals = document.querySelectorAll('[role="dialog"], [role="alertdialog"], [aria-modal="true"]');
-    if (modals.length > 0) {
-      // Return the last (topmost) modal - we'll append inside it
-      const topModal = modals[modals.length - 1];
-      return topModal;
-    }
-
-    // If no modal is open, fallback to document.body
-    return document.body;
-  }
 }
 
 // Singleton instance for global use
