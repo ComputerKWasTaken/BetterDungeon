@@ -547,7 +547,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2147483647; /* Maximum z-index to ensure always on top */
+  z-index: 999999;
   opacity: 0;
   transition: opacity 0.3s ease;
   backdrop-filter: blur(12px);
@@ -714,6 +714,13 @@
   color: #ffffff;
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.25);
+}
+
+.bd-loading-cancel-hint {
+  margin-top: 8px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  font-style: italic;
 }
 
 /* ============================================

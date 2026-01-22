@@ -12,7 +12,7 @@ class LoadingScreen {
     this.iconUrl = chrome.runtime.getURL('icons/icon128.png');
     this.queue = [];
     this.isProcessingQueue = false;
-    this.escapeHandler = null; // Bound escape key handler
+    this.escapeHandler = null; // Store reference for cleanup
   }
 
   // Queue an async operation to run with loading screen
@@ -70,19 +70,6 @@ class LoadingScreen {
     this.createOverlay(title, subtitle, showProgress, showCancel, icon);
     this.isVisible = true;
     
-    // Setup Escape key handler if cancel is enabled
-    if (showCancel && onCancel) {
-      this.escapeHandler = (e) => {
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          e.stopPropagation();
-          this.onCancel();
-          this.hide();
-        }
-      };
-      document.addEventListener('keydown', this.escapeHandler, true); // Use capture phase
-    }
-    
     // Animate in
     requestAnimationFrame(() => {
       if (this.overlay) {
@@ -113,7 +100,8 @@ class LoadingScreen {
           <p class="bd-loading-status"></p>
         ` : ''}
         ${showCancel ? `
-          <button class="bd-loading-cancel-btn">Cancel (Esc)</button>
+          <button class="bd-loading-cancel-btn">Cancel</button>
+          <p class="bd-loading-cancel-hint">Press Escape to cancel</p>
         ` : ''}
       </div>
     `;
@@ -133,6 +121,20 @@ class LoadingScreen {
         this.onCancel();
         this.hide();
       });
+    }
+    
+    // Setup Escape key listener for cancel (works even when card editor covers the button)
+    if (showCancel && this.onCancel) {
+      this.escapeHandler = (e) => {
+        if (e.key === 'Escape' && this.isVisible) {
+          e.preventDefault();
+          e.stopPropagation();
+          this.onCancel();
+          this.hide();
+        }
+      };
+      // Use capture phase to intercept before other handlers
+      document.addEventListener('keydown', this.escapeHandler, true);
     }
   }
 
@@ -179,6 +181,12 @@ class LoadingScreen {
   async hide(delay = 300) {
     if (!this.isVisible || !this.overlay) return;
 
+    // Remove Escape key listener
+    if (this.escapeHandler) {
+      document.removeEventListener('keydown', this.escapeHandler, true);
+      this.escapeHandler = null;
+    }
+
     // Animate out
     this.overlay.classList.remove('bd-loading-visible');
     this.overlay.classList.add('bd-loading-hiding');
@@ -196,12 +204,6 @@ class LoadingScreen {
     this.titleText = null;
     this.isVisible = false;
     this.currentProgress = 0;
-    
-    // Remove escape key handler
-    if (this.escapeHandler) {
-      document.removeEventListener('keydown', this.escapeHandler, true);
-      this.escapeHandler = null;
-    }
   }
 
   escapeHtml(text) {
