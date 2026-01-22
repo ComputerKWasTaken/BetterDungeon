@@ -10,12 +10,13 @@ These are future additions to the extension that I want to implement, both befor
 
 ### Most Likely Happening
 - **Automatic Model Selection** - A system added to the AI Dungeon that can automatically switch and select the best model for the user's needs, depending on their configuration.
-- **Scenario/Adventure Folder Organization** - Group scenarios and adventures into collapsible folders for better management. (WARNING: This is an extensively difficult task from what I've experimented with)
-- **Quick Actions Menu** — A floating action button with common actions like "Add Story Card", "View Context", etc.
+- **Scenario/Adventure Folder Organization** - Group scenarios and adventures into collapsible folders for better management. (WARNING: This is an extensively difficult task from what I've experimented with.)
 - **Adventure Statistics** — Track word count, turn count, and session duration for your adventures. Just for funsies.
+- **Auto Enable Scripts** - A small QOL feature that automatically retoggles the "Enable Scripts" option in the Scenario Creation page.
 
 ### Considering
 - **BetterScripts** - A system that allows AI Dungeon scripts to interface and interact with the extension, allowing for things like an "in game clock" with actual UI elements on the page, with a time management script.
+- **Quick Actions Menu** — A floating action button with common actions that aren't typically present on the main Adventure page, like "Add Story Card", "Change Image Generator", etc.
 - **Story Card Folder Organization** — Group story cards into collapsible folders for better management. In fact, just improve Story Cards overall. They lowkey reek.
 
 ### Long-Term Ideas
@@ -52,7 +53,6 @@ These are future additions to the extension that I want to implement, both befor
 
 ### 🟢 Low
 <!-- Minor bugs or edge cases -->
-- The custom injected story input option buttons have a fallback mechanism that resets them after 30 seconds all the time, when it should only reset them if the user has not manually selected an option or is not in the story input section. 
 - The Story Card scanner can only scan about ~57 cards at a time due to all of the cards not being loaded in the DOM at once. A minor issue, but for scenarios with 100+ cards, it's a bit of a nuisance.
 - The Story Card scanner does not work when the sorting style of the Story Card menu is anything other than Large.
 

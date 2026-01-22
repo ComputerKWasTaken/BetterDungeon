@@ -10,7 +10,7 @@ class TutorialService {
     this.onComplete = null;
     this.onExit = null;
     
-    // Define tutorial steps - Updated for new popup layout
+    // Define tutorial steps - Updated for v0.9.2 features
     this.steps = [
       {
         id: 'welcome',
@@ -64,12 +64,30 @@ class TutorialService {
         expandCard: true
       },
       {
+        id: 'input-mode-colors',
+        type: 'spotlight',
+        target: '[data-feature="inputModeColor"]',
+        title: 'Input Mode Colors',
+        content: 'Color-codes your input box based on the current mode. Click "Customize Colors" to pick your own palette!',
+        position: 'bottom',
+        expandCard: true
+      },
+      {
         id: 'hotkeys',
         type: 'spotlight',
         target: '[data-feature="hotkey"]',
         title: 'Keyboard Shortcuts',
-        content: 'Quick hotkeys for common actions! Press T to take a turn, C to continue, R to retry, and number keys to switch input modes.',
+        content: 'Quick hotkeys for common actions! Press T to take a turn, C to continue, and number keys to switch modes. Fully customizable via the "Customize Hotkeys" button!',
         position: 'bottom',
+        expandCard: true
+      },
+      {
+        id: 'auto-see',
+        type: 'spotlight',
+        target: '[data-feature="autoSee"]',
+        title: 'Auto See',
+        content: 'Automatically triggers a See action after AI responses to visualize the scene. Set it to run every turn or at custom intervals!',
+        position: 'top',
         expandCard: true
       },
       {

@@ -86,6 +86,8 @@ See `core/theme-variables.css` for the design system if you want things to look 
 - **Improved the design of the popup UI** to include icons for each feature
 - Added the ability to **customize your hotkeys** via the popup
 - Added the ability to **customize input mode colors** via the popup
+- Updated the Tutorial to include information about the new features
+- Bugfixes
 
 ### v0.9.1
 - Improved **Command** mode formatting to include brackets [] for better AI adherence
