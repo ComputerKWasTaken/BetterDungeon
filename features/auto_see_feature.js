@@ -1,5 +1,6 @@
 // BetterDungeon - Auto See Feature
 // Automatically sends a "See" action after AI outputs
+// Detects submitted actions and Continue actions, then triggers See and reverts to original input mode
 
 class AutoSeeFeature {
   static id = 'autoSee';
@@ -9,10 +10,14 @@ class AutoSeeFeature {
     this.observer = null;
     this.debounceTimer = null;
     
-    // Track story content to detect changes
+    // Track story content to detect AI response completion
     this.lastStoryContent = '';
     this.lastStoryLength = 0;
     this.isProcessing = false;
+    this.isWaitingForAIResponse = false;
+    
+    // Track user's original input mode for restoration
+    this.userOriginalMode = 'do'; // Default to 'do' mode
     
     // Settings
     this.enabled = true;
@@ -25,19 +30,37 @@ class AutoSeeFeature {
     this.storyOutputSelector = '#gameplay-output';
     this.inputAreaSelector = '[aria-label="Change input mode"]';
     this.submitButtonSelector = '[aria-label="Submit action"]';
+    this.continueButtonSelector = '[aria-label="Command: continue"]';
     this.inputModeMenuSelector = '[aria-label="Change input mode"]';
-    this.seeModeSelectorInMenu = '[aria-label="Set to \'See\' mode"]';
+    this.closeInputModeMenuSelector = '[aria-label="Close \'Input Mode\' menu"]';
     this.takeATurnSelector = '[aria-label="Command: take a turn"]';
     this.closeInputSelector = '[aria-label="Close text input"]';
     this.textInputSelector = '#game-text-input';
+    
+    // Mode selectors for switching
+    this.modeSelectors = {
+      'do': '[aria-label="Set to \'Do\' mode"]',
+      'attempt': '[aria-label="Set to \'Attempt\' mode"]',
+      'say': '[aria-label="Set to \'Say\' mode"]',
+      'story': '[aria-label="Set to \'Story\' mode"]',
+      'see': '[aria-label="Set to \'See\' mode"]',
+      'command': '[aria-label="Set to \'Command\' mode"]'
+    };
+    
+    // Bound event listeners for cleanup
+    this.boundSubmitClickHandler = null;
+    this.boundContinueClickHandler = null;
+    this.boundEnterKeyHandler = null;
   }
 
   // ==================== LIFECYCLE ====================
 
   async init() {
+    console.log('AutoSeeFeature: Initializing...');
     await this.loadSettings();
     this.detectCurrentAdventure();
     this.startAdventureChangeDetection();
+    this.setupActionDetection();
     this.startObserving();
   }
 
@@ -46,11 +69,16 @@ class AutoSeeFeature {
       this.observer.disconnect();
       this.observer = null;
     }
+    
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
     }
+    
+    this.cleanupActionDetection();
+    
     this.isProcessing = false;
+    this.isWaitingForAIResponse = false;
   }
 
   // ==================== SETTINGS ====================
@@ -91,18 +119,18 @@ class AutoSeeFeature {
     const newAdventureId = match ? match[1] : null;
     
     if (newAdventureId !== this.currentAdventureId) {
-      // Reset state on adventure change
       this.lastStoryContent = '';
       this.lastStoryLength = 0;
       this.turnCounter = 0;
       this.isProcessing = false;
+      this.isWaitingForAIResponse = false;
+      this.userOriginalMode = 'do';
     }
     
     this.currentAdventureId = newAdventureId;
   }
 
   startAdventureChangeDetection() {
-    // Listen for popstate (back/forward navigation)
     window.addEventListener('popstate', () => this.detectCurrentAdventure());
     
     // Watch for URL changes via history API
@@ -120,7 +148,82 @@ class AutoSeeFeature {
     };
   }
 
+  // ==================== ACTION DETECTION ====================
+  // Detects when user submits an action or clicks Continue to trigger Auto See
+
+  setupActionDetection() {
+    this.boundSubmitClickHandler = (e) => this.handleActionClick(e, 'submit');
+    this.boundContinueClickHandler = (e) => this.handleActionClick(e, 'continue');
+    this.boundEnterKeyHandler = (e) => this.handleEnterKeySubmit(e);
+    
+    document.addEventListener('click', this.boundSubmitClickHandler, true);
+    document.addEventListener('keydown', this.boundEnterKeyHandler, true);
+  }
+
+  cleanupActionDetection() {
+    if (this.boundSubmitClickHandler) {
+      document.removeEventListener('click', this.boundSubmitClickHandler, true);
+      this.boundSubmitClickHandler = null;
+    }
+    if (this.boundEnterKeyHandler) {
+      document.removeEventListener('keydown', this.boundEnterKeyHandler, true);
+      this.boundEnterKeyHandler = null;
+    }
+  }
+
+  /**
+   * Handles Enter key press to detect submit action when user presses Enter in the text input
+   */
+  handleEnterKeySubmit(e) {
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    if (!this.enabled || !this.currentAdventureId) return;
+    if (this.isProcessing) return;
+    
+    const activeElement = document.activeElement;
+    if (!activeElement || activeElement.id !== 'game-text-input') return;
+    if (!this.isInputAreaOpen()) return;
+    
+    const currentMode = this.detectCurrentInputMode();
+    if (currentMode && currentMode !== 'see') {
+      this.userOriginalMode = currentMode;
+    }
+    
+    this.captureCurrentStoryContent();
+    this.isWaitingForAIResponse = true;
+    this.turnCounter++;
+  }
+
+  handleActionClick(e, type) {
+    if (!this.enabled || !this.currentAdventureId) return;
+    if (this.isProcessing) return;
+    
+    const target = e.target.closest('[aria-label]');
+    if (!target) return;
+    
+    const ariaLabel = target.getAttribute('aria-label');
+    
+    if (ariaLabel === 'Submit action') {
+      const currentMode = this.detectCurrentInputMode();
+      if (currentMode && currentMode !== 'see') {
+        this.userOriginalMode = currentMode;
+      }
+      
+      this.captureCurrentStoryContent();
+      this.isWaitingForAIResponse = true;
+      this.turnCounter++;
+      return;
+    }
+    
+    if (ariaLabel === 'Command: continue') {
+      this.captureCurrentStoryContent();
+      this.isWaitingForAIResponse = true;
+      this.turnCounter++;
+      return;
+    }
+  }
+
   // ==================== OUTPUT OBSERVATION ====================
+  // Watches for AI response completion to trigger the See action
 
   startObserving() {
     if (this.observer) {
@@ -128,28 +231,23 @@ class AutoSeeFeature {
     }
 
     this.observer = new MutationObserver((mutations) => {
-      // Only process if we're on an adventure page and feature is enabled
       if (!this.currentAdventureId || !this.enabled) return;
+      if (!this.isWaitingForAIResponse) return;
       
-      // Debounce to avoid triggering on partial updates
       if (this.debounceTimer) {
         clearTimeout(this.debounceTimer);
       }
       
       this.debounceTimer = setTimeout(() => {
-        this.checkForNewOutput();
+        this.checkForAIResponseComplete();
       }, this.delay);
     });
 
-    // Observe the entire document for story output changes
     this.observer.observe(document.body, {
       childList: true,
       subtree: true,
       characterData: true
     });
-    
-    // Capture initial story content
-    this.captureCurrentStoryContent();
   }
 
   captureCurrentStoryContent() {
@@ -160,11 +258,9 @@ class AutoSeeFeature {
     }
   }
 
-  checkForNewOutput() {
-    // Don't trigger if already processing or if input area is open (user is typing)
-    if (this.isProcessing || this.isInputAreaOpen()) {
-      return;
-    }
+  checkForAIResponseComplete() {
+    if (this.isProcessing) return;
+    if (this.isInputAreaOpen()) return;
 
     const storyOutput = document.querySelector(this.storyOutputSelector);
     if (!storyOutput) return;
@@ -172,18 +268,17 @@ class AutoSeeFeature {
     const currentContent = storyOutput.textContent?.trim() || '';
     const currentLength = currentContent.length;
     
-    // Check if content has changed (new AI output)
-    if (currentContent !== this.lastStoryContent && currentLength > this.lastStoryLength) {
-      // Content has grown, likely a new output
+    if (this.lastStoryLength === 0) return;
+    
+    if (currentLength > this.lastStoryLength) {
       this.lastStoryContent = currentContent;
       this.lastStoryLength = currentLength;
+      this.isWaitingForAIResponse = false;
       
-      // Increment turn counter
-      this.turnCounter++;
-      
-      // Check if we should trigger based on mode
       if (this.shouldTriggerSee()) {
-        this.triggerSeeAction();
+        setTimeout(() => {
+          this.triggerSeeAction();
+        }, 300);
       }
     }
   }
@@ -203,13 +298,27 @@ class AutoSeeFeature {
     return !!document.querySelector(this.inputAreaSelector);
   }
 
+  /**
+   * Detects the current input mode from the mode button text
+   * @returns {string|null} The current mode name (lowercase) or null if not found
+   */
+  detectCurrentInputMode() {
+    const modeButton = document.querySelector(this.inputModeMenuSelector);
+    if (modeButton) {
+      const modeText = modeButton.querySelector('.font_body');
+      if (modeText) {
+        return modeText.textContent.toLowerCase().trim();
+      }
+    }
+    return null;
+  }
+
   async triggerSeeAction() {
     if (this.isProcessing) return;
     
     this.isProcessing = true;
 
     try {
-      // Step 1: Open the input area by clicking "Take a Turn"
       const takeATurnBtn = document.querySelector(this.takeATurnSelector);
       if (!takeATurnBtn) {
         this.isProcessing = false;
@@ -219,7 +328,6 @@ class AutoSeeFeature {
       takeATurnBtn.click();
       await this.wait(300);
 
-      // Step 2: Open the input mode menu
       const menuOpened = await this.openInputModeMenu();
       if (!menuOpened) {
         this.closeInputArea();
@@ -227,10 +335,11 @@ class AutoSeeFeature {
         return;
       }
 
-      // Step 3: Select "See" mode
       await this.wait(150);
-      const seeModeBtn = document.querySelector(this.seeModeSelectorInMenu);
+      const seeModeSelector = this.modeSelectors['see'];
+      const seeModeBtn = document.querySelector(seeModeSelector);
       if (!seeModeBtn) {
+        this.closeInputModeMenu();
         this.closeInputArea();
         this.isProcessing = false;
         return;
@@ -239,15 +348,12 @@ class AutoSeeFeature {
       seeModeBtn.click();
       await this.wait(200);
 
-      // Step 4: Clear the input field (See with empty input generates current scene)
       const textInput = document.querySelector(this.textInputSelector);
       if (textInput) {
         textInput.value = '';
-        // Trigger React's onChange
         textInput.dispatchEvent(new Event('input', { bubbles: true }));
       }
 
-      // Step 5: Submit the See action
       await this.wait(100);
       const submitBtn = document.querySelector(this.submitButtonSelector);
       if (!submitBtn) {
@@ -258,11 +364,10 @@ class AutoSeeFeature {
 
       submitBtn.click();
 
-      // Wait for See to complete before allowing next trigger
-      await this.wait(3000);
-      
-      // Update the story content after See completes
+      await this.waitForImageGenerationComplete();
       this.captureCurrentStoryContent();
+
+      await this.restoreOriginalInputMode();
 
     } catch (error) {
     } finally {
@@ -270,31 +375,87 @@ class AutoSeeFeature {
     }
   }
 
+  /**
+   * Waits for the image generation to complete by monitoring for the input area to close
+   * and then waiting for any loading indicators to disappear
+   */
+  async waitForImageGenerationComplete() {
+    let attempts = 0;
+    while (this.isInputAreaOpen() && attempts < 60) {
+      await this.wait(100);
+      attempts++;
+    }
+    
+    await this.wait(3000);
+  }
+
+  /**
+   * Restores the user's original input mode by opening the input area,
+   * switching to the original mode, then closing the input area
+   */
+  async restoreOriginalInputMode() {
+    if (this.userOriginalMode === 'see') return;
+    
+    const modeSelector = this.modeSelectors[this.userOriginalMode];
+    if (!modeSelector) return;
+    
+    try {
+      const takeATurnBtn = document.querySelector(this.takeATurnSelector);
+      if (!takeATurnBtn) return;
+      
+      takeATurnBtn.click();
+      await this.wait(300);
+      
+      const menuOpened = await this.openInputModeMenu();
+      if (!menuOpened) {
+        this.closeInputArea();
+        return;
+      }
+      
+      await this.wait(150);
+      const modeBtn = document.querySelector(modeSelector);
+      if (!modeBtn) {
+        this.closeInputModeMenu();
+        this.closeInputArea();
+        return;
+      }
+      
+      modeBtn.click();
+      await this.wait(200);
+      
+      this.closeInputArea();
+      await this.wait(100);
+      
+    } catch (error) {
+    }
+  }
+
   async openInputModeMenu() {
     const menuButton = document.querySelector(this.inputModeMenuSelector);
     if (!menuButton) return false;
     
-    // Check if menu is already open
-    const existingMenu = document.querySelector(this.seeModeSelectorInMenu);
+    const existingMenu = document.querySelector(this.modeSelectors['do']);
     if (existingMenu) return true;
     
     menuButton.click();
     
-    // Wait for menu to appear
     for (let i = 0; i < 20; i++) {
       await this.wait(50);
-      const menu = document.querySelector(this.seeModeSelectorInMenu);
+      const menu = document.querySelector(this.modeSelectors['do']);
       if (menu) return true;
     }
     
     return false;
   }
 
+  closeInputModeMenu() {
+    const closeButton = document.querySelector(this.closeInputModeMenuSelector);
+    if (closeButton) closeButton.click();
+  }
+
   closeInputArea() {
     const closeButton = document.querySelector(this.closeInputSelector);
-    if (closeButton) {
-      closeButton.click();
-    }
+    if (closeButton) closeButton.click();
   }
 
   wait(ms) {
