@@ -547,7 +547,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 999999;
+  z-index: 2147483647; /* Maximum z-index to ensure always on top */
   opacity: 0;
   transition: opacity 0.3s ease;
   backdrop-filter: blur(12px);

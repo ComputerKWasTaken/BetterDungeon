@@ -12,6 +12,7 @@ class LoadingScreen {
     this.iconUrl = chrome.runtime.getURL('icons/icon128.png');
     this.queue = [];
     this.isProcessingQueue = false;
+    this.escapeHandler = null; // Bound escape key handler
   }
 
   // Queue an async operation to run with loading screen
@@ -69,6 +70,19 @@ class LoadingScreen {
     this.createOverlay(title, subtitle, showProgress, showCancel, icon);
     this.isVisible = true;
     
+    // Setup Escape key handler if cancel is enabled
+    if (showCancel && onCancel) {
+      this.escapeHandler = (e) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          this.onCancel();
+          this.hide();
+        }
+      };
+      document.addEventListener('keydown', this.escapeHandler, true); // Use capture phase
+    }
+    
     // Animate in
     requestAnimationFrame(() => {
       if (this.overlay) {
@@ -99,7 +113,7 @@ class LoadingScreen {
           <p class="bd-loading-status"></p>
         ` : ''}
         ${showCancel ? `
-          <button class="bd-loading-cancel-btn">Cancel</button>
+          <button class="bd-loading-cancel-btn">Cancel (Esc)</button>
         ` : ''}
       </div>
     `;
@@ -182,6 +196,12 @@ class LoadingScreen {
     this.titleText = null;
     this.isVisible = false;
     this.currentProgress = 0;
+    
+    // Remove escape key handler
+    if (this.escapeHandler) {
+      document.removeEventListener('keydown', this.escapeHandler, true);
+      this.escapeHandler = null;
+    }
   }
 
   escapeHtml(text) {

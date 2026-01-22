@@ -53,8 +53,6 @@ These are future additions to the extension that I want to implement, both befor
 
 ### 🟢 Low
 <!-- Minor bugs or edge cases -->
-- The Story Card scanner can only scan about ~57 cards at a time due to all of the cards not being loaded in the DOM at once. A minor issue, but for scenarios with 100+ cards, it's a bit of a nuisance.
-- The Story Card scanner does not work when the sorting style of the Story Card menu is anything other than Large.
 
 ### 📋 Backlog
 <!-- Known issues with workarounds or minimal impact -->
