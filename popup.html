@@ -51,7 +51,12 @@
         <article class="feature-card" data-feature="command">
           <div class="feature-row">
             <div class="feature-info">
-              <h3 class="feature-title">Command Mode</h3>
+              <div class="feature-title-row">
+                <span class="feature-icon" style="color: #06b6d4;">
+                  <span class="icon-terminal"></span>
+                </span>
+                <h3 class="feature-title">Command Mode</h3>
+              </div>
               <p class="feature-desc">Send narrative commands to the AI</p>
             </div>
             <label class="toggle">
@@ -69,7 +74,12 @@
         <article class="feature-card" data-feature="attempt">
           <div class="feature-row">
             <div class="feature-info">
-              <h3 class="feature-title">Attempt Mode</h3>
+              <div class="feature-title-row">
+                <span class="feature-icon" style="color: #a855f7;">
+                  <span class="icon-dice-5"></span>
+                </span>
+                <h3 class="feature-title">Attempt Mode</h3>
+              </div>
               <p class="feature-desc">Dice-roll action outcomes</p>
             </div>
             <label class="toggle">
@@ -102,7 +112,12 @@
         <article class="feature-card" data-feature="markdown">
           <div class="feature-row">
             <div class="feature-info">
-              <h3 class="feature-title">Markdown Formatting</h3>
+              <div class="feature-title-row">
+                <span class="feature-icon" style="color: var(--accent);">
+                  <span class="icon-pilcrow"></span>
+                </span>
+                <h3 class="feature-title">Markdown Formatting</h3>
+              </div>
               <p class="feature-desc">Rich text in AI responses</p>
             </div>
             <label class="toggle">
@@ -151,7 +166,12 @@
         <article class="feature-card" data-feature="triggerHighlight">
           <div class="feature-row">
             <div class="feature-info">
-              <h3 class="feature-title">Trigger Highlighting</h3>
+              <div class="feature-title-row">
+                <span class="feature-icon" style="color: #22d3ee;">
+                  <span class="icon-sparkle"></span>
+                </span>
+                <h3 class="feature-title">Trigger Highlighting</h3>
+              </div>
               <p class="feature-desc">Visualize story card triggers</p>
             </div>
             <label class="toggle">
@@ -187,7 +207,12 @@
         <article class="feature-card" data-feature="inputModeColor">
           <div class="feature-row">
             <div class="feature-info">
-              <h3 class="feature-title">Input Mode Colors</h3>
+              <div class="feature-title-row">
+                <span class="feature-icon" style="color: #f472b6;">
+                  <span class="icon-palette"></span>
+                </span>
+                <h3 class="feature-title">Input Mode Colors</h3>
+              </div>
               <p class="feature-desc">Color-coded input box border</p>
             </div>
             <label class="toggle">
@@ -219,7 +244,12 @@
         <article class="feature-card" data-feature="hotkey">
           <div class="feature-row">
             <div class="feature-info">
-              <h3 class="feature-title">Hotkeys</h3>
+              <div class="feature-title-row">
+                <span class="feature-icon" style="color: var(--accent);">
+                  <span class="icon-keyboard"></span>
+                </span>
+                <h3 class="feature-title">Hotkeys</h3>
+              </div>
               <p class="feature-desc">Keyboard shortcuts for quick actions</p>
             </div>
             <label class="toggle">
@@ -253,6 +283,60 @@
               </div>
             </div>
             <p class="feature-footnote">*Requires feature to be enabled</p>
+          </div>
+        </article>
+
+      </div>
+
+      <!-- Automations -->
+      <div class="section">
+        <div class="section-header">
+          <span class="section-icon icon-zap"></span>
+          <h2 class="section-title">Automations</h2>
+        </div>
+
+        <!-- Auto See -->
+        <article class="feature-card" data-feature="autoSee">
+          <div class="feature-row">
+            <div class="feature-info">
+              <div class="feature-title-row">
+                <span class="feature-icon" style="color: #ec4899;">
+                  <span class="icon-eye"></span>
+                </span>
+                <h3 class="feature-title">Auto See</h3>
+              </div>
+              <p class="feature-desc">Automatically generate scene images after AI responses</p>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="feature-autoSee">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="feature-details">
+            <div class="automation-info">
+              <p>Triggers a <strong>See</strong> action after each AI output to visualize the current scene.</p>
+            </div>
+
+            <div class="feature-option-inline">
+              <span class="option-label-inline">Frequency</span>
+              <select class="form-select form-select-sm" id="auto-see-trigger-mode">
+                <option value="everyTurn">Every turn</option>
+                <option value="afterNTurns">Every N turns</option>
+              </select>
+            </div>
+
+            <div class="feature-option-inline" id="auto-see-interval-option" style="display: none;">
+              <span class="option-label-inline">Interval</span>
+              <div class="interval-control">
+                <input type="range" class="slider slider-sm" id="auto-see-interval" min="2" max="10" value="2">
+                <span class="interval-value" id="auto-see-interval-value">2</span>
+              </div>
+            </div>
+
+            <div class="alert alert-warning alert-compact">
+              <span class="icon-triangle-alert"></span>
+              <span>Uses Credits per trigger if using a premium image model</span>
+            </div>
           </div>
         </article>
       </div>

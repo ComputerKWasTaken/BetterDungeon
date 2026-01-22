@@ -10,15 +10,14 @@ These are future additions to the extension that I want to implement, both befor
 
 ### Most Likely Happening
 - **Automatic Model Selection** - A system added to the AI Dungeon that can automatically switch and select the best model for the user's needs, depending on their configuration.
-- **Automatic See Actions** - Automatically perform the "See" action after a user takes a turn, or after a set number of turns.
 - **Scenario/Adventure Folder Organization** - Group scenarios and adventures into collapsible folders for better management. (WARNING: This is an extensively difficult task from what I've experimented with)
-
-### Considering
 - **Custom Hotkey Bindings** — Let users remap keyboard shortcuts to their preferences.
-- **BetterScripts** - A system that allows AI Dungeon scripts to interface and interact with the extension, allowing for things like an "in game clock" with actual UI elements on the page, with a time management script.
-- **Story Card Folder Organization** — Group story cards into collapsible folders for better management. In fact, just improve Story Cards overall. They lowkey reek.
 - **Quick Actions Menu** — A floating action button with common actions like "Add Story Card", "View Context", etc.
 - **Adventure Statistics** — Track word count, turn count, and session duration for your adventures. Just for funsies.
+
+### Considering
+- **BetterScripts** - A system that allows AI Dungeon scripts to interface and interact with the extension, allowing for things like an "in game clock" with actual UI elements on the page, with a time management script.
+- **Story Card Folder Organization** — Group story cards into collapsible folders for better management. In fact, just improve Story Cards overall. They lowkey reek.
 
 ### Long-Term Ideas
 - **Community Resources** — Browse and find story card templates, scripts, etc. from other users.

@@ -22,7 +22,8 @@ const DEFAULT_FEATURES = {
   hotkey: true,
   favoriteInstructions: true,
   inputModeColor: true,
-  characterPreset: true
+  characterPreset: true,
+  autoSee: false
 };
 
 const DEFAULT_SETTINGS = {
@@ -186,6 +187,61 @@ function initSettings() {
         chrome.storage.sync.set({ [STORAGE_KEYS.settings]: settings });
       });
     });
+  }
+
+  // Auto See settings
+  initAutoSeeSettings();
+}
+
+function initAutoSeeSettings() {
+  const triggerModeSelect = document.getElementById('auto-see-trigger-mode');
+  const intervalSlider = document.getElementById('auto-see-interval');
+  const intervalDisplay = document.getElementById('auto-see-interval-value');
+  const intervalOption = document.getElementById('auto-see-interval-option');
+
+  // Load saved Auto See settings
+  chrome.storage.sync.get([
+    'betterDungeon_autoSeeTriggerMode',
+    'betterDungeon_autoSeeTurnInterval'
+  ], (result) => {
+    const triggerMode = result.betterDungeon_autoSeeTriggerMode ?? 'everyTurn';
+    const interval = result.betterDungeon_autoSeeTurnInterval ?? 2;
+
+    if (triggerModeSelect) {
+      triggerModeSelect.value = triggerMode;
+      updateAutoSeeIntervalVisibility(triggerMode);
+    }
+
+    if (intervalSlider && intervalDisplay) {
+      intervalSlider.value = interval;
+      intervalDisplay.textContent = interval;
+    }
+  });
+
+  // Trigger mode select handler
+  if (triggerModeSelect) {
+    triggerModeSelect.addEventListener('change', () => {
+      const mode = triggerModeSelect.value;
+      chrome.storage.sync.set({ betterDungeon_autoSeeTriggerMode: mode });
+      notifyContentScript('SET_AUTO_SEE_TRIGGER_MODE', { mode });
+      updateAutoSeeIntervalVisibility(mode);
+    });
+  }
+
+  // Interval slider handler
+  if (intervalSlider && intervalDisplay) {
+    intervalSlider.addEventListener('input', () => {
+      const value = parseInt(intervalSlider.value);
+      intervalDisplay.textContent = value;
+      chrome.storage.sync.set({ betterDungeon_autoSeeTurnInterval: value });
+      notifyContentScript('SET_AUTO_SEE_TURN_INTERVAL', { interval: value });
+    });
+  }
+
+  function updateAutoSeeIntervalVisibility(mode) {
+    if (intervalOption) {
+      intervalOption.style.display = mode === 'afterNTurns' ? 'flex' : 'none';
+    }
   }
 }
 

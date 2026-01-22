@@ -26,6 +26,7 @@
         "features/favorite_instructions_feature.js",
         "features/input_mode_color_feature.js",
         "features/character_preset_feature.js",
+        "features/auto_see_feature.js",
         "main.js"
       ],
       "css": ["styles.css"],

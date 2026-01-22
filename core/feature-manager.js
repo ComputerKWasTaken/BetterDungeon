@@ -50,13 +50,17 @@ class FeatureManager {
     if (typeof CharacterPresetFeature !== 'undefined') {
       this.featureClasses.set('characterPreset', CharacterPresetFeature);
     }
+
+    if (typeof AutoSeeFeature !== 'undefined') {
+      this.featureClasses.set('autoSee', AutoSeeFeature);
+    }
   }
 
   async loadFeaturesFromStorage() {
     const savedStates = await this.storageManager.getFeatures();
 
     this.featureClasses.forEach((FeatureClass, id) => {
-      const enabled = savedStates[id] !== false;
+      const enabled = savedStates[id] === true || (savedStates[id] === undefined && id !== 'autoSee');
       if (enabled) {
         this.enableFeature(id);
       }

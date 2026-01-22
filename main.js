@@ -30,6 +30,10 @@ class BetterDungeon {
         this.handleSetAutoScan(message.enabled);
       } else if (message.type === 'SET_AUTO_APPLY') {
         this.handleSetAutoApply(message.enabled);
+      } else if (message.type === 'SET_AUTO_SEE_TRIGGER_MODE') {
+        this.handleSetAutoSeeTriggerMode(message.mode);
+      } else if (message.type === 'SET_AUTO_SEE_TURN_INTERVAL') {
+        this.handleSetAutoSeeTurnInterval(message.interval);
       } else if (message.type === 'APPLY_INSTRUCTIONS_WITH_LOADING') {
         this.handleApplyInstructionsWithLoading().then(sendResponse);
         return true;
@@ -84,6 +88,20 @@ class BetterDungeon {
     const markdownFeature = this.featureManager.features.get('markdown');
     if (markdownFeature && typeof markdownFeature.setAutoApply === 'function') {
       markdownFeature.setAutoApply(enabled);
+    }
+  }
+
+  handleSetAutoSeeTriggerMode(mode) {
+    const autoSeeFeature = this.featureManager.features.get('autoSee');
+    if (autoSeeFeature && typeof autoSeeFeature.setTriggerMode === 'function') {
+      autoSeeFeature.setTriggerMode(mode);
+    }
+  }
+
+  handleSetAutoSeeTurnInterval(interval) {
+    const autoSeeFeature = this.featureManager.features.get('autoSee');
+    if (autoSeeFeature && typeof autoSeeFeature.setTurnInterval === 'function') {
+      autoSeeFeature.setTurnInterval(interval);
     }
   }
 
