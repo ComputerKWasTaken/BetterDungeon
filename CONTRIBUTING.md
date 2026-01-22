@@ -11,7 +11,6 @@ These are future additions to the extension that I want to implement, both befor
 ### Most Likely Happening
 - **Automatic Model Selection** - A system added to the AI Dungeon that can automatically switch and select the best model for the user's needs, depending on their configuration.
 - **Scenario/Adventure Folder Organization** - Group scenarios and adventures into collapsible folders for better management. (WARNING: This is an extensively difficult task from what I've experimented with)
-- **Custom Hotkey Bindings** — Let users remap keyboard shortcuts to their preferences.
 - **Quick Actions Menu** — A floating action button with common actions like "Add Story Card", "View Context", etc.
 - **Adventure Statistics** — Track word count, turn count, and session duration for your adventures. Just for funsies.
 

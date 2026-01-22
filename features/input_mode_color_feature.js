@@ -1,19 +1,39 @@
 // BetterDungeon - Input Mode Color Feature
 // Adds color coding to the input box border and mode selection buttons based on input mode
+// Supports custom colors via Chrome storage
 
 class InputModeColorFeature {
   static id = 'inputModeColor';
+  
+  // Storage key for custom colors
+  static STORAGE_KEY = 'betterDungeon_customModeColors';
+  
+  // Default colors (hex format for easy editing)
+  static DEFAULT_COLORS = {
+    do: '#3b82f6',       // Blue
+    attempt: '#a855f7',  // Purple
+    say: '#22c55e',      // Green
+    story: '#fbbf24',    // Amber/Gold
+    see: '#ec4899',      // Pink
+    command: '#06b6d4'   // Cyan
+  };
 
   constructor() {
     this.observer = null;
     this.currentMode = null;
     this.inputContainer = null;
+    this.customColors = { ...InputModeColorFeature.DEFAULT_COLORS };
+    this.styleElement = null;
+    this.boundMessageListener = null;
   }
 
-  init() {
+  async init() {
     console.log('InputModeColorFeature: Initializing...');
+    await this.loadCustomColors();
+    this.injectCustomColorStyles();
     this.setupObserver();
     this.detectAndApplyColor();
+    this.listenForColorUpdates();
   }
 
   destroy() {
@@ -21,8 +41,98 @@ class InputModeColorFeature {
       this.observer.disconnect();
       this.observer = null;
     }
+    if (this.boundMessageListener) {
+      chrome.runtime.onMessage.removeListener(this.boundMessageListener);
+      this.boundMessageListener = null;
+    }
+    if (this.styleElement) {
+      this.styleElement.remove();
+      this.styleElement = null;
+    }
     this.removeColorStyling();
     this.currentMode = null;
+  }
+
+  // Load custom colors from Chrome storage
+  async loadCustomColors() {
+    return new Promise((resolve) => {
+      chrome.storage.sync.get(InputModeColorFeature.STORAGE_KEY, (result) => {
+        const customColors = result[InputModeColorFeature.STORAGE_KEY];
+        if (customColors && typeof customColors === 'object') {
+          this.customColors = { ...InputModeColorFeature.DEFAULT_COLORS, ...customColors };
+          console.log('InputModeColorFeature: Loaded custom colors', this.customColors);
+        } else {
+          this.customColors = { ...InputModeColorFeature.DEFAULT_COLORS };
+        }
+        resolve();
+      });
+    });
+  }
+
+  // Convert hex color to RGB values
+  hexToRgb(hex) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    if (result) {
+      return `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`;
+    }
+    return null;
+  }
+
+  // Generate lighter version of a color
+  lightenColor(hex, percent = 20) {
+    const num = parseInt(hex.replace('#', ''), 16);
+    const amt = Math.round(2.55 * percent);
+    const R = Math.min(255, (num >> 16) + amt);
+    const G = Math.min(255, ((num >> 8) & 0x00FF) + amt);
+    const B = Math.min(255, (num & 0x0000FF) + amt);
+    return `#${(0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1)}`;
+  }
+
+  // Inject custom color CSS variables into the document
+  injectCustomColorStyles() {
+    // Remove existing style element if any
+    if (this.styleElement) {
+      this.styleElement.remove();
+    }
+
+    // Build CSS for custom colors
+    let cssVars = ':root {\n';
+    for (const [mode, color] of Object.entries(this.customColors)) {
+      const rgb = this.hexToRgb(color);
+      const lightColor = this.lightenColor(color);
+      if (rgb) {
+        cssVars += `  --bd-mode-${mode}: ${color};\n`;
+        cssVars += `  --bd-mode-${mode}-light: ${lightColor};\n`;
+        cssVars += `  --bd-mode-${mode}-glow: rgba(${rgb}, 0.15);\n`;
+        cssVars += `  --bd-mode-${mode}-rgb: ${rgb};\n`;
+      }
+    }
+    cssVars += '}';
+
+    // Create and inject style element
+    this.styleElement = document.createElement('style');
+    this.styleElement.id = 'bd-custom-mode-colors';
+    this.styleElement.textContent = cssVars;
+    document.head.appendChild(this.styleElement);
+  }
+
+  // Listen for color updates from the popup
+  listenForColorUpdates() {
+    this.boundMessageListener = (message, sender, sendResponse) => {
+      if (message.type === 'MODE_COLORS_UPDATED') {
+        this.customColors = message.colors;
+        this.injectCustomColorStyles();
+        // Force re-apply current mode styling
+        if (this.currentMode) {
+          this.removeColorStyling();
+          this.detectAndApplyColor();
+        }
+        console.log('InputModeColorFeature: Colors updated', this.customColors);
+        sendResponse({ success: true });
+      }
+      return true;
+    };
+    chrome.runtime.onMessage.addListener(this.boundMessageListener);
   }
 
   setupObserver() {

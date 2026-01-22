@@ -1,38 +1,105 @@
 // BetterDungeon - Hotkey Feature
 // Adds keyboard shortcuts for common AI Dungeon actions
+// Supports custom hotkey bindings via Chrome storage
 
 class HotkeyFeature {
   static id = 'hotkey';
+  
+  // Storage key for custom bindings
+  static STORAGE_KEY = 'betterDungeon_customHotkeys';
+
+  // Default hotkey definitions (action ID -> config)
+  // These define what each action does, separate from key bindings
+  static HOTKEY_ACTIONS = {
+    'takeATurn': { selector: '[aria-label="Command: take a turn"]', description: 'Take a Turn', category: 'actions' },
+    'continue': { selector: '[aria-label="Command: continue"]', description: 'Continue', category: 'actions' },
+    'retry': { selector: '[aria-label="Command: retry"]', description: 'Retry', category: 'actions' },
+    'erase': { selector: '[aria-label="Command: erase"]', description: 'Erase', category: 'actions' },
+    'exitInput': { action: 'closeInputArea', description: 'Exit Input', category: 'actions' },
+    'undo': { selector: '[aria-label="Undo change"]', description: 'Undo', category: 'history' },
+    'redo': { selector: '[aria-label="Redo change"]', description: 'Redo', category: 'history' },
+    'modeDo': { selector: '[aria-label="Set to \'Do\' mode"]', description: 'Do Mode', requiresMenu: true, category: 'modes' },
+    'modeAttempt': { selector: '[aria-label="Set to \'Attempt\' mode"]', description: 'Attempt Mode', requiresMenu: true, featureDependent: 'attempt', category: 'modes' },
+    'modeSay': { selector: '[aria-label="Set to \'Say\' mode"]', description: 'Say Mode', requiresMenu: true, category: 'modes' },
+    'modeStory': { selector: '[aria-label="Set to \'Story\' mode"]', description: 'Story Mode', requiresMenu: true, category: 'modes' },
+    'modeSee': { selector: '[aria-label="Set to \'See\' mode"]', description: 'See Mode', requiresMenu: true, category: 'modes' },
+    'modeCommand': { selector: '[aria-label="Set to \'Command\' mode"]', description: 'Command Mode', requiresMenu: true, featureDependent: 'command', category: 'modes' }
+  };
+
+  // Default key bindings (key -> action ID)
+  static DEFAULT_BINDINGS = {
+    't': 'takeATurn',
+    'c': 'continue',
+    'r': 'retry',
+    'e': 'erase',
+    'escape': 'exitInput',
+    'z': 'undo',
+    'y': 'redo',
+    '1': 'modeDo',
+    '2': 'modeAttempt',
+    '3': 'modeSay',
+    '4': 'modeStory',
+    '5': 'modeSee',
+    '6': 'modeCommand'
+  };
 
   constructor() {
     this.boundKeyHandler = null;
-    this.hotkeyMap = {
-      // Command bar actions
-      't': { selector: '[aria-label="Command: take a turn"]', description: 'Take a Turn' },
-      'c': { selector: '[aria-label="Command: continue"]', description: 'Continue' },
-      'r': { selector: '[aria-label="Command: retry"]', description: 'Retry' },
-      'e': { selector: '[aria-label="Command: erase"]', description: 'Erase' },
-      
-      // Input area control
-      'escape': { action: 'closeInputArea', description: 'Exit Input Area' },
-      
-      // Undo/Redo
-      'z': { selector: '[aria-label="Undo change"]', description: 'Undo' },
-      'y': { selector: '[aria-label="Redo change"]', description: 'Redo' },
-      
-      // Input mode selection (number keys)
-      '1': { selector: '[aria-label="Set to \'Do\' mode"]', description: 'Do Mode', requiresMenu: true },
-      '2': { selector: '[aria-label="Set to \'Attempt\' mode"]', description: 'Attempt Mode', requiresMenu: true, featureDependent: 'attempt' },
-      '3': { selector: '[aria-label="Set to \'Say\' mode"]', description: 'Say Mode', requiresMenu: true },
-      '4': { selector: '[aria-label="Set to \'Story\' mode"]', description: 'Story Mode', requiresMenu: true },
-      '5': { selector: '[aria-label="Set to \'See\' mode"]', description: 'See Mode', requiresMenu: true },
-      '6': { selector: '[aria-label="Set to \'Command\' mode"]', description: 'Command Mode', requiresMenu: true, featureDependent: 'command' }
-    };
+    this.boundMessageListener = null;
+    // hotkeyMap maps key -> action config (built from bindings)
+    this.hotkeyMap = {};
+    // keyBindings maps key -> action ID (for storage/display)
+    this.keyBindings = { ...HotkeyFeature.DEFAULT_BINDINGS };
   }
 
-  init() {
+  async init() {
     console.log('HotkeyFeature: Initializing...');
+    await this.loadCustomBindings();
+    this.buildHotkeyMap();
     this.setupKeyboardListener();
+    this.listenForBindingUpdates();
+  }
+
+  // Load custom key bindings from Chrome storage
+  async loadCustomBindings() {
+    return new Promise((resolve) => {
+      chrome.storage.sync.get(HotkeyFeature.STORAGE_KEY, (result) => {
+        const customBindings = result[HotkeyFeature.STORAGE_KEY];
+        if (customBindings && typeof customBindings === 'object') {
+          // Merge custom bindings with defaults (custom takes precedence)
+          this.keyBindings = { ...HotkeyFeature.DEFAULT_BINDINGS, ...customBindings };
+          console.log('HotkeyFeature: Loaded custom bindings', this.keyBindings);
+        } else {
+          this.keyBindings = { ...HotkeyFeature.DEFAULT_BINDINGS };
+        }
+        resolve();
+      });
+    });
+  }
+
+  // Build the hotkeyMap from current keyBindings
+  buildHotkeyMap() {
+    this.hotkeyMap = {};
+    for (const [key, actionId] of Object.entries(this.keyBindings)) {
+      const actionConfig = HotkeyFeature.HOTKEY_ACTIONS[actionId];
+      if (actionConfig) {
+        this.hotkeyMap[key.toLowerCase()] = { ...actionConfig, actionId };
+      }
+    }
+  }
+
+  // Listen for binding updates from the popup
+  listenForBindingUpdates() {
+    this.boundMessageListener = (message, sender, sendResponse) => {
+      if (message.type === 'HOTKEY_BINDINGS_UPDATED') {
+        this.keyBindings = message.bindings;
+        this.buildHotkeyMap();
+        console.log('HotkeyFeature: Bindings updated', this.keyBindings);
+        sendResponse({ success: true });
+      }
+      return true;
+    };
+    chrome.runtime.onMessage.addListener(this.boundMessageListener);
   }
 
   destroy() {
@@ -40,6 +107,20 @@ class HotkeyFeature {
       document.removeEventListener('keydown', this.boundKeyHandler, true);
       this.boundKeyHandler = null;
     }
+    if (this.boundMessageListener) {
+      chrome.runtime.onMessage.removeListener(this.boundMessageListener);
+      this.boundMessageListener = null;
+    }
+  }
+
+  // Static method to get default bindings (used by popup)
+  static getDefaultBindings() {
+    return { ...HotkeyFeature.DEFAULT_BINDINGS };
+  }
+
+  // Static method to get action definitions (used by popup)
+  static getActionDefinitions() {
+    return { ...HotkeyFeature.HOTKEY_ACTIONS };
   }
 
   isUserTyping() {

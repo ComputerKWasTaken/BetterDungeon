@@ -11,7 +11,53 @@ const STORAGE_KEYS = {
   presets: 'betterDungeon_favoritePresets',
   characters: 'betterDungeon_characterPresets',
   autoScan: 'betterDungeon_autoScanTriggers',
-  autoApply: 'betterDungeon_autoApplyInstructions'
+  autoApply: 'betterDungeon_autoApplyInstructions',
+  customHotkeys: 'betterDungeon_customHotkeys',
+  customModeColors: 'betterDungeon_customModeColors'
+};
+
+// Default mode colors (hex format)
+const DEFAULT_MODE_COLORS = {
+  do: '#3b82f6',       // Blue
+  attempt: '#a855f7',  // Purple
+  say: '#22c55e',      // Green
+  story: '#fbbf24',    // Amber/Gold
+  see: '#ec4899',      // Pink
+  command: '#06b6d4'   // Cyan
+};
+
+// Hotkey action definitions (must match hotkey_feature.js)
+const HOTKEY_ACTIONS = {
+  'takeATurn': { description: 'Take a Turn', category: 'actions' },
+  'continue': { description: 'Continue', category: 'actions' },
+  'retry': { description: 'Retry', category: 'actions' },
+  'erase': { description: 'Erase', category: 'actions' },
+  'exitInput': { description: 'Exit Input', category: 'actions' },
+  'undo': { description: 'Undo', category: 'history' },
+  'redo': { description: 'Redo', category: 'history' },
+  'modeDo': { description: 'Do Mode', category: 'modes' },
+  'modeAttempt': { description: 'Attempt Mode*', category: 'modes' },
+  'modeSay': { description: 'Say Mode', category: 'modes' },
+  'modeStory': { description: 'Story Mode', category: 'modes' },
+  'modeSee': { description: 'See Mode', category: 'modes' },
+  'modeCommand': { description: 'Command Mode*', category: 'modes' }
+};
+
+// Default hotkey bindings (key -> action ID)
+const DEFAULT_HOTKEY_BINDINGS = {
+  't': 'takeATurn',
+  'c': 'continue',
+  'r': 'retry',
+  'e': 'erase',
+  'escape': 'exitInput',
+  'z': 'undo',
+  'y': 'redo',
+  '1': 'modeDo',
+  '2': 'modeAttempt',
+  '3': 'modeSay',
+  '4': 'modeStory',
+  '5': 'modeSee',
+  '6': 'modeCommand'
 };
 
 const DEFAULT_FEATURES = {
@@ -35,6 +81,14 @@ let currentEditingPreset = null;
 let currentEditingCharacter = null;
 let lastUndoState = null;
 
+// Hotkey editor state
+let currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS };
+let editingHotkeyAction = null;
+let hotkeyKeyListener = null;
+
+// Mode color editor state
+let currentModeColors = { ...DEFAULT_MODE_COLORS };
+
 // ============================================
 // INITIALIZATION
 // ============================================
@@ -48,6 +102,8 @@ document.addEventListener('DOMContentLoaded', () => {
   initCharacters();
   initModals();
   initTools();
+  initHotkeys();
+  initModeColors();
   initTutorial();
 });
 
@@ -325,6 +381,364 @@ function showButtonStatus(btn, status, text, originalText) {
     btn.classList.remove('success', 'error');
     btn.innerHTML = originalText;
   }, 2000);
+}
+
+// ============================================
+// HOTKEYS
+// ============================================
+
+function initHotkeys() {
+  loadHotkeyBindings();
+  
+  // Customize button
+  document.getElementById('customize-hotkeys-btn')?.addEventListener('click', openHotkeyModal);
+  
+  // Modal buttons
+  document.getElementById('hotkey-modal-save')?.addEventListener('click', saveHotkeyBindings);
+  document.getElementById('hotkey-modal-cancel')?.addEventListener('click', () => closeModal('hotkey-modal'));
+  document.getElementById('hotkey-modal-close')?.addEventListener('click', () => closeModal('hotkey-modal'));
+  document.getElementById('hotkey-reset-btn')?.addEventListener('click', resetHotkeyBindings);
+  
+  // Close modal on backdrop click
+  document.getElementById('hotkey-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'hotkey-modal') closeModal('hotkey-modal');
+  });
+}
+
+// Load hotkey bindings from storage
+function loadHotkeyBindings() {
+  chrome.storage.sync.get(STORAGE_KEYS.customHotkeys, (result) => {
+    const customBindings = result[STORAGE_KEYS.customHotkeys];
+    if (customBindings && typeof customBindings === 'object') {
+      currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS, ...customBindings };
+    } else {
+      currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS };
+    }
+    updateHotkeyDisplay();
+  });
+}
+
+// Update the hotkey display in the feature card
+function updateHotkeyDisplay() {
+  const grid = document.getElementById('hotkey-display-grid');
+  if (!grid) return;
+  
+  // Create a reverse map: action -> key
+  const actionToKey = {};
+  for (const [key, actionId] of Object.entries(currentHotkeyBindings)) {
+    actionToKey[actionId] = key;
+  }
+  
+  // Update each hotkey element
+  grid.querySelectorAll('.hotkey[data-action]').forEach(el => {
+    const actionId = el.dataset.action;
+    const key = actionToKey[actionId];
+    const kbd = el.querySelector('kbd');
+    if (kbd && key) {
+      kbd.textContent = formatKeyDisplay(key);
+    }
+  });
+}
+
+// Format key for display (capitalize, handle special keys)
+function formatKeyDisplay(key) {
+  const specialKeys = {
+    'escape': 'Esc',
+    'arrowup': '↑',
+    'arrowdown': '↓',
+    'arrowleft': '←',
+    'arrowright': '→',
+    'backspace': '⌫',
+    'delete': 'Del',
+    'enter': '↵',
+    'space': '␣',
+    'tab': 'Tab'
+  };
+  
+  const lowerKey = key.toLowerCase();
+  if (specialKeys[lowerKey]) return specialKeys[lowerKey];
+  if (key.length === 1) return key.toUpperCase();
+  return key.charAt(0).toUpperCase() + key.slice(1);
+}
+
+// Open the hotkey customization modal
+function openHotkeyModal() {
+  // Reset to current saved bindings
+  chrome.storage.sync.get(STORAGE_KEYS.customHotkeys, (result) => {
+    const customBindings = result[STORAGE_KEYS.customHotkeys];
+    if (customBindings && typeof customBindings === 'object') {
+      currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS, ...customBindings };
+    } else {
+      currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS };
+    }
+    renderHotkeyEditor();
+    openModal('hotkey-modal');
+  });
+}
+
+// Render the hotkey editor lists
+function renderHotkeyEditor() {
+  const containers = {
+    actions: document.getElementById('hotkey-editor-actions'),
+    history: document.getElementById('hotkey-editor-history'),
+    modes: document.getElementById('hotkey-editor-modes')
+  };
+  
+  // Clear existing content
+  Object.values(containers).forEach(c => { if (c) c.innerHTML = ''; });
+  
+  // Create reverse map: action -> key
+  const actionToKey = {};
+  for (const [key, actionId] of Object.entries(currentHotkeyBindings)) {
+    actionToKey[actionId] = key;
+  }
+  
+  // Render each action
+  for (const [actionId, config] of Object.entries(HOTKEY_ACTIONS)) {
+    const container = containers[config.category];
+    if (!container) continue;
+    
+    const key = actionToKey[actionId] || '';
+    const item = document.createElement('div');
+    item.className = 'hotkey-editor-item';
+    item.dataset.action = actionId;
+    
+    item.innerHTML = `
+      <span class="hotkey-editor-action">${config.description}</span>
+      <button class="hotkey-editor-key" data-action="${actionId}">${formatKeyDisplay(key)}</button>
+    `;
+    
+    // Add click handler for key button
+    const keyBtn = item.querySelector('.hotkey-editor-key');
+    keyBtn.addEventListener('click', () => startRecordingKey(actionId, keyBtn));
+    
+    container.appendChild(item);
+  }
+}
+
+// Start recording a new key for an action
+function startRecordingKey(actionId, keyBtn) {
+  // Cancel any existing recording
+  stopRecordingKey();
+  
+  editingHotkeyAction = actionId;
+  keyBtn.classList.add('recording');
+  keyBtn.textContent = '';
+  keyBtn.closest('.hotkey-editor-item').classList.add('recording');
+  
+  // Listen for key press
+  hotkeyKeyListener = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Escape cancels recording
+    if (e.key === 'Escape') {
+      stopRecordingKey();
+      renderHotkeyEditor();
+      return;
+    }
+    
+    // Get the key
+    const newKey = e.key.toLowerCase();
+    
+    // Check for conflicts
+    const existingAction = findActionForKey(newKey);
+    if (existingAction && existingAction !== actionId) {
+      // Swap the keys - remove the key from the existing action
+      removeKeyBinding(newKey);
+    }
+    
+    // Remove old key binding for this action
+    for (const [key, action] of Object.entries(currentHotkeyBindings)) {
+      if (action === actionId) {
+        delete currentHotkeyBindings[key];
+        break;
+      }
+    }
+    
+    // Set new binding
+    currentHotkeyBindings[newKey] = actionId;
+    
+    stopRecordingKey();
+    renderHotkeyEditor();
+  };
+  
+  document.addEventListener('keydown', hotkeyKeyListener, true);
+}
+
+// Stop recording key
+function stopRecordingKey() {
+  if (hotkeyKeyListener) {
+    document.removeEventListener('keydown', hotkeyKeyListener, true);
+    hotkeyKeyListener = null;
+  }
+  editingHotkeyAction = null;
+  
+  // Remove recording classes
+  document.querySelectorAll('.hotkey-editor-item.recording').forEach(el => {
+    el.classList.remove('recording');
+  });
+  document.querySelectorAll('.hotkey-editor-key.recording').forEach(el => {
+    el.classList.remove('recording');
+  });
+}
+
+// Find which action is bound to a key
+function findActionForKey(key) {
+  return currentHotkeyBindings[key.toLowerCase()];
+}
+
+// Remove a key binding
+function removeKeyBinding(key) {
+  delete currentHotkeyBindings[key.toLowerCase()];
+}
+
+// Save hotkey bindings
+async function saveHotkeyBindings() {
+  // Save to storage
+  await chrome.storage.sync.set({ [STORAGE_KEYS.customHotkeys]: currentHotkeyBindings });
+  
+  // Notify content script
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.url?.includes('aidungeon.com')) {
+      chrome.tabs.sendMessage(tab.id, {
+        type: 'HOTKEY_BINDINGS_UPDATED',
+        bindings: currentHotkeyBindings
+      });
+    }
+  } catch (e) {
+    // Tab might not be on AI Dungeon, that's fine
+  }
+  
+  updateHotkeyDisplay();
+  closeModal('hotkey-modal');
+  showToast('Hotkeys saved!', 'success');
+}
+
+// Reset hotkey bindings to defaults
+function resetHotkeyBindings() {
+  if (!confirm('Reset all hotkeys to their default values?')) return;
+  
+  currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS };
+  renderHotkeyEditor();
+  showToast('Reset to defaults', 'success');
+}
+
+// ============================================
+// MODE COLORS
+// ============================================
+
+function initModeColors() {
+  loadModeColors();
+  
+  // Customize button
+  document.getElementById('customize-colors-btn')?.addEventListener('click', openColorModal);
+  
+  // Modal buttons
+  document.getElementById('color-modal-done')?.addEventListener('click', () => closeModal('color-modal'));
+  document.getElementById('color-modal-close')?.addEventListener('click', () => closeModal('color-modal'));
+  document.getElementById('color-reset-btn')?.addEventListener('click', resetModeColors);
+  
+  // Close modal on backdrop click
+  document.getElementById('color-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'color-modal') closeModal('color-modal');
+  });
+  
+  // Color input change handlers
+  document.querySelectorAll('.color-editor-input').forEach(input => {
+    input.addEventListener('input', (e) => {
+      const mode = e.target.dataset.mode;
+      const color = e.target.value;
+      currentModeColors[mode] = color;
+      updateModeColorDisplay();
+      saveModeColors();
+    });
+  });
+}
+
+// Load mode colors from storage
+function loadModeColors() {
+  chrome.storage.sync.get(STORAGE_KEYS.customModeColors, (result) => {
+    const customColors = result[STORAGE_KEYS.customModeColors];
+    if (customColors && typeof customColors === 'object') {
+      currentModeColors = { ...DEFAULT_MODE_COLORS, ...customColors };
+    } else {
+      currentModeColors = { ...DEFAULT_MODE_COLORS };
+    }
+    updateModeColorDisplay();
+    updateColorEditorInputs();
+  });
+}
+
+// Update the color display in the feature card
+function updateModeColorDisplay() {
+  const grid = document.getElementById('mode-color-display');
+  if (!grid) return;
+  
+  grid.querySelectorAll('.color-chip[data-mode]').forEach(chip => {
+    const mode = chip.dataset.mode;
+    const color = currentModeColors[mode];
+    if (color) {
+      chip.style.setProperty('--chip-color', color);
+    }
+  });
+}
+
+// Update the color inputs in the modal
+function updateColorEditorInputs() {
+  document.querySelectorAll('.color-editor-input').forEach(input => {
+    const mode = input.dataset.mode;
+    const color = currentModeColors[mode];
+    if (color) {
+      input.value = color;
+    }
+  });
+}
+
+// Open the color customization modal
+function openColorModal() {
+  // Reload from storage to ensure we have latest
+  chrome.storage.sync.get(STORAGE_KEYS.customModeColors, (result) => {
+    const customColors = result[STORAGE_KEYS.customModeColors];
+    if (customColors && typeof customColors === 'object') {
+      currentModeColors = { ...DEFAULT_MODE_COLORS, ...customColors };
+    } else {
+      currentModeColors = { ...DEFAULT_MODE_COLORS };
+    }
+    updateColorEditorInputs();
+    openModal('color-modal');
+  });
+}
+
+// Save mode colors to storage and notify content script
+async function saveModeColors() {
+  // Save to storage
+  await chrome.storage.sync.set({ [STORAGE_KEYS.customModeColors]: currentModeColors });
+  
+  // Notify content script
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.url?.includes('aidungeon.com')) {
+      chrome.tabs.sendMessage(tab.id, {
+        type: 'MODE_COLORS_UPDATED',
+        colors: currentModeColors
+      });
+    }
+  } catch (e) {
+    // Tab might not be on AI Dungeon, that's fine
+  }
+}
+
+// Reset mode colors to defaults
+async function resetModeColors() {
+  if (!confirm('Reset all colors to their default values?')) return;
+  
+  currentModeColors = { ...DEFAULT_MODE_COLORS };
+  updateColorEditorInputs();
+  updateModeColorDisplay();
+  await saveModeColors();
+  showToast('Colors reset to defaults', 'success');
 }
 
 // ============================================

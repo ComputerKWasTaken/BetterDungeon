@@ -222,14 +222,18 @@
             </label>
           </div>
           <div class="feature-details">
-            <div class="color-grid">
-              <div class="color-chip" style="--chip-color: #3b82f6"><span>Do</span></div>
-              <div class="color-chip" style="--chip-color: #a855f7"><span>Attempt</span></div>
-              <div class="color-chip" style="--chip-color: #22c55e"><span>Say</span></div>
-              <div class="color-chip" style="--chip-color: #fbbf24"><span>Story</span></div>
-              <div class="color-chip" style="--chip-color: #ec4899"><span>See</span></div>
-              <div class="color-chip" style="--chip-color: #06b6d4"><span>Command</span></div>
+            <div class="color-grid" id="mode-color-display">
+              <div class="color-chip" data-mode="do" style="--chip-color: #3b82f6"><span>Do</span></div>
+              <div class="color-chip" data-mode="attempt" style="--chip-color: #a855f7"><span>Attempt</span></div>
+              <div class="color-chip" data-mode="say" style="--chip-color: #22c55e"><span>Say</span></div>
+              <div class="color-chip" data-mode="story" style="--chip-color: #fbbf24"><span>Story</span></div>
+              <div class="color-chip" data-mode="see" style="--chip-color: #ec4899"><span>See</span></div>
+              <div class="color-chip" data-mode="command" style="--chip-color: #06b6d4"><span>Command</span></div>
             </div>
+            <button class="btn btn-action" id="customize-colors-btn">
+              <span class="icon-palette"></span>
+              Customize Colors
+            </button>
           </div>
         </article>
       </div>
@@ -259,31 +263,35 @@
             </label>
           </div>
           <div class="feature-details">
-            <div class="hotkey-grid">
+            <div class="hotkey-grid" id="hotkey-display-grid">
               <div class="hotkey-group">
                 <h4>Actions</h4>
-                <div class="hotkey"><kbd>T</kbd> Take a Turn</div>
-                <div class="hotkey"><kbd>C</kbd> Continue</div>
-                <div class="hotkey"><kbd>R</kbd> Retry</div>
-                <div class="hotkey"><kbd>E</kbd> Erase</div>
-                <div class="hotkey"><kbd>Esc</kbd> Exit Input</div>
+                <div class="hotkey" data-action="takeATurn"><kbd>T</kbd> Take a Turn</div>
+                <div class="hotkey" data-action="continue"><kbd>C</kbd> Continue</div>
+                <div class="hotkey" data-action="retry"><kbd>R</kbd> Retry</div>
+                <div class="hotkey" data-action="erase"><kbd>E</kbd> Erase</div>
+                <div class="hotkey" data-action="exitInput"><kbd>Esc</kbd> Exit Input</div>
               </div>
               <div class="hotkey-group">
                 <h4>History</h4>
-                <div class="hotkey"><kbd>Z</kbd> Undo</div>
-                <div class="hotkey"><kbd>Y</kbd> Redo</div>
+                <div class="hotkey" data-action="undo"><kbd>Z</kbd> Undo</div>
+                <div class="hotkey" data-action="redo"><kbd>Y</kbd> Redo</div>
               </div>
               <div class="hotkey-group">
                 <h4>Input Modes</h4>
-                <div class="hotkey"><kbd>1</kbd> Do</div>
-                <div class="hotkey"><kbd>2</kbd> Attempt*</div>
-                <div class="hotkey"><kbd>3</kbd> Say</div>
-                <div class="hotkey"><kbd>4</kbd> Story</div>
-                <div class="hotkey"><kbd>5</kbd> See</div>
-                <div class="hotkey"><kbd>6</kbd> Command*</div>
+                <div class="hotkey" data-action="modeDo"><kbd>1</kbd> Do</div>
+                <div class="hotkey" data-action="modeAttempt"><kbd>2</kbd> Attempt*</div>
+                <div class="hotkey" data-action="modeSay"><kbd>3</kbd> Say</div>
+                <div class="hotkey" data-action="modeStory"><kbd>4</kbd> Story</div>
+                <div class="hotkey" data-action="modeSee"><kbd>5</kbd> See</div>
+                <div class="hotkey" data-action="modeCommand"><kbd>6</kbd> Command*</div>
               </div>
             </div>
             <p class="feature-footnote">*Requires feature to be enabled</p>
+            <button class="btn btn-action" id="customize-hotkeys-btn">
+              <span class="icon-settings"></span>
+              Customize Hotkeys
+            </button>
           </div>
         </article>
 
@@ -529,6 +537,95 @@
         <div class="modal-footer-spacer"></div>
         <button class="btn btn-ghost" id="character-modal-cancel">Cancel</button>
         <button class="btn btn-primary" id="character-modal-save">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hotkey Customization Modal -->
+  <div class="modal-backdrop" id="hotkey-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Customize Hotkeys</h3>
+        <button class="modal-close" id="hotkey-modal-close" aria-label="Close">
+          <span class="icon-x"></span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="hotkey-modal-desc">Click on a key to change its binding. Press a new key or Escape to cancel.</p>
+        
+        <div class="hotkey-editor-section">
+          <h4 class="hotkey-editor-title">Actions</h4>
+          <div class="hotkey-editor-list" id="hotkey-editor-actions"></div>
+        </div>
+        
+        <div class="hotkey-editor-section">
+          <h4 class="hotkey-editor-title">History</h4>
+          <div class="hotkey-editor-list" id="hotkey-editor-history"></div>
+        </div>
+        
+        <div class="hotkey-editor-section">
+          <h4 class="hotkey-editor-title">Input Modes</h4>
+          <div class="hotkey-editor-list" id="hotkey-editor-modes"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-danger" id="hotkey-reset-btn">
+          <span class="icon-rotate-ccw"></span>
+          Reset to Defaults
+        </button>
+        <div class="modal-footer-spacer"></div>
+        <button class="btn btn-ghost" id="hotkey-modal-cancel">Cancel</button>
+        <button class="btn btn-primary" id="hotkey-modal-save">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Color Customization Modal -->
+  <div class="modal-backdrop" id="color-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Customize Mode Colors</h3>
+        <button class="modal-close" id="color-modal-close" aria-label="Close">
+          <span class="icon-x"></span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="color-modal-desc">Click on a color to change it. Changes apply instantly.</p>
+        
+        <div class="color-editor-list" id="color-editor-list">
+          <div class="color-editor-item" data-mode="do">
+            <span class="color-editor-label">Do</span>
+            <input type="color" class="color-editor-input" data-mode="do" value="#3b82f6">
+          </div>
+          <div class="color-editor-item" data-mode="attempt">
+            <span class="color-editor-label">Attempt</span>
+            <input type="color" class="color-editor-input" data-mode="attempt" value="#a855f7">
+          </div>
+          <div class="color-editor-item" data-mode="say">
+            <span class="color-editor-label">Say</span>
+            <input type="color" class="color-editor-input" data-mode="say" value="#22c55e">
+          </div>
+          <div class="color-editor-item" data-mode="story">
+            <span class="color-editor-label">Story</span>
+            <input type="color" class="color-editor-input" data-mode="story" value="#fbbf24">
+          </div>
+          <div class="color-editor-item" data-mode="see">
+            <span class="color-editor-label">See</span>
+            <input type="color" class="color-editor-input" data-mode="see" value="#ec4899">
+          </div>
+          <div class="color-editor-item" data-mode="command">
+            <span class="color-editor-label">Command</span>
+            <input type="color" class="color-editor-input" data-mode="command" value="#06b6d4">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-danger" id="color-reset-btn">
+          <span class="icon-rotate-ccw"></span>
+          Reset to Defaults
+        </button>
+        <div class="modal-footer-spacer"></div>
+        <button class="btn btn-primary" id="color-modal-done">Done</button>
       </div>
     </div>
   </div>

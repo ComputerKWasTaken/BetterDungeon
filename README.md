@@ -39,7 +39,7 @@ Settings sync across Chromium browsers.
 
 - **Character Presets** — Stop typing your character's name 47 times. Save profiles, auto-fill scenario entry questions, never suffer again.
 
-- **Hotkeys** — Keyboard shortcuts when you're not typing:
+- **Hotkeys** — Keyboard shortcuts when you're not typing. **Fully customizable** via the popup.
   
   | Key | Action | | Key | Action |
   |-----|--------|-|-----|--------|
@@ -48,9 +48,11 @@ Settings sync across Chromium browsers.
   | `R` | Retry | | `Y` | Redo |
   | `E` | Erase | | `Esc` | Exit Input |
 
-- **Input Mode Colors** — Color-coded input box so you know what mode you're in at a glance. Blue for Do, Purple for Attempt, Green for Say, Gold for Story, Pink for See, Cyan for Command.
+- **Input Mode Colors** — Color-coded input box so you know what mode you're in at a glance. **Fully customizable** via the popup. Default colors: Blue (Do), Purple (Attempt), Green (Say), Gold (Story), Pink (See), Cyan (Command).
 
 - **Trigger Highlighting** — Story card triggers get highlighted in the context viewer. Hover to jump to the card. Also suggests proper nouns that might deserve their own story cards.
+
+- **Auto See** — Automatically triggers a See input command after every AI response or after a certain amount of turns.
 
 - **Readable Tab Fix** — Moves the "Readable" tab back where it belongs. You're welcome.
 
@@ -78,6 +80,12 @@ Each feature is a class with `static id`, `init()`, and `destroy()` methods. Dro
 See `core/theme-variables.css` for the design system if you want things to look consistent.
 
 ## Changelog
+
+### v0.9.2 (in progress)
+- Added **"Auto See"** feature, which automatically triggers a See input command after every AI response or after a certain amount of turns
+- **Improved the design of the popup UI** to include icons for each feature
+- Added the ability to **customize your hotkeys** via the popup
+- Added the ability to **customize input mode colors** via the popup
 
 ### v0.9.1
 - Improved **Command** mode formatting to include brackets [] for better AI adherence

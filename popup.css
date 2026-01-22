@@ -1777,3 +1777,201 @@ body {
 .preset-status-fade {
   opacity: 0;
 }
+
+/* === Hotkey Customization Modal === */
+.hotkey-modal-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.hotkey-editor-section {
+  margin-bottom: 16px;
+}
+
+.hotkey-editor-section:last-child {
+  margin-bottom: 0;
+}
+
+.hotkey-editor-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+  margin-bottom: 8px;
+  padding-left: 2px;
+}
+
+.hotkey-editor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hotkey-editor-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.hotkey-editor-item:hover {
+  border-color: var(--border-hover);
+}
+
+.hotkey-editor-item.recording {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-muted);
+}
+
+.hotkey-editor-item.conflict {
+  border-color: var(--error);
+  background: var(--error-muted);
+}
+
+.hotkey-editor-action {
+  font-size: 12px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.hotkey-editor-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 26px;
+  padding: 0 10px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--bg-active);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.hotkey-editor-key:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.hotkey-editor-key.recording {
+  background: var(--accent-muted);
+  border-color: var(--accent);
+  color: var(--accent);
+  animation: keyPulse 1s ease-in-out infinite;
+}
+
+.hotkey-editor-key.recording::after {
+  content: '...';
+}
+
+.hotkey-editor-key.conflict {
+  background: var(--error-muted);
+  border-color: var(--error);
+  color: var(--error);
+}
+
+@keyframes keyPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.hotkey-conflict-warning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--warning-muted);
+  border-radius: var(--radius-md);
+  font-size: 11px;
+  color: var(--warning);
+  margin-top: 12px;
+}
+
+.hotkey-conflict-warning [class^="icon-"] {
+  font-size: 14px;
+}
+
+/* === Color Customization Modal === */
+.color-modal-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.color-editor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.color-editor-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.color-editor-item:hover {
+  border-color: var(--border-hover);
+}
+
+.color-editor-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.color-editor-input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 40px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  background: transparent;
+  transition: all var(--transition-fast);
+}
+
+.color-editor-input::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+.color-editor-input::-webkit-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+
+.color-editor-input::-moz-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+
+.color-editor-input:hover {
+  border-color: var(--accent);
+  transform: scale(1.05);
+}
+
+.color-editor-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-muted);
+}
