@@ -12,7 +12,6 @@ class LoadingScreen {
     this.iconUrl = chrome.runtime.getURL('icons/icon128.png');
     this.queue = [];
     this.isProcessingQueue = false;
-    this.escapeHandler = null; // Store reference for cleanup
   }
 
   // Queue an async operation to run with loading screen
@@ -101,12 +100,31 @@ class LoadingScreen {
         ` : ''}
         ${showCancel ? `
           <button class="bd-loading-cancel-btn">Cancel</button>
-          <p class="bd-loading-cancel-hint">Press Escape to cancel</p>
         ` : ''}
       </div>
     `;
 
+    // Apply bulletproof inline styles to override any stacking context issues
+    // Using setProperty with 'important' flag to ensure maximum priority
+    this.overlay.style.setProperty('position', 'fixed', 'important');
+    this.overlay.style.setProperty('top', '0', 'important');
+    this.overlay.style.setProperty('left', '0', 'important');
+    this.overlay.style.setProperty('width', '100vw', 'important');
+    this.overlay.style.setProperty('height', '100vh', 'important');
+    this.overlay.style.setProperty('z-index', '2147483647', 'important');
+    this.overlay.style.setProperty('pointer-events', 'auto', 'important');
+    this.overlay.style.setProperty('isolation', 'isolate', 'important');
+
+    // Always append to body as the very last element
     document.body.appendChild(this.overlay);
+    
+    // Debug: Log overlay info
+    console.log('LoadingScreen: Overlay created', {
+      parent: this.overlay.parentElement?.tagName,
+      zIndex: window.getComputedStyle(this.overlay).zIndex,
+      position: window.getComputedStyle(this.overlay).position,
+      pointerEvents: window.getComputedStyle(this.overlay).pointerEvents
+    });
 
     // Cache references
     this.progressBar = this.overlay.querySelector('.bd-loading-progress-bar');
@@ -116,25 +134,46 @@ class LoadingScreen {
 
     // Setup cancel button if present
     const cancelBtn = this.overlay.querySelector('.bd-loading-cancel-btn');
-    if (cancelBtn && this.onCancel) {
-      cancelBtn.addEventListener('click', () => {
-        this.onCancel();
-        this.hide();
-      });
+    if (cancelBtn) {
+      // Ensure button can receive clicks
+      cancelBtn.style.setProperty('pointer-events', 'auto', 'important');
+      cancelBtn.style.setProperty('position', 'relative', 'important');
+      cancelBtn.style.setProperty('z-index', '10', 'important');
+      cancelBtn.style.setProperty('cursor', 'pointer', 'important');
+      
+      if (this.onCancel) {
+        // Store reference to onCancel for use in handlers
+        const onCancelFn = this.onCancel;
+        const hideOverlay = () => this.hide();
+        
+        // Try multiple event types - pointerdown fires before click
+        const handleCancel = (e) => {
+          console.log('LoadingScreen: Cancel triggered via', e.type);
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          e.preventDefault();
+          onCancelFn();
+          hideOverlay();
+        };
+        
+        // pointerdown fires earliest and isn't affected by click delays
+        cancelBtn.addEventListener('pointerdown', handleCancel, true);
+        cancelBtn.addEventListener('pointerup', (e) => {
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+        }, true);
+        
+        // Also set onclick directly on the element
+        cancelBtn.onclick = handleCancel;
+      }
     }
     
-    // Setup Escape key listener for cancel (works even when card editor covers the button)
-    if (showCancel && this.onCancel) {
-      this.escapeHandler = (e) => {
-        if (e.key === 'Escape' && this.isVisible) {
-          e.preventDefault();
-          e.stopPropagation();
-          this.onCancel();
-          this.hide();
-        }
-      };
-      // Use capture phase to intercept before other handlers
-      document.addEventListener('keydown', this.escapeHandler, true);
+    // Also ensure the container can receive events
+    const container = this.overlay.querySelector('.bd-loading-container');
+    if (container) {
+      container.style.setProperty('pointer-events', 'auto', 'important');
+      container.style.setProperty('position', 'relative', 'important');
+      container.style.setProperty('z-index', '1', 'important');
     }
   }
 
@@ -181,12 +220,6 @@ class LoadingScreen {
   async hide(delay = 300) {
     if (!this.isVisible || !this.overlay) return;
 
-    // Remove Escape key listener
-    if (this.escapeHandler) {
-      document.removeEventListener('keydown', this.escapeHandler, true);
-      this.escapeHandler = null;
-    }
-
     // Animate out
     this.overlay.classList.remove('bd-loading-visible');
     this.overlay.classList.add('bd-loading-hiding');
@@ -210,6 +243,24 @@ class LoadingScreen {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  // Find the best container to append loading screen to
+  // This ensures we're in the same stacking context as AI Dungeon's modals
+  findBestContainer() {
+    // Strategy: Insert INSIDE the topmost modal to be in the same stacking context
+    // This guarantees our z-index works relative to modal content
+    
+    // Find the topmost open modal
+    const modals = document.querySelectorAll('[role="dialog"], [role="alertdialog"], [aria-modal="true"]');
+    if (modals.length > 0) {
+      // Return the last (topmost) modal - we'll append inside it
+      const topModal = modals[modals.length - 1];
+      return topModal;
+    }
+
+    // If no modal is open, fallback to document.body
+    return document.body;
   }
 }
 

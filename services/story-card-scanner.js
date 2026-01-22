@@ -18,16 +18,13 @@ class StoryCardScanner {
     
     // Timing constants (ms) - optimized for speed
     this.TIMING = {
-      CARD_OPEN_WAIT: 100,      // Wait after clicking card
-      CARD_CLOSE_WAIT: 75,      // Wait after closing card
-      SCROLL_WAIT: 100,         // Wait after scrolling
-      TAB_LOAD_WAIT: 200,       // Wait for tab content to load
-      MIN_WAIT: 30,             // Minimum wait time
+      CARD_OPEN_WAIT: 150,      // Wait after clicking card (reduced from 400)
+      CARD_CLOSE_WAIT: 100,     // Wait after closing card (reduced from 300)
+      SCROLL_WAIT: 150,         // Wait after scrolling (reduced from 300)
+      TAB_LOAD_WAIT: 300,       // Wait for tab content to load (reduced from 500)
+      MIN_WAIT: 50,             // Minimum wait time
       MAX_RETRIES: 3            // Max retries for element detection
     };
-    
-    // Scroll multiplier - how much of the viewport to scroll (1.5 = 150%)
-    this.SCROLL_MULTIPLIER = 1.5;
   }
 
   async scanAllCards(onTriggerFound, onProgress) {
@@ -280,8 +277,8 @@ class StoryCardScanner {
       return false;
     }
 
-    // Scroll by larger amount for faster scanning
-    const scrollAmount = scrollContainer.clientHeight * this.SCROLL_MULTIPLIER;
+    // Scroll by approximately 60% of viewport to ensure overlap for card detection
+    const scrollAmount = scrollContainer.clientHeight * 0.6;
     const targetScroll = Math.min(beforeScroll + scrollAmount, maxScroll);
     this.log(`Scrolling from ${beforeScroll} to ${targetScroll} (amount: ${scrollAmount})`);
     
