@@ -93,6 +93,7 @@ class AutoSeeFeature {
     if (newAdventureId !== this.currentAdventureId) {
       // Reset state on adventure change
       this.lastStoryContent = '';
+      this.lastStoryLength = 0;
       this.turnCounter = 0;
       this.isProcessing = false;
     }

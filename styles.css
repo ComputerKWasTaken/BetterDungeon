@@ -816,9 +816,10 @@
   right: 0;
   bottom: 0;
   background: linear-gradient(
-    to bottom,
-    transparent 0%,
-    rgba(var(--bd-button-rgb), 0.18) 100%
+    135deg,
+    rgba(var(--bd-button-rgb), 0.2) 0%,
+    rgba(var(--bd-button-rgb), 0.25) 40%,
+    rgba(var(--bd-button-rgb), 0.45) 100%
   );
   border-radius: inherit;
   pointer-events: none;
@@ -827,11 +828,7 @@
 }
 
 .bd-mode-button-colored:hover::before {
-  background: linear-gradient(
-    to bottom,
-    transparent 0%,
-    rgba(var(--bd-button-rgb), 0.3) 100%
-  );
+  background: rgba(var(--bd-button-rgb), 0.5);
 }
 
 /* ============================================
