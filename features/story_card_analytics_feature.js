@@ -364,13 +364,8 @@ class StoryCardAnalyticsFeature {
     const wasOpen = this.isOpen;
     this.closeDashboard();
 
-    // Use the trigger highlight feature's scan method if available, or do it directly
-    if (typeof window.triggerHighlightFeature !== 'undefined' && window.triggerHighlightFeature.scanAllStoryCards) {
-      await window.triggerHighlightFeature.scanAllStoryCards();
-    } else {
-      // Direct scan
-      await this.directScan();
-    }
+    // Use the loading screen queue to ensure sequential execution (same as trigger highlight)
+    await loadingScreen.queueOperation(() => this._doScanStoryCards());
 
     // Reopen dashboard with new data
     if (wasOpen) {
@@ -380,8 +375,9 @@ class StoryCardAnalyticsFeature {
     }
   }
 
-  async directScan() {
-    // Show loading screen
+  // Internal scan method - mirrors TriggerHighlightFeature._doScanStoryCards()
+  async _doScanStoryCards() {
+    // Show loading screen with cancel button
     loadingScreen.show({
       title: 'Scanning Story Cards',
       subtitle: 'Initializing...',
@@ -391,7 +387,7 @@ class StoryCardAnalyticsFeature {
     });
 
     try {
-      // Navigate to story cards if needed
+      // Navigate to Story Cards tab using AIDungeonService
       if (typeof AIDungeonService !== 'undefined') {
         const service = new AIDungeonService();
         const navResult = await service.navigateToStoryCardsSettings({
@@ -402,35 +398,62 @@ class StoryCardAnalyticsFeature {
           throw new Error(navResult.error || 'Failed to navigate to Story Cards');
         }
         
+        // Wait for Story Cards content to load
+        loadingScreen.updateSubtitle('Loading story cards...');
         await new Promise(resolve => setTimeout(resolve, 500));
       }
 
       loadingScreen.updateSubtitle('Starting scan...');
       
       const result = await storyCardScanner.scanAllCards(
-        null, // onTriggerFound
-        (current, total, status, eta) => {
+        // onTriggerFound callback - not needed for analytics but keeping for card database population
+        null,
+        // onProgress callback
+        (current, total, status, estimatedTimeRemaining) => {
+          let progressText = status;
+          if (estimatedTimeRemaining !== null && estimatedTimeRemaining > 0) {
+            const minutes = Math.floor(estimatedTimeRemaining / 60);
+            const seconds = estimatedTimeRemaining % 60;
+            if (minutes > 0) {
+              progressText += ` (${minutes}m ${seconds}s remaining)`;
+            } else {
+              progressText += ` (${seconds}s remaining)`;
+            }
+          }
           loadingScreen.updateSubtitle(`Scanning card ${current} of ${total}`);
-          loadingScreen.updateProgress(current, total, status);
+          loadingScreen.updateProgress(current, total, progressText);
         },
-        null // onCardScanned
+        // onCardScanned callback - not needed here
+        null
       );
 
       if (result.success) {
         loadingScreen.updateTitle('Scan Complete!');
         loadingScreen.updateSubtitle(`Scanned ${result.scannedCount} cards`);
+        loadingScreen.updateStatus('Ready', 'success');
         await new Promise(resolve => setTimeout(resolve, 1000));
       } else {
-        loadingScreen.updateTitle('Scan Failed');
-        loadingScreen.updateSubtitle(result.error || 'Unknown error');
+        if (result.error && result.error.includes('aborted')) {
+          loadingScreen.updateTitle('Scan Cancelled');
+          loadingScreen.updateSubtitle('Scan was stopped by user');
+          loadingScreen.updateStatus('Cancelled', 'success');
+        } else {
+          loadingScreen.updateTitle('Scan Failed');
+          loadingScreen.updateSubtitle(result.error || 'Unknown error');
+          loadingScreen.updateStatus('Error', 'error');
+        }
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
+
+      return result;
 
     } catch (error) {
       console.error('StoryCardAnalyticsFeature: Scan error:', error);
       loadingScreen.updateTitle('Scan Failed');
       loadingScreen.updateSubtitle(error.message);
+      loadingScreen.updateStatus('Error', 'error');
       await new Promise(resolve => setTimeout(resolve, 2000));
+      return { success: false, error: error.message };
     } finally {
       loadingScreen.hide();
     }
@@ -494,7 +517,7 @@ class StoryCardAnalyticsFeature {
         -moz-osx-font-smoothing: grayscale;
       }
 
-      /* Dashboard Container */
+      /* Dashboard Container - blocks ALL pointer events from reaching elements behind */
       .bd-analytics-dashboard {
         position: fixed;
         top: 0;
@@ -506,6 +529,9 @@ class StoryCardAnalyticsFeature {
         align-items: center;
         justify-content: center;
         font-family: var(--bd-font-family-primary);
+        /* Capture all pointer events - prevents input sinking to elements behind */
+        pointer-events: auto;
+        isolation: isolate;
       }
 
       .bd-analytics-overlay {
@@ -516,6 +542,8 @@ class StoryCardAnalyticsFeature {
         height: 100%;
         background: var(--bd-bg-overlay);
         backdrop-filter: blur(8px);
+        /* Ensure overlay catches clicks intended for background */
+        pointer-events: auto;
       }
 
       /* Modal */

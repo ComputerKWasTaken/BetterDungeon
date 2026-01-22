@@ -189,7 +189,7 @@ class StoryCardScanner {
       return { success: false, error: error.message };
     } finally {
       // Ensure any open card editor is closed before finishing
-      this.closeCardEditor();
+      await this.closeCardEditorAndWait();
       this.isScanning = false;
       this.abortController = null;
     }
@@ -277,11 +277,7 @@ class StoryCardScanner {
           onCardScanned(fullCardData);
         }
 
-        // Close the card editor
-        this.closeCardEditor();
-        await this.wait(this.TIMING.CARD_CLOSE_WAIT);
-
-        // Record timing
+        // Record timing (no per-card close - only close at end of scan)
         const cardDuration = Date.now() - cardStartTime;
         this.totalCardTime += cardDuration;
         this.cardCount++;
@@ -882,21 +878,41 @@ class StoryCardScanner {
     return triggers;
   }
 
-  // Optimized: Close card editor (synchronous, faster)
+  // Close any open card editor - tries multiple methods for reliability
   closeCardEditor() {
-    // Primary method: Press Escape key (fastest and most reliable)
-    document.dispatchEvent(new KeyboardEvent('keydown', {
-      key: 'Escape',
-      code: 'Escape',
-      keyCode: 27,
-      bubbles: true,
-      cancelable: true
-    }));
+    // Method 1: Find and click FINISH button if visible
+    const buttons = document.querySelectorAll('[role="button"]');
+    for (const btn of buttons) {
+      const text = btn.textContent?.trim().toUpperCase();
+      if (text === 'FINISH' || text === 'DONE' || text === 'CLOSE') {
+        btn.click();
+        break;
+      }
+    }
 
-    // Backup: Find and click FINISH button if visible (no loop, direct query)
-    const finishButton = document.querySelector('[role="button"] .is_ButtonText');
-    if (finishButton?.textContent?.trim().toUpperCase() === 'FINISH') {
-      finishButton.closest('[role="button"]')?.click();
+    // Method 2: Click any close/X button in card editor overlays
+    const closeButtons = document.querySelectorAll('[aria-label="Close"], [aria-label="close"], .close-button, [data-testid="close"]');
+    closeButtons.forEach(btn => btn.click());
+
+    // Method 3: Try clicking outside the card editor modal (backdrop click)
+    const cardEditorBackdrop = document.querySelector('.is_Modal__backdrop, [class*="backdrop"], [class*="overlay"]');
+    if (cardEditorBackdrop && !cardEditorBackdrop.closest('.bd-analytics-dashboard')) {
+      cardEditorBackdrop.click();
+    }
+  }
+
+  // Async version that waits for card to close
+  async closeCardEditorAndWait(maxWaitMs = 500) {
+    this.closeCardEditor();
+    
+    // Wait a bit for the UI to respond
+    await this.wait(100);
+    
+    // Check if card editor is still open, try again
+    const stillOpen = document.querySelector('[class*="CardEditor"], [class*="card-editor"], [data-testid*="card-editor"]');
+    if (stillOpen) {
+      this.closeCardEditor();
+      await this.wait(100);
     }
   }
 

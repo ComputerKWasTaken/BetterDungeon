@@ -83,10 +83,11 @@ See `core/theme-variables.css` for the design system if you want things to look 
 
 ### v0.9.2 (in progress)
 - Added **"Auto See"** feature, which automatically triggers a See input command after every AI response or after a certain amount of turns
+- Added **Story Card Analytics** feature, which provides intelligent feedback and information about your story card setup to find weakpoints and address them
 - **Improved the design of the popup UI** to include icons for each feature
 - Added the ability to **customize your hotkeys** via the popup
 - Added the ability to **customize input mode colors** via the popup
-- **Improved Story Card Scanner** to be faster and be able to handle more cards at once
+- **Improved Story Card Scanner** to be much faster and be able to handle more cards at once
 - Updated the Tutorial to include information about the new features
 - Bugfixes
 
