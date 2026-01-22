@@ -73,6 +73,9 @@ class BetterDungeon {
       } else if (message.type === 'SET_ACTIVE_CHARACTER_PRESET') {
         this.handleSetActiveCharacterPreset(message.presetId).then(sendResponse);
         return true;
+      } else if (message.type === 'OPEN_STORY_CARD_ANALYTICS') {
+        this.handleOpenStoryCardAnalytics().then(sendResponse);
+        return true;
       }
     });
   }
@@ -227,6 +230,15 @@ class BetterDungeon {
       return { success: true };
     }
     return { success: false, error: 'Character Preset feature not available' };
+  }
+
+  async handleOpenStoryCardAnalytics() {
+    const analyticsFeature = this.featureManager.features.get('storyCardAnalytics');
+    if (analyticsFeature && typeof analyticsFeature.openDashboard === 'function') {
+      await analyticsFeature.openDashboard();
+      return { success: true };
+    }
+    return { success: false, error: 'Story Card Analytics feature not available' };
   }
 
   async handleScanStoryCards() {

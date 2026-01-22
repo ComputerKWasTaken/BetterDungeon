@@ -54,13 +54,23 @@ class FeatureManager {
     if (typeof AutoSeeFeature !== 'undefined') {
       this.featureClasses.set('autoSee', AutoSeeFeature);
     }
+
+    if (typeof StoryCardAnalyticsFeature !== 'undefined') {
+      this.featureClasses.set('storyCardAnalytics', StoryCardAnalyticsFeature);
+    }
   }
 
   async loadFeaturesFromStorage() {
     const savedStates = await this.storageManager.getFeatures();
 
     this.featureClasses.forEach((FeatureClass, id) => {
-      const enabled = savedStates[id] === true || (savedStates[id] === undefined && id !== 'autoSee');
+      // storyCardAnalytics is always enabled (it's a tool, not a toggle-able feature)
+      const alwaysEnabled = ['storyCardAnalytics'];
+      const defaultOff = ['autoSee'];
+      
+      const enabled = alwaysEnabled.includes(id) || 
+                      savedStates[id] === true || 
+                      (savedStates[id] === undefined && !defaultOff.includes(id));
       if (enabled) {
         this.enableFeature(id);
       }

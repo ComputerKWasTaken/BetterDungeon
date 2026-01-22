@@ -27,15 +27,24 @@
         "features/input_mode_color_feature.js",
         "features/character_preset_feature.js",
         "features/auto_see_feature.js",
+        "features/story_card_analytics_feature.js",
         "main.js"
       ],
-      "css": ["styles.css"],
+      "css": ["styles.css", "fonts/lucide/lucide.css"],
       "run_at": "document_end"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["styles.css", "ai_instruction.txt", "icons/icon128.png"],
+      "resources": [
+        "styles.css",
+        "ai_instruction.txt",
+        "icons/icon128.png",
+        "fonts/lucide/lucide.css",
+        "fonts/lucide/lucide.ttf",
+        "fonts/lucide/lucide.woff",
+        "fonts/lucide/lucide.woff2"
+      ],
       "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*"]
     }
   ],

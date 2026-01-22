@@ -317,6 +317,12 @@ function initTools() {
   if (scanBtn) {
     scanBtn.addEventListener('click', () => scanTriggers(scanBtn));
   }
+
+  // Open Analytics button (in Creator Tools section)
+  const analyticsBtn = document.getElementById('open-analytics-btn');
+  if (analyticsBtn) {
+    analyticsBtn.addEventListener('click', () => openAnalyticsDashboard(analyticsBtn));
+  }
 }
 
 async function applyInstructions(btn) {
@@ -364,6 +370,34 @@ async function scanTriggers(btn) {
         showButtonStatus(btn, 'error', response?.error || 'Failed', originalText);
       } else {
         showButtonStatus(btn, 'success', 'Done!', originalText);
+      }
+    });
+  } catch (error) {
+    showButtonStatus(btn, 'error', 'Error', originalText);
+  }
+}
+
+async function openAnalyticsDashboard(btn) {
+  const originalText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="icon-loader"></span> Opening...';
+
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    if (!tab?.url?.includes('aidungeon.com')) {
+      showButtonStatus(btn, 'error', 'Not on AI Dungeon', originalText);
+      return;
+    }
+
+    chrome.tabs.sendMessage(tab.id, { type: 'OPEN_STORY_CARD_ANALYTICS' }, (response) => {
+      if (chrome.runtime.lastError || !response?.success) {
+        showButtonStatus(btn, 'error', response?.error || 'Failed', originalText);
+      } else {
+        // Close the popup after opening the dashboard
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        window.close();
       }
     });
   } catch (error) {

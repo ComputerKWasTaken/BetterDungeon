@@ -8,6 +8,9 @@ class StoryCardScanner {
     this.scanStartTime = null;
     this.scannedIndices = new Set(); // Track which card indices have been scanned
     
+    // Rich card data storage: Map of cardName -> { type, description, triggers, keys, name }
+    this.cardDatabase = new Map();
+    
     // Performance optimization: adaptive timing
     this.totalCardTime = 0;
     this.cardCount = 0;
@@ -25,9 +28,14 @@ class StoryCardScanner {
       MIN_WAIT: 50,             // Minimum wait time
       MAX_RETRIES: 3            // Max retries for element detection
     };
+    
+    // Known card types in AI Dungeon
+    this.CARD_TYPES = ['character', 'location', 'item', 'faction', 'lore', 'other'];
   }
 
-  async scanAllCards(onTriggerFound, onProgress) {
+  // Main scan method - now returns rich card data
+  // Callbacks: onCardScanned(cardData), onProgress(current, total, status, eta)
+  async scanAllCards(onTriggerFound, onProgress, onCardScanned) {
     if (this.isScanning) {
       return { success: false, error: 'Scan already in progress' };
     }
@@ -39,7 +47,8 @@ class StoryCardScanner {
     this.cardCount = 0;
     this.averageCardTime = null;
     this.scannedIndices = new Set();
-    const results = new Map(); // trigger -> cardName
+    this.cardDatabase = new Map(); // Reset card database
+    const results = new Map(); // trigger -> cardName (kept for backward compatibility)
 
     try {
       // First, navigate to the Story Cards section if not already there
@@ -100,7 +109,8 @@ class StoryCardScanner {
           onTriggerFound, 
           onProgress,
           () => scannedCount,
-          (count) => { scannedCount = count; }
+          (count) => { scannedCount = count; },
+          onCardScanned
         );
 
         this.log(`Cards scanned this round: ${cardsScannedThisRound}`);
@@ -143,7 +153,8 @@ class StoryCardScanner {
             onTriggerFound, 
             onProgress,
             () => scannedCount,
-            (count) => { scannedCount = count; }
+            (count) => { scannedCount = count; },
+            onCardScanned
           );
           
           this.log(`Final sweep found: ${finalCards} cards`);
@@ -162,7 +173,12 @@ class StoryCardScanner {
         scrollContainer.scrollTop = 0;
       }
 
-      return { success: true, triggers: results, scannedCount };
+      return { 
+        success: true, 
+        triggers: results, 
+        scannedCount,
+        cardDatabase: this.cardDatabase // Include rich card data
+      };
 
     } catch (error) {
       console.error('StoryCardScanner: Scan failed:', error);
@@ -172,6 +188,8 @@ class StoryCardScanner {
       }
       return { success: false, error: error.message };
     } finally {
+      // Ensure any open card editor is closed before finishing
+      this.closeCardEditor();
       this.isScanning = false;
       this.abortController = null;
     }
@@ -184,7 +202,8 @@ class StoryCardScanner {
   }
 
   // Scan all currently visible cards and return count of new cards scanned
-  async scanVisibleCards(scrollContainer, results, totalCards, onTriggerFound, onProgress, getCount, setCount) {
+  // Now extracts full card data: type, description, triggers, keys
+  async scanVisibleCards(scrollContainer, results, totalCards, onTriggerFound, onProgress, getCount, setCount, onCardScanned) {
     const visibleCards = this.findVisibleStoryCards(scrollContainer);
     this.log(`findVisibleStoryCards returned ${visibleCards.length} cards:`, 
       visibleCards.map(c => ({ index: c.index, name: this.getCardNameFromElement(c.element)?.substring(0, 20) })));
@@ -210,6 +229,8 @@ class StoryCardScanner {
       newCardsScanned++;
 
       const cardName = this.getCardNameFromElement(card);
+      // Try to get card type from the list view element first
+      const cardTypeFromList = this.getCardTypeFromElement(card);
       const cardStartTime = Date.now();
 
       // Calculate estimated time remaining
@@ -229,11 +250,15 @@ class StoryCardScanner {
         card.click();
         await this.waitForCardEditor();
 
-        // Extract triggers from the opened card
-        const triggers = this.extractTriggersFromOpenCard();
+        // Extract full card data from the opened card
+        const fullCardData = this.extractFullCardData(cardName, cardTypeFromList);
 
-        if (triggers.length > 0) {
-          for (const trigger of triggers) {
+        // Store in card database
+        this.cardDatabase.set(cardName, fullCardData);
+
+        // Backward compatibility: populate triggers map
+        if (fullCardData.triggers.length > 0) {
+          for (const trigger of fullCardData.triggers) {
             const existingCard = results.get(trigger);
             if (existingCard && existingCard !== cardName) {
               results.set(trigger, `${existingCard}, ${cardName}`);
@@ -245,6 +270,11 @@ class StoryCardScanner {
               onTriggerFound(trigger, cardName);
             }
           }
+        }
+
+        // Notify about the full card data
+        if (onCardScanned) {
+          onCardScanned(fullCardData);
         }
 
         // Close the card editor
@@ -540,6 +570,247 @@ class StoryCardScanner {
     }
 
     return 'Unknown Card';
+  }
+
+  // Extract card type from the list view element (before opening)
+  getCardTypeFromElement(cardElement) {
+    // Look for type indicator in the card preview
+    // AI Dungeon typically shows type as a label like "type: character"
+    const typeLabel = cardElement.querySelector('p[aria-label*="type:"]');
+    if (typeLabel) {
+      const ariaLabel = typeLabel.getAttribute('aria-label') || '';
+      const typeMatch = ariaLabel.match(/type:\s*(\w+)/i);
+      if (typeMatch) {
+        return typeMatch[1].toLowerCase();
+      }
+    }
+
+    // Check for type in text content
+    const paragraphs = cardElement.querySelectorAll('p.is_Paragraph');
+    for (const p of paragraphs) {
+      const text = p.textContent?.trim().toLowerCase() || '';
+      for (const cardType of this.CARD_TYPES) {
+        if (text === cardType || text.includes(`type: ${cardType}`)) {
+          return cardType;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  // Extract full card data from the opened card editor
+  extractFullCardData(cardName, cardTypeFromList = null) {
+    const cardData = {
+      name: cardName,
+      type: cardTypeFromList || 'other',
+      description: '',
+      triggers: [],
+      keys: [],
+      entryText: '',
+      hasImage: false
+    };
+
+    // Find all labeled sections in the card editor
+    const labels = document.querySelectorAll('.is_Column > p.is_Paragraph, .is_Row > p.is_Paragraph');
+    
+    for (const label of labels) {
+      const labelText = label.textContent?.trim().toUpperCase() || '';
+      const container = label.closest('.is_Column') || label.parentElement;
+      
+      if (!container) continue;
+
+      // Get all inputs/textareas in this section
+      const inputs = container.querySelectorAll('input, textarea');
+      const inputValues = Array.from(inputs).map(i => i.value).filter(v => v);
+
+      switch (labelText) {
+        case 'TYPE':
+          // Extract type from dropdown or text
+          const typeValue = this.extractTypeFromSection(container);
+          if (typeValue) {
+            cardData.type = typeValue.toLowerCase();
+          }
+          break;
+
+        case 'TRIGGERS':
+        case 'TRIGGER':
+          // Extract triggers (comma-separated)
+          for (const value of inputValues) {
+            const parts = value.split(',');
+            for (const part of parts) {
+              const t = part.trim().toLowerCase();
+              if (t.length > 0 && t.length < 50) {
+                cardData.triggers.push(t);
+              }
+            }
+          }
+          break;
+
+        case 'KEYS':
+        case 'KEY':
+          // Extract keys (comma-separated)
+          for (const value of inputValues) {
+            const parts = value.split(',');
+            for (const part of parts) {
+              const k = part.trim().toLowerCase();
+              if (k.length > 0 && k.length < 50) {
+                cardData.keys.push(k);
+              }
+            }
+          }
+          break;
+
+        case 'ENTRY':
+        case 'ENTRY TEXT':
+          // Extract entry/description text
+          for (const value of inputValues) {
+            if (value.length > cardData.entryText.length) {
+              cardData.entryText = value;
+            }
+          }
+          break;
+
+        case 'DESCRIPTION':
+        case 'DETAILS':
+          // Extract description
+          for (const value of inputValues) {
+            if (value.length > cardData.description.length) {
+              cardData.description = value;
+            }
+          }
+          break;
+      }
+    }
+
+    // If no description found, use entry text as fallback
+    if (!cardData.description && cardData.entryText) {
+      cardData.description = cardData.entryText;
+    }
+
+    // Check for image presence
+    const imageElement = document.querySelector('[id="top-down-mask"], img[src*="story"], img[src*="card"]');
+    cardData.hasImage = !!imageElement;
+
+    this.log('Extracted card data:', cardData);
+    return cardData;
+  }
+
+  // Extract type from a TYPE section (handles dropdowns and text)
+  extractTypeFromSection(container) {
+    // Check for selected option in dropdown-like elements
+    const selectedOption = container.querySelector('[aria-selected="true"], [data-selected="true"]');
+    if (selectedOption) {
+      return selectedOption.textContent?.trim();
+    }
+
+    // Check for button text (AI Dungeon uses buttons for type selection)
+    const buttons = container.querySelectorAll('[role="button"]');
+    for (const btn of buttons) {
+      const text = btn.textContent?.trim().toLowerCase();
+      if (this.CARD_TYPES.includes(text)) {
+        return text;
+      }
+    }
+
+    // Check paragraph elements
+    const paragraphs = container.querySelectorAll('p.is_Paragraph');
+    for (const p of paragraphs) {
+      const text = p.textContent?.trim().toLowerCase();
+      if (this.CARD_TYPES.includes(text)) {
+        return text;
+      }
+    }
+
+    return null;
+  }
+
+  // Get the card database (for external access)
+  getCardDatabase() {
+    return this.cardDatabase;
+  }
+
+  // Get analytics summary of scanned cards
+  getAnalytics() {
+    const analytics = {
+      totalCards: this.cardDatabase.size,
+      byType: {},
+      withTriggers: 0,
+      withoutTriggers: 0,
+      withDescription: 0,
+      withoutDescription: 0,
+      withKeys: 0,
+      averageTriggerCount: 0,
+      triggerOverlaps: [], // Cards sharing the same trigger
+      emptyCards: [] // Cards with no useful data
+    };
+
+    // Initialize type counts
+    for (const type of this.CARD_TYPES) {
+      analytics.byType[type] = 0;
+    }
+
+    let totalTriggers = 0;
+    const triggerToCards = new Map(); // trigger -> [cardNames]
+
+    this.cardDatabase.forEach((card, name) => {
+      // Count by type
+      const type = card.type || 'other';
+      analytics.byType[type] = (analytics.byType[type] || 0) + 1;
+
+      // Count triggers
+      if (card.triggers.length > 0) {
+        analytics.withTriggers++;
+        totalTriggers += card.triggers.length;
+
+        // Track trigger overlaps
+        for (const trigger of card.triggers) {
+          const existing = triggerToCards.get(trigger) || [];
+          existing.push(name);
+          triggerToCards.set(trigger, existing);
+        }
+      } else {
+        analytics.withoutTriggers++;
+      }
+
+      // Count descriptions
+      if (card.description || card.entryText) {
+        analytics.withDescription++;
+      } else {
+        analytics.withoutDescription++;
+      }
+
+      // Count keys
+      if (card.keys && card.keys.length > 0) {
+        analytics.withKeys++;
+      }
+
+      // Track empty cards
+      if (!card.triggers.length && !card.description && !card.entryText) {
+        analytics.emptyCards.push(name);
+      }
+    });
+
+    // Calculate average triggers
+    if (analytics.withTriggers > 0) {
+      analytics.averageTriggerCount = (totalTriggers / analytics.withTriggers).toFixed(1);
+    }
+
+    // Find trigger overlaps (same trigger used by multiple cards)
+    triggerToCards.forEach((cards, trigger) => {
+      if (cards.length > 1) {
+        analytics.triggerOverlaps.push({
+          trigger,
+          cards,
+          count: cards.length
+        });
+      }
+    });
+
+    // Sort overlaps by count (most overlapping first)
+    analytics.triggerOverlaps.sort((a, b) => b.count - a.count);
+
+    return analytics;
   }
 
   // Optimized: Wait for card editor to appear with smart detection
