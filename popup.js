@@ -13,7 +13,7 @@ const STORAGE_KEYS = {
   autoScan: 'betterDungeon_autoScanTriggers',
   autoApply: 'betterDungeon_autoApplyInstructions',
   customHotkeys: 'betterDungeon_customHotkeys',
-  customModeColors: 'betterDungeon_customModeColors'
+  customModeColors: 'betterDungeon_customModeColors',
 };
 
 // Default mode colors (hex format)
@@ -1647,3 +1647,4 @@ document.querySelectorAll('.feature-credit a').forEach(link => {
     chrome.tabs.create({ url: link.href });
   });
 });
+

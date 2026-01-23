@@ -9,6 +9,8 @@ Developer documentation for contributors and maintainers.
 These are future additions to the extension that I want to implement, both before Early Access, at launch, and after.
 
 ### Most Likely Happening
+- **Correction** - An action (not a story input action) next to Retry that allows the user to instruct and specify a story correction that gets sent to the AI. Instead of hitting Retry over and over again, the user can specify what is wrong with the output and the AI will retry with the correction.
+- **Notes** - A feature that allows users to write in a notes section for their adventures
 - **Automatic Model Selection** - A system added to the AI Dungeon that can automatically switch and select the best model for the user's needs, depending on their configuration.
 - **Scenario/Adventure Folder Organization** - Group scenarios and adventures into collapsible folders for better management. (WARNING: This is an extensively difficult task from what I've experimented with.)
 - **Adventure Statistics** — Track word count, turn count, and session duration for your adventures. Just for funsies.
@@ -20,7 +22,7 @@ These are future additions to the extension that I want to implement, both befor
 - **Story Card Folder Organization** — Group story cards into collapsible folders for better management. In fact, just improve Story Cards overall. They lowkey reek.
 
 ### Long-Term Ideas
-- **Community Resources** — Browse and find story card templates, scripts, etc. from other users.
+- **Community Resources** — Browse and find story card templates, scripts, etc. from other users. (Most likely going to be under a seperate project known as *BetterRepository*)
 - **Text to Speech** - Reads your story aloud with text to speech.
 - **Background Music** - Plays background music while you play.
 - **Customizable UI** - Let users customize the UI to their liking.

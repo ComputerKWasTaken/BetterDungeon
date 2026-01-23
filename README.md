@@ -56,8 +56,6 @@ Settings sync across Chromium browsers.
 
 - **Readable Tab Fix** — Moves the "Readable" tab back where it belongs. You're welcome.
 
-- **Interactive Tutorial** — A guided tour that introduces you to the extension's features.
-
 ## Development
 
 ### Project Structure
@@ -81,7 +79,7 @@ See `core/theme-variables.css` for the design system if you want things to look 
 
 ## Changelog
 
-### v0.9.2 (in progress)
+### v0.9.5 (in progress)
 - Added **"Auto See"** feature, which automatically triggers a See input command after every AI response or after a certain amount of turns
 - Added **Story Card Analytics** feature, which provides intelligent feedback and information about your story card setup to find weakpoints and address them
 - **Improved the design of the popup UI** to include icons for each feature
