@@ -71,6 +71,8 @@ BetterDungeon/
 ├── core/feature-manager.js # Feature lifecycle management
 ├── services/               # AI Dungeon integrations
 ├── utils/                  # DOM & storage helpers
+├── fonts/                  # Fonts used throughout the extension
+├── icons/                  # Extension icons
 ├── features/               # Self-contained feature modules
 ├── styles.css              # Injected styles
 ├── popup.*                 # Extension popup UI
