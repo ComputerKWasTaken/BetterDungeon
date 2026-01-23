@@ -298,6 +298,11 @@ class HotkeyFeature {
           return;
         }
         
+        // Dispatch custom event for Continue action so other features can detect it
+        if (hotkeyConfig.actionId === 'continue') {
+          document.dispatchEvent(new CustomEvent('betterdungeon:continue-hotkey'));
+        }
+        
         targetElement.click();
       } else {
         // Close menu if we opened it but couldn't find the option
