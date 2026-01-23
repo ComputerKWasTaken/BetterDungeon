@@ -62,54 +62,12 @@ Settings sync across Chromium browsers.
 
 - **Readable Tab Fix** — Moves the "Readable" tab back where it belongs. You're welcome.
 
-## Development
+## Support
 
-### Project Structure
-```
-BetterDungeon/
-├── main.js                 # Core orchestrator
-├── core/feature-manager.js # Feature lifecycle management
-├── services/               # AI Dungeon integrations
-├── utils/                  # DOM & storage helpers
-├── fonts/                  # Fonts used throughout the extension
-├── icons/                  # Extension icons
-├── features/               # Self-contained feature modules
-├── styles.css              # Injected styles
-├── popup.*                 # Extension popup UI
-└── manifest.json           # Extension config
-```
+- 🐛 [Found a bug?](../../issues) Report it on GitHub
+- 💡 [Feature idea?](../../issues/new?template=feature_request.md) I'd love to hear it
+- 📖 Need help? Check the [Contributing Guide](CONTRIBUTING.md) for technical details
 
-### Adding Features
+---
 
-Each feature is a class with `static id`, `init()`, and `destroy()` methods. Drop it in `features/`, add to `manifest.json`, wire up a toggle in the popup. The feature manager handles the rest.
-
-See `core/theme-variables.css` for the design system if you want things to look consistent.
-
-## Changelog
-
-### v0.9.5 (in progress)
-- Added **"Auto See"** feature, which automatically triggers a See input command after every AI response or after a certain amount of turns
-- Added **Story Card Analytics** feature, which provides intelligent feedback and information about your story card setup to find weakpoints and address them
-- **Improved the design of the popup UI** to include icons for each feature
-- Added the ability to **customize your hotkeys** via the popup
-- Added the ability to **customize input mode colors** via the popup
-- **Improved Story Card Scanner** to be much faster and be able to handle more cards at once
-- Updated the Tutorial to include information about the new features
-- Bugfixes
-
-### v0.9.1
-- Improved **Command** mode formatting to include brackets [] for better AI adherence
-- Added an option to automatically delete the command text after being sent
-- Improved the **Markdown** formatting instructions and system to use an alternative system that avoids asterisks AND underscores (new)
-- **Improved the popup UI** to be more compact, organized, and easier to navigate
-- **Improved the Tutorial** to be more adaptive and handle edge cases better
-- **Removed the Tip popup/tooltip system** as it was too intrusive
-- Added **"Exit Input" hotkey (Esc)** to exit input mode
-- Bugfixes
-
-### v0.9.0.2
-- Fixed an issue with the Apply button, should fix Markdown instruction application
-- Improved MD file flow
-
-### v0.9.0
-- Early Access release
+**Made with ❤️ for the AI Dungeon community**
