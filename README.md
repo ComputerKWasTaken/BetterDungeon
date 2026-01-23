@@ -37,8 +37,6 @@ Settings sync across Chromium browsers.
 - **Markdown Support** — Asterisk-free formatting that actually works with AI models. Bold, italic, underline, whisper text, scene breaks, and lists.
   - Hit "Apply Instructions" in the popup to teach the AI when to use each format
 
-- **Character Presets** — Stop typing your character's name 47 times. Save profiles, auto-fill scenario entry questions, never suffer again.
-
 - **Hotkeys** — Keyboard shortcuts when you're not typing. **Fully customizable** via the popup.
   
   | Key | Action | | Key | Action |
@@ -53,6 +51,14 @@ Settings sync across Chromium browsers.
 - **Trigger Highlighting** — Story card triggers get highlighted in the context viewer. Hover to jump to the card. Also suggests proper nouns that might deserve their own story cards.
 
 - **Auto See** — Automatically triggers a See input command after every AI response or after a certain amount of turns.
+
+### Presets
+
+- **Plot Presets** - Allows you to save your own custom Plot Components for use in scenarios.
+
+- **Character Presets** — Stop typing your character's name 47 times. Save profiles, auto-fill scenario entry questions, never suffer again.
+
+### Small QOL Improvements
 
 - **Readable Tab Fix** — Moves the "Readable" tab back where it belongs. You're welcome.
 

@@ -9,7 +9,6 @@ Developer documentation for contributors and maintainers.
 These are future additions to the extension that I want to implement, both before Early Access, at launch, and after.
 
 ### Most Likely Happening
-- **Correction** - An action (not a story input action) next to Retry that allows the user to instruct and specify a story correction that gets sent to the AI. Instead of hitting Retry over and over again, the user can specify what is wrong with the output and the AI will retry with the correction.
 - **Notes** - A feature that allows users to write in a notes section for their adventures
 - **Automatic Model Selection** - A system added to the AI Dungeon that can automatically switch and select the best model for the user's needs, depending on their configuration.
 - **Scenario/Adventure Folder Organization** - Group scenarios and adventures into collapsible folders for better management. (WARNING: This is an extensively difficult task from what I've experimented with.)
@@ -20,6 +19,7 @@ These are future additions to the extension that I want to implement, both befor
 - **BetterScripts** - A system that allows AI Dungeon scripts to interface and interact with the extension, allowing for things like an "in game clock" with actual UI elements on the page, with a time management script.
 - **Quick Actions Menu** — A floating action button with common actions that aren't typically present on the main Adventure page, like "Add Story Card", "Change Image Generator", etc.
 - **Story Card Folder Organization** — Group story cards into collapsible folders for better management. In fact, just improve Story Cards overall. They lowkey reek.
+- **Correction** - An action (not a story input action) next to Retry that allows the user to instruct and specify a story correction that gets sent to the AI. Instead of hitting Retry over and over again, the user can specify what is wrong with the output and the AI will retry with the correction. (The issue is that this may be impossible without adjusting the way AI Dungeon sends information to the AI. And due to the nature of how the DOM works and how Chromium handles what extensions can or can't do with websites, I don't think it's possible. Not only that, why not just use Command? It works the same way and is probably clearer to the AI over longer contexts.)
 
 ### Long-Term Ideas
 - **Text to Speech** - Reads your story aloud with text to speech.
