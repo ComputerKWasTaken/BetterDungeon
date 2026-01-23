@@ -38,7 +38,7 @@
     {
       "resources": [
         "styles.css",
-        "ai_instruction.txt",
+        "markdown_ai_instruction.txt",
         "icons/icon128.png",
         "fonts/lucide/lucide.css",
         "fonts/lucide/lucide.ttf",

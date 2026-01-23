@@ -544,7 +544,7 @@ class AIDungeonService {
 
   async fetchInstructionsFile() {
     try {
-      const instructionsUrl = chrome.runtime.getURL('ai_instruction.txt');
+      const instructionsUrl = chrome.runtime.getURL('markdown_ai_instruction.txt');
       const response = await fetch(instructionsUrl);
       if (!response.ok) {
         return { success: false, error: 'Failed to load instructions file' };
