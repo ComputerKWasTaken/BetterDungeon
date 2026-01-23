@@ -22,10 +22,12 @@ These are future additions to the extension that I want to implement, both befor
 - **Story Card Folder Organization** — Group story cards into collapsible folders for better management. In fact, just improve Story Cards overall. They lowkey reek.
 
 ### Long-Term Ideas
-- **Community Resources** — Browse and find story card templates, scripts, etc. from other users. (Most likely going to be under a seperate project known as *BetterRepository*)
 - **Text to Speech** - Reads your story aloud with text to speech.
 - **Background Music** - Plays background music while you play.
 - **Customizable UI** - Let users customize the UI to their liking.
+
+### Alternative Resource Ideas
+- **BetterRepository** - A community-driven platform for sharing and discovering BetterDungeon resources like AI Instructions, plot components, story cards, scripts, etc. May also include BetterScripts.
 
 ---
 
