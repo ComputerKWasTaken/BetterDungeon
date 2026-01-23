@@ -264,6 +264,10 @@ class AutoSeeFeature {
       this.log(`[AutoSee] Ignoring ${source} - currently processing Auto See`);
       return false;
     }
+    if (this.isWaitingForAIResponse) {
+      this.log(`[AutoSee] Ignoring ${source} - already waiting for AI response`);
+      return false;
+    }
     return true;
   }
 
