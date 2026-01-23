@@ -67,6 +67,7 @@ Settings sync across Chromium browsers.
 - 🐛 [Found a bug?](../../issues) Report it on GitHub
 - 💡 [Feature idea?](../../issues/new?template=feature_request.md) I'd love to hear it
 - 📖 Need help? Check the [Contributing Guide](CONTRIBUTING.md) for technical details
+- 📱 Contact me on Discord: `@computerK`
 
 ---
 
