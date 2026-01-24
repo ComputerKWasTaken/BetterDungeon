@@ -72,7 +72,7 @@ const DEFAULT_FEATURES = {
   inputModeColor: true,
   characterPreset: true,
   autoSee: false,
-  notes: false
+  notes: true
 };
 
 const DEFAULT_SETTINGS = {

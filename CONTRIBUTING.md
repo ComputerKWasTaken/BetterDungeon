@@ -133,7 +133,7 @@ Each feature implements:
 
 ### Changelog
 
-### v0.9.5 (in progress)
+### v0.9.5
 - Added **"Auto See"** feature, which automatically triggers a See input command after every AI response or after a certain amount of turns
 - Added **Story Card Analytics** feature, which provides intelligent feedback and information about your story card setup to find weakpoints and address them
 - Added **Adventure Notes** feature, which allows you write down anything and everything you want to remember about your current adventure
