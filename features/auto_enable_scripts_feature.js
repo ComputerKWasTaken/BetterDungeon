@@ -235,6 +235,11 @@ class AutoEnableScriptsFeature {
   }
 }
 
+// Make available globally
+if (typeof window !== 'undefined') {
+  window.AutoEnableScriptsFeature = AutoEnableScriptsFeature;
+}
+
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = AutoEnableScriptsFeature;

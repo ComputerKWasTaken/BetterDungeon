@@ -319,7 +319,7 @@ function initTools() {
     scanBtn.addEventListener('click', () => scanTriggers(scanBtn));
   }
 
-  // Open Analytics button (in Creator Tools section)
+  // Open Analytics button (in Tools section)
   const analyticsBtn = document.getElementById('open-analytics-btn');
   if (analyticsBtn) {
     analyticsBtn.addEventListener('click', () => openAnalyticsDashboard(analyticsBtn));
