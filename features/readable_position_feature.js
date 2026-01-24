@@ -11,7 +11,7 @@ class ReadablePositionFeature {
   }
 
   init() {
-    console.log('ReadablePositionFeature: Initializing...');
+    console.log('[ReadablePosition] Initializing Readable Tab Fix feature...');
     this.startObserving();
     this.relocateReadableTab();
   }

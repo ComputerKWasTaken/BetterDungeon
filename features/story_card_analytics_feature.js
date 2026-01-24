@@ -20,7 +20,7 @@ class StoryCardAnalyticsFeature {
   // ==================== LIFECYCLE ====================
 
   async init() {
-    console.log('StoryCardAnalyticsFeature: Initializing...');
+    console.log('[StoryCardAnalytics] Initializing Story Card Analytics feature...');
     this.injectStyles();
   }
 

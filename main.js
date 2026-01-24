@@ -9,7 +9,7 @@ class BetterDungeon {
   }
 
   init() {
-    console.log('BetterDungeon: Initializing...');
+    console.log('[BetterDungeon] Initializing...');
     this.injectStyles();
     this.setupMessageListener();
     this.featureManager.initialize();
@@ -166,7 +166,7 @@ class BetterDungeon {
       try {
         return await feature.saveCurrentAsPreset(name, includeComponents);
       } catch (error) {
-        console.error('BetterDungeon: Error in saveCurrentAsPreset:', error);
+        console.error('[BetterDungeon] Error in saveCurrentAsPreset:', error);
         return { success: false, error: error.message };
       }
     }
@@ -179,7 +179,7 @@ class BetterDungeon {
       try {
         return await feature.restorePreviousState(previousState);
       } catch (error) {
-        console.error('BetterDungeon: Error in restorePreviousState:', error);
+        console.error('[BetterDungeon] Error in restorePreviousState:', error);
         return { success: false, error: error.message };
       }
     }
@@ -257,7 +257,7 @@ class BetterDungeon {
       const result = await triggerFeature.scanAllStoryCards();
       return result;
     } catch (error) {
-      console.error('BetterDungeon: Scan error:', error);
+      console.error('[BetterDungeon] Scan error:', error);
       return { success: false, error: error.message };
     }
   }
@@ -276,7 +276,7 @@ class BetterDungeon {
 
       return await this.aiDungeonService.applyInstructionsToTextareas(instructionsResult.data);
     } catch (error) {
-      console.error('BetterDungeon: Error applying instructions:', error);
+      console.error('[BetterDungeon] Error applying instructions:', error);
       return { success: false, error: error.message };
     }
   }

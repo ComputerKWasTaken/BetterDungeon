@@ -22,7 +22,7 @@ class TriggerHighlightFeature {
   }
 
   async init() {
-    console.log('TriggerHighlightFeature: Initializing...');
+    console.log('[TriggerHighlight] Initializing Trigger Highlight feature...');
     // Load auto-scan setting FIRST before detecting adventure
     await this.loadAutoScanSetting();
     this.detectCurrentAdventure();

@@ -17,7 +17,7 @@ class CommandFeature {
   }
 
   init() {
-    console.log('CommandFeature: Initializing...');
+    console.log('[Command] Initializing Command feature...');
     this.setupObserver();
     this.injectCommandButton();
     this.loadAutoDeleteSetting();

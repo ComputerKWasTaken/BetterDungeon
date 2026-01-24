@@ -29,6 +29,7 @@
         "features/auto_see_feature.js",
         "features/story_card_analytics_feature.js",
         "features/notes_feature.js",
+        "features/auto_enable_scripts_feature.js",
         "main.js"
       ],
       "css": ["styles.css", "fonts/lucide/lucide.css"],

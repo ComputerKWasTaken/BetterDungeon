@@ -9,7 +9,7 @@ class FeatureManager {
   }
 
   async initialize() {
-    console.log('FeatureManager: Initializing...');
+    console.log('[FeatureManager] Initializing...');
     this.registerAvailableFeatures();
     await this.loadFeaturesFromStorage();
   }
@@ -62,14 +62,18 @@ class FeatureManager {
     if (typeof NotesFeature !== 'undefined') {
       this.featureClasses.set('notes', NotesFeature);
     }
+
+    if (typeof AutoEnableScriptsFeature !== 'undefined') {
+      this.featureClasses.set('autoEnableScripts', AutoEnableScriptsFeature);
+    }
   }
 
   async loadFeaturesFromStorage() {
     const savedStates = await this.storageManager.getFeatures();
 
     this.featureClasses.forEach((FeatureClass, id) => {
-      // storyCardAnalytics is always enabled (it's a tool, not a toggle-able feature)
-      const alwaysEnabled = ['storyCardAnalytics'];
+      // Always-on QOL features that don't need user toggling
+      const alwaysEnabled = ['storyCardAnalytics', 'autoEnableScripts'];
       const defaultOff = ['autoSee', 'notes'];
       
       const enabled = alwaysEnabled.includes(id) || 
@@ -88,7 +92,7 @@ class FeatureManager {
 
     const FeatureClass = this.featureClasses.get(id);
     if (!FeatureClass) {
-      console.warn(`FeatureManager: Unknown feature "${id}"`);
+      console.warn(`[FeatureManager] Unknown feature "${id}"`);
       return;
     }
 
@@ -100,7 +104,7 @@ class FeatureManager {
         feature.init();
       }
     } catch (error) {
-      console.error(`FeatureManager: Failed to enable feature "${id}":`, error);
+      console.error(`[FeatureManager] Failed to enable feature "${id}":`, error);
     }
   }
 
@@ -117,7 +121,7 @@ class FeatureManager {
 
       this.features.delete(id);
     } catch (error) {
-      console.error(`FeatureManager: Failed to disable feature "${id}":`, error);
+      console.error(`[FeatureManager] Failed to disable feature "${id}":`, error);
     }
   }
 
@@ -153,7 +157,7 @@ class FeatureManager {
         try {
           feature.destroy();
         } catch (error) {
-          console.error(`FeatureManager: Error destroying feature "${id}":`, error);
+          console.error(`[FeatureManager] Error destroying feature "${id}":`, error);
         }
       }
     });

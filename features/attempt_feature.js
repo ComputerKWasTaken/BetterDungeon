@@ -19,7 +19,7 @@ class AttemptFeature {
   }
 
   init() {
-    console.log('AttemptFeature: Initializing...');
+    console.log('[Attempt] Initializing Attempt feature...');
     this.loadSettings();
     this.setupObserver();
     this.injectAttemptButton();

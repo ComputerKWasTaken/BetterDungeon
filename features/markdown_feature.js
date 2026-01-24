@@ -25,7 +25,7 @@ class MarkdownFeature {
 
   // Called when feature is registered
   async init() {
-    console.log('MarkdownFeature: Initializing...');
+    console.log('[Markdown] Initializing Markdown feature...');
     await this.loadAutoApplySetting();
     this.detectCurrentAdventure();
     this.startAdventureChangeDetection();

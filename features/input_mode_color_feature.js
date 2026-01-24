@@ -28,7 +28,7 @@ class InputModeColorFeature {
   }
 
   async init() {
-    console.log('InputModeColorFeature: Initializing...');
+    console.log('[InputModeColor] Initializing Input Mode Colors feature...');
     await this.loadCustomColors();
     this.injectCustomColorStyles();
     this.setupObserver();
@@ -60,7 +60,7 @@ class InputModeColorFeature {
         const customColors = result[InputModeColorFeature.STORAGE_KEY];
         if (customColors && typeof customColors === 'object') {
           this.customColors = { ...InputModeColorFeature.DEFAULT_COLORS, ...customColors };
-          console.log('InputModeColorFeature: Loaded custom colors', this.customColors);
+          console.log('[InputModeColor] Loaded custom colors', this.customColors);
         } else {
           this.customColors = { ...InputModeColorFeature.DEFAULT_COLORS };
         }
@@ -127,7 +127,7 @@ class InputModeColorFeature {
           this.removeColorStyling();
           this.detectAndApplyColor();
         }
-        console.log('InputModeColorFeature: Colors updated', this.customColors);
+        console.log('[InputModeColor] Colors updated', this.customColors);
         sendResponse({ success: true });
       }
       return true;

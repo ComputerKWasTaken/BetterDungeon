@@ -13,7 +13,7 @@ class FavoriteInstructionsFeature {
   }
 
   async init() {
-    console.log('FavoriteInstructionsFeature: Initializing...');
+    console.log('[FavoriteInstructions] Initializing Favorite Instructions feature...');
     await this.loadPresets();
   }
 

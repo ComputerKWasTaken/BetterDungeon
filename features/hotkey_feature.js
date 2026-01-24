@@ -53,7 +53,7 @@ class HotkeyFeature {
   }
 
   async init() {
-    console.log('HotkeyFeature: Initializing...');
+    console.log('[Hotkey] Initializing Keyboard Shortcuts feature...');
     await this.loadCustomBindings();
     this.buildHotkeyMap();
     this.setupKeyboardListener();
@@ -68,7 +68,7 @@ class HotkeyFeature {
         if (customBindings && typeof customBindings === 'object') {
           // Merge custom bindings with defaults (custom takes precedence)
           this.keyBindings = { ...HotkeyFeature.DEFAULT_BINDINGS, ...customBindings };
-          console.log('HotkeyFeature: Loaded custom bindings', this.keyBindings);
+          console.log('[Hotkey] Loaded custom bindings', this.keyBindings);
         } else {
           this.keyBindings = { ...HotkeyFeature.DEFAULT_BINDINGS };
         }
@@ -94,7 +94,7 @@ class HotkeyFeature {
       if (message.type === 'HOTKEY_BINDINGS_UPDATED') {
         this.keyBindings = message.bindings;
         this.buildHotkeyMap();
-        console.log('HotkeyFeature: Bindings updated', this.keyBindings);
+        console.log('[Hotkey] Bindings updated', this.keyBindings);
         sendResponse({ success: true });
       }
       return true;

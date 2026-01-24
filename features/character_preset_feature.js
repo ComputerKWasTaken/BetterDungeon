@@ -26,7 +26,7 @@ class CharacterPresetFeature {
   }
 
   async init() {
-    console.log('CharacterPresetFeature: Initializing...');
+    console.log('[CharacterPreset] Initializing Character Presets feature...');
     await this.loadPresets();
     await this.loadActivePreset();
     await this.loadSessionCharacter();
