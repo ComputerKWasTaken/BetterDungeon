@@ -33,7 +33,6 @@ Developer documentation for contributors and maintainers.
 These are future additions to the extension that I want to implement, both before Early Access, at launch, and after.
 
 ### Most Likely Happening
-- **Notes** - A feature that allows users to write in a notes section for their adventures
 - **Automatic Model Selection** - A system added to the AI Dungeon that can automatically switch and select the best model for the user's needs, depending on their configuration.
 - **Scenario/Adventure Folder Organization** - Group scenarios and adventures into collapsible folders for better management. (WARNING: This is an extensively difficult task from what I've experimented with.)
 - **Adventure Statistics** — Track word count, turn count, and session duration for your adventures. Just for funsies.
@@ -138,6 +137,7 @@ Each feature implements:
 ### v0.9.5 (in progress)
 - Added **"Auto See"** feature, which automatically triggers a See input command after every AI response or after a certain amount of turns
 - Added **Story Card Analytics** feature, which provides intelligent feedback and information about your story card setup to find weakpoints and address them
+- Added **Adventure Notes** feature, which allows you write down anything and everything you want to remember about your current adventure
 - **Improved the design of the popup UI** to include icons for each feature
 - Added the ability to **customize your hotkeys** via the popup
 - Added the ability to **customize input mode colors** via the popup

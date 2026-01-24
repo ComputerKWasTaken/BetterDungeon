@@ -52,6 +52,8 @@ Settings sync across Chromium browsers.
 
 - **Auto See** — Automatically triggers a See input command after every AI response or after a certain amount of turns.
 
+- **Adventure Notes** — A resizable notes panel that saves per adventure. Write down plot points, character details, or session notes without leaving the game.
+
 ### Presets
 
 - **Plot Presets** - Allows you to save your own custom Plot Components for use in scenarios.

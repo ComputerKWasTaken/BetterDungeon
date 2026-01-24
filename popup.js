@@ -69,7 +69,8 @@ const DEFAULT_FEATURES = {
   favoriteInstructions: true,
   inputModeColor: true,
   characterPreset: true,
-  autoSee: false
+  autoSee: false,
+  notes: false
 };
 
 const DEFAULT_SETTINGS = {
