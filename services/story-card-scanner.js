@@ -738,7 +738,17 @@ class StoryCardScanner {
       withKeys: 0,
       averageTriggerCount: 0,
       triggerOverlaps: [], // Cards sharing the same trigger
-      emptyCards: [] // Cards with no useful data
+      emptyCards: [], // Cards with no useful data
+      
+      // New analytics: formatting issues
+      cardsWithDoubleLinebreaks: [], // Cards with \n\n in entry (confuses AI)
+      
+      // New analytics: entry length analysis
+      longCards: [], // Cards with very long entries (>800 chars)
+      veryLongCards: [], // Cards with extremely long entries (>1500 chars)
+      
+      // New analytics: character name frequency
+      characterNameIssues: [] // Character cards where name appears <3 times
     };
 
     // Initialize type counts
@@ -770,6 +780,7 @@ class StoryCardScanner {
       }
 
       // Count descriptions
+      const entryContent = card.entryText || card.description || '';
       if (card.description || card.entryText) {
         analytics.withDescription++;
       } else {
@@ -784,6 +795,51 @@ class StoryCardScanner {
       // Track empty cards
       if (!card.triggers.length && !card.description && !card.entryText) {
         analytics.emptyCards.push(name);
+      }
+
+      // ===== NEW ANALYTICS =====
+
+      // Check for double linebreaks in entry text (confuses AI into thinking it's a new card)
+      if (entryContent && entryContent.includes('\n\n')) {
+        const doubleLinebreakCount = (entryContent.match(/\n\n/g) || []).length;
+        analytics.cardsWithDoubleLinebreaks.push({
+          name,
+          count: doubleLinebreakCount
+        });
+      }
+
+      // Check entry length (very long cards may lose context weight at the end)
+      if (entryContent.length > 800) {
+        if (entryContent.length > 1500) {
+          analytics.veryLongCards.push({
+            name,
+            length: entryContent.length
+          });
+        } else {
+          analytics.longCards.push({
+            name,
+            length: entryContent.length
+          });
+        }
+      }
+
+      // Check character name frequency (for character cards only)
+      if (type === 'character' && entryContent) {
+        // Create regex to match the card name (case insensitive, whole word)
+        // Escape special regex characters in the name
+        const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const nameRegex = new RegExp(`\\b${escapedName}\\b`, 'gi');
+        const nameMatches = entryContent.match(nameRegex) || [];
+        const nameCount = nameMatches.length;
+        
+        // If character name appears fewer than 3 times, it's a potential issue
+        if (nameCount < 3) {
+          analytics.characterNameIssues.push({
+            name,
+            occurrences: nameCount,
+            entryLength: entryContent.length
+          });
+        }
       }
     });
 

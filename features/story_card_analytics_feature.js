@@ -161,7 +161,8 @@ class StoryCardAnalyticsFeature {
 
   renderAnalytics(analytics) {
     const { totalCards, byType, withTriggers, withoutTriggers, withDescription, withoutDescription, 
-            averageTriggerCount, triggerOverlaps, emptyCards } = analytics;
+            averageTriggerCount, triggerOverlaps, emptyCards,
+            cardsWithDoubleLinebreaks, longCards, veryLongCards, characterNameIssues } = analytics;
 
     // Calculate percentages
     const triggerPercent = totalCards > 0 ? Math.round((withTriggers / totalCards) * 100) : 0;
@@ -192,6 +193,11 @@ class StoryCardAnalyticsFeature {
     const emptyCardsHtml = emptyCards.length > 0
       ? emptyCards.map(name => `<span class="bd-card-link bd-empty-card" data-card-name="${name}">${name}</span>`).join(', ')
       : '<p class="bd-analytics-none">All cards have content</p>';
+
+    // Build content quality data (merged section)
+    const allLongCards = [...(veryLongCards || []), ...(longCards || [])].sort((a, b) => b.length - a.length);
+    const totalQualityIssues = (cardsWithDoubleLinebreaks?.length || 0) + allLongCards.length + (characterNameIssues?.length || 0);
+    const hasQualityIssues = totalQualityIssues > 0;
 
     // Build issues/warnings
     const issues = this.generateIssues(analytics);
@@ -295,6 +301,65 @@ class StoryCardAnalyticsFeature {
             </div>
           </div>
         </div>
+
+        <!-- Content Quality (Merged Section) -->
+        <div class="bd-analytics-section">
+          <div class="bd-analytics-expandable ${hasQualityIssues ? '' : 'disabled'}">
+            <h3>Content Quality (${totalQualityIssues})</h3>
+            <span class="bd-expand-icon icon-chevron-down"></span>
+          </div>
+          <div class="bd-analytics-expand-content">
+            ${hasQualityIssues ? `
+              <!-- Double Linebreaks -->
+              ${cardsWithDoubleLinebreaks && cardsWithDoubleLinebreaks.length > 0 ? `
+                <div class="bd-quality-subsection">
+                  <h4><span class="icon-pilcrow"></span> Double Linebreaks (${cardsWithDoubleLinebreaks.length})</h4>
+                  <p class="bd-analytics-hint">Blank lines inside entries can confuse the AI into thinking it's a separate card.</p>
+                  <div class="bd-issue-cards-list">
+                    ${cardsWithDoubleLinebreaks.map(item => `
+                      <div class="bd-issue-card-item">
+                        <span class="bd-card-link" data-card-name="${item.name}">${item.name}</span>
+                        <span class="bd-issue-detail">${item.count} blank line${item.count > 1 ? 's' : ''}</span>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+              ` : ''}
+
+              <!-- Long Entries -->
+              ${allLongCards.length > 0 ? `
+                <div class="bd-quality-subsection">
+                  <h4><span class="icon-text"></span> Long Entries (${allLongCards.length})</h4>
+                  <p class="bd-analytics-hint">Information near the beginning holds more weight. Consider front-loading important details.</p>
+                  <div class="bd-issue-cards-list">
+                    ${allLongCards.map(item => `
+                      <div class="bd-issue-card-item ${item.length > 1500 ? 'bd-very-long' : ''}">
+                        <span class="bd-card-link" data-card-name="${item.name}">${item.name}</span>
+                        <span class="bd-issue-detail">${item.length.toLocaleString()} chars</span>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+              ` : ''}
+
+              <!-- Character Name Frequency -->
+              ${characterNameIssues && characterNameIssues.length > 0 ? `
+                <div class="bd-quality-subsection">
+                  <h4><span class="icon-user"></span> Character Name Frequency (${characterNameIssues.length})</h4>
+                  <p class="bd-analytics-hint">Mentioning the character's name multiple times improves AI recognition.</p>
+                  <div class="bd-issue-cards-list">
+                    ${characterNameIssues.map(item => `
+                      <div class="bd-issue-card-item">
+                        <span class="bd-card-link" data-card-name="${item.name}">${item.name}</span>
+                        <span class="bd-issue-detail">${item.occurrences === 0 ? 'never mentioned' : `only ${item.occurrences}×`}</span>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+              ` : ''}
+            ` : '<p class="bd-analytics-none">No content quality issues found</p>'}
+          </div>
+        </div>
       </div>
 
       <div class="bd-analytics-footer">
@@ -306,7 +371,8 @@ class StoryCardAnalyticsFeature {
   // Generate issues/warnings based on analytics
   generateIssues(analytics) {
     const issues = [];
-    const { totalCards, withTriggers, withDescription, triggerOverlaps, emptyCards } = analytics;
+    const { totalCards, withTriggers, withDescription, triggerOverlaps, emptyCards,
+            cardsWithDoubleLinebreaks, longCards, veryLongCards, characterNameIssues } = analytics;
 
     // Check for cards without triggers
     const noTriggerCount = totalCards - withTriggers;
@@ -344,6 +410,24 @@ class StoryCardAnalyticsFeature {
         severity: 'error',
         icon: '<span class="icon-circle-x"></span>',
         message: `${emptyCards.length} cards are completely empty`
+      });
+    }
+
+    // Check for content quality issues (consolidated)
+    const qualityIssueCount = (cardsWithDoubleLinebreaks?.length || 0) + 
+                              (veryLongCards?.length || 0) + 
+                              (characterNameIssues?.length || 0);
+    
+    if (qualityIssueCount > 0) {
+      // Determine severity based on most critical issue
+      const hasDoubleLinebreaks = cardsWithDoubleLinebreaks && cardsWithDoubleLinebreaks.length > 0;
+      const hasNameIssues = characterNameIssues && characterNameIssues.some(c => c.occurrences === 0);
+      const severity = (hasDoubleLinebreaks || hasNameIssues) ? 'warning' : 'info';
+      
+      issues.push({
+        severity,
+        icon: '<span class="icon-file-warning"></span>',
+        message: `${qualityIssueCount} content quality issue${qualityIssueCount > 1 ? 's' : ''} found`
       });
     }
 
@@ -1037,6 +1121,72 @@ class StoryCardAnalyticsFeature {
         color: var(--bd-text-muted);
         font-size: var(--bd-font-size-md);
         font-style: italic;
+      }
+
+      /* Content Quality Subsections */
+      .bd-quality-subsection {
+        margin-bottom: var(--bd-space-4);
+        padding-bottom: var(--bd-space-4);
+        border-bottom: 1px solid var(--bd-border-subtle);
+      }
+
+      .bd-quality-subsection:last-child {
+        margin-bottom: 0;
+        padding-bottom: 0;
+        border-bottom: none;
+      }
+
+      .bd-quality-subsection h4 {
+        display: flex;
+        align-items: center;
+        gap: var(--bd-space-2);
+        margin: 0 0 var(--bd-space-2);
+        font-size: var(--bd-font-size-md);
+        font-weight: var(--bd-font-weight-semibold);
+        color: var(--bd-text-primary);
+      }
+
+      .bd-quality-subsection h4 span {
+        color: var(--bd-text-muted);
+        font-size: var(--bd-font-size-base);
+      }
+
+      .bd-quality-subsection .bd-analytics-hint {
+        margin-bottom: var(--bd-space-2);
+      }
+
+      /* Issue Card Items */
+      .bd-issue-cards-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--bd-space-1);
+      }
+
+      .bd-issue-card-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: var(--bd-space-2) var(--bd-space-3);
+        background: var(--bd-bg-tertiary);
+        border: 1px solid var(--bd-border-subtle);
+        border-radius: var(--bd-radius-md);
+        transition: all var(--bd-transition-fast);
+      }
+
+      .bd-issue-card-item:hover {
+        border-color: var(--bd-border-default);
+        background: var(--bd-bg-elevated);
+      }
+
+      .bd-issue-card-item.bd-very-long {
+        border-color: var(--bd-warning-border);
+        background: var(--bd-warning-bg);
+      }
+
+      .bd-issue-detail {
+        font-size: var(--bd-font-size-sm);
+        color: var(--bd-text-muted);
+        font-family: var(--bd-font-family-mono);
       }
 
       /* Footer */
