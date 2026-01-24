@@ -142,6 +142,7 @@ Each feature implements:
 - Added the ability to **customize your hotkeys** via the popup
 - Added the ability to **customize input mode colors** via the popup
 - **Improved Story Card Scanner** to be much faster and be able to handle more cards at once
+- **Reorganized the Popup UI's feature content** to be more organized and easier to navigate
 - Updated the Tutorial to include information about the new features
 - Improved debug logs system for better troubleshooting
 - Bugfixes
