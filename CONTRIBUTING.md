@@ -138,7 +138,7 @@ Each feature implements:
 - Added **Story Card Analytics** feature, which provides intelligent feedback and information about your story card setup to find weakpoints and address them
 - Added **Adventure Notes** feature, which allows you write down anything and everything you want to remember about your current adventure
 - Added **"Auto Enable Scripts"** feature, which automatically retoggles the "Enable Scripts" option in the Scenario Creation page
-- **Improved the design of the popup UI** to include icons for each feature
+- **Improved the design of the Popup UI** to include icons for each feature
 - Added the ability to **customize your hotkeys** via the popup
 - Added the ability to **customize input mode colors** via the popup
 - **Improved Story Card Scanner** to be much faster and be able to handle more cards at once
