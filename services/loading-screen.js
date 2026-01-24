@@ -12,6 +12,13 @@ class LoadingScreen {
     this.iconUrl = chrome.runtime.getURL('icons/icon128.png');
     this.queue = [];
     this.isProcessingQueue = false;
+    this.debug = false;
+  }
+
+  log(message, ...args) {
+    if (this.debug) {
+      console.log(message, ...args);
+    }
   }
 
   // Queue an async operation to run with loading screen

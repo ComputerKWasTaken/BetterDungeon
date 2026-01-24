@@ -14,6 +14,13 @@ class CommandFeature {
     this.autoDeleteEnabled = false;
     this.pendingCommandDelete = null;
     this.responseObserver = null;
+    this.debug = false;
+  }
+
+  log(message, ...args) {
+    if (this.debug) {
+      console.log(message, ...args);
+    }
   }
 
   init() {

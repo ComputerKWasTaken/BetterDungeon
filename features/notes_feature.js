@@ -39,6 +39,13 @@ class NotesFeature {
     this.originalPushState = null;
     this.originalReplaceState = null;
     
+    this.debug = false;
+  }
+
+  log(message, ...args) {
+    if (this.debug) {
+      console.log(message, ...args);
+    }
   }
 
   // ==================== LIFECYCLE ====================

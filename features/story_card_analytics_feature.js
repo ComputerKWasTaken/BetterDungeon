@@ -15,6 +15,13 @@ class StoryCardAnalyticsFeature {
     
     // Settings
     this.autoRefresh = false;
+    this.debug = false;
+  }
+
+  log(message, ...args) {
+    if (this.debug) {
+      console.log(message, ...args);
+    }
   }
 
   // ==================== LIFECYCLE ====================
@@ -124,7 +131,7 @@ class StoryCardAnalyticsFeature {
     this.dashboardElement?.querySelectorAll('.bd-card-link').forEach(el => {
       el.addEventListener('click', (e) => {
         const cardName = e.currentTarget.dataset.cardName;
-        console.log('Card clicked:', cardName);
+        this.log('Card clicked:', cardName);
         // Future: Jump to card editor
       });
     });

@@ -126,6 +126,13 @@ class TutorialService {
         isComplete: true
       }
     ];
+    this.debug = false;
+  }
+
+  log(message, ...args) {
+    if (this.debug) {
+      console.log(message, ...args);
+    }
   }
 
   async init() {

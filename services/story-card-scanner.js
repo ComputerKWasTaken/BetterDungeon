@@ -17,7 +17,7 @@ class StoryCardScanner {
     this.averageCardTime = null;
     
     // Debug mode - set to true to enable verbose logging
-    this.DEBUG = false;
+    this.debug = false;
     
     // Timing constants (ms) - optimized for speed
     this.TIMING = {
@@ -69,7 +69,7 @@ class StoryCardScanner {
       // Find the scrollable container for story cards (virtualized list)
       const scrollContainer = this.findScrollContainer();
       if (!scrollContainer) {
-        this.log('ERROR: Could not find scroll container');
+        console.error('ERROR: Could not find scroll container');
         throw new Error('Could not find story cards scroll container');
       }
       
@@ -330,9 +330,9 @@ class StoryCardScanner {
     return true;
   }
   
-  // Debug logging helper
+  // Debug logger helper
   log(...args) {
-    if (this.DEBUG) {
+    if (this.debug) {
       console.log('[StoryCardScanner]', ...args);
     }
   }

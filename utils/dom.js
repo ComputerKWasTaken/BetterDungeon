@@ -2,6 +2,14 @@
 // Reusable DOM manipulation and element finding utilities
 
 class DOMUtils {
+  static debug = false;
+
+  static log(message, ...args) {
+    if (this.debug) {
+      console.log(message, ...args);
+    }
+  }
+
   static wait(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
@@ -11,6 +19,7 @@ class DOMUtils {
     for (const el of allElements) {
       const elText = el.textContent?.trim();
       if (elText === text || elText?.toLowerCase() === text.toLowerCase()) {
+        this.log('[DOMUtils] found tab by text:', text);
         return el;
       }
     }
@@ -19,10 +28,14 @@ class DOMUtils {
     for (const el of textElements) {
       if (el.textContent?.trim() === text) {
         const clickable = el.closest('div[role="tab"], button[role="tab"], div[tabindex="0"], button, div[role="button"]');
-        if (clickable) return clickable;
+        if (clickable) {
+          this.log('[DOMUtils] found tab by inner text:', text);
+          return clickable;
+        }
       }
     }
     
+    this.log('[DOMUtils] tab not found:', text);
     return null;
   }
 

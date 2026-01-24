@@ -10,6 +10,13 @@ class FavoriteInstructionsFeature {
     this.storageKey = 'betterDungeon_favoritePresets';
     this.presets = [];
     this.saveButton = null;
+    this.debug = false;
+  }
+
+  log(message, ...args) {
+    if (this.debug) {
+      console.log(message, ...args);
+    }
   }
 
   async init() {

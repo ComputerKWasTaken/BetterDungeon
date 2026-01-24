@@ -21,7 +21,6 @@ class AutoSeeFeature {
     
     // Settings
     this.enabled = true;
-    this.debug = false; // Set to true to enable debug logging
     this.delay = 500; // Fixed 0.5s delay before triggering See action
     this.triggerMode = 'everyTurn'; // 'everyTurn' or 'afterNTurns'
     this.turnInterval = 2; // If triggerMode is 'afterNTurns', trigger every N turns
@@ -52,12 +51,13 @@ class AutoSeeFeature {
     this.boundClickHandler = null;
     this.boundEnterKeyHandler = null;
     this.boundContinueHotkeyHandler = null;
+    this.debug = false;
   }
 
   // ==================== LIFECYCLE ====================
 
   async init() {
-    this.log('[AutoSee] Initializing Auto See feature...');
+    console.log('[AutoSee] Initializing Auto See feature...');
     await this.loadSettings();
     this.detectCurrentAdventure();
     this.startAdventureChangeDetection();
@@ -104,7 +104,7 @@ class AutoSeeFeature {
       this.turnInterval = result.betterDungeon_autoSeeTurnInterval ?? 2;
       this.log('[AutoSee] Settings loaded - Enabled:', this.enabled, 'TriggerMode:', this.triggerMode, 'TurnInterval:', this.turnInterval);
     } catch (e) {
-      this.log('[AutoSee] ERROR: Error loading settings:', e);
+      console.error('[AutoSee] ERROR: Error loading settings:', e);
     }
   }
 
@@ -471,7 +471,7 @@ class AutoSeeFeature {
       this.log('[AutoSee] Step 2: Opening input mode menu...');
       const menuOpened = await this.openInputModeMenu();
       if (!menuOpened) {
-        this.log('[AutoSee] ERROR: Failed to open input mode menu!');
+        console.error('[AutoSee] ERROR: Failed to open input mode menu!');
         this.closeInputArea();
         this.isProcessing = false;
         return;
@@ -484,7 +484,7 @@ class AutoSeeFeature {
       const seeModeSelector = this.modeSelectors['see'];
       const seeModeBtn = document.querySelector(seeModeSelector);
       if (!seeModeBtn) {
-        this.log('[AutoSee] ERROR: See mode button not found!');
+        console.error('[AutoSee] ERROR: See mode button not found!');
         this.closeInputModeMenu();
         this.closeInputArea();
         this.isProcessing = false;
@@ -512,7 +512,7 @@ class AutoSeeFeature {
       await this.wait(100);
       const submitBtn = document.querySelector(this.submitButtonSelector);
       if (!submitBtn) {
-        this.log('[AutoSee] ERROR: Submit button not found!');
+        console.error('[AutoSee] ERROR: Submit button not found!');
         this.closeInputArea();
         this.isProcessing = false;
         return;
@@ -535,7 +535,7 @@ class AutoSeeFeature {
       this.log('[AutoSee] ========== SEE ACTION COMPLETE ==========');
 
     } catch (error) {
-      this.log('[AutoSee] ERROR: ERROR during See action:', error);
+      console.error('[AutoSee] ERROR: ERROR during See action:', error);
     } finally {
       this.isProcessing = false;
       this.log('[AutoSee] Processing flag cleared');

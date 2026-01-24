@@ -12,6 +12,13 @@ class AutoEnableScriptsFeature {
     this.hasProcessedCurrentPage = false;
     this.currentToggle = null;
     this.toggleClickHandler = null;
+    this.debug = false;
+  }
+
+  log(message, ...args) {
+    if (this.debug) {
+      console.log(message, ...args);
+    }
   }
 
   init() {
@@ -55,7 +62,7 @@ class AutoEnableScriptsFeature {
     if (!disabled.includes(scenarioId)) {
       disabled.push(scenarioId);
       localStorage.setItem(AutoEnableScriptsFeature.STORAGE_KEY, JSON.stringify(disabled));
-      console.log('[AutoEnableScripts] Saved user preference: scripts disabled for scenario', scenarioId);
+      this.log('[AutoEnableScripts] Saved user preference: scripts disabled for scenario', scenarioId);
     }
   }
 
@@ -66,7 +73,7 @@ class AutoEnableScriptsFeature {
     if (index !== -1) {
       disabled.splice(index, 1);
       localStorage.setItem(AutoEnableScriptsFeature.STORAGE_KEY, JSON.stringify(disabled));
-      console.log('[AutoEnableScripts] Removed user preference: scripts enabled for scenario', scenarioId);
+      this.log('[AutoEnableScripts] Removed user preference: scripts enabled for scenario', scenarioId);
     }
   }
 
@@ -140,7 +147,7 @@ class AutoEnableScriptsFeature {
   // Enable scripts by clicking the toggle
   enableScripts(toggle) {
     if (this.isScriptsDisabled(toggle)) {
-      console.log('[AutoEnableScripts] Enabling scripts toggle...');
+      this.log('[AutoEnableScripts] Enabling scripts toggle...');
       toggle.click();
       return true;
     }
@@ -170,7 +177,7 @@ class AutoEnableScriptsFeature {
     // Check if user has previously disabled scripts for this scenario
     const scenarioId = this.getScenarioId();
     if (scenarioId && this.isScenarioDisabledByUser(scenarioId)) {
-      console.log('[AutoEnableScripts] Respecting user preference: scripts stay disabled for scenario', scenarioId);
+      this.log('[AutoEnableScripts] Respecting user preference: scripts stay disabled for scenario', scenarioId);
       return;
     }
 

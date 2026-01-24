@@ -4,6 +4,13 @@
 class AIDungeonService {
   constructor() {
     this.domUtils = window.DOMUtils;
+    this.debug = false;
+  }
+
+  log(message, ...args) {
+    if (this.debug) {
+      console.log(message, ...args);
+    }
   }
 
   // ==================== VALIDATION ====================

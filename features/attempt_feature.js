@@ -16,6 +16,13 @@ class AttemptFeature {
     this.actionIconObserver = null; // Observer for updating action icons
     this.weight = 0; // Weight modifier: -5 (harder) to +5 (easier)
     this.weightKeyHandler = null; // Handler for Up/Down arrow keys
+    this.debug = false;
+  }
+
+  log(message, ...args) {
+    if (this.debug) {
+      console.log(message, ...args);
+    }
   }
 
   init() {

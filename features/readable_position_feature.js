@@ -8,6 +8,13 @@ class ReadablePositionFeature {
     this.observer = null;
     this.debounceTimer = null;
     this.lastTabListId = null;
+    this.debug = false;
+  }
+
+  log(message, ...args) {
+    if (this.debug) {
+      console.log(message, ...args);
+    }
   }
 
   init() {

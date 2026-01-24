@@ -3,9 +3,16 @@
 
 class BetterDungeon {
   constructor() {
+    this.debug = false;
     this.featureManager = new FeatureManager();
     this.aiDungeonService = new AIDungeonService();
     this.init();
+  }
+
+  log(message, ...args) {
+    if (this.debug) {
+      console.log(message, ...args);
+    }
   }
 
   init() {

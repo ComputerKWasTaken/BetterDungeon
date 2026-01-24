@@ -5,6 +5,8 @@
 // CONSTANTS & STATE
 // ============================================
 
+const DEBUG = false;
+
 const STORAGE_KEYS = {
   features: 'betterDungeonFeatures',
   settings: 'betterDungeonSettings',
@@ -95,6 +97,7 @@ let currentModeColors = { ...DEFAULT_MODE_COLORS };
 // ============================================
 
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('[Popup] Initializing popup...');
   initNavigation();
   initFeatureCards();
   initToggles();
@@ -107,6 +110,16 @@ document.addEventListener('DOMContentLoaded', () => {
   initModeColors();
   initTutorial();
 });
+
+// ============================================
+// HELPERS
+// ============================================
+
+function log(message, ...args) {
+  if (DEBUG) {
+    console.log(message, ...args);
+  }
+}
 
 // ============================================
 // NAVIGATION
@@ -157,6 +170,7 @@ function initFeatureCards() {
 // ============================================
 
 function initToggles() {
+  console.log('[Popup] Initializing toggles...');
   // Load saved states
   chrome.storage.sync.get(STORAGE_KEYS.features, (result) => {
     const features = result[STORAGE_KEYS.features] || DEFAULT_FEATURES;
@@ -201,6 +215,7 @@ function initToggles() {
 }
 
 function saveFeatureState(featureId, enabled) {
+  log('[Popup] Saving feature state:', featureId, enabled);
   chrome.storage.sync.get(STORAGE_KEYS.features, (result) => {
     const features = result[STORAGE_KEYS.features] || DEFAULT_FEATURES;
     features[featureId] = enabled;
@@ -630,6 +645,7 @@ function removeKeyBinding(key) {
 
 // Save hotkey bindings
 async function saveHotkeyBindings() {
+  log('[Popup] Saving hotkey bindings:', currentHotkeyBindings);
   // Save to storage
   await chrome.storage.sync.set({ [STORAGE_KEYS.customHotkeys]: currentHotkeyBindings });
   
@@ -748,6 +764,7 @@ function openColorModal() {
 
 // Save mode colors to storage and notify content script
 async function saveModeColors() {
+  log('[Popup] Saving mode colors:', currentModeColors);
   // Save to storage
   await chrome.storage.sync.set({ [STORAGE_KEYS.customModeColors]: currentModeColors });
   
@@ -891,6 +908,7 @@ function createPresetCard(preset) {
 }
 
 async function applyPreset(presetId, mode) {
+  log('[Popup] Applying preset:', presetId, mode);
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     

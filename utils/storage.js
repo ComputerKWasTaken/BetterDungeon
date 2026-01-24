@@ -2,6 +2,14 @@
 // Centralized storage management for features and settings
 
 class StorageManager {
+  static debug = false;
+
+  static log(message, ...args) {
+    if (this.debug) {
+      console.log(message, ...args);
+    }
+  }
+
   static STORAGE_KEY = 'betterDungeonFeatures';
   static DEFAULT_FEATURES = {
     markdown: true,
@@ -12,6 +20,7 @@ class StorageManager {
     return new Promise((resolve) => {
       chrome.storage.sync.get(this.STORAGE_KEY, (result) => {
         const features = result[this.STORAGE_KEY] || this.DEFAULT_FEATURES;
+        this.log('[StorageManager] Retrieved features:', features);
         resolve(features);
       });
     });
@@ -20,6 +29,7 @@ class StorageManager {
   static async saveFeatures(features) {
     return new Promise((resolve) => {
       chrome.storage.sync.set({ [this.STORAGE_KEY]: features }, () => {
+        this.log('[StorageManager] Saved features:', features);
         resolve();
       });
     });

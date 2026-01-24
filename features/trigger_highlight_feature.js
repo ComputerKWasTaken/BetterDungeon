@@ -19,6 +19,13 @@ class TriggerHighlightFeature {
     this.suggestedTriggerThreshold = 3; // Minimum occurrences to suggest
     // Cache for noun frequencies in current context
     this.nounFrequencies = new Map();
+    this.debug = false;
+  }
+
+  log(message, ...args) {
+    if (this.debug) {
+      console.log(message, ...args);
+    }
   }
 
   async init() {

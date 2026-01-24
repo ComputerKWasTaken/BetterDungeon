@@ -21,6 +21,13 @@ class MarkdownFeature {
     // Auto-apply instructions state
     this.autoApplyEnabled = false;
     this.currentAdventureId = null;
+    this.debug = false;
+  }
+
+  log(message, ...args) {
+    if (this.debug) {
+      console.log(message, ...args);
+    }
   }
 
   // Called when feature is registered
@@ -76,7 +83,7 @@ class MarkdownFeature {
       }
       await this.wait(250);
     }
-    console.warn('MarkdownFeature: Adventure page not ready for auto-apply');
+    this.log('MarkdownFeature: Adventure page not ready for auto-apply');
     return false;
   }
 

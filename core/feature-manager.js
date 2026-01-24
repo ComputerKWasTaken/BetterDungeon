@@ -3,9 +3,16 @@
 
 class FeatureManager {
   constructor() {
+    this.debug = false;
     this.features = new Map();
     this.featureClasses = new Map();
     this.storageManager = window.StorageManager;
+  }
+
+  log(message, ...args) {
+    if (this.debug) {
+      console.log(message, ...args);
+    }
   }
 
   async initialize() {

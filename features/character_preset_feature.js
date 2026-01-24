@@ -23,6 +23,13 @@ class CharacterPresetFeature {
     this.hasAutoFilled = false; // Track if we already auto-filled current field
     this.scenarioSessionUrl = null; // Track the scenario URL to detect new scenarios
     this.isFirstFieldOfScenario = true; // Track if this is the first field we've seen
+    this.debug = false;
+  }
+
+  log(message, ...args) {
+    if (this.debug) {
+      console.log(message, ...args);
+    }
   }
 
   async init() {
