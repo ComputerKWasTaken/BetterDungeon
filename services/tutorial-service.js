@@ -91,6 +91,15 @@ class TutorialService {
         expandCard: true
       },
       {
+        id: 'notes',
+        type: 'spotlight',
+        target: '[data-feature="notes"]',
+        title: 'Adventure Notes',
+        content: 'Jot down anything you want to remember about your adventure! Notes are saved per adventure, so each story has its own notepad.',
+        position: 'top',
+        expandCard: true
+      },
+      {
         id: 'presets-tab',
         type: 'spotlight',
         target: '[data-tab="presets"]',

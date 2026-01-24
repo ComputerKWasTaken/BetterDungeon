@@ -427,6 +427,8 @@ class NotesFeature {
   async loadPosition() {
     try {
       const result = await chrome.storage.local.get(this.positionStorageKey);
+      if (!this.notesPanel) return;
+      
       const position = result[this.positionStorageKey] || this.defaultPosition;
       
       this.notesPanel.style.right = position.right + 'px';
@@ -435,6 +437,8 @@ class NotesFeature {
       this.notesPanel.style.height = position.height + 'px';
     } catch (e) {
       console.error('[Notes] Error loading position:', e);
+      if (!this.notesPanel) return;
+      
       // Apply defaults
       this.notesPanel.style.right = this.defaultPosition.right + 'px';
       this.notesPanel.style.bottom = this.defaultPosition.bottom + 'px';
