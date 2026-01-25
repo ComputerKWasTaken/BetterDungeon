@@ -407,6 +407,7 @@ class TryFeature {
       margin-bottom: 4px;
       background: rgba(0, 0, 0, 0.3);
       border-radius: 6px;
+      font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       font-size: 12px;
       color: #ccc;
     `;
@@ -730,33 +731,22 @@ class TryFeature {
   }
 
   rollOutcome() {
-    // Roll a random number between 0 and 100
+    // Two-roll system: more intuitive odds
+    // Roll 1: Success or fail based on success chance slider
+    // Roll 2: Was it a critical?
+    
     const roll = Math.random() * 100;
-    
-    // Get the success chance based on weight (5% to 95%)
     const successChance = this.getSuccessChance();
+    const succeeded = roll < successChance;
     
-    // Calculate zone boundaries, ensuring they don't overlap with critical zones
-    // Critical zones are fixed at extremes: [0, critChance) and [100-critChance, 100)
-    // Fail/Succeed zones must fit within [critChance, 100-critChance)
-    const critZoneSize = this.criticalChance;
-    const availableZone = 100 - (2 * critZoneSize); // Space between crit zones
-    const failZoneSize = Math.round((100 - successChance) / 100 * availableZone);
-    const failThreshold = critZoneSize + failZoneSize;
+    // Second roll for critical
+    const critRoll = Math.random() * 100;
+    const isCrit = critRoll < this.criticalChance;
     
-    // Critical fail: 0 to criticalChance%
-    // Fail: criticalChance% to failThreshold%
-    // Succeed: failThreshold% to (100 - criticalChance)%
-    // Critical succeed: (100 - criticalChance)% to 100%
-    
-    if (roll < this.criticalChance) {
-      return 'critically fail';
-    } else if (roll < failThreshold) {
-      return 'fail';
-    } else if (roll < (100 - this.criticalChance)) {
-      return 'succeed';
+    if (succeeded) {
+      return isCrit ? 'critically succeed' : 'succeed';
     } else {
-      return 'critically succeed';
+      return isCrit ? 'critically fail' : 'fail';
     }
   }
 

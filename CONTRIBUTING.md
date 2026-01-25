@@ -65,6 +65,7 @@ These are future additions to the extension that I want to implement, both befor
 
 ### 🟢 Low
 <!-- Nice-to-have improvements when time permits -->
+Change all features to use the natively downloaded IBM Plex Sans font instead of trying to inherit the font
 
 ### 📋 Backlog
 <!-- Future ideas and long-term goals -->
