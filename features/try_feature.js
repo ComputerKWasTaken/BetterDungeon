@@ -277,7 +277,8 @@ class TryFeature {
     });
 
     // Hover offset - hover sprite is to the RIGHT, so shift LEFT (more negative)
-    const hoverOffset = -250;
+    // Use -180 for smaller buttons (Try, Say, See) vs -250 for longer buttons (Attempt was longer)
+    const hoverOffset = -180;
 
     button.addEventListener('mouseenter', () => {
       const ps = getPositioners();

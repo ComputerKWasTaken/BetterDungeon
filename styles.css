@@ -808,29 +808,6 @@
   overflow: hidden;
 }
 
-.bd-mode-button-colored::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(
-    135deg,
-    rgba(var(--bd-button-rgb), 0.2) 0%,
-    rgba(var(--bd-button-rgb), 0.25) 40%,
-    rgba(var(--bd-button-rgb), 0.45) 100%
-  );
-  border-radius: inherit;
-  pointer-events: none;
-  z-index: 0;
-  transition: opacity 0.2s ease;
-}
-
-.bd-mode-button-colored:hover::before {
-  background: rgba(var(--bd-button-rgb), 0.5);
-}
-
 /* ============================================
    CHARACTER PRESET OVERLAY
    ============================================ */
