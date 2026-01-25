@@ -44,15 +44,15 @@
   --bd-mode-story-glow: rgba(251, 191, 36, 0.15);
   --bd-mode-story-rgb: 251, 191, 36;
   
-  --bd-mode-see: #ec4899;           /* Pink */
-  --bd-mode-see-light: #f472b6;
-  --bd-mode-see-glow: rgba(236, 72, 153, 0.15);
-  --bd-mode-see-rgb: 236, 72, 153;
+  --bd-mode-see: #06b6d4;           /* Cyan */
+  --bd-mode-see-light: #22d3ee;
+  --bd-mode-see-glow: rgba(6, 182, 212, 0.15);
+  --bd-mode-see-rgb: 6, 182, 212;
   
-  --bd-mode-command: #06b6d4;       /* Cyan */
-  --bd-mode-command-light: #22d3ee;
-  --bd-mode-command-glow: rgba(6, 182, 212, 0.15);
-  --bd-mode-command-rgb: 6, 182, 212;
+  --bd-mode-command: #f97316;       /* Orange */
+  --bd-mode-command-light: #fb923c;
+  --bd-mode-command-glow: rgba(249, 115, 22, 0.15);
+  --bd-mode-command-rgb: 249, 115, 22;
   
   /* === Status Colors === */
   --bd-success: #22c55e;            /* Success states */
@@ -802,10 +802,29 @@
   --bd-mode-glow: var(--bd-mode-command-glow);
 }
 
-/* Mode selection button gradient styling */
+/* Mode selection button gradient styling (Dynamic theme only - applied via JS) */
 .bd-mode-button-colored {
   position: relative;
   overflow: hidden;
+}
+
+.bd-mode-button-colored::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(var(--bd-button-rgb), 0.2) 0%,
+    rgba(var(--bd-button-rgb), 0.25) 40%,
+    rgba(var(--bd-button-rgb), 0.45) 100%
+  );
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  transition: opacity 0.2s ease;
 }
 
 /* ============================================

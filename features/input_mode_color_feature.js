@@ -10,12 +10,12 @@ class InputModeColorFeature {
   
   // Default colors (hex format for easy editing)
   static DEFAULT_COLORS = {
-    do: '#3b82f6',       // Blue
-    try: '#a855f7',  // Purple
-    say: '#22c55e',      // Green
-    story: '#fbbf24',    // Amber/Gold
-    see: '#ec4899',      // Pink
-    command: '#06b6d4'   // Cyan
+    do: '#3b82f6',       // Blue - Primary action, confidence
+    try: '#a855f7',      // Purple - Uncertainty, magic, RNG
+    say: '#22c55e',      // Green - Dialogue, communication
+    story: '#fbbf24',    // Amber/Gold - Authorial, creativity
+    see: '#06b6d4',      // Cyan - Clarity, vision, perception
+    command: '#f97316'   // Orange - Authority, directives
   };
 
   constructor() {
@@ -215,7 +215,32 @@ class InputModeColorFeature {
     }
   }
 
+  // Check if the current theme is Dynamic (no sprites)
+  isDynamicTheme() {
+    // Dynamic theme has no sprite images - check for sprite containers with 0 width
+    const spriteContainer = document.querySelector('[aria-label="Change input mode"] div[style*="position: absolute"]');
+    if (spriteContainer) {
+      const style = window.getComputedStyle(spriteContainer);
+      return parseFloat(style.width) === 0;
+    }
+    // Fallback: check any mode button for sprites
+    const anyModeButton = document.querySelector('[aria-label^="Set to"]');
+    if (anyModeButton) {
+      const sprite = anyModeButton.querySelector('div[style*="position: absolute"]');
+      if (sprite) {
+        const style = window.getComputedStyle(sprite);
+        return parseFloat(style.width) === 0;
+      }
+    }
+    return true; // Default to Dynamic if can't detect
+  }
+
   styleModeButtons() {
+    // Only apply button coloring for Dynamic theme
+    if (!this.isDynamicTheme()) {
+      return;
+    }
+
     // Style mode selection buttons in the input mode menu (is_Button elements)
     const modeSelectors = [
       { selector: '[aria-label="Set to \'Do\' mode"]', mode: 'do' },

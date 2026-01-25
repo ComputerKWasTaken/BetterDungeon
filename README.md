@@ -47,7 +47,7 @@ Settings sync across Chromium browsers.
   | `R` | Retry | | `Y` | Redo |
   | `E` | Erase | | `Esc` | Exit Input |
 
-- **Input Mode Colors** — Color-coded input box so you know what mode you're in at a glance. **Fully customizable** via the popup. Default colors: Blue (Do), Purple (Try), Green (Say), Gold (Story), Pink (See), Cyan (Command).
+- **Input Mode Colors** — Color-coded input box so you know what mode you're in at a glance. **Fully customizable** via the popup. Default colors: Blue (Do), Purple (Try), Green (Say), Gold (Story), Cyan (See), Orange (Command).
 
 - **Trigger Highlighting** — Story card triggers get highlighted in the context viewer. Hover to jump to the card. Also suggests proper nouns that might deserve their own story cards.
 

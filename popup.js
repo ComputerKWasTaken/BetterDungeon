@@ -20,12 +20,12 @@ const STORAGE_KEYS = {
 
 // Default mode colors (hex format)
 const DEFAULT_MODE_COLORS = {
-  do: '#3b82f6',       // Blue
-  try: '#a855f7',  // Purple
-  say: '#22c55e',      // Green
-  story: '#fbbf24',    // Amber/Gold
-  see: '#ec4899',      // Pink
-  command: '#06b6d4'   // Cyan
+  do: '#3b82f6',       // Blue - Primary action, confidence
+  try: '#a855f7',      // Purple - Uncertainty, magic, RNG
+  say: '#22c55e',      // Green - Dialogue, communication
+  story: '#fbbf24',    // Amber/Gold - Authorial, creativity
+  see: '#06b6d4',      // Cyan - Clarity, vision, perception
+  command: '#f97316'   // Orange - Authority, directives
 };
 
 // Hotkey action definitions (must match hotkey_feature.js)
