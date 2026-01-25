@@ -19,7 +19,7 @@ class HotkeyFeature {
     'undo': { selector: '[aria-label="Undo change"]', description: 'Undo', category: 'history' },
     'redo': { selector: '[aria-label="Redo change"]', description: 'Redo', category: 'history' },
     'modeDo': { selector: '[aria-label="Set to \'Do\' mode"]', description: 'Do Mode', requiresMenu: true, category: 'modes' },
-    'modeAttempt': { selector: '[aria-label="Set to \'Attempt\' mode"]', description: 'Attempt Mode', requiresMenu: true, featureDependent: 'attempt', category: 'modes' },
+    'modeTry': { selector: '[aria-label="Set to \'Try\' mode"]', description: 'Try Mode', requiresMenu: true, featureDependent: 'try', category: 'modes' },
     'modeSay': { selector: '[aria-label="Set to \'Say\' mode"]', description: 'Say Mode', requiresMenu: true, category: 'modes' },
     'modeStory': { selector: '[aria-label="Set to \'Story\' mode"]', description: 'Story Mode', requiresMenu: true, category: 'modes' },
     'modeSee': { selector: '[aria-label="Set to \'See\' mode"]', description: 'See Mode', requiresMenu: true, category: 'modes' },
@@ -36,7 +36,7 @@ class HotkeyFeature {
     'z': 'undo',
     'y': 'redo',
     '1': 'modeDo',
-    '2': 'modeAttempt',
+    '2': 'modeTry',
     '3': 'modeSay',
     '4': 'modeStory',
     '5': 'modeSee',
@@ -143,8 +143,8 @@ class HotkeyFeature {
 
   isFeatureEnabled(featureId) {
     // Check if the feature-dependent button exists in DOM (means feature is enabled)
-    if (featureId === 'attempt') {
-      return !!document.querySelector('[aria-label="Set to \'Attempt\' mode"]');
+    if (featureId === 'try') {
+      return !!document.querySelector('[aria-label="Set to \'Try\' mode"]');
     }
     if (featureId === 'command') {
       return !!document.querySelector('[aria-label="Set to \'Command\' mode"]');

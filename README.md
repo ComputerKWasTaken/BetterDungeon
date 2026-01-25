@@ -28,9 +28,10 @@ Settings sync across Chromium browsers.
 
 - **Command Mode** — Send narrative commands like "Time Skip" or "Scene Change" as story headers. The easiest way to steer your story without awkward workarounds.
 
-- **Attempt Mode** — RNG-based action outcomes. Type what you want to attempt, roll the dice. Critical fails and critical successes included.
+- **Try Mode** — RNG-based action outcomes. Type what you want to try, roll the dice. Critical fails and critical successes included.
   - Configurable crit chance (0-20%)
-  - Tweak odds with arrow keys (↑↓)
+  - Adjust success chance from 5% to 95% with arrow keys (↑↓)
+  - Visual success bar shows your current odds
 
 ### Quality of Life
 
@@ -46,7 +47,7 @@ Settings sync across Chromium browsers.
   | `R` | Retry | | `Y` | Redo |
   | `E` | Erase | | `Esc` | Exit Input |
 
-- **Input Mode Colors** — Color-coded input box so you know what mode you're in at a glance. **Fully customizable** via the popup. Default colors: Blue (Do), Purple (Attempt), Green (Say), Gold (Story), Pink (See), Cyan (Command).
+- **Input Mode Colors** — Color-coded input box so you know what mode you're in at a glance. **Fully customizable** via the popup. Default colors: Blue (Do), Purple (Try), Green (Say), Gold (Story), Pink (See), Cyan (Command).
 
 - **Trigger Highlighting** — Story card triggers get highlighted in the context viewer. Hover to jump to the card. Also suggests proper nouns that might deserve their own story cards.
 

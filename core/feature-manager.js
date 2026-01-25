@@ -30,8 +30,8 @@ class FeatureManager {
       this.featureClasses.set('command', CommandFeature);
     }
 
-    if (typeof AttemptFeature !== 'undefined') {
-      this.featureClasses.set('attempt', AttemptFeature);
+    if (typeof TryFeature !== 'undefined') {
+      this.featureClasses.set('try', TryFeature);
     }
 
     if (typeof ReadablePositionFeature !== 'undefined') {

@@ -19,7 +19,7 @@
         "core/feature-manager.js",
         "features/markdown_feature.js",
         "features/command_feature.js",
-        "features/attempt_feature.js",
+        "features/try_feature.js",
         "features/readable_position_feature.js",
         "features/trigger_highlight_feature.js",
         "features/hotkey_feature.js",

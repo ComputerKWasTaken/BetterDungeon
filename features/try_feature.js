@@ -1,22 +1,23 @@
-// BetterDungeon - Attempt Input Feature
-// Adds an "Attempt" input mode that uses RNG to determine success/failure
+// BetterDungeon - Try Input Feature
+// Adds a "Try" input mode that uses RNG to determine success/failure
 
-class AttemptFeature {
-  static id = 'attempt';
+class TryFeature {
+  static id = 'try';
 
   constructor() {
     this.observer = null;
-    this.attemptButton = null;
-    this.isAttemptMode = false;
+    this.tryButton = null;
+    this.isTryMode = false;
     this.boundKeyHandler = null;
     this.submitClickHandler = null;
     this.modeChangeHandler = null;
     this.criticalChance = 5; // Default 5%
-    this.pendingAttemptText = null; // Track the attempt text we're waiting for
+    this.pendingTryText = null; // Track the try text we're waiting for
     this.actionIconObserver = null; // Observer for updating action icons
-    this.weight = 0; // Weight modifier: -5 (harder) to +5 (easier)
+    this.weight = 0; // Weight modifier: -9 (5% success) to +9 (95% success)
     this.weightKeyHandler = null; // Handler for Up/Down arrow keys
-    this.debug = false;
+    this.successBar = null; // The visible success chance bar element
+    this.debug = true;
   }
 
   log(message, ...args) {
@@ -26,10 +27,10 @@ class AttemptFeature {
   }
 
   init() {
-    console.log('[Attempt] Initializing Attempt feature...');
+    console.log('[Try] Initializing Try feature...');
     this.loadSettings();
     this.setupObserver();
-    this.injectAttemptButton();
+    this.injectTryButton();
   }
 
   destroy() {
@@ -57,10 +58,11 @@ class AttemptFeature {
       document.removeEventListener('keydown', this.weightKeyHandler, true);
       this.weightKeyHandler = null;
     }
-    this.removeAttemptButton();
+    this.removeTryButton();
+    this.removeSuccessBar();
     this.restoreModeDisplay();
-    this.isAttemptMode = false;
-    this.pendingAttemptText = null;
+    this.isTryMode = false;
+    this.pendingTryText = null;
     this.weight = 0;
   }
 
@@ -69,14 +71,14 @@ class AttemptFeature {
     if (typeof chrome !== 'undefined' && chrome.storage) {
       chrome.storage.sync.get('betterDungeonSettings', (result) => {
         const settings = result.betterDungeonSettings || {};
-        this.criticalChance = settings.attemptCriticalChance ?? 5;
+        this.criticalChance = settings.tryCriticalChance ?? 5;
       });
 
       // Listen for settings changes
       chrome.storage.onChanged.addListener((changes, namespace) => {
         if (namespace === 'sync' && changes.betterDungeonSettings) {
           const newSettings = changes.betterDungeonSettings.newValue || {};
-          this.criticalChance = newSettings.attemptCriticalChance ?? 5;
+          this.criticalChance = newSettings.tryCriticalChance ?? 5;
         }
       });
     }
@@ -84,7 +86,7 @@ class AttemptFeature {
 
   setupObserver() {
     this.observer = new MutationObserver((mutations) => {
-      this.injectAttemptButton();
+      this.injectTryButton();
     });
 
     this.observer.observe(document.body, {
@@ -102,7 +104,7 @@ class AttemptFeature {
     return null;
   }
 
-  injectAttemptButton() {
+  injectTryButton() {
     const menu = this.findInputModeMenu();
     if (!menu) return;
 
@@ -112,10 +114,10 @@ class AttemptFeature {
     const sayButton = menu.querySelector('[aria-label="Set to \'Say\' mode"]');
 
     // Check if we already added the button
-    const existingButton = menu.querySelector('[aria-label="Set to \'Attempt\' mode"]');
+    const existingButton = menu.querySelector('[aria-label="Set to \'Try\' mode"]');
     if (existingButton) {
       // Verify it's in the correct position (should be between Do and Say)
-      // Correct position: doButton -> attemptButton -> sayButton
+      // Correct position: doButton -> tryButton -> sayButton
       if (existingButton.previousElementSibling === doButton) {
         return; // Already in correct position
       }
@@ -124,31 +126,31 @@ class AttemptFeature {
     }
 
     // Clone the Do button as a template
-    const attemptButton = doButton.cloneNode(true);
+    const tryButton = doButton.cloneNode(true);
     
     // Update aria-label
-    attemptButton.setAttribute('aria-label', "Set to 'Attempt' mode");
+    tryButton.setAttribute('aria-label', "Set to 'Try' mode");
     
     // Update the icon text - use controller icon (w_controller)
-    const iconElement = attemptButton.querySelector('.font_icons');
+    const iconElement = tryButton.querySelector('.font_icons');
     if (iconElement) {
       iconElement.textContent = 'w_controller'; // Using controller icon
     }
     
     // Update the label text
-    const labelElement = attemptButton.querySelector('.font_body');
+    const labelElement = tryButton.querySelector('.font_body');
     if (labelElement) {
-      labelElement.textContent = 'Attempt';
+      labelElement.textContent = 'Try';
     }
 
     // Remove any existing click handlers by cloning without event listeners
-    const cleanButton = attemptButton.cloneNode(true);
+    const cleanButton = tryButton.cloneNode(true);
     
     // Add our click handler
     cleanButton.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      this.activateAttemptMode();
+      this.activateTryMode();
     });
 
     // Insert the button after the Do button (between Do and Say)
@@ -160,7 +162,7 @@ class AttemptFeature {
       menu.appendChild(cleanButton);
     }
 
-    this.attemptButton = cleanButton;
+    this.tryButton = cleanButton;
 
     // Apply sprite theming for non-Dynamic themes
     this.applySpriteTheming(cleanButton, sayButton || doButton);
@@ -295,16 +297,16 @@ class AttemptFeature {
     });
   }
 
-  removeAttemptButton() {
-    const button = document.querySelector('[aria-label="Set to \'Attempt\' mode"]');
+  removeTryButton() {
+    const button = document.querySelector('[aria-label="Set to \'Try\' mode"]');
     if (button) {
       button.remove();
     }
-    this.attemptButton = null;
+    this.tryButton = null;
   }
 
-  activateAttemptMode() {
-    this.isAttemptMode = true;
+  activateTryMode() {
+    this.isTryMode = true;
 
     // Click the Do button first to set the base mode (action text, not story text)
     const doButton = document.querySelector('[aria-label="Set to \'Do\' mode"]');
@@ -319,9 +321,10 @@ class AttemptFeature {
         closeButton.click();
       }
       
-      // After menu closes, update the UI to show "Attempt" mode
+      // After menu closes, update the UI to show "Try" mode
       setTimeout(() => {
         this.updateModeDisplay();
+        this.injectSuccessBar();
         
         // Show first-use hint
         this.showFirstUseHint();
@@ -349,7 +352,7 @@ class AttemptFeature {
     }
 
     const handleWeightKey = (e) => {
-      if (!this.isAttemptMode) return;
+      if (!this.isTryMode) return;
       
       const textarea = document.querySelector('#game-text-input');
       if (!textarea || document.activeElement !== textarea) return;
@@ -370,27 +373,124 @@ class AttemptFeature {
 
   adjustWeight(delta) {
     const oldWeight = this.weight;
-    this.weight = Math.max(-5, Math.min(5, this.weight + delta));
+    this.weight = Math.max(-9, Math.min(9, this.weight + delta));
     
     if (this.weight !== oldWeight) {
-      this.updatePlaceholderWithWeight();
+      this.updateSuccessBar();
     }
   }
 
-  getWeightLabel() {
-    if (this.weight === 0) return '';
-    if (this.weight > 0) return ` [+${this.weight} Advantage]`;
-    return ` [${this.weight} Disadvantage]`;
+  getSuccessChance() {
+    // Weight shifts the success threshold by 5% per level
+    // Weight -9: 5% success, Weight 0: 50% success, Weight +9: 95% success
+    const baseChance = 50;
+    const weightShift = this.weight * 5;
+    return Math.max(5, Math.min(95, baseChance + weightShift));
   }
 
-  updatePlaceholderWithWeight() {
-    const textarea = document.querySelector('#game-text-input');
-    if (textarea) {
-      const baseText = 'What do you attempt to do?';
-      const weightLabel = this.getWeightLabel();
-      const hint = this.weight === 0 ? ' (↑↓ with arrow keys to adjust odds)' : '';
-      textarea.placeholder = baseText + weightLabel + hint;
+  injectSuccessBar() {
+    // Remove any existing bar first
+    this.removeSuccessBar();
+    
+    // Find the input container to place the bar above/near it
+    const inputContainer = document.querySelector('#game-text-input')?.parentElement;
+    if (!inputContainer) return;
+    
+    // Create the success bar container
+    const barContainer = document.createElement('div');
+    barContainer.id = 'bd-success-bar-container';
+    barContainer.style.cssText = `
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      margin-bottom: 4px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 6px;
+      font-size: 12px;
+      color: #ccc;
+    `;
+    
+    // Label
+    const label = document.createElement('span');
+    label.textContent = 'Success:';
+    label.style.cssText = 'white-space: nowrap; font-weight: 500;';
+    
+    // Bar background
+    const barBg = document.createElement('div');
+    barBg.style.cssText = `
+      flex: 1;
+      height: 12px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+      min-width: 100px;
+    `;
+    
+    // Bar fill
+    const barFill = document.createElement('div');
+    barFill.id = 'bd-success-bar-fill';
+    barFill.style.cssText = `
+      height: 100%;
+      border-radius: 6px;
+      transition: width 0.2s ease, background 0.2s ease;
+    `;
+    barBg.appendChild(barFill);
+    
+    // Percentage text
+    const percentText = document.createElement('span');
+    percentText.id = 'bd-success-percent';
+    percentText.style.cssText = 'min-width: 36px; text-align: right; font-weight: 600;';
+    
+    // Hint text
+    const hint = document.createElement('span');
+    hint.textContent = '(↑↓)';
+    hint.style.cssText = 'opacity: 0.6; font-size: 11px;';
+    
+    barContainer.appendChild(label);
+    barContainer.appendChild(barBg);
+    barContainer.appendChild(percentText);
+    barContainer.appendChild(hint);
+    
+    // Insert before the input container
+    inputContainer.parentElement.insertBefore(barContainer, inputContainer);
+    
+    this.successBar = barContainer;
+    this.updateSuccessBar();
+  }
+
+  updateSuccessBar() {
+    const fill = document.querySelector('#bd-success-bar-fill');
+    const percentText = document.querySelector('#bd-success-percent');
+    if (!fill || !percentText) return;
+    
+    const chance = this.getSuccessChance();
+    percentText.textContent = `${chance}%`;
+    fill.style.width = `${chance}%`;
+    
+    // Color gradient: red (low) -> yellow (mid) -> green (high)
+    let color;
+    if (chance <= 25) {
+      color = '#ef4444'; // Red
+    } else if (chance <= 40) {
+      color = '#f97316'; // Orange
+    } else if (chance <= 60) {
+      color = '#eab308'; // Yellow
+    } else if (chance <= 75) {
+      color = '#84cc16'; // Lime
+    } else {
+      color = '#22c55e'; // Green
     }
+    fill.style.background = color;
+  }
+
+  removeSuccessBar() {
+    const bar = document.querySelector('#bd-success-bar-container');
+    if (bar) {
+      bar.remove();
+    }
+    this.successBar = null;
   }
 
   watchForModeChanges() {
@@ -401,17 +501,17 @@ class AttemptFeature {
 
     // Watch for clicks on the "Change input mode" button or any mode selection
     const handleModeChange = (e) => {
-      if (!this.isAttemptMode) return;
+      if (!this.isTryMode) return;
 
       const target = e.target.closest('[aria-label]');
       if (!target) return;
 
       const ariaLabel = target.getAttribute('aria-label') || '';
       
-      // If user clicks "Change input mode" or selects a different mode, cancel attempt mode
+      // If user clicks "Change input mode" or selects a different mode, cancel try mode
       if (ariaLabel === 'Change input mode' ||
-          ariaLabel.startsWith("Set to '") && !ariaLabel.includes("Attempt")) {
-        this.deactivateAttemptMode();
+          ariaLabel.startsWith("Set to '") && !ariaLabel.includes("Try")) {
+        this.deactivateTryMode();
       }
     };
 
@@ -422,12 +522,12 @@ class AttemptFeature {
   }
 
   updateModeDisplay() {
-    // Update the current input mode button text from "do" to "attempt"
+    // Update the current input mode button text from "do" to "try"
     const modeButton = document.querySelector('[aria-label="Change input mode"]');
     if (modeButton) {
       const modeText = modeButton.querySelector('.font_body');
       if (modeText && modeText.textContent.toLowerCase() === 'do') {
-        modeText.textContent = 'attempt';
+        modeText.textContent = 'try';
       }
       
       // Update the icon to w_controller
@@ -437,8 +537,11 @@ class AttemptFeature {
       }
     }
 
-    // Update the placeholder text with weight info
-    this.updatePlaceholderWithWeight();
+    // Update the placeholder text
+    const textarea = document.querySelector('#game-text-input');
+    if (textarea) {
+      textarea.placeholder = 'What do you try to do?';
+    }
 
     // Update the send button icon
     const submitButton = document.querySelector('[aria-label="Submit action"]');
@@ -455,7 +558,7 @@ class AttemptFeature {
     const modeButton = document.querySelector('[aria-label="Change input mode"]');
     if (modeButton) {
       const modeText = modeButton.querySelector('.font_body');
-      if (modeText && modeText.textContent.toLowerCase() === 'attempt') {
+      if (modeText && modeText.textContent.toLowerCase() === 'try') {
         modeText.textContent = 'do';
       }
       
@@ -481,6 +584,9 @@ class AttemptFeature {
         iconElement.textContent = 'w_run';
       }
     }
+    
+    // Remove success bar
+    this.removeSuccessBar();
   }
 
   setupSubmitInterception() {
@@ -493,7 +599,7 @@ class AttemptFeature {
 
   setupKeyboardListener() {
     const handleKeyDown = (e) => {
-      if (!this.isAttemptMode) {
+      if (!this.isTryMode) {
         document.removeEventListener('keydown', handleKeyDown, true);
         return;
       }
@@ -505,18 +611,18 @@ class AttemptFeature {
           const content = textarea.value || '';
           
           if (content.trim()) {
-            // Format the content as an attempt with RNG result
-            const formattedContent = this.formatAsAttempt(content);
+            // Format the content as a try with RNG result
+            const formattedContent = this.formatAsTry(content);
             textarea.value = formattedContent;
             
             // Trigger input event so React picks up the change
             textarea.dispatchEvent(new Event('input', { bubbles: true }));
             
             // Watch for the new action element to appear and update its icon
-            this.watchForAttemptAction(formattedContent);
+            this.watchForTryAction(formattedContent);
             
-            // Reset attempt mode after submission
-            this.deactivateAttemptMode();
+            // Reset try mode after submission
+            this.deactivateTryMode();
           }
         }
       }
@@ -532,7 +638,7 @@ class AttemptFeature {
 
   setupSubmitButtonListener() {
     const handleClick = (e) => {
-      if (!this.isAttemptMode) return;
+      if (!this.isTryMode) return;
       
       // Check if the click is on the submit button
       const submitButton = e.target.closest('[aria-label="Submit action"]');
@@ -542,18 +648,18 @@ class AttemptFeature {
       if (textarea) {
         const content = textarea.value || '';
         if (content.trim()) {
-          // Format the content as an attempt with RNG result
-          const formattedContent = this.formatAsAttempt(content);
+          // Format the content as a try with RNG result
+          const formattedContent = this.formatAsTry(content);
           textarea.value = formattedContent;
           
           // Trigger input event so React picks up the change
           textarea.dispatchEvent(new Event('input', { bubbles: true }));
           
           // Watch for the new action element to appear and update its icon
-          this.watchForAttemptAction(formattedContent);
+          this.watchForTryAction(formattedContent);
           
-          // Reset attempt mode after submission
-          this.deactivateAttemptMode();
+          // Reset try mode after submission
+          this.deactivateTryMode();
         }
       }
     };
@@ -575,7 +681,7 @@ class AttemptFeature {
     }
     
     this.autoCleanupTimer = setTimeout(() => {
-      if (!this.isAttemptMode) return;
+      if (!this.isTryMode) return;
       
       const textarea = document.querySelector('#game-text-input');
       const isUserTyping = textarea && (document.activeElement === textarea || textarea.value.trim().length > 0);
@@ -586,13 +692,13 @@ class AttemptFeature {
         // Reschedule check - user is still active or not in story section
         this.scheduleAutoCleanup();
       } else {
-        this.deactivateAttemptMode();
+        this.deactivateTryMode();
       }
     }, 30000);
   }
 
-  deactivateAttemptMode() {
-    this.isAttemptMode = false;
+  deactivateTryMode() {
+    this.isTryMode = false;
     this.restoreModeDisplay();
     
     // Clean up auto-cleanup timer
@@ -601,7 +707,7 @@ class AttemptFeature {
       this.autoCleanupTimer = null;
     }
     
-    // Reset weight for next attempt
+    // Reset weight for next try
     this.weight = 0;
     
     // Clean up listeners
@@ -627,21 +733,25 @@ class AttemptFeature {
     // Roll a random number between 0 and 100
     const roll = Math.random() * 100;
     
-    // Weight shifts the success threshold by 5% per level
-    // Weight -5: 25% threshold (harder), Weight +5: 75% threshold (easier)
-    const baseThreshold = 50;
-    const weightShift = this.weight * 5; // Each weight level = 5% shift
-    const successThreshold = baseThreshold - weightShift;
+    // Get the success chance based on weight (5% to 95%)
+    const successChance = this.getSuccessChance();
     
-    // Critical zones are at the extremes
+    // Calculate zone boundaries, ensuring they don't overlap with critical zones
+    // Critical zones are fixed at extremes: [0, critChance) and [100-critChance, 100)
+    // Fail/Succeed zones must fit within [critChance, 100-critChance)
+    const critZoneSize = this.criticalChance;
+    const availableZone = 100 - (2 * critZoneSize); // Space between crit zones
+    const failZoneSize = Math.round((100 - successChance) / 100 * availableZone);
+    const failThreshold = critZoneSize + failZoneSize;
+    
     // Critical fail: 0 to criticalChance%
-    // Fail: criticalChance% to successThreshold%
-    // Succeed: successThreshold% to (100 - criticalChance)%
+    // Fail: criticalChance% to failThreshold%
+    // Succeed: failThreshold% to (100 - criticalChance)%
     // Critical succeed: (100 - criticalChance)% to 100%
     
     if (roll < this.criticalChance) {
       return 'critically fail';
-    } else if (roll < successThreshold) {
+    } else if (roll < failThreshold) {
       return 'fail';
     } else if (roll < (100 - this.criticalChance)) {
       return 'succeed';
@@ -650,9 +760,9 @@ class AttemptFeature {
     }
   }
 
-  watchForAttemptAction(attemptText) {
+  watchForTryAction(tryText) {
     // Store the text we're looking for (partial match since AI Dungeon may modify it)
-    this.pendingAttemptText = attemptText.toLowerCase().substring(0, 30);
+    this.pendingTryText = tryText.toLowerCase().substring(0, 30);
     
     // Clean up any existing observer
     if (this.actionIconObserver) {
@@ -668,13 +778,13 @@ class AttemptFeature {
       const actionTexts = document.querySelectorAll('#action-text');
       
       if (actionTexts.length > existingActionCount) {
-        // New action element appeared - check if it's our attempt
+        // New action element appeared - check if it's our try
         const latestAction = actionTexts[actionTexts.length - 1];
         const actionContent = latestAction.textContent?.toLowerCase() || '';
         
-        // Check if this action contains our attempt text
-        if (actionContent.includes('attempt to') || 
-            (this.pendingAttemptText && actionContent.includes(this.pendingAttemptText.substring(0, 15)))) {
+        // Check if this action contains our try text
+        if (actionContent.includes('try to') || 
+            (this.pendingTryText && actionContent.includes(this.pendingTryText.substring(0, 15)))) {
           
           // Find the action icon in the parent container
           const actionContainer = latestAction.closest('.is_Row, [id="transition-opacity"]');
@@ -686,7 +796,7 @@ class AttemptFeature {
           }
           
           // Clean up
-          this.pendingAttemptText = null;
+          this.pendingTryText = null;
           this.actionIconObserver.disconnect();
           this.actionIconObserver = null;
         }
@@ -705,12 +815,12 @@ class AttemptFeature {
       if (this.actionIconObserver) {
         this.actionIconObserver.disconnect();
         this.actionIconObserver = null;
-        this.pendingAttemptText = null;
+        this.pendingTryText = null;
       }
     }, 30000);
   }
 
-  formatAsAttempt(content) {
+  formatAsTry(content) {
     // Clean up the content - remove leading "I " or "You " if present
     let action = content.trim();
     
@@ -727,7 +837,7 @@ class AttemptFeature {
       action = action.replace(pattern, '');
     }
     
-    // Ensure the action starts lowercase (since it follows "attempt to")
+    // Ensure the action starts lowercase (since it follows "try to")
     if (action.length > 0) {
       action = action.charAt(0).toLowerCase() + action.slice(1);
     }
@@ -738,12 +848,12 @@ class AttemptFeature {
     // Roll for the outcome
     const outcome = this.rollOutcome();
     
-    // Format: "You attempt to [action], you [result]."
-    return `attempt to ${action}, you ${outcome}.`;
+    // Format: "You try to [action], you [result]."
+    return `try to ${action}, you ${outcome}.`;
   }
 }
 
 // Make available globally
 if (typeof window !== 'undefined') {
-  window.AttemptFeature = AttemptFeature;
+  window.TryFeature = TryFeature;
 }

@@ -11,7 +11,7 @@ class InputModeColorFeature {
   // Default colors (hex format for easy editing)
   static DEFAULT_COLORS = {
     do: '#3b82f6',       // Blue
-    attempt: '#a855f7',  // Purple
+    try: '#a855f7',  // Purple
     say: '#22c55e',      // Green
     story: '#fbbf24',    // Amber/Gold
     see: '#ec4899',      // Pink
@@ -219,7 +219,7 @@ class InputModeColorFeature {
     // Style mode selection buttons in the input mode menu (is_Button elements)
     const modeSelectors = [
       { selector: '[aria-label="Set to \'Do\' mode"]', mode: 'do' },
-      { selector: '[aria-label="Set to \'Attempt\' mode"]', mode: 'attempt' },
+      { selector: '[aria-label="Set to \'Try\' mode"]', mode: 'try' },
       { selector: '[aria-label="Set to \'Say\' mode"]', mode: 'say' },
       { selector: '[aria-label="Set to \'Story\' mode"]', mode: 'story' },
       { selector: '[aria-label="Set to \'See\' mode"]', mode: 'see' },
@@ -235,7 +235,7 @@ class InputModeColorFeature {
         // Map mode to CSS variable for button gradient
         const modeColorMap = {
           'do': 'var(--bd-mode-do-rgb)',
-          'attempt': 'var(--bd-mode-attempt-rgb)',
+          'try': 'var(--bd-mode-try-rgb)',
           'say': 'var(--bd-mode-say-rgb)',
           'story': 'var(--bd-mode-story-rgb)',
           'see': 'var(--bd-mode-see-rgb)',

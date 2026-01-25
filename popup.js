@@ -21,7 +21,7 @@ const STORAGE_KEYS = {
 // Default mode colors (hex format)
 const DEFAULT_MODE_COLORS = {
   do: '#3b82f6',       // Blue
-  attempt: '#a855f7',  // Purple
+  try: '#a855f7',  // Purple
   say: '#22c55e',      // Green
   story: '#fbbf24',    // Amber/Gold
   see: '#ec4899',      // Pink
@@ -38,7 +38,7 @@ const HOTKEY_ACTIONS = {
   'undo': { description: 'Undo', category: 'history' },
   'redo': { description: 'Redo', category: 'history' },
   'modeDo': { description: 'Do Mode', category: 'modes' },
-  'modeAttempt': { description: 'Attempt Mode*', category: 'modes' },
+  'modeTry': { description: 'Try Mode*', category: 'modes' },
   'modeSay': { description: 'Say Mode', category: 'modes' },
   'modeStory': { description: 'Story Mode', category: 'modes' },
   'modeSee': { description: 'See Mode', category: 'modes' },
@@ -55,7 +55,7 @@ const DEFAULT_HOTKEY_BINDINGS = {
   'z': 'undo',
   'y': 'redo',
   '1': 'modeDo',
-  '2': 'modeAttempt',
+  '2': 'modeTry',
   '3': 'modeSay',
   '4': 'modeStory',
   '5': 'modeSee',
@@ -65,7 +65,7 @@ const DEFAULT_HOTKEY_BINDINGS = {
 const DEFAULT_FEATURES = {
   markdown: true,
   command: true,
-  attempt: true,
+  try: true,
   triggerHighlight: true,
   hotkey: true,
   favoriteInstructions: true,
@@ -76,7 +76,7 @@ const DEFAULT_FEATURES = {
 };
 
 const DEFAULT_SETTINGS = {
-  attemptCriticalChance: 5
+  tryCriticalChance: 5
 };
 
 // State
@@ -239,8 +239,8 @@ function initSettings() {
     const display = document.getElementById('critical-chance-value');
     
     if (slider && display) {
-      slider.value = settings.attemptCriticalChance;
-      display.textContent = `${settings.attemptCriticalChance}%`;
+      slider.value = settings.tryCriticalChance;
+      display.textContent = `${settings.tryCriticalChance}%`;
     }
   });
 
@@ -255,7 +255,7 @@ function initSettings() {
       
       chrome.storage.sync.get(STORAGE_KEYS.settings, (result) => {
         const settings = result[STORAGE_KEYS.settings] || DEFAULT_SETTINGS;
-        settings.attemptCriticalChance = value;
+        settings.tryCriticalChance = value;
         chrome.storage.sync.set({ [STORAGE_KEYS.settings]: settings });
       });
     });

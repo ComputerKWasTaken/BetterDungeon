@@ -259,7 +259,7 @@ BetterDungeon follows a dark mode design system for consistency. All variables a
 | Mode | Color | Hex |
 |------|-------|-----|
 | Do | Blue | `#3b82f6` |
-| Attempt | Purple | `#a855f7` |
+| Try | Purple | `#a855f7` |
 | Say | Green | `#22c55e` |
 | Story | Amber | `#fbbf24` |
 | See | Pink | `#ec4899` |

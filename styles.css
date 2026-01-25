@@ -29,10 +29,10 @@
   --bd-mode-do-glow: rgba(59, 130, 246, 0.15);
   --bd-mode-do-rgb: 59, 130, 246;
   
-  --bd-mode-attempt: #a855f7;       /* Purple */
-  --bd-mode-attempt-light: #c084fc;
-  --bd-mode-attempt-glow: rgba(168, 85, 247, 0.15);
-  --bd-mode-attempt-rgb: 168, 85, 247;
+  --bd-mode-try: #a855f7;       /* Purple */
+  --bd-mode-try-light: #c084fc;
+  --bd-mode-try-glow: rgba(168, 85, 247, 0.15);
+  --bd-mode-try-rgb: 168, 85, 247;
   
   --bd-mode-say: #22c55e;           /* Green */
   --bd-mode-say-light: #4ade80;
@@ -777,9 +777,9 @@
   --bd-mode-glow: var(--bd-mode-do-glow);
 }
 
-.bd-input-mode-colored[data-bd-input-mode="attempt"] {
-  --bd-mode-border: rgba(var(--bd-mode-attempt-rgb), 0.6);
-  --bd-mode-glow: var(--bd-mode-attempt-glow);
+.bd-input-mode-colored[data-bd-input-mode="try"] {
+  --bd-mode-border: rgba(var(--bd-mode-try-rgb), 0.6);
+  --bd-mode-glow: var(--bd-mode-try-glow);
 }
 
 .bd-input-mode-colored[data-bd-input-mode="say"] {

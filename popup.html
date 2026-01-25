@@ -71,25 +71,25 @@
           </div>
         </article>
 
-        <!-- Attempt Mode -->
-        <article class="feature-card" data-feature="attempt">
+        <!-- Try Mode -->
+        <article class="feature-card" data-feature="try">
           <div class="feature-row">
             <div class="feature-info">
               <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--bd-mode-attempt);">
+                <span class="feature-icon" style="color: var(--bd-mode-try);">
                   <span class="icon-dice-5"></span>
                 </span>
-                <h3 class="feature-title">Attempt Mode</h3>
+                <h3 class="feature-title">Try Mode</h3>
               </div>
-              <p class="feature-desc">Dice-roll action outcomes</p>
+              <p class="feature-desc">RNG-based action outcomes</p>
             </div>
             <label class="toggle">
-              <input type="checkbox" id="feature-attempt" checked>
+              <input type="checkbox" id="feature-try" checked>
               <span class="toggle-slider"></span>
             </label>
           </div>
           <div class="feature-details">
-            <p>RNG determines if actions succeed or fail. Formats as: <code>You attempt to [action], you [result].</code></p>
+            <p>RNG determines if actions succeed or fail. Formats as: <code>You try to [action], you [result].</code></p>
             <p class="feature-hint"><span class="icon-dice-5"></span> Outcomes: critically fail, fail, succeed, critically succeed.</p>
             <div class="feature-option">
               <div class="option-label">
@@ -175,7 +175,7 @@
           <div class="feature-details">
             <div class="color-grid" id="mode-color-display">
               <div class="color-chip" data-mode="do" style="--chip-color: #3b82f6"><span>Do</span></div>
-              <div class="color-chip" data-mode="attempt" style="--chip-color: #a855f7"><span>Attempt</span></div>
+              <div class="color-chip" data-mode="try" style="--chip-color: #a855f7"><span>Try</span></div>
               <div class="color-chip" data-mode="say" style="--chip-color: #22c55e"><span>Say</span></div>
               <div class="color-chip" data-mode="story" style="--chip-color: #fbbf24"><span>Story</span></div>
               <div class="color-chip" data-mode="see" style="--chip-color: #ec4899"><span>See</span></div>
@@ -231,7 +231,7 @@
               <div class="hotkey-group">
                 <h4>Input Modes</h4>
                 <div class="hotkey" data-action="modeDo"><kbd>1</kbd> Do</div>
-                <div class="hotkey" data-action="modeAttempt"><kbd>2</kbd> Attempt*</div>
+                <div class="hotkey" data-action="modeTry"><kbd>2</kbd> Try*</div>
                 <div class="hotkey" data-action="modeSay"><kbd>3</kbd> Say</div>
                 <div class="hotkey" data-action="modeStory"><kbd>4</kbd> Story</div>
                 <div class="hotkey" data-action="modeSee"><kbd>5</kbd> See</div>
@@ -640,9 +640,9 @@
             <span class="color-editor-label">Do</span>
             <input type="color" class="color-editor-input" data-mode="do" value="#3b82f6">
           </div>
-          <div class="color-editor-item" data-mode="attempt">
-            <span class="color-editor-label">Attempt</span>
-            <input type="color" class="color-editor-input" data-mode="attempt" value="#a855f7">
+          <div class="color-editor-item" data-mode="try">
+            <span class="color-editor-label">Try</span>
+            <input type="color" class="color-editor-input" data-mode="try" value="#a855f7">
           </div>
           <div class="color-editor-item" data-mode="say">
             <span class="color-editor-label">Say</span>

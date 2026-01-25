@@ -40,7 +40,7 @@ class AutoSeeFeature {
     // Mode selectors for switching
     this.modeSelectors = {
       'do': '[aria-label="Set to \'Do\' mode"]',
-      'attempt': '[aria-label="Set to \'Attempt\' mode"]',
+      'try': '[aria-label="Set to \'Try\' mode"]',
       'say': '[aria-label="Set to \'Say\' mode"]',
       'story': '[aria-label="Set to \'Story\' mode"]',
       'see': '[aria-label="Set to \'See\' mode"]',

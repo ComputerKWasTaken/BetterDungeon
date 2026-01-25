@@ -37,10 +37,10 @@ class TutorialService {
         expandCard: true
       },
       {
-        id: 'attempt-mode',
+        id: 'try-mode',
         type: 'spotlight',
-        target: '[data-feature="attempt"]',
-        title: 'Attempt Mode',
+        target: '[data-feature="try"]',
+        title: 'Try Mode',
         content: 'Add RNG-based outcomes to your actions! Roll for success or failure with configurable critical chances.',
         position: 'bottom',
         expandCard: true
