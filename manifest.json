@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BetterDungeon",
-  "version": "0.9.5",
+  "version": "1.0.0",
   "description": "An all-in-one browser extension for AI Dungeon that enhances the experience with QOL additions and brand new features.",
   "permissions": [
     "activeTab",
@@ -9,7 +9,7 @@
   ],
   "content_scripts": [
     {
-      "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*"],
+      "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"],
       "js": [
         "utils/dom.js",
         "utils/storage.js",
@@ -47,7 +47,7 @@
         "fonts/lucide/lucide.woff",
         "fonts/lucide/lucide.woff2"
       ],
-      "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*"]
+      "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"]
     }
   ],
   "icons": {
