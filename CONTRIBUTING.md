@@ -136,6 +136,7 @@ Each feature implements:
 
 ### v0.9.6
 - Ported over and improved the **Attempt** feature to be the **Try** feature
+- Fixed and improved the **Input Mode Color** feature
 
 ### v0.9.5
 - Added **"Auto See"** feature, which automatically triggers a See input command after every AI response or after a certain amount of turns
