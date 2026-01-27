@@ -73,6 +73,10 @@ class FeatureManager {
     if (typeof AutoEnableScriptsFeature !== 'undefined') {
       this.featureClasses.set('autoEnableScripts', AutoEnableScriptsFeature);
     }
+
+    if (typeof StoryCardModalDockFeature !== 'undefined') {
+      this.featureClasses.set('storyCardModalDock', StoryCardModalDockFeature);
+    }
   }
 
   async loadFeaturesFromStorage() {
@@ -80,7 +84,7 @@ class FeatureManager {
 
     this.featureClasses.forEach((FeatureClass, id) => {
       // Always-on QOL features that don't need user toggling
-      const alwaysEnabled = ['storyCardAnalytics', 'autoEnableScripts'];
+      const alwaysEnabled = ['storyCardAnalytics', 'autoEnableScripts', 'storyCardModalDock'];
       // Features that are disabled by default
       const defaultOff = ['autoSee'];
       

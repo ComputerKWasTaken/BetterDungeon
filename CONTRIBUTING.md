@@ -75,6 +75,7 @@ Each feature implements:
 ### v0.9.6
 - Ported over and improved the **Attempt** feature to be the **Try** feature
 - Fixed and improved the **Input Mode Color** feature
+- Added **Story Card Modal Dock** feature, which docks the story card modal to the right side of the screen and allows you to scroll through your story
 - **Improved the roll system** within the Try feature for more consistent odds and logic
 - Fixed color bleed issue on the buttons with the Input Mode color feature in custom themes
 

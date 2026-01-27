@@ -282,10 +282,7 @@ body {
 
 .section-icon {
   font-size: 14px;
-  /* Color is set via inline styles for each section */
 }
-
-/* Always On Section - Special styling */
 .section-always-on {
   background: linear-gradient(135deg, rgba(34, 197, 94, 0.08) 0%, rgba(34, 197, 94, 0.03) 100%);
   border-color: rgba(34, 197, 94, 0.2);
