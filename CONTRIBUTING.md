@@ -62,10 +62,14 @@ These are future additions to the extension that I want to implement, both befor
 
 ### 🟠 High
 <!-- Important features or improvements to prioritize -->
+- Improve the consistency of the Auto See and Hotkeys features
+This is because our state management system may not be fully optimized which causes inconsistencies (Auto See uses a complex multi-step system that needs more robust error/state handling and Hotkeys needs better state synchronization to prevent failing register updates)
+Luckily, these are the only two features where this appears to be a consistent problem :P
 
 ### 🟢 Low
 <!-- Nice-to-have improvements when time permits -->
-Change all features to use the natively downloaded IBM Plex Sans font instead of trying to inherit the font
+- Change all features to use the natively downloaded IBM Plex Sans font instead of trying to inherit the font
+- Let's fix up our icon color scheming (too many icons are now orange which looks bad)
 
 ### 📋 Backlog
 <!-- Future ideas and long-term goals -->
