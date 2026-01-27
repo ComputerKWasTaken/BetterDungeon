@@ -71,6 +71,21 @@
   --bd-mode-command-glow: rgba(249, 115, 22, 0.15);
   --bd-mode-command-rgb: 249, 115, 22;
   
+  /* === Section Icon Colors === */
+  --bd-section-input-modes: #a855f7;     /* Purple - communication/input */
+  --bd-section-formatting: #ec4899;       /* Pink - text/visual styling */
+  --bd-section-tools: #3b82f6;            /* Blue - utilities/tools */
+  --bd-section-automations: #f59e0b;      /* Amber - automation/lightning */
+  --bd-section-always-on: #22c55e;        /* Green - always active */
+  
+  /* === Feature Icon Colors === */
+  --bd-icon-markdown: #ec4899;            /* Pink - text formatting */
+  --bd-icon-hotkeys: #64748b;             /* Slate - keyboard */
+  --bd-icon-trigger: #eab308;             /* Yellow - highlighting */
+  --bd-icon-notes: #14b8a6;               /* Teal - notes/writing */
+  --bd-icon-analytics: #8b5cf6;           /* Violet - data/charts */
+  --bd-icon-palette: #f472b6;             /* Light pink - colors */
+  
   /* === Status Colors === */
   --bd-success: #22c55e;            /* Success states */
   --bd-success-bg: rgba(34, 197, 94, 0.15);
