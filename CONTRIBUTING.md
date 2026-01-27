@@ -75,6 +75,8 @@ Each feature implements:
 ### v0.9.6
 - Ported over and improved the **Attempt** feature to be the **Try** feature
 - Fixed and improved the **Input Mode Color** feature
+- **Improved the roll system** within the Try feature for more consistent odds and logic
+- Fixed color bleed issue on the buttons with the Input Mode color feature in custom themes
 
 ### v0.9.5
 - Added **"Auto See"** feature, which automatically triggers a See input command after every AI response or after a certain amount of turns
