@@ -72,7 +72,7 @@ Each feature implements:
 
 ### Changelog
 
-### v0.9.6 (in progress)
+### v1.0.0 (in progress)
 - Ported over and improved the **Attempt** feature to be the **Try** feature
 - Improved **Try** feature formatting with **dynamic templates** and **varied outcome phrases** to reduce monotony
 - Outcomes are now **bolded** in the story to improve AI model adherence and visibility (not real Markdown formatting, just emphasizes it to the AI model)
