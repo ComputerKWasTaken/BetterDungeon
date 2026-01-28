@@ -1204,165 +1204,74 @@
    NOTES FEATURE
    ============================================ */
 
-/* Toggle Button */
-.bd-notes-toggle {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--bd-bg-secondary) 0%, var(--bd-bg-primary) 100%);
-  border: 1px solid var(--bd-border-default);
-  color: var(--bd-text-secondary);
-  cursor: pointer;
-  z-index: 99998;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  box-shadow: var(--bd-shadow-md);
-  font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+.bd-notes-card-wrapper {
+  width: 100%;
+  max-width: 100%;
+  flex: 1 1 auto;
+  align-self: stretch;
+  box-sizing: border-box;
 }
 
-.bd-notes-toggle:hover {
-  background: linear-gradient(135deg, var(--bd-bg-tertiary) 0%, var(--bd-bg-secondary) 100%);
-  border-color: var(--bd-border-accent);
-  color: var(--bd-accent-primary);
-  transform: scale(1.05);
-  box-shadow: var(--bd-shadow-lg), 0 0 12px var(--bd-accent-glow);
-}
-
-.bd-notes-toggle.bd-notes-toggle-active {
-  background: linear-gradient(135deg, var(--bd-accent-primary) 0%, var(--bd-accent-secondary) 100%);
-  border-color: var(--bd-accent-primary);
-  color: white;
-}
-
-.bd-notes-toggle-icon {
-  font-size: 18px;
-  line-height: 1;
-}
-
-/* Notes Panel */
-.bd-notes-panel {
-  position: fixed;
-  right: 16px;
-  bottom: 80px;
-  width: 320px;
-  height: 240px;
-  min-width: 240px;
-  min-height: 150px;
-  max-width: 600px;
-  max-height: 500px;
+.bd-notes-card {
   background: linear-gradient(180deg, rgba(30, 30, 40, 0.98) 0%, rgba(20, 20, 28, 0.99) 100%);
   border: 1px solid var(--bd-border-default);
   border-radius: var(--bd-radius-xl);
-  box-shadow: var(--bd-shadow-xl);
-  z-index: 99999;
+  box-shadow: var(--bd-shadow-md);
   display: flex;
   flex-direction: column;
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(10px) scale(0.95);
-  transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
-  font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  font-family: var(--bd-font-family-primary);
 }
 
-.bd-notes-panel.bd-notes-visible {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0) scale(1);
-}
-
-.bd-notes-header {
+.bd-notes-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.04);
   border-bottom: 1px solid var(--bd-border-subtle);
-  border-radius: var(--bd-radius-xl) var(--bd-radius-xl) 0 0;
-  cursor: move;
-  flex-shrink: 0;
 }
 
-.bd-notes-title {
+.bd-notes-card-title {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--bd-text-primary);
-  user-select: none;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
 }
 
 .bd-notes-icon {
   font-size: 14px;
+  color: var(--bd-accent-light);
 }
 
-.bd-notes-close {
-  width: 24px;
-  height: 24px;
+.bd-notes-card-body {
+  padding: 12px;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  border-radius: var(--bd-radius-sm);
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bd-notes-helper {
+  font-size: 12px;
   color: var(--bd-text-muted);
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.15s ease;
-}
-
-.bd-notes-close:hover {
-  background: var(--bd-error-bg);
-  color: var(--bd-error);
-}
-
-.bd-notes-resize-handle {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 12px;
-  height: 12px;
-  cursor: nw-resize;
-  z-index: 1;
-}
-
-.bd-notes-resize-handle::before {
-  content: '';
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 6px;
-  height: 6px;
-  border-top: 2px solid var(--bd-text-muted);
-  border-left: 2px solid var(--bd-text-muted);
-  opacity: 0.4;
-  transition: opacity 0.15s ease;
-}
-
-.bd-notes-resize-handle:hover::before {
-  opacity: 0.8;
-}
-
-.bd-notes-body {
-  flex: 1;
-  padding: 8px;
-  overflow: auto;
-  display: flex;
 }
 
 .bd-notes-textarea {
   width: 100%;
-  height: 100%;
+  min-height: 160px;
   background: rgba(0, 0, 0, 0.2);
   border: 1px solid var(--bd-border-subtle);
   border-radius: var(--bd-radius-md);
   color: var(--bd-text-primary);
-  font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--bd-font-family-primary);
   font-size: 13px;
   line-height: 1.5;
   padding: 10px 12px;
@@ -1373,28 +1282,6 @@
 
 .bd-notes-textarea::placeholder {
   color: var(--bd-text-muted);
-}
-
-.bd-notes-textarea:focus {
-  border-color: var(--bd-accent-primary);
-  box-shadow: 0 0 0 2px var(--bd-accent-glow);
-}
-
-.bd-notes-textarea::-webkit-scrollbar {
-  width: 6px;
-}
-
-.bd-notes-textarea::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.bd-notes-textarea::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 3px;
-}
-
-.bd-notes-textarea::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
 }
 
 .bd-story-card-dock-modal {
@@ -1420,23 +1307,11 @@
 }
 
 @media (max-width: 480px) {
-  .bd-notes-toggle {
-    right: 12px;
-    bottom: 12px;
-    width: 44px;
-    height: 44px;
+  .bd-notes-card {
+    border-radius: var(--bd-radius-lg);
   }
-  
-  .bd-notes-panel {
-    right: 8px !important;
-    left: 8px !important;
-    bottom: 70px !important;
-    width: auto !important;
-    max-width: none;
-    max-height: 50vh;
-  }
-  
-  .bd-notes-resize-handle {
-    display: none;
+
+  .bd-notes-textarea {
+    min-height: 140px;
   }
 }

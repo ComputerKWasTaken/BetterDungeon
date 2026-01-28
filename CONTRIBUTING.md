@@ -72,11 +72,12 @@ Each feature implements:
 
 ### Changelog
 
-### v0.9.6
+### v0.9.6 (in progress)
 - Ported over and improved the **Attempt** feature to be the **Try** feature
 - Improved **Try** feature formatting with **dynamic templates** and **varied outcome phrases** to reduce monotony
 - Outcomes are now **bolded** in the story to improve AI model adherence and visibility (not real Markdown formatting, just emphasizes it to the AI model)
 - Added intelligent **sentence connectors** ('and'/'but') and punctuation handling for better narrative flow
+- Embedded **Adventure Notes** directly in Plot Components (no floating panel or resizer)
 - **Improved the roll system** within the Try feature for more consistent odds and logic
 - Fixed and improved the **Input Mode Color** feature
 - Added **Story Card Modal Dock** feature, which docks the story card modal to the right side of the screen and allows you to scroll through your story

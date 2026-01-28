@@ -1,32 +1,23 @@
 // BetterDungeon - Notes Feature
-// A resizable notes panel that saves per-adventure
+// An embedded notes card in Plot Components that saves per-adventure
 
 class NotesFeature {
   static id = 'notes';
 
   constructor() {
     // DOM elements
-    this.notesPanel = null;
-    this.toggleButton = null;
+    this.notesCard = null;
+    this.notesCardWrapper = null;
     this.textarea = null;
     
     // State
     this.currentAdventureId = null;
-    this.isVisible = false;
+    this.loadedAdventureId = null;
     this.saveDebounceTimer = null;
     
     // Settings
     this.enabled = true;
     this.storageKeyPrefix = 'betterDungeon_notes_';
-    this.positionStorageKey = 'betterDungeon_notesPosition';
-    
-    // Default position and size
-    this.defaultPosition = {
-      right: 16,
-      bottom: 100,
-      width: 320,
-      height: 240
-    };
     
     // Bound event handlers for cleanup
     this.boundUrlChangeHandler = null;
@@ -34,6 +25,10 @@ class NotesFeature {
     // DOM observer for adventure detection
     this.adventureObserver = null;
     this.adventureDetectionDebounce = null;
+
+    this.uiRetryTimer = null;
+    this.uiRetryCount = 0;
+    this.maxUiRetries = 12;
     
     // History API originals for cleanup
     this.originalPushState = null;
@@ -88,8 +83,11 @@ class NotesFeature {
   isAdventureUIPresent() {
     // These elements are always present on an active adventure page
     const gameplayOutput = document.querySelector('#gameplay-output');
-    const settingsButton = document.querySelector('div[aria-label="Game settings"]');
-    return !!(gameplayOutput && settingsButton);
+    const settingsButton = document.querySelector(
+      '[aria-label="Game settings"], [aria-label="Game Settings"], [aria-label="Game Menu"], [aria-label="Game menu"]'
+    );
+    const navigationBar = document.querySelector('[aria-label="Navigation bar"]');
+    return !!(gameplayOutput && (settingsButton || navigationBar));
   }
 
   // Extract adventure ID from URL
@@ -107,29 +105,26 @@ class NotesFeature {
     
     if (isOnAdventure) {
       if (newAdventureId !== this.currentAdventureId) {
-        // Save notes for previous adventure before switching
         if (this.currentAdventureId && this.textarea) {
           this.saveNotes();
         }
-        
+
         this.currentAdventureId = newAdventureId;
-        
-        // Create UI if needed and load notes
-        if (!this.notesPanel) {
-          this.createUI();
-        }
+        this.loadedAdventureId = null;
+      }
+
+      this.createUI();
+
+      if (this.currentAdventureId && this.textarea && this.loadedAdventureId !== this.currentAdventureId) {
         this.loadNotes();
-      } else if (!this.notesPanel) {
-        // Same adventure but UI was removed - recreate it
-        this.createUI();
-        this.loadNotes();
+        this.loadedAdventureId = this.currentAdventureId;
       }
     } else {
-      // Not on an adventure page or UI not ready - hide UI
       if (this.currentAdventureId && this.textarea) {
         this.saveNotes();
       }
       this.currentAdventureId = null;
+      this.loadedAdventureId = null;
       this.removeUI();
     }
   }
@@ -202,194 +197,229 @@ class NotesFeature {
 
   // ==================== UI CREATION ====================
 
-  createUI() {
-    if (this.notesPanel) return;
-    
-    // Create toggle button
-    this.toggleButton = document.createElement('button');
-    this.toggleButton.className = 'bd-notes-toggle';
-    this.toggleButton.innerHTML = '<span class="bd-notes-toggle-icon icon-notebook-pen"></span>';
-    this.toggleButton.title = 'Toggle Notes';
-    this.toggleButton.addEventListener('click', () => this.toggleVisibility());
-    document.body.appendChild(this.toggleButton);
-    
-    // Create notes panel
-    this.notesPanel = document.createElement('div');
-    this.notesPanel.className = 'bd-notes-panel';
-    this.notesPanel.innerHTML = `
-      <div class="bd-notes-header">
-        <div class="bd-notes-title">
+  findPlotTab() {
+    const tabs = document.querySelectorAll('[role="tab"]');
+    for (const tab of tabs) {
+      const ariaLabel = tab.getAttribute('aria-label')?.toLowerCase() || '';
+      if (ariaLabel.includes('plot')) {
+        return tab;
+      }
+    }
+    return null;
+  }
+
+  scheduleUiRetry() {
+    if (this.uiRetryTimer || this.uiRetryCount >= this.maxUiRetries) return;
+
+    this.uiRetryTimer = setTimeout(() => {
+      this.uiRetryTimer = null;
+      this.uiRetryCount += 1;
+      this.createUI();
+    }, 400);
+  }
+
+  isTabSelected(tab) {
+    if (!tab) return false;
+
+    const ariaLabel = tab.getAttribute('aria-label')?.toLowerCase() || '';
+    if (ariaLabel.includes('selected tab')) {
+      return true;
+    }
+
+    if (tab.getAttribute('aria-selected') === 'true') return true;
+    if (tab.getAttribute('data-state') === 'active') return true;
+    if (tab.classList.contains('active')) return true;
+
+    const classList = tab.className || '';
+    if (classList.includes('_bbc-c-primary') && !classList.includes('_bbc-c-coreA0')) {
+      return true;
+    }
+
+    return false;
+  }
+
+  isPlotTabActive() {
+    const plotTab = this.findPlotTab();
+    if (plotTab && this.isTabSelected(plotTab)) return true;
+
+    return !!this.findAddPlotComponentButton();
+  }
+
+  findAddPlotComponentButton() {
+    const byAriaLabel = document.querySelector('[aria-label="Add Plot Component"]');
+    if (byAriaLabel) return byAriaLabel;
+
+    const buttons = document.querySelectorAll('button, div[role="button"]');
+    for (const btn of buttons) {
+      if (btn.textContent?.toLowerCase().includes('add plot component')) {
+        return btn;
+      }
+    }
+    return null;
+  }
+
+  findPlotComponentCardByTitle(title) {
+    const normalizedTitle = title.toLowerCase();
+    const elements = document.querySelectorAll('h1, h2, h3, h4, h5, h6, p, span, div');
+
+    // Walk up from the title to the card container with a textarea.
+    for (const el of elements) {
+      if (el.closest('.bd-notes-card')) continue;
+      const text = el.textContent?.trim().toLowerCase();
+      if (!text || !text.startsWith(normalizedTitle)) continue;
+
+      let card = el.closest('[class*="Column"], [class*="Card"], section, article, div');
+      while (card && !card.querySelector('textarea')) {
+        card = card.parentElement;
+      }
+      if (card) {
+        return card;
+      }
+    }
+
+    return null;
+  }
+
+  findPlotComponentsContainer() {
+    const addButton = this.findAddPlotComponentButton();
+    if (addButton) {
+      const addColumn = addButton.closest('[class*="Column"], [class*="column"]') || addButton.parentElement;
+      if (addColumn) {
+        let child = addColumn;
+        let node = addColumn.parentElement;
+        while (node) {
+          const className = node.className || '';
+          const isColumn = className.includes('Column') || className.includes('column');
+          const isStretch = className.includes('_ai-stretch') || className.includes('stretch');
+          const isCentered = className.includes('_ai-center') || className.includes('center');
+
+          if (isColumn && isStretch && !isCentered) {
+            // Insert above the Add Plot Component area, but inside the full-width Plot Components column.
+            return { container: node, insertBefore: child };
+          }
+
+          child = node;
+          node = node.parentElement;
+        }
+      }
+
+      const addRow = addButton.closest('[class*="Row"], [class*="row"]') || addButton.parentElement;
+      const container = addRow?.parentElement || addRow;
+      if (container) {
+        // Insert above the Add Plot Component button so it stays last.
+        return { container, insertBefore: addRow };
+      }
+    }
+
+    // Fallback: append after the last existing plot component.
+    const plotEssentialsCard = this.findPlotComponentCardByTitle('plot essentials');
+    if (plotEssentialsCard?.parentElement) {
+      return { container: plotEssentialsCard.parentElement, insertBefore: null };
+    }
+
+    const authorNoteCard = this.findPlotComponentCardByTitle("author's note");
+    if (authorNoteCard?.parentElement) {
+      return { container: authorNoteCard.parentElement, insertBefore: null };
+    }
+
+    const fallbackCard = this.findPlotComponentCardByTitle('ai instructions');
+    if (fallbackCard?.parentElement) {
+      return { container: fallbackCard.parentElement, insertBefore: null };
+    }
+
+    return null;
+  }
+
+  buildNotesCardMarkup() {
+    return `
+      <div class="bd-notes-card-header">
+        <div class="bd-notes-card-title">
           <span class="bd-notes-icon icon-notebook-pen"></span>
           <span>Notes</span>
         </div>
-        <button class="bd-notes-close" title="Close">
-          <span class="icon-x"></span>
-        </button>
       </div>
-      <div class="bd-notes-resize-handle"></div>
-      <div class="bd-notes-body">
+      <div class="bd-notes-card-body">
+        <div class="bd-notes-helper">Private to you — not sent to the AI.</div>
         <textarea class="bd-notes-textarea" placeholder="Write your notes here..."></textarea>
       </div>
     `;
-    
-    document.body.appendChild(this.notesPanel);
-    
-    // Get references to elements
-    this.textarea = this.notesPanel.querySelector('.bd-notes-textarea');
-    const closeBtn = this.notesPanel.querySelector('.bd-notes-close');
-    const header = this.notesPanel.querySelector('.bd-notes-header');
-    const resizeHandle = this.notesPanel.querySelector('.bd-notes-resize-handle');
-    
-    // Event listeners
-    closeBtn.addEventListener('click', () => this.toggleVisibility());
-    this.textarea.addEventListener('input', () => this.debouncedSave());
-    
-    // Dragging and resizing
-    this.setupDragging(header);
-    this.setupResizing(resizeHandle);
-    
-    // Load saved position
-    this.loadPosition();
-    
-    // Start hidden
-    this.notesPanel.classList.remove('bd-notes-visible');
-    this.isVisible = false;
+  }
+
+  createUI() {
+    const wrapperDetached = this.notesCardWrapper && !document.body.contains(this.notesCardWrapper);
+    const cardDetached = this.notesCard && !document.body.contains(this.notesCard);
+    if (wrapperDetached || cardDetached) {
+      this.notesCard = null;
+      this.notesCardWrapper = null;
+      this.textarea = null;
+    }
+
+    const insertion = this.findPlotComponentsContainer();
+    if (!this.isPlotTabActive() && !insertion?.container) {
+      this.removeUI();
+      return;
+    }
+
+    if (!insertion?.container) {
+      this.scheduleUiRetry();
+      return;
+    }
+
+    this.uiRetryCount = 0;
+    if (this.uiRetryTimer) {
+      clearTimeout(this.uiRetryTimer);
+      this.uiRetryTimer = null;
+    }
+
+    const existingContainer = this.notesCardWrapper || this.notesCard;
+    if (existingContainer && insertion.container.contains(existingContainer)) {
+      if (!this.textarea) {
+        this.textarea = this.notesCard.querySelector('.bd-notes-textarea');
+      }
+      return;
+    }
+
+    document.querySelectorAll('.bd-notes-card-wrapper').forEach(wrapper => wrapper.remove());
+    document.querySelectorAll('.bd-notes-card').forEach(card => card.remove());
+
+    this.notesCardWrapper = document.createElement('div');
+    this.notesCardWrapper.className = 'bd-notes-card-wrapper';
+    this.notesCardWrapper.setAttribute('data-bd-notes-wrapper', 'true');
+
+    this.notesCard = document.createElement('div');
+    this.notesCard.className = 'bd-notes-card';
+    this.notesCard.setAttribute('data-bd-notes-card', 'true');
+    this.notesCard.innerHTML = this.buildNotesCardMarkup();
+
+    this.notesCardWrapper.appendChild(this.notesCard);
+
+    if (insertion.insertBefore && insertion.container.contains(insertion.insertBefore)) {
+      insertion.container.insertBefore(this.notesCardWrapper, insertion.insertBefore);
+    } else {
+      insertion.container.appendChild(this.notesCardWrapper);
+    }
+
+    this.textarea = this.notesCard.querySelector('.bd-notes-textarea');
+
+    this.textarea?.addEventListener('input', () => this.debouncedSave());
   }
 
   removeUI() {
-    if (this.toggleButton) {
-      this.toggleButton.remove();
-      this.toggleButton = null;
+    if (this.notesCardWrapper) {
+      this.notesCardWrapper.remove();
+      this.notesCardWrapper = null;
+    } else if (this.notesCard) {
+      this.notesCard.remove();
     }
-    
-    if (this.notesPanel) {
-      this.notesPanel.remove();
-      this.notesPanel = null;
-      this.textarea = null;
+
+    this.notesCard = null;
+    this.textarea = null;
+    this.loadedAdventureId = null;
+
+    if (this.uiRetryTimer) {
+      clearTimeout(this.uiRetryTimer);
+      this.uiRetryTimer = null;
     }
-    
-    this.isVisible = false;
-  }
-
-  // ==================== VISIBILITY ====================
-
-  toggleVisibility() {
-    this.isVisible = !this.isVisible;
-    
-    if (this.notesPanel) {
-      this.notesPanel.classList.toggle('bd-notes-visible', this.isVisible);
-    }
-    
-    if (this.toggleButton) {
-      this.toggleButton.classList.toggle('bd-notes-toggle-active', this.isVisible);
-    }
-  }
-
-  show() {
-    if (!this.isVisible) {
-      this.toggleVisibility();
-    }
-  }
-
-  hide() {
-    if (this.isVisible) {
-      this.toggleVisibility();
-    }
-  }
-
-  // ==================== DRAGGING ====================
-
-  setupDragging(header) {
-    let isDragging = false;
-    let startX, startY, startRight, startBottom;
-    
-    const onMouseDown = (e) => {
-      if (e.target.closest('.bd-notes-close')) return;
-      
-      isDragging = true;
-      startX = e.clientX;
-      startY = e.clientY;
-      
-      const rect = this.notesPanel.getBoundingClientRect();
-      startRight = window.innerWidth - rect.right;
-      startBottom = window.innerHeight - rect.bottom;
-      
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
-      
-      this.notesPanel.classList.add('bd-notes-dragging');
-      e.preventDefault();
-    };
-    
-    const onMouseMove = (e) => {
-      if (!isDragging) return;
-      
-      const deltaX = startX - e.clientX;
-      const deltaY = startY - e.clientY;
-      
-      const newRight = Math.max(0, Math.min(window.innerWidth - 200, startRight + deltaX));
-      const newBottom = Math.max(0, Math.min(window.innerHeight - 100, startBottom + deltaY));
-      
-      this.notesPanel.style.right = newRight + 'px';
-      this.notesPanel.style.bottom = newBottom + 'px';
-    };
-    
-    const onMouseUp = () => {
-      isDragging = false;
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-      
-      this.notesPanel.classList.remove('bd-notes-dragging');
-      this.savePosition();
-    };
-    
-    header.addEventListener('mousedown', onMouseDown);
-  }
-
-  // ==================== RESIZING ====================
-
-  setupResizing(handle) {
-    let isResizing = false;
-    let startX, startY, startWidth, startHeight, startRight, startBottom;
-    
-    const onMouseDown = (e) => {
-      isResizing = true;
-      startX = e.clientX;
-      startY = e.clientY;
-      startWidth = this.notesPanel.offsetWidth;
-      startHeight = this.notesPanel.offsetHeight;
-      
-      const rect = this.notesPanel.getBoundingClientRect();
-      startRight = window.innerWidth - rect.right;
-      startBottom = window.innerHeight - rect.bottom;
-      
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
-      e.preventDefault();
-    };
-    
-    const onMouseMove = (e) => {
-      if (!isResizing) return;
-      
-      // Resize from top-left: expanding left increases width, expanding up increases height
-      const deltaX = startX - e.clientX;
-      const deltaY = startY - e.clientY;
-      
-      const newWidth = Math.max(240, Math.min(600, startWidth + deltaX));
-      const newHeight = Math.max(150, Math.min(500, startHeight + deltaY));
-      
-      this.notesPanel.style.width = newWidth + 'px';
-      this.notesPanel.style.height = newHeight + 'px';
-    };
-    
-    const onMouseUp = () => {
-      isResizing = false;
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-      this.savePosition();
-    };
-    
-    handle.addEventListener('mousedown', onMouseDown);
   }
 
   // ==================== STORAGE ====================
@@ -429,47 +459,6 @@ class NotesFeature {
     this.saveDebounceTimer = setTimeout(() => {
       this.saveNotes();
     }, 500);
-  }
-
-  async loadPosition() {
-    try {
-      const result = await chrome.storage.local.get(this.positionStorageKey);
-      if (!this.notesPanel) return;
-      
-      const position = result[this.positionStorageKey] || this.defaultPosition;
-      
-      this.notesPanel.style.right = position.right + 'px';
-      this.notesPanel.style.bottom = position.bottom + 'px';
-      this.notesPanel.style.width = position.width + 'px';
-      this.notesPanel.style.height = position.height + 'px';
-    } catch (e) {
-      console.error('[Notes] Error loading position:', e);
-      if (!this.notesPanel) return;
-      
-      // Apply defaults
-      this.notesPanel.style.right = this.defaultPosition.right + 'px';
-      this.notesPanel.style.bottom = this.defaultPosition.bottom + 'px';
-      this.notesPanel.style.width = this.defaultPosition.width + 'px';
-      this.notesPanel.style.height = this.defaultPosition.height + 'px';
-    }
-  }
-
-  async savePosition() {
-    if (!this.notesPanel) return;
-    
-    const rect = this.notesPanel.getBoundingClientRect();
-    const position = {
-      right: window.innerWidth - rect.right,
-      bottom: window.innerHeight - rect.bottom,
-      width: rect.width,
-      height: rect.height
-    };
-    
-    try {
-      await chrome.storage.local.set({ [this.positionStorageKey]: position });
-    } catch (e) {
-      console.error('[Notes] Error saving position:', e);
-    }
   }
 
   // ==================== PUBLIC API ====================
