@@ -95,7 +95,7 @@ class TutorialService {
         type: 'spotlight',
         target: '[data-feature="notes"]',
         title: 'Adventure Notes',
-        content: 'Jot down anything you want to remember about your adventure! Notes are saved per adventure, so each story has its own notepad.',
+        content: 'Jot down anything you want to remember about your adventure! Notes appear at the bottom of Plot Components and are saved per adventure.',
         position: 'top',
         expandCard: true
       },

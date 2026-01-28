@@ -432,7 +432,9 @@ class NotesFeature {
     try {
       const result = await chrome.storage.local.get(key);
       const notes = result[key] || '';
-      this.textarea.value = notes;
+      if (this.textarea) {
+        this.textarea.value = notes;
+      }
     } catch (e) {
       console.error('[Notes] Error loading notes:', e);
     }
