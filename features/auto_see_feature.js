@@ -51,7 +51,29 @@ class AutoSeeFeature {
     this.boundClickHandler = null;
     this.boundEnterKeyHandler = null;
     this.boundContinueHotkeyHandler = null;
+    this.boundVisibilityHandler = null;
+    this.boundUserInterruptHandler = null;
     this.debug = false;
+    
+    // ==================== STABILITY IMPROVEMENTS ====================
+    // Operation tracking for cancellation and staleness detection
+    this.currentOperationId = 0;
+    this.operationStartTime = null;
+    
+    // Timeout configurations (in milliseconds)
+    this.TIMEOUTS = {
+      WAITING_FOR_AI: 60000,      // Max time to wait for AI response (60s)
+      PROCESSING_OPERATION: 30000, // Max time for the entire See action (30s)
+      STEP_TIMEOUT: 5000,          // Max time for individual steps (5s)
+      RATE_LIMIT_COOLDOWN: 1000    // Minimum time between trigger attempts (1s)
+    };
+    
+    // Rate limiting
+    this.lastTriggerAttempt = 0;
+    
+    // Safety reset timer for stuck states
+    this.safetyResetTimer = null;
+    this.waitingForAITimer = null;
   }
 
   // ==================== LIFECYCLE ====================
@@ -62,6 +84,8 @@ class AutoSeeFeature {
     this.detectCurrentAdventure();
     this.startAdventureChangeDetection();
     this.setupActionDetection();
+    this.setupVisibilityHandling();
+    this.setupUserInterruptDetection();
     this.startObserving();
     this.log('[AutoSee] Initialization complete. Enabled:', this.enabled, 'Mode:', this.triggerMode);
   }
@@ -69,24 +93,127 @@ class AutoSeeFeature {
   destroy() {
     this.log('[AutoSee] Destroying Auto See feature...');
     
+    // Abort any ongoing operation
+    this.abortCurrentOperation('Feature destroyed');
+    
     // Clean up observer
     if (this.observer) {
       this.observer.disconnect();
       this.observer = null;
     }
     
-    // Clean up debounce timer
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-      this.debounceTimer = null;
-    }
+    // Clean up all timers
+    this.clearAllTimers();
     
     // Clean up action detection listeners
     this.cleanupActionDetection();
     
+    // Clean up visibility handler
+    if (this.boundVisibilityHandler) {
+      document.removeEventListener('visibilitychange', this.boundVisibilityHandler);
+      this.boundVisibilityHandler = null;
+    }
+    
+    // Clean up user interrupt handler
+    if (this.boundUserInterruptHandler) {
+      document.removeEventListener('click', this.boundUserInterruptHandler, true);
+      this.boundUserInterruptHandler = null;
+    }
+    
+    this.resetState();
+    this.log('[AutoSee] Cleanup complete');
+  }
+
+  // ==================== STATE MANAGEMENT ====================
+
+  /**
+   * Resets all state flags to their initial values
+   */
+  resetState() {
     this.isProcessing = false;
     this.isWaitingForAIResponse = false;
-    this.log('[AutoSee] Cleanup complete');
+    this.operationStartTime = null;
+    this.log('[AutoSee] State reset complete');
+  }
+
+  /**
+   * Clears all active timers to prevent memory leaks and stale callbacks
+   */
+  clearAllTimers() {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+    if (this.safetyResetTimer) {
+      clearTimeout(this.safetyResetTimer);
+      this.safetyResetTimer = null;
+    }
+    if (this.waitingForAITimer) {
+      clearTimeout(this.waitingForAITimer);
+      this.waitingForAITimer = null;
+    }
+  }
+
+  /**
+   * Aborts the current operation if one is in progress
+   * @param {string} reason - Reason for aborting
+   */
+  abortCurrentOperation(reason) {
+    if (this.isProcessing || this.isWaitingForAIResponse) {
+      this.log('[AutoSee] Aborting current operation:', reason);
+      this.currentOperationId++; // Invalidate any ongoing async operations
+      this.clearAllTimers();
+      this.resetState();
+      
+      // Try to clean up any open UI elements
+      this.safeCleanupUI();
+    }
+  }
+
+  /**
+   * Safely attempts to close any open UI elements without throwing errors
+   */
+  safeCleanupUI() {
+    try {
+      this.closeInputModeMenu();
+      this.closeInputArea();
+    } catch (e) {
+      this.log('[AutoSee] Error during UI cleanup:', e);
+    }
+  }
+
+  /**
+   * Checks if an operation is still valid (not stale/cancelled)
+   * @param {number} operationId - The operation ID to check
+   * @returns {boolean} True if operation is still valid
+   */
+  isOperationValid(operationId) {
+    return operationId === this.currentOperationId;
+  }
+
+  /**
+   * Sets up a safety timeout that will reset stuck states
+   * @param {number} timeout - Timeout duration in milliseconds
+   * @param {string} context - Description of what we're timing out
+   */
+  setupSafetyTimeout(timeout, context) {
+    this.clearSafetyTimeout();
+    this.safetyResetTimer = setTimeout(() => {
+      if (this.isProcessing || this.isWaitingForAIResponse) {
+        console.warn(`[AutoSee] Safety timeout triggered: ${context} - resetting state`);
+        this.abortCurrentOperation(`Safety timeout: ${context}`);
+      }
+    }, timeout);
+  }
+
+  /**
+   * Clears the safety timeout
+   */
+  clearSafetyTimeout() {
+    if (this.safetyResetTimer) {
+      clearTimeout(this.safetyResetTimer);
+      this.safetyResetTimer = null;
+    }
   }
 
   // ==================== SETTINGS ====================
@@ -149,7 +276,10 @@ class AutoSeeFeature {
   startAdventureChangeDetection() {
     this.log('[AutoSee] Starting adventure change detection...');
     // Listen for popstate (back/forward navigation)
-    window.addEventListener('popstate', () => this.detectCurrentAdventure());
+    window.addEventListener('popstate', () => {
+      this.abortCurrentOperation('Navigation detected (popstate)');
+      this.detectCurrentAdventure();
+    });
     
     // Watch for URL changes via history API
     const originalPushState = history.pushState;
@@ -157,13 +287,62 @@ class AutoSeeFeature {
     
     history.pushState = (...args) => {
       originalPushState.apply(history, args);
+      this.abortCurrentOperation('Navigation detected (pushState)');
       this.detectCurrentAdventure();
     };
     
     history.replaceState = (...args) => {
       originalReplaceState.apply(history, args);
+      this.abortCurrentOperation('Navigation detected (replaceState)');
       this.detectCurrentAdventure();
     };
+  }
+
+  /**
+   * Sets up visibility change handling to abort operations when user switches tabs
+   */
+  setupVisibilityHandling() {
+    this.boundVisibilityHandler = () => {
+      if (document.hidden && (this.isProcessing || this.isWaitingForAIResponse)) {
+        this.log('[AutoSee] Page hidden, aborting current operation');
+        this.abortCurrentOperation('Page hidden');
+      }
+    };
+    document.addEventListener('visibilitychange', this.boundVisibilityHandler);
+  }
+
+  /**
+   * Sets up detection for unexpected user interactions that should abort Auto See
+   */
+  setupUserInterruptDetection() {
+    this.boundUserInterruptHandler = (e) => {
+      // Only check during processing phase (not waiting for AI)
+      if (!this.isProcessing) return;
+      // Ignore synthetic clicks triggered by Auto See itself
+      if (!e.isTrusted) return;
+      
+      // Check if user clicked something that indicates they want to take control
+      const target = e.target.closest('[aria-label]');
+      if (!target) return;
+      
+      const ariaLabel = target.getAttribute('aria-label');
+      const interruptLabels = [
+        'Command: take a turn',
+        'Command: continue',
+        'Command: retry',
+        'Command: erase',
+        'Close text input',
+        'Undo change',
+        'Redo change'
+      ];
+      
+      if (interruptLabels.includes(ariaLabel)) {
+        this.log('[AutoSee] User interaction detected during processing:', ariaLabel);
+        this.abortCurrentOperation('User interaction: ' + ariaLabel);
+      }
+    };
+    // Use capture phase with lower priority than action detection
+    document.addEventListener('click', this.boundUserInterruptHandler, true);
   }
 
   // ==================== ACTION DETECTION ====================
@@ -260,6 +439,14 @@ class AutoSeeFeature {
    */
   canProcessAction(source) {
     if (!this.enabled || !this.currentAdventureId) return false;
+    
+    // Rate limiting check
+    const now = Date.now();
+    if (now - this.lastTriggerAttempt < this.TIMEOUTS.RATE_LIMIT_COOLDOWN) {
+      this.log(`[AutoSee] Ignoring ${source} - rate limited (${now - this.lastTriggerAttempt}ms since last attempt)`);
+      return false;
+    }
+    
     if (this.isProcessing) {
       this.log(`[AutoSee] Ignoring ${source} - currently processing Auto See`);
       return false;
@@ -268,6 +455,8 @@ class AutoSeeFeature {
       this.log(`[AutoSee] Ignoring ${source} - already waiting for AI response`);
       return false;
     }
+    
+    this.lastTriggerAttempt = now;
     return true;
   }
 
@@ -298,6 +487,19 @@ class AutoSeeFeature {
     this.turnCounter++;
     this.log('[AutoSee] Turn counter incremented to:', this.turnCounter);
     this.log('[AutoSee] Waiting for AI response (content must change from current state)...');
+    
+    // Set up timeout for waiting for AI response
+    if (this.waitingForAITimer) {
+      clearTimeout(this.waitingForAITimer);
+    }
+    this.waitingForAITimer = setTimeout(() => {
+      if (this.isWaitingForAIResponse) {
+        console.warn('[AutoSee] Timeout waiting for AI response - resetting state');
+        this.isWaitingForAIResponse = false;
+        this.turnCounter--; // Decrement since we didn't actually process this turn
+        this.log('[AutoSee] Turn counter decremented back to:', this.turnCounter);
+      }
+    }, this.TIMEOUTS.WAITING_FOR_AI);
   }
 
   // ==================== OUTPUT OBSERVATION ====================
@@ -449,50 +651,64 @@ class AutoSeeFeature {
       return;
     }
     
+    // Start new operation with unique ID
+    this.currentOperationId++;
+    const operationId = this.currentOperationId;
     this.isProcessing = true;
-    this.log('[AutoSee] ========== STARTING SEE ACTION ==========');
+    this.operationStartTime = Date.now();
+    
+    this.log('[AutoSee] ========== STARTING SEE ACTION (Op ID:', operationId, ') ==========');
     this.log('[AutoSee] User original mode to restore:', this.userOriginalMode);
+    
+    // Set up overall operation timeout
+    this.setupSafetyTimeout(this.TIMEOUTS.PROCESSING_OPERATION, 'See action processing');
 
     try {
       // Step 1: Open the input area by clicking "Take a Turn"
       this.log('[AutoSee] Step 1: Opening input area...');
+      if (!this.isOperationValid(operationId)) {
+        this.log('[AutoSee] Operation cancelled before step 1');
+        return;
+      }
+      
       const takeATurnBtn = document.querySelector(this.takeATurnSelector);
       if (!takeATurnBtn) {
         this.log('[AutoSee] ERROR: Take a Turn button not found!');
-        this.isProcessing = false;
         return;
       }
 
       takeATurnBtn.click();
-      await this.wait(300);
+      await this.waitWithValidation(300, operationId);
+      if (!this.isOperationValid(operationId)) return;
       this.log('[AutoSee] Input area opened');
 
       // Step 2: Open the input mode menu
       this.log('[AutoSee] Step 2: Opening input mode menu...');
-      const menuOpened = await this.openInputModeMenu();
+      const menuOpened = await this.openInputModeMenuWithValidation(operationId);
+      if (!this.isOperationValid(operationId)) return;
       if (!menuOpened) {
         console.error('[AutoSee] ERROR: Failed to open input mode menu!');
-        this.closeInputArea();
-        this.isProcessing = false;
+        this.safeCleanupUI();
         return;
       }
       this.log('[AutoSee] Input mode menu opened');
 
       // Step 3: Select "See" mode
       this.log('[AutoSee] Step 3: Selecting See mode...');
-      await this.wait(150);
+      await this.waitWithValidation(150, operationId);
+      if (!this.isOperationValid(operationId)) return;
+      
       const seeModeSelector = this.modeSelectors['see'];
       const seeModeBtn = document.querySelector(seeModeSelector);
       if (!seeModeBtn) {
         console.error('[AutoSee] ERROR: See mode button not found!');
-        this.closeInputModeMenu();
-        this.closeInputArea();
-        this.isProcessing = false;
+        this.safeCleanupUI();
         return;
       }
 
       seeModeBtn.click();
-      await this.wait(200);
+      await this.waitWithValidation(200, operationId);
+      if (!this.isOperationValid(operationId)) return;
       this.log('[AutoSee] See mode selected');
 
       // Step 4: Clear the input field (See with empty input generates current scene)
@@ -509,12 +725,13 @@ class AutoSeeFeature {
 
       // Step 5: Submit the See action
       this.log('[AutoSee] Step 5: Submitting See action...');
-      await this.wait(100);
+      await this.waitWithValidation(100, operationId);
+      if (!this.isOperationValid(operationId)) return;
+      
       const submitBtn = document.querySelector(this.submitButtonSelector);
       if (!submitBtn) {
         console.error('[AutoSee] ERROR: Submit button not found!');
-        this.closeInputArea();
-        this.isProcessing = false;
+        this.safeCleanupUI();
         return;
       }
 
@@ -523,7 +740,8 @@ class AutoSeeFeature {
 
       // Step 6: Wait for See/image generation to complete
       this.log('[AutoSee] Step 6: Waiting for image generation to complete...');
-      await this.waitForImageGenerationComplete();
+      await this.waitForImageGenerationCompleteWithValidation(operationId);
+      if (!this.isOperationValid(operationId)) return;
       this.log('[AutoSee] Image generation complete');
       
       // Update the story content after See completes
@@ -531,29 +749,53 @@ class AutoSeeFeature {
 
       // Step 7: Restore the user's original input mode
       this.log('[AutoSee] Step 7: Restoring original input mode:', this.userOriginalMode);
-      await this.restoreOriginalInputMode();
-      this.log('[AutoSee] ========== SEE ACTION COMPLETE ==========');
+      await this.restoreOriginalInputModeWithValidation(operationId);
+      
+      if (this.isOperationValid(operationId)) {
+        this.log('[AutoSee] ========== SEE ACTION COMPLETE (Op ID:', operationId, ') ==========');
+      }
 
     } catch (error) {
-      console.error('[AutoSee] ERROR: ERROR during See action:', error);
+      console.error('[AutoSee] ERROR during See action:', error);
     } finally {
-      this.isProcessing = false;
-      this.log('[AutoSee] Processing flag cleared');
+      // Only reset if this is still the current operation
+      if (this.isOperationValid(operationId)) {
+        this.isProcessing = false;
+        this.operationStartTime = null;
+        this.clearSafetyTimeout();
+        this.log('[AutoSee] Processing flag cleared');
+      }
     }
   }
 
   /**
-   * Waits for the image generation to complete by monitoring for the input area to close
-   * and then waiting for any loading indicators to disappear
+   * Wait helper that checks operation validity
+   * @param {number} ms - Milliseconds to wait
+   * @param {number} operationId - Current operation ID
+   * @returns {Promise<boolean>} True if operation is still valid after wait
    */
-  async waitForImageGenerationComplete() {
+  async waitWithValidation(ms, operationId) {
+    await this.wait(ms);
+    return this.isOperationValid(operationId);
+  }
+
+  /**
+   * Waits for image generation with operation validity checking
+   * @param {number} operationId - Current operation ID
+   */
+  async waitForImageGenerationCompleteWithValidation(operationId) {
     this.log('[AutoSee] Waiting for input area to close...');
     
     // Wait for input area to close (indicates action was accepted)
     let attempts = 0;
-    while (this.isInputAreaOpen() && attempts < 60) {
+    while (this.isInputAreaOpen() && attempts < 60 && this.isOperationValid(operationId)) {
       await this.wait(100);
       attempts++;
+    }
+    
+    if (!this.isOperationValid(operationId)) {
+      this.log('[AutoSee] Operation cancelled while waiting for input area to close');
+      return;
     }
     
     if (attempts >= 60) {
@@ -563,15 +805,22 @@ class AutoSeeFeature {
     }
     
     // Additional wait for image generation (typically takes 2-5 seconds)
+    // Split into smaller chunks to allow for cancellation
     this.log('[AutoSee] Waiting additional time for image generation...');
-    await this.wait(3000);
+    for (let i = 0; i < 6; i++) {
+      if (!this.isOperationValid(operationId)) {
+        this.log('[AutoSee] Operation cancelled during image generation wait');
+        return;
+      }
+      await this.wait(500);
+    }
   }
 
   /**
-   * Restores the user's original input mode by opening the input area,
-   * switching to the original mode, then closing the input area
+   * Restores the user's original input mode with operation validity checking
+   * @param {number} operationId - Current operation ID
    */
-  async restoreOriginalInputMode() {
+  async restoreOriginalInputModeWithValidation(operationId) {
     this.log('[AutoSee] Starting mode restoration to:', this.userOriginalMode);
     
     // Don't restore if the original mode was 'see' (unlikely but possible)
@@ -590,6 +839,8 @@ class AutoSeeFeature {
     try {
       // Step 1: Open the input area by clicking "Take a Turn"
       this.log('[AutoSee] Restore Step 1: Opening input area...');
+      if (!this.isOperationValid(operationId)) return;
+      
       const takeATurnBtn = document.querySelector(this.takeATurnSelector);
       if (!takeATurnBtn) {
         this.log('[AutoSee] ERROR: Take a Turn button not found for restoration!');
@@ -597,46 +848,57 @@ class AutoSeeFeature {
       }
       
       takeATurnBtn.click();
-      await this.wait(300);
+      await this.waitWithValidation(300, operationId);
+      if (!this.isOperationValid(operationId)) return;
       this.log('[AutoSee] Input area opened for restoration');
       
       // Step 2: Open the input mode menu
       this.log('[AutoSee] Restore Step 2: Opening input mode menu...');
-      const menuOpened = await this.openInputModeMenu();
+      const menuOpened = await this.openInputModeMenuWithValidation(operationId);
+      if (!this.isOperationValid(operationId)) return;
       if (!menuOpened) {
         this.log('[AutoSee] ERROR: Failed to open input mode menu for restoration!');
-        this.closeInputArea();
+        this.safeCleanupUI();
         return;
       }
       this.log('[AutoSee] Input mode menu opened for restoration');
       
       // Step 3: Select the original mode
       this.log('[AutoSee] Restore Step 3: Selecting original mode:', this.userOriginalMode);
-      await this.wait(150);
+      await this.waitWithValidation(150, operationId);
+      if (!this.isOperationValid(operationId)) return;
+      
       const modeBtn = document.querySelector(modeSelector);
       if (!modeBtn) {
         this.log('[AutoSee] ERROR: Mode button not found for:', this.userOriginalMode);
-        this.closeInputModeMenu();
-        this.closeInputArea();
+        this.safeCleanupUI();
         return;
       }
       
       modeBtn.click();
-      await this.wait(200);
+      await this.waitWithValidation(200, operationId);
+      if (!this.isOperationValid(operationId)) return;
       this.log('[AutoSee] Original mode selected:', this.userOriginalMode);
       
       // Step 4: Close the input area
       this.log('[AutoSee] Restore Step 4: Closing input area...');
       this.closeInputArea();
-      await this.wait(100);
+      await this.waitWithValidation(100, operationId);
       this.log('[AutoSee] Mode restoration complete!');
       
     } catch (error) {
-      this.log('[AutoSee] ERROR: ERROR during mode restoration:', error);
+      this.log('[AutoSee] ERROR during mode restoration:', error);
     }
   }
 
-  async openInputModeMenu() {
+  /**
+   * Opens the input mode menu with operation validity checking
+   * @param {number} operationId - Current operation ID
+   * @returns {Promise<boolean>} True if menu was opened successfully
+   */
+  async openInputModeMenuWithValidation(operationId) {
+    if (!this.isOperationValid(operationId)) return false;
+    
     const menuButton = document.querySelector(this.inputModeMenuSelector);
     if (!menuButton) {
       this.log('[AutoSee] openInputModeMenu: Menu button not found');
@@ -653,8 +915,12 @@ class AutoSeeFeature {
     this.log('[AutoSee] openInputModeMenu: Clicking menu button...');
     menuButton.click();
     
-    // Wait for menu to appear
+    // Wait for menu to appear with validation
     for (let i = 0; i < 20; i++) {
+      if (!this.isOperationValid(operationId)) {
+        this.log('[AutoSee] openInputModeMenu: Operation cancelled while waiting for menu');
+        return false;
+      }
       await this.wait(50);
       const menu = document.querySelector(this.modeSelectors['do']);
       if (menu) {
