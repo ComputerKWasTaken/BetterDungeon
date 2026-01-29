@@ -51,6 +51,18 @@ class HotkeyFeature {
     // keyBindings maps key -> action ID (for storage/display)
     this.keyBindings = { ...HotkeyFeature.DEFAULT_BINDINGS };
     this.debug = false;
+    
+    // ==================== STABILITY IMPROVEMENTS ====================
+    // Operation locking to prevent concurrent async operations
+    this.isProcessingAction = false;
+    this.currentOperationId = 0;
+    
+    // Debouncing and rate limiting
+    this.lastKeyTime = 0;
+    this.KEY_DEBOUNCE_MS = 150; // Minimum time between key presses
+    
+    // Track pending timeouts for cleanup
+    this.pendingTimeouts = [];
   }
 
   log(message, ...args) {
@@ -110,6 +122,9 @@ class HotkeyFeature {
   }
 
   destroy() {
+    // Abort any ongoing operation
+    this.abortCurrentOperation('Feature destroyed');
+    
     if (this.boundKeyHandler) {
       document.removeEventListener('keydown', this.boundKeyHandler, true);
       this.boundKeyHandler = null;
@@ -118,6 +133,75 @@ class HotkeyFeature {
       chrome.runtime.onMessage.removeListener(this.boundMessageListener);
       this.boundMessageListener = null;
     }
+    
+    // Clear all pending timeouts
+    this.clearPendingTimeouts();
+  }
+
+  // ==================== STATE MANAGEMENT ====================
+
+  /**
+   * Aborts the current operation if one is in progress
+   * @param {string} reason - Reason for aborting
+   */
+  abortCurrentOperation(reason) {
+    if (this.isProcessingAction) {
+      this.log('[Hotkey] Aborting current operation:', reason);
+      this.currentOperationId++; // Invalidate any ongoing async operations
+      this.isProcessingAction = false;
+      
+      // Try to clean up any open UI elements
+      this.safeCleanupUI();
+    }
+  }
+
+  /**
+   * Safely attempts to close any open UI elements without throwing errors
+   */
+  safeCleanupUI() {
+    try {
+      this.closeInputModeMenu();
+    } catch (e) {
+      this.log('[Hotkey] Error during UI cleanup:', e);
+    }
+  }
+
+  /**
+   * Checks if an operation is still valid (not stale/cancelled)
+   * @param {number} operationId - The operation ID to check
+   * @returns {boolean} True if operation is still valid
+   */
+  isOperationValid(operationId) {
+    return operationId === this.currentOperationId;
+  }
+
+  /**
+   * Clears all pending timeouts
+   */
+  clearPendingTimeouts() {
+    for (const timeoutId of this.pendingTimeouts) {
+      clearTimeout(timeoutId);
+    }
+    this.pendingTimeouts = [];
+  }
+
+  /**
+   * Creates a tracked timeout that can be cleared on destroy
+   * @param {Function} callback - Callback function
+   * @param {number} delay - Delay in milliseconds
+   * @returns {number} Timeout ID
+   */
+  createTrackedTimeout(callback, delay) {
+    const timeoutId = setTimeout(() => {
+      // Remove from tracking array when executed
+      const index = this.pendingTimeouts.indexOf(timeoutId);
+      if (index > -1) {
+        this.pendingTimeouts.splice(index, 1);
+      }
+      callback();
+    }, delay);
+    this.pendingTimeouts.push(timeoutId);
+    return timeoutId;
   }
 
   // Static method to get default bindings (used by popup)
@@ -152,7 +236,7 @@ class HotkeyFeature {
     return true;
   }
 
-  async openInputModeMenu() {
+  async openInputModeMenu(operationId = null) {
     const menuButton = document.querySelector('[aria-label="Change input mode"]');
     if (!menuButton) return false;
     
@@ -163,10 +247,17 @@ class HotkeyFeature {
     // Click to open the menu
     menuButton.click();
     
-    // Wait for menu to appear
+    // Wait for menu to appear with operation validation
     return new Promise(resolve => {
       let attempts = 0;
       const checkMenu = setInterval(() => {
+        // Check if operation was cancelled
+        if (operationId !== null && !this.isOperationValid(operationId)) {
+          clearInterval(checkMenu);
+          resolve(false);
+          return;
+        }
+        
         attempts++;
         const menu = document.querySelector('[aria-label="Set to \'Do\' mode"]');
         if (menu) {
@@ -217,7 +308,7 @@ class HotkeyFeature {
     return !!document.querySelector('[aria-label="Change input mode"]');
   }
 
-  async openInputArea() {
+  async openInputArea(operationId = null) {
     // If input area is already open, return true
     if (this.isInputAreaOpen()) return true;
     
@@ -229,10 +320,17 @@ class HotkeyFeature {
     
     takeATurnButton.click();
     
-    // Wait for the input area to appear
+    // Wait for the input area to appear with operation validation
     return new Promise(resolve => {
       let attempts = 0;
       const checkInputArea = setInterval(() => {
+        // Check if operation was cancelled
+        if (operationId !== null && !this.isOperationValid(operationId)) {
+          clearInterval(checkInputArea);
+          resolve(false);
+          return;
+        }
+        
         attempts++;
         if (this.isInputAreaOpen()) {
           clearInterval(checkInputArea);
@@ -261,42 +359,96 @@ class HotkeyFeature {
       e.preventDefault();
       e.stopPropagation();
       
-      // Handle special actions (like closeInputArea)
+      // ==================== STABILITY: Debouncing ====================
+      // Prevent rapid repeated key presses from causing issues
+      const now = Date.now();
+      if (now - this.lastKeyTime < this.KEY_DEBOUNCE_MS) {
+        this.log('[Hotkey] Key debounced:', key);
+        return;
+      }
+      this.lastKeyTime = now;
+      
+      // Handle special actions (like closeInputArea) - these don't need locking
       if (hotkeyConfig.action) {
         if (hotkeyConfig.action === 'closeInputArea') {
+          // If we're processing an action, abort it first
+          if (this.isProcessingAction) {
+            this.abortCurrentOperation('User pressed Escape');
+          }
           this.closeInputArea();
         }
         return;
       }
       
-      // Handle input mode selection (requires opening input area and menu first)
-      if (hotkeyConfig.requiresMenu) {
-        // First, ensure the input area is open (click Take a Turn if needed)
-        const inputAreaOpen = await this.openInputArea();
-        if (!inputAreaOpen) {
-          return;
-        }
-        
-        // Small delay to ensure input area is fully rendered
-        await new Promise(resolve => setTimeout(resolve, 150));
-        
-        // Now open the input mode menu
-        const menuOpened = await this.openInputModeMenu();
-        if (!menuOpened) {
-          return;
-        }
-        
-        // Small delay to ensure menu is fully rendered
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // Check feature dependency AFTER menu is open (so we can see if button exists)
-        if (hotkeyConfig.featureDependent && !this.isFeatureEnabled(hotkeyConfig.featureDependent)) {
-          this.closeInputModeMenu();
-          return;
-        }
+      // ==================== STABILITY: Operation Locking ====================
+      // Prevent concurrent async operations
+      if (this.isProcessingAction) {
+        this.log('[Hotkey] Ignoring key - already processing an action:', key);
+        return;
       }
       
-      // Find and click the target element
+      // Start new operation with unique ID for async actions
+      this.currentOperationId++;
+      const operationId = this.currentOperationId;
+      
+      // Handle input mode selection (requires opening input area and menu first)
+      if (hotkeyConfig.requiresMenu) {
+        this.isProcessingAction = true;
+        
+        try {
+          // First, ensure the input area is open (click Take a Turn if needed)
+          const inputAreaOpen = await this.openInputArea(operationId);
+          if (!inputAreaOpen || !this.isOperationValid(operationId)) {
+            this.log('[Hotkey] Failed to open input area or operation cancelled');
+            return;
+          }
+          
+          // Small delay to ensure input area is fully rendered
+          await this.waitWithValidation(150, operationId);
+          if (!this.isOperationValid(operationId)) return;
+          
+          // Now open the input mode menu
+          const menuOpened = await this.openInputModeMenu(operationId);
+          if (!menuOpened || !this.isOperationValid(operationId)) {
+            this.log('[Hotkey] Failed to open menu or operation cancelled');
+            return;
+          }
+          
+          // Small delay to ensure menu is fully rendered
+          await this.waitWithValidation(100, operationId);
+          if (!this.isOperationValid(operationId)) return;
+          
+          // Check feature dependency AFTER menu is open (so we can see if button exists)
+          if (hotkeyConfig.featureDependent && !this.isFeatureEnabled(hotkeyConfig.featureDependent)) {
+            this.closeInputModeMenu();
+            return;
+          }
+          
+          // Find and click the target element
+          const targetElement = document.querySelector(hotkeyConfig.selector);
+          if (targetElement) {
+            // Check if element is disabled
+            const isDisabled = targetElement.getAttribute('aria-disabled') === 'true';
+            if (!isDisabled) {
+              targetElement.click();
+            }
+          } else {
+            // Close menu if we couldn't find the option
+            this.closeInputModeMenu();
+          }
+        } catch (error) {
+          console.error('[Hotkey] Error during hotkey action:', error);
+          this.safeCleanupUI();
+        } finally {
+          // Only reset if this is still the current operation
+          if (this.isOperationValid(operationId)) {
+            this.isProcessingAction = false;
+          }
+        }
+        return;
+      }
+      
+      // Handle simple actions (no menu required)
       const targetElement = document.querySelector(hotkeyConfig.selector);
       if (targetElement) {
         // Check if element is disabled
@@ -311,16 +463,22 @@ class HotkeyFeature {
         }
         
         targetElement.click();
-      } else {
-        // Close menu if we opened it but couldn't find the option
-        if (hotkeyConfig.requiresMenu) {
-          this.closeInputModeMenu();
-        }
       }
     };
 
     this.boundKeyHandler = handleKeyDown;
     document.addEventListener('keydown', handleKeyDown, true);
+  }
+
+  /**
+   * Wait helper that checks operation validity
+   * @param {number} ms - Milliseconds to wait
+   * @param {number} operationId - Current operation ID
+   * @returns {Promise<boolean>} True if operation is still valid after wait
+   */
+  async waitWithValidation(ms, operationId) {
+    await new Promise(resolve => setTimeout(resolve, ms));
+    return this.isOperationValid(operationId);
   }
 
 }
