@@ -47,8 +47,7 @@
         "fonts/lucide/lucide.css",
         "fonts/lucide/lucide.ttf",
         "fonts/lucide/lucide.woff",
-        "fonts/lucide/lucide.woff2",
-        "bridge/betterscripts_bridge.js"
+        "fonts/lucide/lucide.woff2"
       ],
       "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"]
     }

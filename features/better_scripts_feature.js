@@ -1,6 +1,18 @@
-// BetterDungeon - BetterScripts Feature
-// A compatibility layer between AI Dungeon scripts and BetterDungeon
-// Allows scripts to create UI elements and communicate with the extension
+/**
+ * BetterDungeon - BetterScripts Feature
+ * 
+ * Enables communication between AI Dungeon scripts and BetterDungeon.
+ * Scripts embed protocol messages in their output, which BetterDungeon
+ * detects, processes, and strips from the visible DOM.
+ * 
+ * Communication Flow:
+ * 1. AI Dungeon script appends [[BD:{json}:BD]] to output text
+ * 2. BetterDungeon's MutationObserver detects the message
+ * 3. Message is parsed and processed (e.g., widget created)
+ * 4. Protocol text is stripped from DOM before user sees it
+ * 
+ * Protocol Format: [[BD:{"type":"...", ...}:BD]]
+ */
 
 class BetterScriptsFeature {
   static id = 'betterScripts';
@@ -8,14 +20,15 @@ class BetterScriptsFeature {
   // Protocol version for compatibility checking
   static PROTOCOL_VERSION = '1.0.0';
   
-  // Message prefix to identify BetterScripts messages in state.message
+  // Message delimiters for protocol messages
   static MESSAGE_PREFIX = '[[BD:';
   static MESSAGE_SUFFIX = ':BD]]';
 
   constructor() {
     // DOM observation
     this.observer = null;
-    this.messageObserver = null;
+    this.gameplayObserver = null;
+    this.waitForGameplayObserver = null;
     this.debounceTimer = null;
     
     // State tracking
@@ -27,16 +40,13 @@ class BetterScriptsFeature {
     // UI container for script widgets
     this.widgetContainer = null;
     
-    // Event handlers
+    // URL change detection
     this.boundUrlChangeHandler = null;
     this.originalPushState = null;
     this.originalReplaceState = null;
     
-    // Message queue for outbound messages to scripts
-    this.outboundQueue = [];
-    
-    // Debug mode
-    this.debug = true; // Enable for testing
+    // Debug logging (disable in production)
+    this.debug = true;
   }
 
   log(message, ...args) {
@@ -51,7 +61,6 @@ class BetterScriptsFeature {
     console.log('[BetterScripts] Initializing BetterScripts feature...');
     
     this.detectCurrentAdventure();
-    this.injectBridgeAPI();
     this.startObserving();
     
     if (this.currentAdventureId) {
@@ -65,7 +74,6 @@ class BetterScriptsFeature {
     console.log('[BetterScripts] Destroying BetterScripts feature...');
     
     this.stopObserving();
-    this.removeBridgeAPI();
     this.removeWidgetContainer();
     this.registeredWidgets.clear();
     
@@ -144,100 +152,8 @@ class BetterScriptsFeature {
       characterData: true
     });
     
-    // Aggressive observer specifically for toast/notification area
-    // This runs immediately without debouncing to catch state.message
-    this.setupToastObserver();
-    
-    // Aggressive observer for gameplay output - strips protocol messages immediately
+    // Immediate observer for gameplay output - strips protocol messages instantly
     this.setupGameplayOutputObserver();
-    
-    // Also scan existing content
-    this.scanForMessages();
-  }
-  
-  /**
-   * Sets up an aggressive observer for the toast/notification area
-   * to catch state.message content immediately and hide it
-   */
-  setupToastObserver() {
-    // Function to observe a toast container
-    const observeToastContainer = (container) => {
-      if (!container || container._bdObserved) return;
-      container._bdObserved = true;
-      
-      const toastObserver = new MutationObserver((mutations) => {
-        // Process immediately without debouncing
-        for (const mutation of mutations) {
-          // Check added nodes for protocol messages
-          for (const node of mutation.addedNodes) {
-            if (node.nodeType === Node.ELEMENT_NODE || node.nodeType === Node.TEXT_NODE) {
-              const text = node.textContent || '';
-              if (text.includes('[[BD:')) {
-                this.log('Toast message detected, processing immediately...');
-                this.processToastMessage(node);
-              }
-            }
-          }
-        }
-      });
-      
-      toastObserver.observe(container, {
-        childList: true,
-        subtree: true,
-        characterData: true
-      });
-      
-      this.log('Toast observer attached to:', container.className || container.tagName);
-    };
-    
-    // Try to find existing toast containers
-    const findAndObserveToasts = () => {
-      const selectors = [
-        '[aria-label*="Notifications"]',
-        '[role="region"][aria-label*="Notification"]',
-        '.is_ToastViewport',
-        '.is_ViewportWrapper',
-        '[class*="Toast"]',
-        '[class*="toast"]'
-      ];
-      
-      selectors.forEach(selector => {
-        try {
-          document.querySelectorAll(selector).forEach(observeToastContainer);
-        } catch (e) {}
-      });
-    };
-    
-    // Find existing containers
-    findAndObserveToasts();
-    
-    // Also watch for new toast containers being added
-    const containerObserver = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        for (const node of mutation.addedNodes) {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            // Check if this is a toast container
-            const isToast = node.matches && (
-              node.matches('[aria-label*="Notifications"]') ||
-              node.matches('[class*="Toast"]') ||
-              node.matches('.is_ViewportWrapper')
-            );
-            if (isToast) {
-              observeToastContainer(node);
-            }
-            // Also check children
-            if (node.querySelectorAll) {
-              findAndObserveToasts();
-            }
-          }
-        }
-      }
-    });
-    
-    containerObserver.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
   }
   
   /**
@@ -253,12 +169,12 @@ class BetterScriptsFeature {
       
       this.log('Setting up immediate gameplay output observer');
       
-      const gameplayObserver = new MutationObserver((mutations) => {
+      this.gameplayObserver = new MutationObserver((mutations) => {
         // Strip protocol messages IMMEDIATELY - no debounce
         this.stripProtocolMessagesFromGameplay();
       });
       
-      gameplayObserver.observe(gameplayOutput, {
+      this.gameplayObserver.observe(gameplayOutput, {
         childList: true,
         subtree: true,
         characterData: true
@@ -272,13 +188,13 @@ class BetterScriptsFeature {
     observeGameplayOutput();
     
     // Watch for gameplay output to be added (page navigation)
-    const waitForGameplay = new MutationObserver((mutations) => {
+    this.waitForGameplayObserver = new MutationObserver((mutations) => {
       if (!document.querySelector('#gameplay-output')?._bdGameplayObserved) {
         observeGameplayOutput();
       }
     });
     
-    waitForGameplay.observe(document.body, {
+    this.waitForGameplayObserver.observe(document.body, {
       childList: true,
       subtree: true
     });
@@ -335,67 +251,6 @@ class BetterScriptsFeature {
       textNode.textContent = originalText.replace(/\[\[BD:[\s\S]*?:BD\]\]/g, '');
     }
   }
-  
-  /**
-   * Process a toast message immediately and hide it
-   */
-  processToastMessage(node) {
-    const text = node.textContent || '';
-    const messageRegex = /\[\[BD:([\s\S]*?):BD\]\]/g;
-    let match;
-    
-    while ((match = messageRegex.exec(text)) !== null) {
-      const rawMessage = match[1];
-      const fullMatch = match[0];
-      
-      // Skip if already processed
-      if (rawMessage === this.lastProcessedMessage) continue;
-      
-      try {
-        const message = JSON.parse(rawMessage);
-        this.lastProcessedMessage = rawMessage;
-        this.log('Processing toast message:', message);
-        this.processMessage(message);
-        
-        // Hide the toast element containing the protocol message
-        this.hideToastElement(node, fullMatch);
-      } catch (e) {
-        this.log('Failed to parse toast message:', rawMessage, e);
-      }
-    }
-  }
-  
-  /**
-   * Hides a toast element containing protocol messages
-   */
-  hideToastElement(node, fullMatch) {
-    // Try to find the parent toast element and hide it entirely
-    let element = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
-    
-    // Walk up to find the toast container
-    while (element && element !== document.body) {
-      // Check if this looks like a toast item
-      if (element.matches && (
-        element.matches('[role="status"]') ||
-        element.matches('[role="alert"]') ||
-        element.className.includes('Toast') ||
-        element.className.includes('toast')
-      )) {
-        // Hide the entire toast
-        element.style.display = 'none';
-        this.log('Toast element hidden');
-        return;
-      }
-      element = element.parentElement;
-    }
-    
-    // Fallback: just remove the text from the node
-    if (node.nodeType === Node.TEXT_NODE) {
-      node.textContent = node.textContent.replace(/\[\[BD:[\s\S]*?:BD\]\]/g, '');
-    } else if (node.innerHTML) {
-      node.innerHTML = node.innerHTML.replace(/\[\[BD:[\s\S]*?:BD\]\]/g, '');
-    }
-  }
 
   stopObserving() {
     if (this.boundUrlChangeHandler) {
@@ -418,6 +273,22 @@ class BetterScriptsFeature {
       this.observer = null;
     }
     
+    // Clear DOM flag before disconnecting gameplay observer
+    const gameplayOutput = document.querySelector('#gameplay-output');
+    if (gameplayOutput && gameplayOutput._bdGameplayObserved) {
+      delete gameplayOutput._bdGameplayObserved;
+    }
+    
+    if (this.gameplayObserver) {
+      this.gameplayObserver.disconnect();
+      this.gameplayObserver = null;
+    }
+    
+    if (this.waitForGameplayObserver) {
+      this.waitForGameplayObserver.disconnect();
+      this.waitForGameplayObserver = null;
+    }
+    
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
@@ -431,162 +302,10 @@ class BetterScriptsFeature {
     
     this.debounceTimer = setTimeout(() => {
       this.detectCurrentAdventure();
-      this.scanForMessages();
     }, 100);
   }
 
-  // ==================== MESSAGE PARSING ====================
-
-  /**
-   * Scans the DOM for BetterScripts messages embedded in state.message output
-   * Messages are formatted as: [[BD:{json}:BD]]
-   * 
-   * AI Dungeon displays state.message in several places:
-   * 1. Toast notifications (aria-label="Notifications")
-   * 2. Inline in the story text
-   * 3. System message areas
-   */
-  scanForMessages() {
-    if (!this.currentAdventureId) return;
-    
-    const messageRegex = /\[\[BD:([\s\S]*?):BD\]\]/g;
-    const foundMessages = new Set();
-    
-    // Track if we found any messages that need hiding
-    let messagesFound = false;
-    
-    // Helper to process text for messages
-    const processTextForMessages = (text, sourceElement = null) => {
-      let match;
-      while ((match = messageRegex.exec(text)) !== null) {
-        const rawMessage = match[1];
-        const fullMatch = match[0];
-        
-        // Use hash of message to track duplicates within this scan
-        const messageKey = rawMessage;
-        if (foundMessages.has(messageKey)) continue;
-        if (rawMessage === this.lastProcessedMessage) continue;
-        
-        foundMessages.add(messageKey);
-        messagesFound = true;
-        
-        try {
-          const message = JSON.parse(rawMessage);
-          this.lastProcessedMessage = rawMessage;
-          this.log('Found message in DOM:', message);
-          this.processMessage(message);
-          
-          // Hide the protocol message from UI
-          if (message.hideMessage !== false) {
-            this.hideMessageElement(sourceElement, fullMatch);
-          }
-        } catch (e) {
-          this.log('Failed to parse message:', rawMessage, e);
-        }
-      }
-      // Reset regex lastIndex for reuse
-      messageRegex.lastIndex = 0;
-    };
-    
-    // 1. Scan gameplay output (main story area)
-    const gameplayOutput = document.querySelector('#gameplay-output');
-    if (gameplayOutput) {
-      processTextForMessages(gameplayOutput.textContent || '');
-    }
-    
-    // 2. Scan notifications/toast area (where state.message often appears)
-    const notificationsArea = document.querySelector('[aria-label*="Notifications"], [role="region"][aria-label*="Notification"]');
-    if (notificationsArea) {
-      processTextForMessages(notificationsArea.textContent || '', notificationsArea);
-    }
-    
-    // 3. Scan toast viewport elements
-    const toastElements = document.querySelectorAll('.is_ToastViewport, [class*="Toast"], [class*="toast"]');
-    toastElements.forEach(el => {
-      processTextForMessages(el.textContent || '', el);
-    });
-    
-    // 4. Scan for any element that might contain our protocol message
-    // This is broader but catches edge cases
-    const allTextNodes = document.evaluate(
-      '//text()[contains(., "[[BD:")]',
-      document.body,
-      null,
-      XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
-      null
-    );
-    
-    for (let i = 0; i < allTextNodes.snapshotLength; i++) {
-      const textNode = allTextNodes.snapshotItem(i);
-      if (textNode && textNode.textContent) {
-        processTextForMessages(textNode.textContent, textNode.parentElement);
-      }
-    }
-    
-    // 5. Also check common info/system message selectors
-    const infoSelectors = [
-      '[class*="info"]',
-      '[class*="system"]', 
-      '[class*="message"]',
-      '[class*="alert"]',
-      '[class*="notice"]',
-      '[role="alert"]',
-      '[role="status"]'
-    ];
-    
-    infoSelectors.forEach(selector => {
-      try {
-        document.querySelectorAll(selector).forEach(el => {
-          const text = el.textContent || '';
-          if (text.includes('[[BD:')) {
-            processTextForMessages(text, el);
-          }
-        });
-      } catch (e) {
-        // Selector might be invalid, ignore
-      }
-    });
-  }
-
-  /**
-   * Hides the BetterScripts protocol message from the visible UI
-   * Uses multiple strategies to find and remove the protocol text
-   */
-  hideMessageElement(element, fullMatch) {
-    this.log('Hiding message from UI:', fullMatch.substring(0, 50) + '...');
-    
-    // Strategy 1: Direct innerHTML replacement on the element
-    if (element && element.innerHTML) {
-      element.innerHTML = element.innerHTML.replace(fullMatch, '');
-    }
-    
-    // Strategy 2: Search the entire gameplay output for the message
-    this.hideFromGameplayOutput(fullMatch);
-  }
-  
-  /**
-   * Searches the gameplay output and removes protocol messages
-   */
-  hideFromGameplayOutput(fullMatch) {
-    const gameplayOutput = document.querySelector('#gameplay-output');
-    if (!gameplayOutput) return;
-    
-    // Walk through all text nodes and remove the protocol message
-    const walker = document.createTreeWalker(
-      gameplayOutput,
-      NodeFilter.SHOW_TEXT,
-      null,
-      false
-    );
-    
-    let node;
-    while ((node = walker.nextNode())) {
-      if (node.textContent && node.textContent.includes('[[BD:')) {
-        // Replace all protocol messages in this text node
-        node.textContent = node.textContent.replace(/\[\[BD:[\s\S]*?:BD\]\]/g, '');
-      }
-    }
-  }
+  // ==================== MESSAGE PROCESSING ====================
 
   /**
    * Process a parsed BetterScripts message
@@ -726,24 +445,31 @@ class BetterScriptsFeature {
       return;
     }
     
-    // Find suitable location for widgets (near game settings)
-    const settingsButton = document.querySelector(
-      '[aria-label="Game settings"], [aria-label="Game Settings"], [aria-label="Game Menu"], [aria-label="Game menu"]'
-    );
-    
     this.widgetContainer = document.createElement('div');
     this.widgetContainer.className = 'bd-betterscripts-container';
     this.widgetContainer.id = 'bd-betterscripts-widgets';
     
-    // Insert near the top of the game area
-    const gameplayOutput = document.querySelector('#gameplay-output');
-    if (gameplayOutput && gameplayOutput.parentElement) {
-      gameplayOutput.parentElement.insertBefore(this.widgetContainer, gameplayOutput);
-    } else {
-      document.body.appendChild(this.widgetContainer);
-    }
+    // Use fixed positioning so widgets stay visible and don't get pushed by content
+    // Position below the navigation bar (approximately 56px from top)
+    Object.assign(this.widgetContainer.style, {
+      position: 'fixed',
+      top: '56px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      zIndex: '1000',
+      display: 'flex',
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: '8px',
+      padding: '8px',
+      maxWidth: '900px',
+      pointerEvents: 'none' // Allow clicks to pass through container gaps
+    });
     
-    this.log('Widget container created');
+    // Append directly to body for fixed positioning
+    document.body.appendChild(this.widgetContainer);
+    
+    this.log('Widget container created (fixed position)');
   }
 
   removeWidgetContainer() {
@@ -804,6 +530,7 @@ class BetterScriptsFeature {
     const widget = document.createElement('div');
     widget.className = 'bd-widget bd-widget-stat';
     widget.id = `bd-widget-${widgetId}`;
+    widget.style.pointerEvents = 'auto'; // Re-enable interactions on widget
     
     const label = document.createElement('span');
     label.className = 'bd-widget-label';
@@ -830,6 +557,7 @@ class BetterScriptsFeature {
     const widget = document.createElement('div');
     widget.className = 'bd-widget bd-widget-bar';
     widget.id = `bd-widget-${widgetId}`;
+    widget.style.pointerEvents = 'auto'; // Re-enable interactions on widget
     
     const label = document.createElement('span');
     label.className = 'bd-widget-label';
@@ -868,6 +596,7 @@ class BetterScriptsFeature {
     const widget = document.createElement('div');
     widget.className = 'bd-widget bd-widget-text';
     widget.id = `bd-widget-${widgetId}`;
+    widget.style.pointerEvents = 'auto'; // Re-enable interactions on widget
     
     widget.textContent = config.text || '';
     
@@ -885,6 +614,7 @@ class BetterScriptsFeature {
     const widget = document.createElement('div');
     widget.className = 'bd-widget bd-widget-panel';
     widget.id = `bd-widget-${widgetId}`;
+    widget.style.pointerEvents = 'auto'; // Re-enable interactions on widget
     
     if (config.title) {
       const title = document.createElement('div');
@@ -935,6 +665,7 @@ class BetterScriptsFeature {
     const widget = document.createElement('div');
     widget.className = 'bd-widget bd-widget-custom';
     widget.id = `bd-widget-${widgetId}`;
+    widget.style.pointerEvents = 'auto'; // Re-enable interactions on widget
     
     // Only allow safe HTML (no scripts)
     if (config.html) {
@@ -1064,71 +795,11 @@ class BetterScriptsFeature {
     this.log('All widgets cleared');
   }
 
-  // ==================== BRIDGE API ====================
+  // ==================== DEBUG/DEMO ====================
 
   /**
-   * Inject global API for BetterDungeon to communicate with scripts.
-   * Content scripts run in an isolated context, so we need to inject
-   * an external script file to bypass CSP restrictions.
-   */
-  injectBridgeAPI() {
-    // Store reference to this for event handlers
-    const self = this;
-    
-    // Create the bridge script that runs in page context
-    // Use external file to bypass CSP restrictions
-    const bridgeScript = document.createElement('script');
-    bridgeScript.id = 'betterscripts-bridge';
-    bridgeScript.src = chrome.runtime.getURL('bridge/betterscripts_bridge.js');
-    
-    // Inject script into page
-    (document.head || document.documentElement).appendChild(bridgeScript);
-    
-    // Listen for commands from the page context
-    window.addEventListener('betterscripts:command', (event) => {
-      const { command, data } = event.detail || {};
-      
-      switch (command) {
-        case 'createWidget':
-          self.createWidget(data.id, data.config);
-          break;
-        case 'updateWidget':
-          self.updateWidget(data.id, data.config);
-          break;
-        case 'destroyWidget':
-          self.destroyWidget(data.id);
-          break;
-        case 'clearWidgets':
-          self.clearAllWidgets();
-          break;
-        case 'testMessage':
-          self.processMessage(data.message);
-          break;
-        case 'demo':
-          self.runDemo();
-          break;
-        case 'forceScan':
-          self.scanForMessages();
-          break;
-        case 'getState':
-          console.log('[BetterScripts] Current State:', {
-            adventureId: self.currentAdventureId,
-            widgetCount: self.registeredWidgets.size,
-            widgets: Array.from(self.registeredWidgets.keys()),
-            lastMessage: self.lastProcessedMessage,
-            containerExists: !!self.widgetContainer && document.body.contains(self.widgetContainer)
-          });
-          break;
-        default:
-          self.log('Unknown command:', command);
-      }
-    });
-    
-    this.log('Bridge API injected');
-  }
-
-  /**
-   * Run demo to create sample widgets
+   * Run demo to create sample widgets (for testing)
+   * Access via: window.BetterScriptsFeature.instance.runDemo()
    */
   runDemo() {
     console.log('[BetterScripts] Creating demo widgets...');
@@ -1168,24 +839,20 @@ class BetterScriptsFeature {
       }
     });
     
-    console.log('[BetterScripts] Demo widgets created. Call BetterScriptsBridge.clearWidgets() to remove.');
+    console.log('[BetterScripts] Demo widgets created.');
   }
 
-  removeBridgeAPI() {
-    const bridgeScript = document.getElementById('betterscripts-bridge');
-    if (bridgeScript) {
-      bridgeScript.remove();
-    }
-    
-    // Inject removal script
-    const removeScript = document.createElement('script');
-    removeScript.textContent = `
-      if (window.BetterScriptsBridge) {
-        delete window.BetterScriptsBridge;
-      }
-    `;
-    (document.head || document.documentElement).appendChild(removeScript);
-    removeScript.remove();
+  /**
+   * Get current state (for debugging)
+   */
+  getState() {
+    return {
+      adventureId: this.currentAdventureId,
+      widgetCount: this.registeredWidgets.size,
+      widgets: Array.from(this.registeredWidgets.keys()),
+      lastMessage: this.lastProcessedMessage,
+      containerExists: !!this.widgetContainer && document.body.contains(this.widgetContainer)
+    };
   }
 }
 
