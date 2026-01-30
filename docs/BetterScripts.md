@@ -17,288 +17,143 @@ BetterScripts enables AI Dungeon scripts to communicate with the BetterDungeon e
                                            └─────────────────────┘
 ```
 
-1. Your script embeds a **protocol message** in the AI's output text
-2. BetterDungeon detects the message via DOM observation
-3. The message is parsed and executed (e.g., widget created)
-4. The protocol text is **stripped from the DOM** so the user never sees it
-
-## Protocol Format
-
-Messages use this format:
-```
-[[BD:{"type":"...", ...}:BD]]
-```
-
-The JSON payload must be valid and include a `type` field.
+1. Your script embeds a **protocol message** in the AI's output text.
+2. BetterDungeon detects the message via DOM observation.
+3. The message is parsed and executed (e.g., widget created).
+4. The protocol text is **stripped from the DOM** so the user never sees it.
 
 ---
 
-## Two-Hook Pattern (Recommended)
+# Script Structure
 
-To keep protocol messages invisible to both the AI and the user, use two modifiers:
+Our scripts consist of three parts: **Library**, **Context Modifier**, and **Output Modifier**.
+The **Input Modifier** is unused and is therefore irrelevant.
 
-### Context Modifier (strips messages from AI context)
+## 1. Library (sharedLibrary)
+Use the Library to define shared state and helper functions.
+
+```javascript
+// Initialize state
+state.game = state.game ?? { hp: 100, gold: 0 };
+
+// Helper to send widget commands
+function bdWidget(id, action, config = {}) {
+  return `[[BD:${JSON.stringify({ type: 'widget', widgetId: id, action: action, config: config })}:BD]]`;
+}
+```
+
+## 2. Context Modifier (onModelContext)
+**CRITICAL:** You must strip protocol messages from the context so the AI doesn't see or repeat them.
+
 ```javascript
 const modifier = (text) => {
+  // Remove protocol messages from context
   text = text.replace(/\[\[BD:[\s\S]*?:BD\]\]/g, '');
   return { text };
 };
 modifier(text);
 ```
 
-### Output Modifier (appends messages after AI output)
-```javascript
-// Your logic here...
-const message = {
-  type: 'widget',
-  widgetId: 'my-widget',
-  action: 'create',
-  config: { type: 'stat', label: 'Score', value: 42 }
-};
+## 3. Output Modifier (onOutput)
+This is where you update your game state and send widget commands.
 
-const protocol = '[[BD:' + JSON.stringify(message) + ':BD]]';
-const modifier = (text) => ({ text: text + protocol });
+```javascript
+const modifier = (text) => {
+  // Logic to update state...
+  state.game.gold += 10;
+  
+  // Append widget update to the AI's output
+  const protocol = bdWidget('gold-stat', 'create', { 
+    type: 'stat', 
+    label: 'Gold', 
+    value: state.game.gold 
+  });
+  
+  return { text: text + protocol };
+};
 modifier(text);
 ```
 
 ---
 
-## Message Types
+# Protocol Reference
 
-### 1. Widget Messages
+Messages use the format `[[BD:{json}:BD]]`.
 
-Create, update, or destroy UI widgets.
-
-```javascript
-{
-  type: 'widget',
-  widgetId: 'unique-id',    // Required: unique identifier
-  action: 'create',         // 'create' | 'update' | 'destroy'
-  config: { ... }           // Widget configuration (see below)
-}
-```
-
-### 2. Register Messages
-
-Register your script with BetterDungeon (optional, for identification).
+## Widget Message
+The primary message type for UI interaction.
 
 ```javascript
 {
-  type: 'register',
-  scriptId: 'my-script',
-  scriptName: 'My Awesome Script',
-  version: '1.0.0',
-  capabilities: ['widgets', 'stats']
+  "type": "widget",
+  "widgetId": "unique-id",
+  "action": "create", // 'create' (or update), 'destroy'
+  "config": { ... }    // See Widget Types below
 }
 ```
-
-### 3. Update Messages
-
-Generic update message for custom handling.
-
-```javascript
-{
-  type: 'update',
-  target: 'widget-id',
-  data: { ... }
-}
-```
-
-### 4. Remove Messages
-
-Remove a widget.
-
-```javascript
-{
-  type: 'remove',
-  target: 'widget-id'
-}
-```
-
----
 
 ## Widget Types
 
 ### Stat Widget
-Displays a label and value.
-
+Simple label and value display.
 ```javascript
 {
-  type: 'stat',
-  label: 'Health',
-  value: 75,
-  color: '#22c55e'  // Optional: value color
+  "type": "stat",
+  "label": "Health",
+  "value": 75,
+  "color": "#22c55e"
 }
 ```
-
-**Result:** `Health: 75`
-
----
 
 ### Bar Widget
-Displays a progress bar.
-
+Progress bar for resources.
 ```javascript
 {
-  type: 'bar',
-  label: 'HP',
-  value: 75,
-  max: 100,
-  color: '#22c55e',
-  showValue: true   // Optional: show "75/100" text
+  "type": "bar",
+  "label": "HP",
+  "value": 75,
+  "max": 100,
+  "color": "#ef4444",
+  "showValue": true
 }
 ```
-
-**Result:** A progress bar at 75%
-
----
-
-### Text Widget
-Displays simple text.
-
-```javascript
-{
-  type: 'text',
-  text: 'Welcome to the adventure!',
-  style: {          // Optional: CSS styles
-    color: '#fbbf24',
-    fontWeight: 'bold'
-  }
-}
-```
-
----
 
 ### Panel Widget
-Displays a titled panel with multiple items.
-
+A container for multiple stat items.
 ```javascript
 {
-  type: 'panel',
-  title: 'Player Stats',
-  items: [
-    { label: 'HP', value: '75/100', color: '#22c55e' },
-    { label: 'Gold', value: '42', color: '#fbbf24' },
-    { label: 'Level', value: '5', color: '#a855f7' }
+  "type": "panel",
+  "title": "Character",
+  "items": [
+    { "label": "LVL", "value": 5 },
+    { "label": "XP", "value": "450/1000" }
   ]
 }
 ```
 
-**Result:** A panel displaying multiple stat rows
-
----
-
-## Complete Example
-
-Here's a full example that tracks player health:
-
-### Context Modifier
+### Text Widget
+Simple text or notification.
 ```javascript
-// Strip protocol messages from AI context
-const modifier = (text) => {
-  text = text.replace(/\[\[BD:[\s\S]*?:BD\]\]/g, '');
-  return { text };
-};
-modifier(text);
-```
-
-### Output Modifier
-```javascript
-// Initialize state
-if (!state.player) {
-  state.player = { hp: 100, maxHp: 100, gold: 0 };
+{
+  "type": "text",
+  "text": "Level Up!",
+  "style": { "fontWeight": "bold", "color": "#fbbf24" }
 }
-
-// Simulate taking damage (example logic)
-if (text.toLowerCase().includes('hit') || text.toLowerCase().includes('attack')) {
-  state.player.hp = Math.max(0, state.player.hp - Math.floor(Math.random() * 20));
-}
-
-// Create health bar widget
-const hpWidget = {
-  type: 'widget',
-  widgetId: 'player-hp',
-  action: 'create',
-  config: {
-    type: 'bar',
-    label: 'HP',
-    value: state.player.hp,
-    max: state.player.maxHp,
-    color: state.player.hp > 50 ? '#22c55e' : state.player.hp > 25 ? '#fbbf24' : '#ef4444'
-  }
-};
-
-// Send to BetterDungeon
-const protocol = '[[BD:' + JSON.stringify(hpWidget) + ':BD]]';
-const modifier = (text) => ({ text: text + protocol });
-modifier(text);
 ```
 
 ---
 
-## Best Practices
+# Best Practices
 
-1. **Always use the two-hook pattern** - Context Modifier strips, Output Modifier appends
-2. **Use unique widget IDs** - Prevents conflicts between scripts
-3. **Keep payloads small** - Large JSON may impact performance
-4. **Prefix widget IDs** - e.g., `myscript-health` to avoid collisions
-5. **Handle missing state** - Always initialize `state` properties with defaults
-
----
-
-## Debugging
-
-Open browser DevTools (F12) and look for `[BetterScripts]` logs:
-
-```
-[BetterScripts] Found message in DOM: {type: 'widget', ...}
-[BetterScripts] Widget created: player-hp
-```
+1. **Strips are Mandatory:** Always use a Context Modifier to strip `[[BD:...:BD]]` tags. If you don't, the AI will start hallucinating protocol messages.
+2. **Unique IDs:** Prefix your widget IDs (e.g., `rpg_hp`) to avoid conflicts with other scripts.
+3. **State Safety:** Always use `state.obj = state.obj ?? {}` to initialize data.
+4. **No Async:** AI Dungeon scripts do not support `async/await` or `Promises`.
 
 ---
 
-## API Reference
+# Troubleshooting
 
-### Widget Config Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `type` | string | Widget type: `stat`, `bar`, `text`, `panel` |
-| `label` | string | Display label |
-| `value` | any | Current value |
-| `max` | number | Maximum value (for `bar` type) |
-| `color` | string | CSS color for value/bar |
-| `title` | string | Panel title (for `panel` type) |
-| `items` | array | Panel items (for `panel` type) |
-| `text` | string | Display text (for `text` type) |
-| `style` | object | CSS styles (for `text` type) |
-
-### Message Actions
-
-| Action | Description |
-|--------|-------------|
-| `create` | Create or replace a widget |
-| `update` | Update existing widget properties |
-| `destroy` | Remove a widget |
-
----
-
-## Troubleshooting
-
-**Widget not appearing?**
-- Ensure you're in an active adventure (not the home page)
-- Check DevTools console for `[BetterScripts]` errors
-- Verify JSON is valid (use `JSON.stringify()`)
-
-**Protocol text visible to user?**
-- Make sure BetterDungeon extension is installed and enabled
-- Reload the page after installing
-
-**AI seeing protocol messages?**
-- Add the Context Modifier to strip messages from history
-
----
-
-## Version History
-
-- **1.0.0** - Initial release with widget support
+- **Visible Tags:** If you see `[[BD:...]]` in the story text, the extension isn't running or the tags are being rendered in an area the extension doesn't monitor.
+- **AI Hallucinations:** If the AI starts typing protocol tags, your Context Modifier isn't stripping them correctly.
+- **Missing Widgets:** Check the browser console (F12) for `[BetterScripts]` error messages.

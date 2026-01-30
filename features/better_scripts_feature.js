@@ -323,13 +323,9 @@ class BetterScriptsFeature {
         this.handleRegister(message);
         break;
       case 'widget':
-        this.handleWidgetCommand(message);
-        break;
       case 'update':
-        this.handleUpdate(message);
-        break;
       case 'remove':
-        this.handleRemove(message);
+        this.handleWidgetCommand(message);
         break;
       case 'ping':
         this.handlePing(message);
@@ -373,52 +369,30 @@ class BetterScriptsFeature {
    * Handle widget creation/update commands
    */
   handleWidgetCommand(message) {
-    const { widgetId, action, config } = message;
+    const { widgetId, target, action, config, data } = message;
+    const id = widgetId || target;
     
-    if (!widgetId) {
-      this.log('Widget message missing widgetId');
+    if (!id) {
+      this.log('Widget message missing ID');
       return;
     }
     
-    switch (action) {
+    // Support both 'widget' type and legacy 'update'/'remove' types
+    const effectiveAction = action || (message.type === 'remove' ? 'destroy' : 'update');
+    const effectiveConfig = config || data;
+    
+    switch (effectiveAction) {
       case 'create':
-        this.createWidget(widgetId, config);
+        this.createWidget(id, effectiveConfig);
         break;
       case 'update':
-        this.updateWidget(widgetId, config);
+        this.updateWidget(id, effectiveConfig);
         break;
       case 'destroy':
-        this.destroyWidget(widgetId);
+        this.destroyWidget(id);
         break;
       default:
-        this.log('Unknown widget action:', action);
-    }
-  }
-
-  /**
-   * Handle generic update messages
-   */
-  handleUpdate(message) {
-    const { target, data } = message;
-    
-    if (target && this.registeredWidgets.has(target)) {
-      this.updateWidget(target, data);
-    }
-    
-    // Emit event for custom handling
-    window.dispatchEvent(new CustomEvent('betterscripts:update', {
-      detail: message
-    }));
-  }
-
-  /**
-   * Handle remove messages
-   */
-  handleRemove(message) {
-    const { target } = message;
-    
-    if (target && this.registeredWidgets.has(target)) {
-      this.destroyWidget(target);
+        this.log('Unknown widget action:', effectiveAction);
     }
   }
 
@@ -569,7 +543,8 @@ class BetterScriptsFeature {
     const barFill = document.createElement('div');
     barFill.className = 'bd-widget-bar-fill';
     
-    const percentage = Math.min(100, Math.max(0, config.value || 0));
+    const max = config.max || 100;
+    const percentage = Math.min(100, Math.max(0, ((config.value || 0) / max) * 100));
     barFill.style.width = `${percentage}%`;
     
     if (config.color) {
@@ -717,7 +692,8 @@ class BetterScriptsFeature {
         const barFill = element.querySelector('.bd-widget-bar-fill');
         const barText = element.querySelector('.bd-widget-bar-text');
         if (barFill && config.value !== undefined) {
-          const percentage = Math.min(100, Math.max(0, config.value || 0));
+          const max = config.max || existingConfig.max || 100;
+          const percentage = Math.min(100, Math.max(0, ((config.value || 0) / max) * 100));
           barFill.style.width = `${percentage}%`;
         }
         if (barText && config.value !== undefined) {
@@ -793,66 +769,6 @@ class BetterScriptsFeature {
     this.registeredWidgets.clear();
     this.lastProcessedMessage = null;
     this.log('All widgets cleared');
-  }
-
-  // ==================== DEBUG/DEMO ====================
-
-  /**
-   * Run demo to create sample widgets (for testing)
-   * Access via: window.BetterScriptsFeature.instance.runDemo()
-   */
-  runDemo() {
-    console.log('[BetterScripts] Creating demo widgets...');
-    
-    this.processMessage({
-      type: 'register',
-      scriptId: 'demo-script',
-      scriptName: 'Demo Script',
-      version: '1.0.0'
-    });
-    
-    this.processMessage({
-      type: 'widget',
-      widgetId: 'demo-stats',
-      action: 'create',
-      config: {
-        type: 'panel',
-        title: 'Player Stats (Demo)',
-        items: [
-          { label: 'HP', value: '75/100', color: '#22c55e' },
-          { label: 'Gold', value: '42', color: '#fbbf24' },
-          { label: 'Level', value: '5', color: '#a855f7' }
-        ]
-      }
-    });
-    
-    this.processMessage({
-      type: 'widget',
-      widgetId: 'demo-hp-bar',
-      action: 'create',
-      config: {
-        type: 'bar',
-        label: 'Health',
-        value: 75,
-        max: 100,
-        color: '#22c55e'
-      }
-    });
-    
-    console.log('[BetterScripts] Demo widgets created.');
-  }
-
-  /**
-   * Get current state (for debugging)
-   */
-  getState() {
-    return {
-      adventureId: this.currentAdventureId,
-      widgetCount: this.registeredWidgets.size,
-      widgets: Array.from(this.registeredWidgets.keys()),
-      lastMessage: this.lastProcessedMessage,
-      containerExists: !!this.widgetContainer && document.body.contains(this.widgetContainer)
-    };
   }
 }
 

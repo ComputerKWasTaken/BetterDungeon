@@ -72,7 +72,8 @@ const DEFAULT_FEATURES = {
   inputModeColor: true,
   characterPreset: true,
   autoSee: false,
-  notes: true
+  notes: true,
+  betterScripts: true
 };
 
 const DEFAULT_SETTINGS = {
