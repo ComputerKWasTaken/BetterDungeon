@@ -88,7 +88,7 @@ class FeatureManager {
 
     this.featureClasses.forEach((FeatureClass, id) => {
       // Always-on QOL features that don't need user toggling
-      const alwaysEnabled = ['storyCardAnalytics', 'autoEnableScripts', 'storyCardModalDock', 'betterScripts'];
+      const alwaysEnabled = ['storyCardAnalytics', 'autoEnableScripts', 'storyCardModalDock'];
       // Features that are disabled by default
       const defaultOff = ['autoSee'];
       

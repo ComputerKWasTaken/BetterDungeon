@@ -63,9 +63,7 @@ class BetterScriptsFeature {
     this.detectCurrentAdventure();
     this.startObserving();
     
-    if (this.currentAdventureId) {
-      this.createWidgetContainer();
-    }
+    // Widget container is created on-demand when first widget is added
     
     console.log('[BetterScripts] Initialization complete');
   }
@@ -74,8 +72,12 @@ class BetterScriptsFeature {
     console.log('[BetterScripts] Destroying BetterScripts feature...');
     
     this.stopObserving();
+    this.clearAllWidgets();
     this.removeWidgetContainer();
     this.registeredWidgets.clear();
+    this.registeredScripts.clear();
+    this.currentAdventureId = null;
+    this.lastProcessedMessage = null;
     
     console.log('[BetterScripts] Cleanup complete');
   }
@@ -109,7 +111,7 @@ class BetterScriptsFeature {
         this.currentAdventureId = newAdventureId;
       }
       
-      this.createWidgetContainer();
+      // Don't create container here - only create when first widget is added
     } else {
       if (this.currentAdventureId) {
         this.log('Left adventure');
@@ -378,7 +380,13 @@ class BetterScriptsFeature {
     }
     
     // Support both 'widget' type and legacy 'update'/'remove' types
-    const effectiveAction = action || (message.type === 'remove' ? 'destroy' : 'update');
+    // Default to 'create' for 'widget' type, 'update' for legacy 'update', 'destroy' for 'remove'
+    let effectiveAction = action;
+    if (!effectiveAction) {
+      if (message.type === 'remove') effectiveAction = 'destroy';
+      else if (message.type === 'update') effectiveAction = 'update';
+      else effectiveAction = 'create'; // Default for 'widget' type
+    }
     const effectiveConfig = config || data;
     
     switch (effectiveAction) {
@@ -462,10 +470,13 @@ class BetterScriptsFeature {
       return;
     }
     
-    // Remove existing widget with same ID
+    // Remove existing widget with same ID first (before container check)
     if (this.registeredWidgets.has(widgetId)) {
       this.destroyWidget(widgetId);
     }
+    
+    // Create container on-demand (after destroy, so it's recreated if needed)
+    this.createWidgetContainer();
     
     let widgetElement;
     
@@ -664,12 +675,14 @@ class BetterScriptsFeature {
   }
 
   /**
-   * Update an existing widget
+   * Update an existing widget (auto-creates if not found)
    */
   updateWidget(widgetId, config) {
     const widgetData = this.registeredWidgets.get(widgetId);
     if (!widgetData) {
-      this.log('Widget not found for update:', widgetId);
+      // Auto-create widget if it doesn't exist
+      this.log('Widget not found for update, creating:', widgetId);
+      this.createWidget(widgetId, config);
       return;
     }
     
@@ -756,6 +769,11 @@ class BetterScriptsFeature {
       widgetData.element.remove();
       this.registeredWidgets.delete(widgetId);
       this.log('Widget destroyed:', widgetId);
+      
+      // Remove container if no widgets remain
+      if (this.registeredWidgets.size === 0) {
+        this.removeWidgetContainer();
+      }
     }
   }
 
@@ -768,6 +786,10 @@ class BetterScriptsFeature {
     });
     this.registeredWidgets.clear();
     this.lastProcessedMessage = null;
+    
+    // Remove container when all widgets are cleared
+    this.removeWidgetContainer();
+    
     this.log('All widgets cleared');
   }
 }
