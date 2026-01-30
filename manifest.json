@@ -31,6 +31,7 @@
         "features/notes_feature.js",
         "features/auto_enable_scripts_feature.js",
         "features/story_card_modal_dock_feature.js",
+        "features/better_scripts_feature.js",
         "main.js"
       ],
       "css": ["styles.css", "fonts/lucide/lucide.css"],
@@ -46,7 +47,8 @@
         "fonts/lucide/lucide.css",
         "fonts/lucide/lucide.ttf",
         "fonts/lucide/lucide.woff",
-        "fonts/lucide/lucide.woff2"
+        "fonts/lucide/lucide.woff2",
+        "bridge/betterscripts_bridge.js"
       ],
       "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"]
     }

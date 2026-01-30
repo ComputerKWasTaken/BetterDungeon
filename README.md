@@ -1,7 +1,5 @@
 # ![BetterDungeon Icon](icons/icon16.png) BetterDungeon
 
-**🚧 Early Access** — Things might break, features might change, feedback is welcome!
-
 The all-in-one browser extension for AI Dungeon that enhances the experience with QOL additions and brand new features.
 
 ## Installation
@@ -66,6 +64,8 @@ Settings sync across Chromium browsers.
 - **Readable Tab Fix** — Moves the "Readable" tab back where it belongs. You're welcome.
 
 - **Auto Enable Scripts** - A small QOL feature that automatically retoggles the "Enable Scripts" option in the Scenario Creation page.
+
+- **Story Card Modal Dock** - A small QOL feature that docks the story card modal to the right of the screen, and allows you to scroll through your story while you edit your Story Cards
 
 ## Support
 
