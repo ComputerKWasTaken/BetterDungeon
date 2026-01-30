@@ -73,6 +73,7 @@ Each feature implements:
 ### Changelog
 
 ### v1.0.0 (in progress)
+- Added **BetterScripts**, a brand new communication layer between the extension and AI Dungeon scripts to allow for the creation of dynamic UI widgets
 - Ported over and improved the **Attempt** feature to be the **Try** feature
 - Improved **Try** feature formatting with **dynamic templates** and **varied outcome phrases** to reduce monotony
 - Outcomes are now **bolded** in the story to improve AI model adherence and visibility (not real Markdown formatting, just emphasizes it to the AI model)

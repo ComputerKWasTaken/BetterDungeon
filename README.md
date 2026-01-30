@@ -33,6 +33,8 @@ Settings sync across Chromium browsers.
 
 ### Quality of Life
 
+- **BetterScripts** — A communication layer between the extension and AI Dungeon scripts to allow for the creation of dynamic UI widgets
+
 - **Markdown Support** — Asterisk-free formatting that actually works with AI models. Bold, italic, underline, whisper text, scene breaks, and lists.
   - Hit "Apply Instructions" in the popup to teach the AI when to use each format
 
