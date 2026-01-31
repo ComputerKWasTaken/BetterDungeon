@@ -12,17 +12,36 @@
  * 4. Protocol text is stripped from DOM before user sees it
  * 
  * Protocol Format: [[BD:{"type":"...", ...}:BD]]
+ * 
+ * Supported Widget Types:
+ * - stat: Label + value display (e.g., "Turn: 5")
+ * - bar: Progress bar with fill (e.g., HP bar)
+ * - text: Styled text display
+ * - panel: Container with title and items
+ * - list: Simple list of items
+ * - custom: Custom HTML (sanitized)
+ * 
+ * Supported Message Types:
+ * - widget: Create/update/destroy widgets
+ * - register: Register a script with BetterDungeon
+ * - notify: Show a temporary notification
+ * - ping: Test connectivity
  */
 
 class BetterScriptsFeature {
   static id = 'betterScripts';
   
   // Protocol version for compatibility checking
-  static PROTOCOL_VERSION = '1.0.0';
+  static PROTOCOL_VERSION = '1.1.0';
   
   // Message delimiters for protocol messages
   static MESSAGE_PREFIX = '[[BD:';
   static MESSAGE_SUFFIX = ':BD]]';
+  
+  // Notification defaults
+  static NOTIFY_DURATION_DEFAULT = 3000;
+  static NOTIFY_DURATION_MAX = 10000;
+  static NOTIFY_MAX_COUNT = 5; // Max notifications visible at once
 
   constructor() {
     // DOM observation
@@ -33,12 +52,14 @@ class BetterScriptsFeature {
     
     // State tracking
     this.currentAdventureId = null;
-    this.lastProcessedMessage = null;
+    this.processedMessageHashes = new Set(); // Track processed messages by hash
+    this.messageHashExpiry = 5000; // Clear old hashes after 5 seconds
     this.registeredWidgets = new Map();
     this.registeredScripts = new Map();
     
-    // UI container for script widgets
+    // UI containers
     this.widgetContainer = null;
+    this.notificationContainer = null;
     
     // URL change detection
     this.boundUrlChangeHandler = null;
@@ -49,10 +70,20 @@ class BetterScriptsFeature {
     this.debug = true;
   }
 
+  // ==================== LOGGING ====================
+
   log(message, ...args) {
     if (this.debug) {
       console.log(`[BetterScripts] ${message}`, ...args);
     }
+  }
+  
+  warn(message, ...args) {
+    console.warn(`[BetterScripts] ${message}`, ...args);
+  }
+  
+  error(message, ...args) {
+    console.error(`[BetterScripts] ${message}`, ...args);
   }
 
   // ==================== LIFECYCLE ====================
@@ -74,10 +105,11 @@ class BetterScriptsFeature {
     this.stopObserving();
     this.clearAllWidgets();
     this.removeWidgetContainer();
+    this.removeNotificationContainer();
     this.registeredWidgets.clear();
     this.registeredScripts.clear();
+    this.processedMessageHashes.clear();
     this.currentAdventureId = null;
-    this.lastProcessedMessage = null;
     
     console.log('[BetterScripts] Cleanup complete');
   }
@@ -203,8 +235,35 @@ class BetterScriptsFeature {
   }
   
   /**
+   * Generate a simple hash for message deduplication
+   */
+  hashMessage(message) {
+    return JSON.stringify(message);
+  }
+  
+  /**
+   * Check if a message has already been processed (deduplication)
+   */
+  isMessageProcessed(messageHash) {
+    return this.processedMessageHashes.has(messageHash);
+  }
+  
+  /**
+   * Mark a message as processed with auto-expiry
+   */
+  markMessageProcessed(messageHash) {
+    this.processedMessageHashes.add(messageHash);
+    
+    // Auto-expire old hashes to prevent memory buildup
+    setTimeout(() => {
+      this.processedMessageHashes.delete(messageHash);
+    }, this.messageHashExpiry);
+  }
+
+  /**
    * Immediately strips all [[BD:...:BD]] protocol messages from gameplay output
    * Called synchronously on every mutation to prevent flash of protocol text
+   * Handles multiple messages in a single output (batch processing)
    */
   stripProtocolMessagesFromGameplay() {
     const gameplayOutput = document.querySelector('#gameplay-output');
@@ -232,24 +291,33 @@ class BetterScriptsFeature {
     for (const textNode of nodesToProcess) {
       const originalText = textNode.textContent;
       let match;
+      const messagesToProcess = [];
       
-      // First, extract and process any messages we haven't seen
+      // First, extract ALL messages from this text node
       while ((match = protocolRegex.exec(originalText)) !== null) {
         const rawMessage = match[1];
-        if (rawMessage !== this.lastProcessedMessage) {
-          try {
-            const message = JSON.parse(rawMessage);
-            this.lastProcessedMessage = rawMessage;
-            this.log('Immediate strip - processing message:', message.type);
-            this.processMessage(message);
-          } catch (e) {
-            this.log('Failed to parse stripped message:', e);
+        try {
+          const message = JSON.parse(rawMessage);
+          const messageHash = this.hashMessage(message);
+          
+          // Only process if we haven't seen this exact message recently
+          if (!this.isMessageProcessed(messageHash)) {
+            messagesToProcess.push({ message, hash: messageHash });
           }
+        } catch (e) {
+          this.warn('Failed to parse protocol message:', e.message);
         }
       }
       protocolRegex.lastIndex = 0;
       
-      // Then strip all protocol text from the node
+      // Process all unique messages found
+      for (const { message, hash } of messagesToProcess) {
+        this.markMessageProcessed(hash);
+        this.log('Processing message:', message.type, message.widgetId || message.scriptId || '');
+        this.processMessage(message);
+      }
+      
+      // Strip all protocol text from the node
       textNode.textContent = originalText.replace(/\[\[BD:[\s\S]*?:BD\]\]/g, '');
     }
   }
@@ -311,12 +379,16 @@ class BetterScriptsFeature {
 
   /**
    * Process a parsed BetterScripts message
+   * Supports: register, widget, update, remove, notify, ping
    */
   processMessage(message) {
-    this.log('Processing message:', message);
+    if (!message || typeof message !== 'object') {
+      this.warn('Invalid message format');
+      return;
+    }
     
     if (!message.type) {
-      this.log('Message missing type field');
+      this.warn('Message missing type field');
       return;
     }
     
@@ -329,11 +401,14 @@ class BetterScriptsFeature {
       case 'remove':
         this.handleWidgetCommand(message);
         break;
+      case 'notify':
+        this.handleNotify(message);
+        break;
       case 'ping':
         this.handlePing(message);
         break;
       default:
-        this.log('Unknown message type:', message.type);
+        this.warn('Unknown message type:', message.type);
     }
   }
 
@@ -347,7 +422,7 @@ class BetterScriptsFeature {
     const { scriptId, scriptName, version, capabilities } = message;
     
     if (!scriptId) {
-      this.log('Register message missing scriptId');
+      this.warn('Register message missing scriptId');
       return;
     }
     
@@ -375,7 +450,7 @@ class BetterScriptsFeature {
     const id = widgetId || target;
     
     if (!id) {
-      this.log('Widget message missing ID');
+      this.warn('Widget message missing ID');
       return;
     }
     
@@ -419,6 +494,29 @@ class BetterScriptsFeature {
       }
     }));
   }
+  
+  /**
+   * Handle notification messages (temporary toast notifications)
+   */
+  handleNotify(message) {
+    const { text, title, notifyType, type, duration } = message;
+    
+    if (!text) {
+      this.warn('Notify message missing text');
+      return;
+    }
+    
+    // Support both 'notifyType' (preferred) and legacy 'type' for notification style
+    const effectiveType = notifyType || type || 'info';
+    
+    this.showNotification({
+      text,
+      title,
+      type: effectiveType, // info, success, warning, error
+      duration: Math.min(duration || BetterScriptsFeature.NOTIFY_DURATION_DEFAULT, 
+                         BetterScriptsFeature.NOTIFY_DURATION_MAX)
+    });
+  }
 
   // ==================== WIDGET SYSTEM ====================
 
@@ -460,19 +558,135 @@ class BetterScriptsFeature {
       this.widgetContainer = null;
     }
   }
+  
+  // ==================== NOTIFICATION SYSTEM ====================
+  
+  createNotificationContainer() {
+    if (this.notificationContainer && document.body.contains(this.notificationContainer)) {
+      return;
+    }
+    
+    this.notificationContainer = document.createElement('div');
+    this.notificationContainer.className = 'bd-betterscripts-notifications';
+    this.notificationContainer.id = 'bd-betterscripts-notifications';
+    
+    Object.assign(this.notificationContainer.style, {
+      position: 'fixed',
+      top: '60px',
+      right: '16px',
+      zIndex: '1100',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+      maxWidth: '320px',
+      pointerEvents: 'none'
+    });
+    
+    document.body.appendChild(this.notificationContainer);
+  }
+  
+  removeNotificationContainer() {
+    if (this.notificationContainer) {
+      this.notificationContainer.remove();
+      this.notificationContainer = null;
+    }
+  }
+  
+  /**
+   * Show a notification toast
+   * @param {Object} options - Notification options
+   * @param {string} options.text - Notification message
+   * @param {string} [options.title] - Optional title
+   * @param {string} [options.type] - Type: info, success, warning, error
+   * @param {number} [options.duration] - Duration in ms
+   */
+  showNotification({ text, title, type = 'info', duration = 3000 }) {
+    this.createNotificationContainer();
+    
+    const notification = document.createElement('div');
+    notification.className = `bd-notification bd-notification-${type}`;
+    notification.style.pointerEvents = 'auto';
+    
+    // Type-based colors
+    const colors = {
+      info: { bg: 'rgba(59, 130, 246, 0.9)', border: '#3b82f6' },
+      success: { bg: 'rgba(34, 197, 94, 0.9)', border: '#22c55e' },
+      warning: { bg: 'rgba(251, 191, 36, 0.9)', border: '#fbbf24' },
+      error: { bg: 'rgba(239, 68, 68, 0.9)', border: '#ef4444' }
+    };
+    const color = colors[type] || colors.info;
+    
+    Object.assign(notification.style, {
+      background: color.bg,
+      border: `1px solid ${color.border}`,
+      borderRadius: '8px',
+      padding: '12px 16px',
+      color: '#fff',
+      fontSize: '14px',
+      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+      animation: 'bd-notify-in 0.3s ease-out',
+      cursor: 'pointer'
+    });
+    
+    if (title) {
+      const titleEl = document.createElement('div');
+      titleEl.style.fontWeight = 'bold';
+      titleEl.style.marginBottom = '4px';
+      titleEl.textContent = title;
+      notification.appendChild(titleEl);
+    }
+    
+    const textEl = document.createElement('div');
+    textEl.textContent = text;
+    notification.appendChild(textEl);
+    
+    // Click to dismiss
+    notification.addEventListener('click', () => {
+      this.dismissNotification(notification);
+    });
+    
+    this.notificationContainer.appendChild(notification);
+    
+    // Enforce max notification limit (remove oldest)
+    while (this.notificationContainer.children.length > BetterScriptsFeature.NOTIFY_MAX_COUNT) {
+      const oldest = this.notificationContainer.firstChild;
+      if (oldest) oldest.remove();
+    }
+    
+    // Auto-dismiss
+    setTimeout(() => {
+      this.dismissNotification(notification);
+    }, duration);
+    
+    this.log('Notification shown:', title || text);
+  }
+  
+  dismissNotification(notification) {
+    if (!notification || !notification.parentNode) return;
+    
+    notification.style.animation = 'bd-notify-out 0.2s ease-in forwards';
+    setTimeout(() => {
+      notification.remove();
+      
+      // Remove container if empty
+      if (this.notificationContainer && this.notificationContainer.children.length === 0) {
+        this.removeNotificationContainer();
+      }
+    }, 200);
+  }
 
   /**
    * Create a widget based on configuration from script
    */
   createWidget(widgetId, config) {
     if (!config || !config.type) {
-      this.log('Widget config missing type');
+      this.warn('Widget config missing type for:', widgetId);
       return;
     }
     
     // Remove existing widget with same ID first (before container check)
     if (this.registeredWidgets.has(widgetId)) {
-      this.destroyWidget(widgetId);
+      this.destroyWidget(widgetId, true); // Silent destroy for recreation
     }
     
     // Create container on-demand (after destroy, so it's recreated if needed)
@@ -493,19 +707,55 @@ class BetterScriptsFeature {
       case 'panel':
         widgetElement = this.createPanelWidget(widgetId, config);
         break;
+      case 'list':
+        widgetElement = this.createListWidget(widgetId, config);
+        break;
       case 'custom':
         widgetElement = this.createCustomWidget(widgetId, config);
         break;
       default:
-        this.log('Unknown widget type:', config.type);
+        this.warn('Unknown widget type:', config.type);
         return;
     }
     
     if (widgetElement && this.widgetContainer) {
-      this.widgetContainer.appendChild(widgetElement);
+      // Apply widget ordering based on priority
+      this.insertWidgetWithPriority(widgetElement, config.priority || 0);
       this.registeredWidgets.set(widgetId, { element: widgetElement, config });
       this.log('Widget created:', widgetId);
+      
+      // Emit widget created event
+      this.emitWidgetEvent('created', widgetId, config);
     }
+  }
+  
+  /**
+   * Insert widget at correct position based on priority (higher = first)
+   */
+  insertWidgetWithPriority(widgetElement, priority) {
+    widgetElement.dataset.priority = priority;
+    
+    // Find the right position
+    const children = Array.from(this.widgetContainer.children);
+    const insertBefore = children.find(child => {
+      const childPriority = parseInt(child.dataset.priority || '0', 10);
+      return childPriority < priority;
+    });
+    
+    if (insertBefore) {
+      this.widgetContainer.insertBefore(widgetElement, insertBefore);
+    } else {
+      this.widgetContainer.appendChild(widgetElement);
+    }
+  }
+  
+  /**
+   * Emit a widget lifecycle event
+   */
+  emitWidgetEvent(eventType, widgetId, data) {
+    window.dispatchEvent(new CustomEvent(`betterscripts:widget:${eventType}`, {
+      detail: { widgetId, ...data }
+    }));
   }
 
   /**
@@ -536,13 +786,13 @@ class BetterScriptsFeature {
   }
 
   /**
-   * Create a progress bar widget
+   * Create a progress bar widget with smooth animation
    */
   createBarWidget(widgetId, config) {
     const widget = document.createElement('div');
     widget.className = 'bd-widget bd-widget-bar';
     widget.id = `bd-widget-${widgetId}`;
-    widget.style.pointerEvents = 'auto'; // Re-enable interactions on widget
+    widget.style.pointerEvents = 'auto';
     
     const label = document.createElement('span');
     label.className = 'bd-widget-label';
@@ -553,9 +803,11 @@ class BetterScriptsFeature {
     
     const barFill = document.createElement('div');
     barFill.className = 'bd-widget-bar-fill';
+    barFill.style.transition = 'width 0.3s ease-out, background-color 0.3s ease';
     
     const max = config.max || 100;
-    const percentage = Math.min(100, Math.max(0, ((config.value || 0) / max) * 100));
+    const value = this.clamp(config.value || 0, 0, max);
+    const percentage = (value / max) * 100;
     barFill.style.width = `${percentage}%`;
     
     if (config.color) {
@@ -564,7 +816,7 @@ class BetterScriptsFeature {
     
     const valueText = document.createElement('span');
     valueText.className = 'bd-widget-bar-text';
-    valueText.textContent = config.showValue !== false ? `${config.value}/${config.max || 100}` : '';
+    valueText.textContent = config.showValue !== false ? `${value}/${max}` : '';
     
     barContainer.appendChild(barFill);
     barContainer.appendChild(valueText);
@@ -600,7 +852,7 @@ class BetterScriptsFeature {
     const widget = document.createElement('div');
     widget.className = 'bd-widget bd-widget-panel';
     widget.id = `bd-widget-${widgetId}`;
-    widget.style.pointerEvents = 'auto'; // Re-enable interactions on widget
+    widget.style.pointerEvents = 'auto';
     
     if (config.title) {
       const title = document.createElement('div');
@@ -614,32 +866,103 @@ class BetterScriptsFeature {
     
     // Support for multiple items in the panel
     if (config.items && Array.isArray(config.items)) {
-      config.items.forEach(item => {
-        const itemEl = document.createElement('div');
-        itemEl.className = 'bd-widget-panel-item';
-        
-        if (item.label) {
-          const itemLabel = document.createElement('span');
-          itemLabel.className = 'bd-widget-panel-item-label';
-          itemLabel.textContent = item.label;
-          itemEl.appendChild(itemLabel);
-        }
-        
-        if (item.value !== undefined) {
-          const itemValue = document.createElement('span');
-          itemValue.className = 'bd-widget-panel-item-value';
-          itemValue.textContent = item.value;
-          if (item.color) itemValue.style.color = item.color;
-          itemEl.appendChild(itemValue);
-        }
-        
-        content.appendChild(itemEl);
-      });
+      this.renderPanelItems(content, config.items);
     } else if (config.content) {
       content.textContent = config.content;
     }
     
     widget.appendChild(content);
+    
+    return widget;
+  }
+  
+  /**
+   * Render panel items with icon/badge support
+   */
+  renderPanelItems(container, items) {
+    container.innerHTML = '';
+    
+    items.forEach(item => {
+      const itemEl = document.createElement('div');
+      itemEl.className = 'bd-widget-panel-item';
+      
+      // Support icon prefix
+      if (item.icon) {
+        const icon = document.createElement('span');
+        icon.className = 'bd-widget-panel-item-icon';
+        icon.textContent = item.icon;
+        icon.style.marginRight = '4px';
+        itemEl.appendChild(icon);
+      }
+      
+      if (item.label) {
+        const itemLabel = document.createElement('span');
+        itemLabel.className = 'bd-widget-panel-item-label';
+        itemLabel.textContent = item.label;
+        itemEl.appendChild(itemLabel);
+      }
+      
+      if (item.value !== undefined) {
+        const itemValue = document.createElement('span');
+        itemValue.className = 'bd-widget-panel-item-value';
+        itemValue.textContent = item.value;
+        if (item.color) itemValue.style.color = item.color;
+        itemEl.appendChild(itemValue);
+      }
+      
+      // Support badge
+      if (item.badge) {
+        const badge = document.createElement('span');
+        badge.className = 'bd-widget-panel-item-badge';
+        badge.textContent = item.badge;
+        badge.style.cssText = `
+          background: ${item.badgeColor || '#6366f1'};
+          color: #fff;
+          font-size: 10px;
+          padding: 1px 5px;
+          border-radius: 8px;
+          margin-left: 6px;
+        `;
+        itemEl.appendChild(badge);
+      }
+      
+      container.appendChild(itemEl);
+    });
+  }
+  
+  /**
+   * Create a simple list widget
+   */
+  createListWidget(widgetId, config) {
+    const widget = document.createElement('div');
+    widget.className = 'bd-widget bd-widget-list';
+    widget.id = `bd-widget-${widgetId}`;
+    widget.style.pointerEvents = 'auto';
+    
+    if (config.title) {
+      const title = document.createElement('div');
+      title.className = 'bd-widget-list-title';
+      title.textContent = config.title;
+      widget.appendChild(title);
+    }
+    
+    const list = document.createElement('ul');
+    list.className = 'bd-widget-list-items';
+    list.style.cssText = 'list-style: none; margin: 0; padding: 0;';
+    
+    if (config.items && Array.isArray(config.items)) {
+      config.items.forEach(item => {
+        const li = document.createElement('li');
+        li.className = 'bd-widget-list-item';
+        li.textContent = typeof item === 'string' ? item : item.text || '';
+        if (typeof item === 'object' && item.color) {
+          li.style.color = item.color;
+        }
+        list.appendChild(li);
+      });
+    }
+    
+    widget.appendChild(list);
     
     return widget;
   }
@@ -692,83 +1015,148 @@ class BetterScriptsFeature {
     // Update based on widget type
     switch (existingConfig.type) {
       case 'stat':
-        const valueEl = element.querySelector('.bd-widget-value');
-        if (valueEl && config.value !== undefined) {
-          valueEl.textContent = config.value;
-        }
-        if (valueEl && config.color) {
-          valueEl.style.color = config.color;
-        }
+        this.updateStatWidget(element, config);
         break;
         
       case 'bar':
-        const barFill = element.querySelector('.bd-widget-bar-fill');
-        const barText = element.querySelector('.bd-widget-bar-text');
-        if (barFill && config.value !== undefined) {
-          const max = config.max || existingConfig.max || 100;
-          const percentage = Math.min(100, Math.max(0, ((config.value || 0) / max) * 100));
-          barFill.style.width = `${percentage}%`;
-        }
-        if (barText && config.value !== undefined) {
-          barText.textContent = `${config.value}/${config.max || existingConfig.max || 100}`;
-        }
-        if (barFill && config.color) {
-          barFill.style.backgroundColor = config.color;
-        }
+        this.updateBarWidget(element, config, existingConfig);
         break;
         
       case 'text':
-        if (config.text !== undefined) {
-          element.textContent = config.text;
-        }
+        this.updateTextWidget(element, config);
         break;
         
       case 'panel':
-        // Recreate panel content if items changed
-        if (config.items) {
-          const content = element.querySelector('.bd-widget-panel-content');
-          if (content) {
-            content.innerHTML = '';
-            config.items.forEach(item => {
-              const itemEl = document.createElement('div');
-              itemEl.className = 'bd-widget-panel-item';
-              
-              if (item.label) {
-                const itemLabel = document.createElement('span');
-                itemLabel.className = 'bd-widget-panel-item-label';
-                itemLabel.textContent = item.label;
-                itemEl.appendChild(itemLabel);
-              }
-              
-              if (item.value !== undefined) {
-                const itemValue = document.createElement('span');
-                itemValue.className = 'bd-widget-panel-item-value';
-                itemValue.textContent = item.value;
-                if (item.color) itemValue.style.color = item.color;
-                itemEl.appendChild(itemValue);
-              }
-              
-              content.appendChild(itemEl);
-            });
-          }
-        }
+        this.updatePanelWidget(element, config);
+        break;
+        
+      case 'list':
+        this.updateListWidget(element, config);
+        break;
+        
+      case 'custom':
+        this.updateCustomWidget(element, config);
         break;
     }
     
     // Update stored config
     this.registeredWidgets.set(widgetId, { element, config: mergedConfig });
     this.log('Widget updated:', widgetId);
+    
+    // Emit widget updated event
+    this.emitWidgetEvent('updated', widgetId, mergedConfig);
+  }
+  
+  updateStatWidget(element, config) {
+    const valueEl = element.querySelector('.bd-widget-value');
+    const labelEl = element.querySelector('.bd-widget-label');
+    
+    if (valueEl && config.value !== undefined) {
+      valueEl.textContent = config.value;
+    }
+    if (valueEl && config.color) {
+      valueEl.style.color = config.color;
+    }
+    if (labelEl && config.label !== undefined) {
+      labelEl.textContent = config.label;
+    }
+  }
+  
+  updateBarWidget(element, config, existingConfig) {
+    const barFill = element.querySelector('.bd-widget-bar-fill');
+    const barText = element.querySelector('.bd-widget-bar-text');
+    const labelEl = element.querySelector('.bd-widget-label');
+    
+    const max = config.max || existingConfig.max || 100;
+    const value = this.clamp(config.value ?? existingConfig.value ?? 0, 0, max);
+    
+    if (barFill && config.value !== undefined) {
+      const percentage = (value / max) * 100;
+      barFill.style.width = `${percentage}%`;
+    }
+    if (barText && config.value !== undefined) {
+      barText.textContent = `${value}/${max}`;
+    }
+    if (barFill && config.color) {
+      barFill.style.backgroundColor = config.color;
+    }
+    if (labelEl && config.label !== undefined) {
+      labelEl.textContent = config.label;
+    }
+  }
+  
+  updateTextWidget(element, config) {
+    if (config.text !== undefined) {
+      element.textContent = config.text;
+    }
+    if (config.style) {
+      Object.assign(element.style, config.style);
+    }
+  }
+  
+  updatePanelWidget(element, config) {
+    // Update title if provided
+    if (config.title !== undefined) {
+      const titleEl = element.querySelector('.bd-widget-panel-title');
+      if (titleEl) {
+        titleEl.textContent = config.title;
+      }
+    }
+    
+    // Recreate panel content if items changed
+    if (config.items) {
+      const content = element.querySelector('.bd-widget-panel-content');
+      if (content) {
+        this.renderPanelItems(content, config.items);
+      }
+    }
+  }
+  
+  updateListWidget(element, config) {
+    if (config.title !== undefined) {
+      const titleEl = element.querySelector('.bd-widget-list-title');
+      if (titleEl) titleEl.textContent = config.title;
+    }
+    
+    if (config.items) {
+      const list = element.querySelector('.bd-widget-list-items');
+      if (list) {
+        list.innerHTML = '';
+        config.items.forEach(item => {
+          const li = document.createElement('li');
+          li.className = 'bd-widget-list-item';
+          li.textContent = typeof item === 'string' ? item : item.text || '';
+          if (typeof item === 'object' && item.color) {
+            li.style.color = item.color;
+          }
+          list.appendChild(li);
+        });
+      }
+    }
+  }
+  
+  updateCustomWidget(element, config) {
+    // For custom widgets, re-sanitize and replace HTML
+    if (config.html !== undefined) {
+      element.innerHTML = this.sanitizeHTML(config.html);
+    }
   }
 
   /**
    * Destroy a widget
+   * @param {string} widgetId - Widget ID to destroy
+   * @param {boolean} silent - If true, don't log or emit events
    */
-  destroyWidget(widgetId) {
+  destroyWidget(widgetId, silent = false) {
     const widgetData = this.registeredWidgets.get(widgetId);
     if (widgetData) {
       widgetData.element.remove();
       this.registeredWidgets.delete(widgetId);
-      this.log('Widget destroyed:', widgetId);
+      
+      if (!silent) {
+        this.log('Widget destroyed:', widgetId);
+        this.emitWidgetEvent('destroyed', widgetId, {});
+      }
       
       // Remove container if no widgets remain
       if (this.registeredWidgets.size === 0) {
@@ -785,18 +1173,101 @@ class BetterScriptsFeature {
       data.element.remove();
     });
     this.registeredWidgets.clear();
-    this.lastProcessedMessage = null;
+    this.processedMessageHashes.clear();
     
     // Remove container when all widgets are cleared
     this.removeWidgetContainer();
     
     this.log('All widgets cleared');
   }
+  
+  // ==================== UTILITY METHODS ====================
+  
+  /**
+   * Clamp a value between min and max
+   */
+  clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+  
+  /**
+   * Check if a widget exists
+   */
+  hasWidget(widgetId) {
+    return this.registeredWidgets.has(widgetId);
+  }
+  
+  /**
+   * Get the number of active widgets
+   */
+  getWidgetCount() {
+    return this.registeredWidgets.size;
+  }
+  
+  /**
+   * Get all widget IDs
+   */
+  getWidgetIds() {
+    return Array.from(this.registeredWidgets.keys());
+  }
+  
+  /**
+   * Get widget configuration by ID
+   */
+  getWidgetConfig(widgetId) {
+    const widgetData = this.registeredWidgets.get(widgetId);
+    return widgetData ? { ...widgetData.config } : null;
+  }
+  
+  /**
+   * Check if any scripts are registered
+   */
+  hasRegisteredScripts() {
+    return this.registeredScripts.size > 0;
+  }
+  
+  /**
+   * Get all registered script IDs
+   */
+  getRegisteredScriptIds() {
+    return Array.from(this.registeredScripts.keys());
+  }
+  
+  /**
+   * Check if currently on an adventure
+   */
+  isOnAdventure() {
+    return this.currentAdventureId !== null;
+  }
+  
+  /**
+   * Get the current adventure ID
+   */
+  getCurrentAdventureId() {
+    return this.currentAdventureId;
+  }
 }
 
 // Make available globally
 if (typeof window !== 'undefined') {
   window.BetterScriptsFeature = BetterScriptsFeature;
+  
+  // Add CSS for notification animations
+  if (!document.getElementById('bd-betterscripts-styles')) {
+    const style = document.createElement('style');
+    style.id = 'bd-betterscripts-styles';
+    style.textContent = `
+      @keyframes bd-notify-in {
+        from { opacity: 0; transform: translateX(100%); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+      @keyframes bd-notify-out {
+        from { opacity: 1; transform: translateX(0); }
+        to { opacity: 0; transform: translateX(100%); }
+      }
+    `;
+    document.head.appendChild(style);
+  }
 }
 
 // Export for use in other modules
