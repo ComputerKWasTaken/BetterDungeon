@@ -10,7 +10,7 @@ class TutorialService {
     this.onComplete = null;
     this.onExit = null;
     
-    // Define tutorial steps - Updated for v0.9.2 features
+    // Define tutorial steps - Updated for unified feature system
     this.steps = [
       {
         id: 'welcome',
@@ -96,6 +96,33 @@ class TutorialService {
         target: '[data-feature="notes"]',
         title: 'Adventure Notes',
         content: 'Jot down anything you want to remember about your adventure! Notes appear at the bottom of Plot Components and are saved per adventure.',
+        position: 'top',
+        expandCard: true
+      },
+      {
+        id: 'story-card-analytics',
+        type: 'spotlight',
+        target: '[data-feature="storyCardAnalytics"]',
+        title: 'Story Card Analytics',
+        content: 'Displays detailed stats about your story cards including token counts, trigger analysis, and optimization tips. Always active!',
+        position: 'top',
+        expandCard: true
+      },
+      {
+        id: 'better-scripts',
+        type: 'spotlight',
+        target: '[data-feature="betterScripts"]',
+        title: 'BetterScripts',
+        content: 'Enables scripts to display dynamic UI widgets like HP bars, stats, and game state. Scripts using this feature will just work!',
+        position: 'top',
+        expandCard: true
+      },
+      {
+        id: 'story-card-modal-dock',
+        type: 'spotlight',
+        target: '[data-feature="storyCardModalDock"]',
+        title: 'Story Card Modal Dock',
+        content: 'Docks the story card editor to the side so you can scroll through your story while editing. Toggle this off if you prefer the original modal.',
         position: 'top',
         expandCard: true
       },
