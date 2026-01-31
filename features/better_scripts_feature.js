@@ -345,15 +345,28 @@ class BetterScriptsFeature {
    */
   stripProtocolMessagesFromGameplay() {
     // Re-entry guard - prevent recursive calls from MutationObserver
-    // When we modify textNode.textContent, it triggers another mutation
     if (this.isStrippingMessages) {
       return;
     }
     this.isStrippingMessages = true;
     
+    // Disconnect observer to prevent infinite loop from our own DOM changes
+    const gameplayOutput = document.querySelector('#gameplay-output');
+    if (this.gameplayObserver && gameplayOutput) {
+      this.gameplayObserver.disconnect();
+    }
+    
     try {
       this.stripProtocolMessagesFromGameplayInternal();
     } finally {
+      // Reconnect observer after our changes are done
+      if (this.gameplayObserver && gameplayOutput) {
+        this.gameplayObserver.observe(gameplayOutput, {
+          childList: true,
+          subtree: true,
+          characterData: true
+        });
+      }
       this.isStrippingMessages = false;
     }
   }
