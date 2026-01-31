@@ -346,10 +346,6 @@
               </div>
               <p class="feature-desc">Script-to-extension widget communication</p>
             </div>
-            <label class="toggle">
-              <input type="checkbox" id="feature-betterScripts" checked>
-              <span class="toggle-slider"></span>
-            </label>
           </div>
           <div class="feature-details">
             <p>Enables AI Dungeon scripts to create <strong>dynamic UI widgets</strong> displaying HP bars, stats, and game state.</p>
@@ -366,6 +362,48 @@
               <span class="icon-external-link"></span>
               View Example Scripts
             </a>
+          </div>
+        </article>
+
+        <!-- Readable Tab Fix -->
+        <article class="feature-card" data-feature="readablePosition">
+          <div class="feature-row">
+            <div class="feature-info">
+              <div class="feature-title-row">
+                <span class="feature-icon" style="color: var(--bd-icon-readable);">
+                  <span class="icon-book-open"></span>
+                </span>
+                <h3 class="feature-title">Readable Tab Fix</h3>
+              </div>
+              <p class="feature-desc">Restores the Readable tab to its proper position</p>
+            </div>
+          </div>
+          <div class="feature-details">
+            <p>Moves the "Readable" tab back where it belongs in the adventure view.</p>
+            <p class="feature-hint"><span class="icon-lightbulb"></span> Fixes a UI quirk where the tab was moved to an inconvenient location.</p>
+          </div>
+        </article>
+
+        <!-- Story Card Modal Dock -->
+        <article class="feature-card" data-feature="storyCardModalDock">
+          <div class="feature-row">
+            <div class="feature-info">
+              <div class="feature-title-row">
+                <span class="feature-icon" style="color: var(--bd-icon-modal-dock);">
+                  <span class="icon-panel-right"></span>
+                </span>
+                <h3 class="feature-title">Story Card Modal Dock</h3>
+              </div>
+              <p class="feature-desc">Docks story card editor to the side</p>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="feature-storyCardModalDock" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="feature-details">
+            <p>Docks the story card modal to the <strong>right side of the screen</strong>, allowing you to scroll through your story while editing Story Cards.</p>
+            <p class="feature-hint"><span class="icon-lightbulb"></span> Great for checking context without closing the editor.</p>
           </div>
         </article>
 
@@ -422,26 +460,26 @@
             </div>
           </div>
         </article>
-      </div>
 
-      <!-- Always-On Enhancements -->
-      <div class="section section-compact section-always-on">
-        <div class="section-header">
-          <span class="section-icon icon-circle-check" style="color: var(--bd-section-always-on);"></span>
-          <h2 class="section-title">Always On</h2>
-        </div>
-        <div class="enhancement-row">
-          <span class="icon-book-open" style="color: var(--bd-section-always-on);"></span>
-          <span>Readable Tab Fix</span>
-        </div>
-        <div class="enhancement-row">
-          <span class="icon-terminal" style="color: var(--bd-section-always-on);"></span>
-          <span>Auto Enable Scripts</span>
-        </div>
-        <div class="enhancement-row">
-          <span class="icon-panel-right" style="color: var(--bd-section-always-on);"></span>
-          <span>Story Card Modal Dock</span>
-        </div>
+        <!-- Auto Enable Scripts -->
+        <article class="feature-card" data-feature="autoEnableScripts">
+          <div class="feature-row">
+            <div class="feature-info">
+              <div class="feature-title-row">
+                <span class="feature-icon" style="color: var(--bd-icon-auto-scripts);">
+                  <span class="icon-terminal"></span>
+                </span>
+                <h3 class="feature-title">Auto Enable Scripts</h3>
+              </div>
+              <p class="feature-desc">Automatically re-enables scripts in scenario editor</p>
+            </div>
+          </div>
+          <div class="feature-details">
+            <p>Automatically retoggles the "Enable Scripts" option in the <strong>Scenario Creation page</strong> when it gets disabled.</p>
+            <p class="feature-hint"><span class="icon-lightbulb"></span> Saves you from manually re-enabling scripts every time.</p>
+          </div>
+        </article>
+
       </div>
 
     </section>

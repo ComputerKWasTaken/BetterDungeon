@@ -73,7 +73,7 @@ const DEFAULT_FEATURES = {
   characterPreset: true,
   autoSee: false,
   notes: true,
-  betterScripts: true
+  storyCardModalDock: true
 };
 
 const DEFAULT_SETTINGS = {
