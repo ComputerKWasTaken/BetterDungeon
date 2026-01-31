@@ -45,8 +45,8 @@ class BetterScriptsFeature {
     this.originalPushState = null;
     this.originalReplaceState = null;
     
-    // Debug logging (disable in production)
-    this.debug = true;
+    // Debug logging (set to false for production)
+    this.debug = false;
   }
 
   log(message, ...args) {

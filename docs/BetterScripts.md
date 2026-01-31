@@ -36,9 +36,28 @@ Use the Library to define shared state and helper functions.
 // Initialize state
 state.game = state.game ?? { hp: 100, gold: 0 };
 
-// Helper to send widget commands
-function bdWidget(id, action, config = {}) {
-  return `[[BD:${JSON.stringify({ type: 'widget', widgetId: id, action: action, config: config })}:BD]]`;
+// Helper: Build a protocol message
+function bdMessage(message) {
+  return `[[BD:${JSON.stringify(message)}:BD]]`;
+}
+
+// Helper: Create/update a widget
+function bdWidget(widgetId, config) {
+  return bdMessage({
+    type: 'widget',
+    widgetId: widgetId,
+    action: 'create',
+    config: config
+  });
+}
+
+// Helper: Destroy a widget
+function bdDestroyWidget(widgetId) {
+  return bdMessage({
+    type: 'widget',
+    widgetId: widgetId,
+    action: 'destroy'
+  });
 }
 ```
 
@@ -63,13 +82,13 @@ const modifier = (text) => {
   state.game.gold += 10;
   
   // Append widget update to the AI's output
-  const protocol = bdWidget('gold-stat', 'create', { 
+  const widget = bdWidget('gold-stat', { 
     type: 'stat', 
     label: 'Gold', 
     value: state.game.gold 
   });
   
-  return { text: text + protocol };
+  return { text: text + widget };
 };
 modifier(text);
 ```
@@ -138,6 +157,15 @@ Simple text or notification.
   "type": "text",
   "text": "Level Up!",
   "style": { "fontWeight": "bold", "color": "#fbbf24" }
+}
+```
+
+### Custom Widget
+Custom HTML content (sanitized for security).
+```javascript
+{
+  "type": "custom",
+  "html": "<div>Custom content here</div>"
 }
 ```
 
