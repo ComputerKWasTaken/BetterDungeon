@@ -84,6 +84,9 @@
   --bd-icon-analytics: #8b5cf6;
   --bd-icon-palette: #f472b6;
   --bd-icon-scripts: #10b981;
+  --bd-icon-readable: #3b82f6;
+  --bd-icon-modal-dock: #8b5cf6;
+  --bd-icon-auto-scripts: #22c55e;
   
   /* === Status Colors === */
   --bd-success: #22c55e;            /* Success states */
