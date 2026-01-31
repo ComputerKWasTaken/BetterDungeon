@@ -81,6 +81,11 @@ function bdDestroyWidget(widgetId) {
     action: 'destroy'
   });
 }
+
+// Helper: Clear all widgets at once
+function bdClearAll() {
+  return bdMessage({ type: 'clearAll' });
+}
 ```
 
 ## 2. Context Modifier (onModelContext)
@@ -145,9 +150,34 @@ The primary message type for UI interaction.
 
 | Action | Behavior |
 |--------|----------|
-| `create` | Creates widget or replaces existing with same ID |
+| `create` | Creates widget or updates in place if same ID exists |
 | `update` | Updates specific properties; auto-creates if missing |
 | `destroy` | Removes the widget from display |
+
+## Other Message Types
+
+### Clear All Widgets
+Efficiently removes all widgets with a single message.
+```javascript
+{ "type": "clearAll" }
+```
+
+### Ping
+Test connectivity between script and extension.
+```javascript
+{ "type": "ping", "data": "optional-payload" }
+```
+
+### Register
+Announce script presence (for debugging/logging).
+```javascript
+{
+  "type": "register",
+  "scriptId": "my-script",
+  "scriptName": "My Script Name",
+  "version": "1.0.0"
+}
+```
 
 ## Widget Types
 
@@ -312,5 +342,10 @@ window.addEventListener('betterscripts:error', (e) => {
 // Ping/pong for connectivity testing
 window.addEventListener('betterscripts:pong', (e) => {
   console.log(e.detail.timestamp);
+});
+
+// Clear all widgets event
+window.addEventListener('betterscripts:cleared', (e) => {
+  console.log('Widgets cleared:', e.detail.count);
 });
 ```

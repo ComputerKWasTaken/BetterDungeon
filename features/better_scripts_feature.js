@@ -707,8 +707,7 @@ class BetterScriptsFeature {
       width: 'fit-content',
       // Center horizontally using left: 50% + transform
       left: '50%',
-      transform: 'translateX(-50%)',
-      transition: 'top 0.2s ease'
+      transform: 'translateX(-50%)'
     });
     
     document.body.appendChild(this.widgetContainer);
@@ -954,12 +953,22 @@ class BetterScriptsFeature {
       return;
     }
     
-    // Remove existing widget with same ID first (before container check)
+    // If widget already exists, update it in place instead of destroying/recreating
+    // Exception: if widget type changed, we need to recreate
     if (this.registeredWidgets.has(widgetId)) {
-      this.destroyWidget(widgetId);
+      const existingData = this.registeredWidgets.get(widgetId);
+      if (existingData.config.type === config.type) {
+        this.log('Widget exists, updating in place:', widgetId);
+        this.updateWidget(widgetId, config);
+        return;
+      } else {
+        // Type changed - destroy old widget and continue to create new one
+        this.log('Widget type changed, recreating:', widgetId);
+        this.destroyWidget(widgetId);
+      }
     }
     
-    // Create container on-demand (after destroy, so it's recreated if needed)
+    // Create container on-demand for new widgets
     this.createWidgetContainer();
     
     let widgetElement;

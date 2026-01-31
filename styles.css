@@ -1344,7 +1344,7 @@
   padding: 6px 10px;
   font-size: var(--bd-font-size-sm);
   color: var(--bd-text-primary);
-  transition: all var(--bd-transition-fast);
+  /* transition removed to avoid issues with duplicate message processing */
 }
 
 .bd-widget:hover {
@@ -1399,7 +1399,7 @@
               linear-gradient(90deg, var(--bd-success) 0%, #4ade80 100%);
   border-radius: calc(var(--bd-radius-sm) - 1px);
   box-shadow: 0 0 8px rgba(34, 197, 94, 0.3);
-  transition: width 0.3s ease, background-color 0.3s ease;
+  /* transition removed to avoid issues with duplicate message processing */
 }
 
 .bd-widget-bar-text {
@@ -1471,21 +1471,7 @@
   padding: 8px;
 }
 
-/* Widget Animations */
-@keyframes bd-widget-appear {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.bd-widget {
-  animation: bd-widget-appear 0.2s ease-out;
-}
+/* Widget animations removed to avoid issues with duplicate message processing */
 
 /* Widget Color Variants */
 .bd-widget[data-color="red"] .bd-widget-value,
