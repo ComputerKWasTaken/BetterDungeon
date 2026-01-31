@@ -33,7 +33,8 @@ class BetterScriptsFeature {
     
     // State tracking
     this.currentAdventureId = null;
-    this.lastProcessedMessage = null;
+    this.processedMessageHashes = new Set();
+    this.messageHashCleanupTimer = null;
     this.registeredWidgets = new Map();
     this.registeredScripts = new Map();
     
@@ -45,6 +46,12 @@ class BetterScriptsFeature {
     this.originalPushState = null;
     this.originalReplaceState = null;
     
+    // Layout detection and resize handling
+    this.boundResizeHandler = null;
+    this.resizeDebounceTimer = null;
+    this.layoutObserver = null;
+    this.cachedLayout = null;
+    
     // Debug logging (set to false for production)
     this.debug = false;
   }
@@ -53,6 +60,34 @@ class BetterScriptsFeature {
     if (this.debug) {
       console.log(`[BetterScripts] ${message}`, ...args);
     }
+  }
+
+  /**
+   * Simple hash function for message deduplication
+   * Uses a fast string hash to detect duplicate messages
+   */
+  hashMessage(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return hash.toString(36);
+  }
+
+  /**
+   * Schedule cleanup of processed message hashes
+   * Clears hashes after 500ms to allow repeated intentional updates
+   * while preventing duplicate processing from rapid mutation observer calls
+   */
+  scheduleHashCleanup() {
+    if (this.messageHashCleanupTimer) return;
+    
+    this.messageHashCleanupTimer = setTimeout(() => {
+      this.processedMessageHashes.clear();
+      this.messageHashCleanupTimer = null;
+    }, 500);
   }
 
   // ==================== LIFECYCLE ====================
@@ -77,7 +112,11 @@ class BetterScriptsFeature {
     this.registeredWidgets.clear();
     this.registeredScripts.clear();
     this.currentAdventureId = null;
-    this.lastProcessedMessage = null;
+    this.processedMessageHashes.clear();
+    if (this.messageHashCleanupTimer) {
+      clearTimeout(this.messageHashCleanupTimer);
+      this.messageHashCleanupTimer = null;
+    }
     
     console.log('[BetterScripts] Cleanup complete');
   }
@@ -233,17 +272,24 @@ class BetterScriptsFeature {
       const originalText = textNode.textContent;
       let match;
       
-      // First, extract and process any messages we haven't seen
+      // First, extract and process any messages we haven't seen recently
       while ((match = protocolRegex.exec(originalText)) !== null) {
         const rawMessage = match[1];
-        if (rawMessage !== this.lastProcessedMessage) {
+        const messageHash = this.hashMessage(rawMessage);
+        
+        // Skip if we've processed this exact message very recently (prevents duplicates from mutation observer firing multiple times)
+        if (!this.processedMessageHashes.has(messageHash)) {
+          this.processedMessageHashes.add(messageHash);
+          
+          // Schedule cleanup of old hashes to allow repeated intentional updates
+          this.scheduleHashCleanup();
+          
           try {
             const message = JSON.parse(rawMessage);
-            this.lastProcessedMessage = rawMessage;
-            this.log('Immediate strip - processing message:', message.type);
+            this.log('Processing message:', message.type);
             this.processMessage(message);
           } catch (e) {
-            this.log('Failed to parse stripped message:', e);
+            this.log('Failed to parse message:', e.message);
           }
         }
       }
@@ -315,25 +361,34 @@ class BetterScriptsFeature {
   processMessage(message) {
     this.log('Processing message:', message);
     
+    if (!message || typeof message !== 'object') {
+      this.log('Invalid message format');
+      return;
+    }
+    
     if (!message.type) {
       this.log('Message missing type field');
       return;
     }
     
-    switch (message.type) {
-      case 'register':
-        this.handleRegister(message);
-        break;
-      case 'widget':
-      case 'update':
-      case 'remove':
-        this.handleWidgetCommand(message);
-        break;
-      case 'ping':
-        this.handlePing(message);
-        break;
-      default:
-        this.log('Unknown message type:', message.type);
+    try {
+      switch (message.type) {
+        case 'register':
+          this.handleRegister(message);
+          break;
+        case 'widget':
+        case 'update':
+        case 'remove':
+          this.handleWidgetCommand(message);
+          break;
+        case 'ping':
+          this.handlePing(message);
+          break;
+        default:
+          this.log('Unknown message type:', message.type);
+      }
+    } catch (error) {
+      console.error('[BetterScripts] Error processing message:', error);
     }
   }
 
@@ -431,27 +486,167 @@ class BetterScriptsFeature {
     this.widgetContainer.className = 'bd-betterscripts-container';
     this.widgetContainer.id = 'bd-betterscripts-widgets';
     
-    // Use fixed positioning so widgets stay visible and don't get pushed by content
-    // Position below the navigation bar (approximately 56px from top)
+    // Base styles - will be dynamically adjusted
     Object.assign(this.widgetContainer.style, {
       position: 'fixed',
-      top: '56px',
-      left: '50%',
-      transform: 'translateX(-50%)',
       zIndex: '1000',
       display: 'flex',
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: '8px',
-      padding: '8px',
-      maxWidth: '900px',
-      pointerEvents: 'none' // Allow clicks to pass through container gaps
+      justifyContent: 'center',
+      alignItems: 'flex-start',
+      boxSizing: 'border-box',
+      pointerEvents: 'none',
+      transition: 'top 0.2s ease, left 0.2s ease, width 0.2s ease'
     });
     
-    // Append directly to body for fixed positioning
     document.body.appendChild(this.widgetContainer);
     
-    this.log('Widget container created (fixed position)');
+    // Apply initial positioning
+    this.updateContainerPosition();
+    
+    // Set up layout monitoring
+    this.setupLayoutMonitoring();
+    
+    this.log('Widget container created');
+  }
+
+  /**
+   * Detect current page layout elements and calculate positioning
+   */
+  detectLayout() {
+    const layout = {
+      navHeight: 56,       // Default fallback
+      contentLeft: 0,
+      contentWidth: window.innerWidth,
+      contentTop: 56,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight
+    };
+    
+    // Try to detect actual nav bar height
+    const navSelectors = [
+      'nav',
+      '[role="navigation"]',
+      'header',
+      '.navbar',
+      '#navbar'
+    ];
+    
+    for (const selector of navSelectors) {
+      const nav = document.querySelector(selector);
+      if (nav) {
+        const rect = nav.getBoundingClientRect();
+        if (rect.height > 0 && rect.height < 100) {
+          layout.navHeight = rect.height;
+          layout.contentTop = rect.bottom;
+          break;
+        }
+      }
+    }
+    
+    // Try to detect main content area for width/positioning
+    const contentSelectors = [
+      '#gameplay-output',
+      '[class*="gameplay"]',
+      'main',
+      '[role="main"]',
+      '.main-content'
+    ];
+    
+    for (const selector of contentSelectors) {
+      const content = document.querySelector(selector);
+      if (content) {
+        const rect = content.getBoundingClientRect();
+        if (rect.width > 100) {
+          layout.contentLeft = rect.left;
+          layout.contentWidth = rect.width;
+          break;
+        }
+      }
+    }
+    
+    // Cache the layout
+    this.cachedLayout = layout;
+    return layout;
+  }
+
+  /**
+   * Update container position based on detected layout
+   */
+  updateContainerPosition() {
+    if (!this.widgetContainer) return;
+    
+    const layout = this.detectLayout();
+    const vw = layout.viewportWidth;
+    
+    // Calculate responsive values based on viewport
+    let padding, gap, fontSize;
+    if (vw < 640) {
+      padding = 4;
+      gap = 4;
+      fontSize = 12;
+    } else if (vw < 1024) {
+      padding = 6;
+      gap = 6;
+      fontSize = 13;
+    } else {
+      padding = 8;
+      gap = 8;
+      fontSize = 14;
+    }
+    
+    // Calculate container width - match content area or use responsive max
+    const maxWidth = Math.min(900, layout.contentWidth, vw - 16);
+    
+    // Position horizontally - center over content area
+    const contentCenter = layout.contentLeft + (layout.contentWidth / 2);
+    const left = Math.max(padding, contentCenter - (maxWidth / 2));
+    
+    Object.assign(this.widgetContainer.style, {
+      top: `${layout.contentTop}px`,
+      left: `${left}px`,
+      width: `${maxWidth}px`,
+      padding: `${padding}px`,
+      gap: `${gap}px`,
+      fontSize: `${fontSize}px`,
+      transform: 'none'  // Remove transform since we calculate exact position
+    });
+    
+    this.log('Container positioned:', { top: layout.contentTop, left, width: maxWidth });
+  }
+
+  /**
+   * Set up monitoring for layout changes
+   */
+  setupLayoutMonitoring() {
+    // Debounced resize handler
+    if (!this.boundResizeHandler) {
+      this.boundResizeHandler = () => {
+        if (this.resizeDebounceTimer) {
+          clearTimeout(this.resizeDebounceTimer);
+        }
+        this.resizeDebounceTimer = setTimeout(() => {
+          this.updateContainerPosition();
+        }, 100);
+      };
+      
+      window.addEventListener('resize', this.boundResizeHandler);
+      window.addEventListener('orientationchange', this.boundResizeHandler);
+    }
+    
+    // Use ResizeObserver on content area if available
+    if (window.ResizeObserver && !this.layoutObserver) {
+      const contentArea = document.querySelector('#gameplay-output') || 
+                          document.querySelector('main') ||
+                          document.body;
+      
+      this.layoutObserver = new ResizeObserver(() => {
+        this.boundResizeHandler();
+      });
+      
+      this.layoutObserver.observe(contentArea);
+    }
   }
 
   removeWidgetContainer() {
@@ -459,6 +654,26 @@ class BetterScriptsFeature {
       this.widgetContainer.remove();
       this.widgetContainer = null;
     }
+    
+    // Clean up observers first (they may reference handlers)
+    if (this.layoutObserver) {
+      this.layoutObserver.disconnect();
+      this.layoutObserver = null;
+    }
+    
+    // Then clean up handlers and timers
+    if (this.boundResizeHandler) {
+      window.removeEventListener('resize', this.boundResizeHandler);
+      window.removeEventListener('orientationchange', this.boundResizeHandler);
+      this.boundResizeHandler = null;
+    }
+    
+    if (this.resizeDebounceTimer) {
+      clearTimeout(this.resizeDebounceTimer);
+      this.resizeDebounceTimer = null;
+    }
+    
+    this.cachedLayout = null;
   }
 
   /**
@@ -691,8 +906,12 @@ class BetterScriptsFeature {
     
     // Update based on widget type
     switch (existingConfig.type) {
-      case 'stat':
+      case 'stat': {
+        const labelEl = element.querySelector('.bd-widget-label');
         const valueEl = element.querySelector('.bd-widget-value');
+        if (labelEl && config.label !== undefined) {
+          labelEl.textContent = config.label;
+        }
         if (valueEl && config.value !== undefined) {
           valueEl.textContent = config.value;
         }
@@ -700,10 +919,15 @@ class BetterScriptsFeature {
           valueEl.style.color = config.color;
         }
         break;
+      }
         
-      case 'bar':
+      case 'bar': {
+        const labelEl = element.querySelector('.bd-widget-label');
         const barFill = element.querySelector('.bd-widget-bar-fill');
         const barText = element.querySelector('.bd-widget-bar-text');
+        if (labelEl && config.label !== undefined) {
+          labelEl.textContent = config.label;
+        }
         if (barFill && config.value !== undefined) {
           const max = config.max || existingConfig.max || 100;
           const percentage = Math.min(100, Math.max(0, ((config.value || 0) / max) * 100));
@@ -716,14 +940,32 @@ class BetterScriptsFeature {
           barFill.style.backgroundColor = config.color;
         }
         break;
+      }
         
       case 'text':
         if (config.text !== undefined) {
           element.textContent = config.text;
         }
+        if (config.style) {
+          Object.assign(element.style, config.style);
+        }
         break;
         
-      case 'panel':
+      case 'panel': {
+        // Update title if changed
+        const titleEl = element.querySelector('.bd-widget-panel-title');
+        if (config.title !== undefined) {
+          if (titleEl) {
+            titleEl.textContent = config.title;
+          } else if (config.title) {
+            // Create title if it didn't exist
+            const newTitle = document.createElement('div');
+            newTitle.className = 'bd-widget-panel-title';
+            newTitle.textContent = config.title;
+            element.insertBefore(newTitle, element.firstChild);
+          }
+        }
+        
         // Recreate panel content if items changed
         if (config.items) {
           const content = element.querySelector('.bd-widget-panel-content');
@@ -751,6 +993,13 @@ class BetterScriptsFeature {
               content.appendChild(itemEl);
             });
           }
+        }
+        break;
+      }
+      
+      case 'custom':
+        if (config.html !== undefined) {
+          element.innerHTML = this.sanitizeHTML(config.html);
         }
         break;
     }
@@ -781,11 +1030,11 @@ class BetterScriptsFeature {
    * Clear all widgets
    */
   clearAllWidgets() {
-    this.registeredWidgets.forEach((data, id) => {
+    this.registeredWidgets.forEach((data) => {
       data.element.remove();
     });
     this.registeredWidgets.clear();
-    this.lastProcessedMessage = null;
+    this.processedMessageHashes.clear();
     
     // Remove container when all widgets are cleared
     this.removeWidgetContainer();

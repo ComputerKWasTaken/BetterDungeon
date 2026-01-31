@@ -2,6 +2,16 @@
 
 BetterScripts enables AI Dungeon scripts to communicate with the BetterDungeon extension, allowing you to create dynamic UI widgets that display game state, stats, and other information.
 
+## Features
+
+- **5 Widget Types:** Stat, Bar, Panel, Text, Custom
+- **Real-time Updates:** Widgets update instantly with smooth transitions
+- **Auto-creation:** Update commands auto-create widgets if they don't exist
+- **Clean Integration:** Protocol messages are stripped before display
+- **Adventure-scoped:** Widgets automatically clear when changing adventures
+
+---
+
 ## How It Works
 
 ```
@@ -47,6 +57,16 @@ function bdWidget(widgetId, config) {
     type: 'widget',
     widgetId: widgetId,
     action: 'create',
+    config: config
+  });
+}
+
+// Helper: Update specific widget properties
+function bdUpdateWidget(widgetId, config) {
+  return bdMessage({
+    type: 'widget',
+    widgetId: widgetId,
+    action: 'update',
     config: config
   });
 }
@@ -106,10 +126,18 @@ The primary message type for UI interaction.
 {
   "type": "widget",
   "widgetId": "unique-id",
-  "action": "create", // 'create' (or update), 'destroy'
+  "action": "create",  // 'create', 'update', or 'destroy'
   "config": { ... }    // See Widget Types below
 }
 ```
+
+### Actions
+
+| Action | Behavior |
+|--------|----------|
+| `create` | Creates widget or replaces existing with same ID |
+| `update` | Updates specific properties; auto-creates if missing |
+| `destroy` | Removes the widget from display |
 
 ## Widget Types
 
@@ -125,7 +153,7 @@ Simple label and value display.
 ```
 
 ### Bar Widget
-Progress bar for resources.
+Progress bar for resources with visual depth and glow effect.
 ```javascript
 {
   "type": "bar",
@@ -133,7 +161,7 @@ Progress bar for resources.
   "value": 75,
   "max": 100,
   "color": "#ef4444",
-  "showValue": true
+  "showValue": true  // Optional, defaults to true
 }
 ```
 
@@ -171,17 +199,49 @@ Custom HTML content (sanitized for security).
 
 ---
 
+# Updatable Properties
+
+When using the `update` action, you can modify these properties per widget type:
+
+| Widget | Updatable Properties |
+|--------|----------------------|
+| **stat** | `label`, `value`, `color` |
+| **bar** | `label`, `value`, `max`, `color` |
+| **text** | `text`, `style` |
+| **panel** | `title`, `items` |
+| **custom** | `html` |
+
+---
+
 # Best Practices
 
-1. **Strips are Mandatory:** Always use a Context Modifier to strip `[[BD:...:BD]]` tags. If you don't, the AI will start hallucinating protocol messages.
-2. **Unique IDs:** Prefix your widget IDs (e.g., `rpg_hp`) to avoid conflicts with other scripts.
-3. **State Safety:** Always use `state.obj = state.obj ?? {}` to initialize data.
+1. **Context Stripping is Mandatory:** Always use a Context Modifier to strip `[[BD:...:BD]]` tags. If you don't, the AI will start hallucinating protocol messages.
+2. **Unique IDs:** Prefix your widget IDs (e.g., `rpg_hp`, `inv_gold`) to avoid conflicts with other scripts.
+3. **State Safety:** Always use `state.obj = state.obj ?? {}` to initialize persistent data.
 4. **No Async:** AI Dungeon scripts do not support `async/await` or `Promises`.
+5. **Use `update` for Changes:** Prefer the `update` action for value changes—it preserves existing config and enables smooth transitions.
+6. **Keep Widgets Minimal:** Don't overwhelm the UI; focus on essential game state.
 
 ---
 
 # Troubleshooting
 
-- **Visible Tags:** If you see `[[BD:...]]` in the story text, the extension isn't running or the tags are being rendered in an area the extension doesn't monitor.
-- **AI Hallucinations:** If the AI starts typing protocol tags, your Context Modifier isn't stripping them correctly.
-- **Missing Widgets:** Check the browser console (F12) for `[BetterScripts]` error messages.
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| Visible `[[BD:...]]` tags | Extension not running or DOM area not monitored | Ensure BetterDungeon is enabled |
+| AI types protocol tags | Context Modifier missing or broken | Verify Context Modifier strips tags |
+| Widgets not appearing | Invalid config or JS error | Check browser console (F12) for `[BetterScripts]` errors |
+| Widgets not updating | Same message sent too fast | Updates within 500ms are deduplicated |
+| Old widgets persist | Adventure change not detected | Widgets auto-clear on adventure change |
+
+---
+
+# Debugging
+
+Enable debug logging in the extension by setting `debug = true` in `better_scripts_feature.js`. This logs all message processing to the browser console.
+
+```
+[BetterScripts] Processing message: widget
+[BetterScripts] Widget created: my-stat
+[BetterScripts] Widget updated: my-stat
+```
