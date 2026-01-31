@@ -65,7 +65,7 @@ class BetterScriptsFeature {
   static WIDGET_TYPES = new Set(['stat', 'bar', 'text', 'panel', 'custom']);
   
   // Valid message types
-  static MESSAGE_TYPES = new Set(['register', 'widget', 'update', 'remove', 'ping']);
+  static MESSAGE_TYPES = new Set(['register', 'widget', 'update', 'remove', 'ping', 'clearAll']);
 
   constructor() {
     // DOM observation
@@ -101,8 +101,11 @@ class BetterScriptsFeature {
     // Cached regex pattern for protocol messages
     this.protocolRegex = /\[\[BD:([\s\S]*?):BD\]\]/g;
     
+    // Re-entry guard for stripProtocolMessagesFromGameplay
+    this.isStrippingMessages = false;
+    
     // Debug logging (controlled only by this property)
-    this.debug = false;
+    this.debug = true;
   }
 
   // ==================== LOGGING ====================
@@ -341,6 +344,24 @@ class BetterScriptsFeature {
    * Called synchronously on every mutation to prevent flash of protocol text
    */
   stripProtocolMessagesFromGameplay() {
+    // Re-entry guard - prevent recursive calls from MutationObserver
+    // When we modify textNode.textContent, it triggers another mutation
+    if (this.isStrippingMessages) {
+      return;
+    }
+    this.isStrippingMessages = true;
+    
+    try {
+      this.stripProtocolMessagesFromGameplayInternal();
+    } finally {
+      this.isStrippingMessages = false;
+    }
+  }
+  
+  /**
+   * Internal implementation of protocol message stripping
+   */
+  stripProtocolMessagesFromGameplayInternal() {
     const gameplayOutput = document.querySelector('#gameplay-output');
     if (!gameplayOutput) return;
     
@@ -521,6 +542,9 @@ class BetterScriptsFeature {
         case 'ping':
           this.handlePing(message);
           break;
+        case 'clearAll':
+          this.handleClearAll(message);
+          break;
         default:
           // This shouldn't happen if parseAndValidateMessage is working correctly
           this.warn('Unhandled message type:', message.type);
@@ -549,11 +573,13 @@ class BetterScriptsFeature {
     const { scriptId, scriptName, version, capabilities } = message;
     
     if (!scriptId) {
-      this.log('Register message missing scriptId');
+      console.warn('[BetterScripts] Register message missing scriptId');
       return;
     }
     
-    this.log(`Script registered: ${scriptName || scriptId} v${version || '?'}`);
+    // Always log registration to console
+    console.log(`[BetterScripts] 📝 Script registered: ${scriptName || scriptId} v${version || '?'}`);
+    this.log('Registration details:', message);
     
     // Store script info locally (content script context)
     this.registeredScripts.set(scriptId, {
@@ -610,7 +636,9 @@ class BetterScriptsFeature {
    * Handle ping messages (for testing connectivity)
    */
   handlePing(message) {
-    this.log('Ping received:', message.data);
+    // Always log to console (not just debug mode) so user can verify connectivity
+    console.log('[BetterScripts] 🏓 PONG - Ping received:', message.data);
+    this.log('Ping details:', message);
     
     // Emit pong event
     window.dispatchEvent(new CustomEvent('betterscripts:pong', {
@@ -618,6 +646,24 @@ class BetterScriptsFeature {
         timestamp: Date.now(),
         requestTimestamp: message.timestamp,
         data: message.data
+      }
+    }));
+  }
+
+  /**
+   * Handle clearAll message - efficiently clears all widgets with a single message
+   */
+  handleClearAll(message) {
+    const count = this.registeredWidgets.size;
+    console.log(`[BetterScripts] 🧹 Clearing all widgets (${count} widgets)`);
+    
+    this.clearAllWidgets();
+    
+    // Emit event
+    window.dispatchEvent(new CustomEvent('betterscripts:cleared', {
+      detail: { 
+        count: count,
+        timestamp: Date.now()
       }
     }));
   }
@@ -644,7 +690,12 @@ class BetterScriptsFeature {
       alignItems: 'flex-start',
       boxSizing: 'border-box',
       pointerEvents: 'none',
-      transition: 'top 0.2s ease, left 0.2s ease, width 0.2s ease'
+      // Use fit-content width so container shrinks to widgets
+      width: 'fit-content',
+      // Center horizontally using left: 50% + transform
+      left: '50%',
+      transform: 'translateX(-50%)',
+      transition: 'top 0.2s ease'
     });
     
     document.body.appendChild(this.widgetContainer);
@@ -743,24 +794,19 @@ class BetterScriptsFeature {
       fontSize = 14;
     }
     
-    // Calculate container width - match content area or use responsive max
-    const maxWidth = Math.min(900, layout.contentWidth, vw - 16);
-    
-    // Position horizontally - center over content area
-    const contentCenter = layout.contentLeft + (layout.contentWidth / 2);
-    const left = Math.max(padding, contentCenter - (maxWidth / 2));
+    // Calculate max width constraint
+    const maxWidth = Math.min(900, layout.contentWidth - 32, vw - 32);
     
     Object.assign(this.widgetContainer.style, {
-      top: `${layout.contentTop}px`,
-      left: `${left}px`,
-      width: `${maxWidth}px`,
+      top: `${layout.contentTop + 8}px`,
+      // Keep centered with transform (set in createWidgetContainer)
+      maxWidth: `${maxWidth}px`,
       padding: `${padding}px`,
       gap: `${gap}px`,
-      fontSize: `${fontSize}px`,
-      transform: 'none'  // Remove transform since we calculate exact position
+      fontSize: `${fontSize}px`
     });
     
-    this.log('Container positioned:', { top: layout.contentTop, left, width: maxWidth });
+    this.log('Container positioned:', { top: layout.contentTop + 8, maxWidth });
   }
 
   /**
@@ -1140,14 +1186,19 @@ class BetterScriptsFeature {
           }
           
           // For other disallowed tags, unwrap (keep text content)
-          const fragment = document.createDocumentFragment();
-          while (child.firstChild) {
-            fragment.appendChild(child.firstChild);
+          // First, sanitize the children before unwrapping
+          const childrenToUnwrap = Array.from(child.childNodes);
+          for (const grandchild of childrenToUnwrap) {
+            if (grandchild.nodeType === Node.ELEMENT_NODE) {
+              this.sanitizeNode(grandchild);
+            }
           }
-          child.replaceWith(fragment);
           
-          // Sanitize the unwrapped children
-          this.sanitizeNode(node);
+          // Now unwrap - move children to parent, remove the disallowed tag
+          while (child.firstChild) {
+            child.parentNode.insertBefore(child.firstChild, child);
+          }
+          child.remove();
           continue;
         }
         
