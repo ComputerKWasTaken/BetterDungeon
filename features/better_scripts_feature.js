@@ -11,18 +11,61 @@
  * 3. Message is parsed and processed (e.g., widget created)
  * 4. Protocol text is stripped from DOM before user sees it
  * 
- * Protocol Format: [[BD:{"type":"...", ...}:BD]]
+ * Protocol Format: [[BD:{"type":"...", "v":"1.0", ...}:BD]]
  */
 
 class BetterScriptsFeature {
   static id = 'betterScripts';
   
   // Protocol version for compatibility checking
-  static PROTOCOL_VERSION = '1.0.0';
+  // Format: major.minor - major changes break compatibility
+  static PROTOCOL_VERSION = '1.0';
+  static PROTOCOL_VERSION_MAJOR = 1;
   
   // Message delimiters for protocol messages
   static MESSAGE_PREFIX = '[[BD:';
   static MESSAGE_SUFFIX = ':BD]]';
+  
+  // Maximum message size (16KB) to prevent DoS
+  static MAX_MESSAGE_SIZE = 16384;
+  
+  // Allowed HTML elements for custom widgets
+  static ALLOWED_TAGS = new Set([
+    'div', 'span', 'p', 'br', 'hr',
+    'strong', 'b', 'em', 'i', 'u', 's', 'mark',
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'ul', 'ol', 'li',
+    'table', 'thead', 'tbody', 'tr', 'th', 'td',
+    'img', 'a',
+    'pre', 'code', 'blockquote'
+  ]);
+  
+  // Allowed HTML attributes (per-tag or global)
+  static ALLOWED_ATTRS = {
+    '*': ['class', 'id', 'style', 'title'],
+    'a': ['href', 'target', 'rel'],
+    'img': ['src', 'alt', 'width', 'height']
+  };
+  
+  // Allowed CSS properties for inline styles
+  static ALLOWED_STYLES = new Set([
+    'color', 'background-color', 'background',
+    'font-size', 'font-weight', 'font-style', 'font-family',
+    'text-align', 'text-decoration', 'text-transform',
+    'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+    'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+    'border', 'border-radius', 'border-color', 'border-width', 'border-style',
+    'width', 'height', 'max-width', 'max-height', 'min-width', 'min-height',
+    'display', 'flex', 'flex-direction', 'justify-content', 'align-items', 'gap',
+    'opacity', 'visibility', 'overflow',
+    'position', 'top', 'right', 'bottom', 'left', 'z-index'
+  ]);
+  
+  // Valid widget types
+  static WIDGET_TYPES = new Set(['stat', 'bar', 'text', 'panel', 'custom']);
+  
+  // Valid message types
+  static MESSAGE_TYPES = new Set(['register', 'widget', 'update', 'remove', 'ping']);
 
   constructor() {
     // DOM observation
@@ -31,9 +74,12 @@ class BetterScriptsFeature {
     this.waitForGameplayObserver = null;
     this.debounceTimer = null;
     
+    // WeakMap for tracking observed elements (prevents memory leaks, survives DOM changes)
+    this.observedElements = new WeakMap();
+    
     // State tracking
     this.currentAdventureId = null;
-    this.processedMessageHashes = new Set();
+    this.processedMessageHashes = new Map(); // hash -> timestamp for LRU cleanup
     this.messageHashCleanupTimer = null;
     this.registeredWidgets = new Map();
     this.registeredScripts = new Map();
@@ -52,13 +98,39 @@ class BetterScriptsFeature {
     this.layoutObserver = null;
     this.cachedLayout = null;
     
-    // Debug logging (set to false for production)
+    // Cached regex pattern for protocol messages
+    this.protocolRegex = /\[\[BD:([\s\S]*?):BD\]\]/g;
+    
+    // Debug logging (controlled only by this property)
     this.debug = false;
   }
 
+  // ==================== LOGGING ====================
+
+  /**
+   * Log a debug message (only when debug mode is enabled)
+   */
   log(message, ...args) {
     if (this.debug) {
       console.log(`[BetterScripts] ${message}`, ...args);
+    }
+  }
+  
+  /**
+   * Log a warning (always shown)
+   */
+  warn(message, ...args) {
+    console.warn(`[BetterScripts] ${message}`, ...args);
+  }
+  
+  /**
+   * Log an error (always shown)
+   */
+  error(message, error = null) {
+    if (error) {
+      console.error(`[BetterScripts] ${message}`, error);
+    } else {
+      console.error(`[BetterScripts] ${message}`);
     }
   }
 
@@ -78,16 +150,30 @@ class BetterScriptsFeature {
 
   /**
    * Schedule cleanup of processed message hashes
-   * Clears hashes after 500ms to allow repeated intentional updates
-   * while preventing duplicate processing from rapid mutation observer calls
+   * Uses LRU-style cleanup: removes hashes older than 500ms
+   * This prevents duplicate processing while allowing intentional repeated updates
    */
   scheduleHashCleanup() {
     if (this.messageHashCleanupTimer) return;
     
     this.messageHashCleanupTimer = setTimeout(() => {
-      this.processedMessageHashes.clear();
+      const now = Date.now();
+      const maxAge = 500;
+      
+      // Remove entries older than maxAge
+      for (const [hash, timestamp] of this.processedMessageHashes) {
+        if (now - timestamp > maxAge) {
+          this.processedMessageHashes.delete(hash);
+        }
+      }
+      
       this.messageHashCleanupTimer = null;
-    }, 500);
+      
+      // Reschedule if there are still entries
+      if (this.processedMessageHashes.size > 0) {
+        this.scheduleHashCleanup();
+      }
+    }, 250);
   }
 
   // ==================== LIFECYCLE ====================
@@ -205,10 +291,18 @@ class BetterScriptsFeature {
   setupGameplayOutputObserver() {
     const observeGameplayOutput = () => {
       const gameplayOutput = document.querySelector('#gameplay-output');
-      if (!gameplayOutput || gameplayOutput._bdGameplayObserved) return;
-      gameplayOutput._bdGameplayObserved = true;
+      if (!gameplayOutput) return;
+      
+      // Use WeakMap instead of DOM property to track observed elements
+      if (this.observedElements.has(gameplayOutput)) return;
+      this.observedElements.set(gameplayOutput, { type: 'gameplay', observedAt: Date.now() });
       
       this.log('Setting up immediate gameplay output observer');
+      
+      // Disconnect existing observer if any
+      if (this.gameplayObserver) {
+        this.gameplayObserver.disconnect();
+      }
       
       this.gameplayObserver = new MutationObserver((mutations) => {
         // Strip protocol messages IMMEDIATELY - no debounce
@@ -230,7 +324,8 @@ class BetterScriptsFeature {
     
     // Watch for gameplay output to be added (page navigation)
     this.waitForGameplayObserver = new MutationObserver((mutations) => {
-      if (!document.querySelector('#gameplay-output')?._bdGameplayObserved) {
+      const gameplayOutput = document.querySelector('#gameplay-output');
+      if (gameplayOutput && !this.observedElements.has(gameplayOutput)) {
         observeGameplayOutput();
       }
     });
@@ -249,8 +344,6 @@ class BetterScriptsFeature {
     const gameplayOutput = document.querySelector('#gameplay-output');
     if (!gameplayOutput) return;
     
-    const protocolRegex = /\[\[BD:([\s\S]*?):BD\]\]/g;
-    
     // Walk through all text nodes and strip protocol messages
     const walker = document.createTreeWalker(
       gameplayOutput,
@@ -262,7 +355,7 @@ class BetterScriptsFeature {
     const nodesToProcess = [];
     let node;
     while ((node = walker.nextNode())) {
-      if (node.textContent && node.textContent.includes('[[BD:')) {
+      if (node.textContent && node.textContent.includes(BetterScriptsFeature.MESSAGE_PREFIX)) {
         nodesToProcess.push(node);
       }
     }
@@ -270,34 +363,90 @@ class BetterScriptsFeature {
     // Process nodes (separate loop to avoid walker invalidation)
     for (const textNode of nodesToProcess) {
       const originalText = textNode.textContent;
-      let match;
       
+      // Reset regex lastIndex before use
+      this.protocolRegex.lastIndex = 0;
+      
+      let match;
       // First, extract and process any messages we haven't seen recently
-      while ((match = protocolRegex.exec(originalText)) !== null) {
+      while ((match = this.protocolRegex.exec(originalText)) !== null) {
         const rawMessage = match[1];
+        
+        // Check message size limit
+        if (rawMessage.length > BetterScriptsFeature.MAX_MESSAGE_SIZE) {
+          this.warn(`Message exceeds size limit (${rawMessage.length} > ${BetterScriptsFeature.MAX_MESSAGE_SIZE}), skipping`);
+          continue;
+        }
+        
         const messageHash = this.hashMessage(rawMessage);
         
-        // Skip if we've processed this exact message very recently (prevents duplicates from mutation observer firing multiple times)
+        // Skip if we've processed this exact message very recently
+        // (prevents duplicates from mutation observer firing multiple times)
         if (!this.processedMessageHashes.has(messageHash)) {
-          this.processedMessageHashes.add(messageHash);
+          this.processedMessageHashes.set(messageHash, Date.now());
           
-          // Schedule cleanup of old hashes to allow repeated intentional updates
+          // Schedule cleanup of old hashes
           this.scheduleHashCleanup();
           
-          try {
-            const message = JSON.parse(rawMessage);
+          // Parse and validate the message
+          const message = this.parseAndValidateMessage(rawMessage);
+          if (message) {
             this.log('Processing message:', message.type);
             this.processMessage(message);
-          } catch (e) {
-            this.log('Failed to parse message:', e.message);
           }
         }
       }
-      protocolRegex.lastIndex = 0;
       
-      // Then strip all protocol text from the node
-      textNode.textContent = originalText.replace(/\[\[BD:[\s\S]*?:BD\]\]/g, '');
+      // Reset regex and strip all protocol text from the node
+      this.protocolRegex.lastIndex = 0;
+      textNode.textContent = originalText.replace(this.protocolRegex, '');
     }
+  }
+  
+  /**
+   * Parse and validate a raw JSON message string
+   * Returns the parsed message object or null if invalid
+   */
+  parseAndValidateMessage(rawMessage) {
+    let message;
+    
+    // Parse JSON
+    try {
+      message = JSON.parse(rawMessage);
+    } catch (e) {
+      this.warn('Failed to parse message JSON:', e.message);
+      return null;
+    }
+    
+    // Validate message structure
+    if (!message || typeof message !== 'object') {
+      this.warn('Invalid message format: not an object');
+      return null;
+    }
+    
+    // Validate message type
+    if (!message.type) {
+      this.warn('Message missing required "type" field');
+      return null;
+    }
+    
+    if (!BetterScriptsFeature.MESSAGE_TYPES.has(message.type)) {
+      this.warn(`Unknown message type: "${message.type}"`);
+      return null;
+    }
+    
+    // Validate protocol version if provided
+    if (message.v !== undefined) {
+      const versionParts = String(message.v).split('.');
+      const majorVersion = parseInt(versionParts[0], 10);
+      
+      if (isNaN(majorVersion) || majorVersion !== BetterScriptsFeature.PROTOCOL_VERSION_MAJOR) {
+        this.warn(`Protocol version mismatch: message v${message.v}, expected v${BetterScriptsFeature.PROTOCOL_VERSION}`);
+        // Continue anyway - we'll try to process it
+      }
+    }
+    
+    return message;
   }
 
   stopObserving() {
@@ -321,11 +470,8 @@ class BetterScriptsFeature {
       this.observer = null;
     }
     
-    // Clear DOM flag before disconnecting gameplay observer
-    const gameplayOutput = document.querySelector('#gameplay-output');
-    if (gameplayOutput && gameplayOutput._bdGameplayObserved) {
-      delete gameplayOutput._bdGameplayObserved;
-    }
+    // WeakMap entries are automatically cleaned up when elements are removed from DOM
+    // No need to manually clear - just disconnect observers
     
     if (this.gameplayObserver) {
       this.gameplayObserver.disconnect();
@@ -356,20 +502,11 @@ class BetterScriptsFeature {
   // ==================== MESSAGE PROCESSING ====================
 
   /**
-   * Process a parsed BetterScripts message
+   * Process a validated BetterScripts message
+   * Note: Message validation is done in parseAndValidateMessage before this is called
    */
   processMessage(message) {
     this.log('Processing message:', message);
-    
-    if (!message || typeof message !== 'object') {
-      this.log('Invalid message format');
-      return;
-    }
-    
-    if (!message.type) {
-      this.log('Message missing type field');
-      return;
-    }
     
     try {
       switch (message.type) {
@@ -385,10 +522,20 @@ class BetterScriptsFeature {
           this.handlePing(message);
           break;
         default:
-          this.log('Unknown message type:', message.type);
+          // This shouldn't happen if parseAndValidateMessage is working correctly
+          this.warn('Unhandled message type:', message.type);
       }
     } catch (error) {
-      console.error('[BetterScripts] Error processing message:', error);
+      this.error('Error processing message:', error);
+      
+      // Emit error event for debugging
+      window.dispatchEvent(new CustomEvent('betterscripts:error', {
+        detail: { 
+          type: 'processing_error',
+          message: message,
+          error: error.message
+        }
+      }));
     }
   }
 
@@ -677,11 +824,74 @@ class BetterScriptsFeature {
   }
 
   /**
+   * Validate widget configuration
+   * Returns an object with { valid: boolean, errors: string[] }
+   */
+  validateWidgetConfig(widgetId, config) {
+    const errors = [];
+    
+    // Check widget ID
+    if (!widgetId || typeof widgetId !== 'string') {
+      errors.push('Widget ID must be a non-empty string');
+    } else if (!/^[a-zA-Z0-9_-]+$/.test(widgetId)) {
+      errors.push('Widget ID must contain only alphanumeric characters, underscores, and hyphens');
+    }
+    
+    // Check config exists
+    if (!config || typeof config !== 'object') {
+      errors.push('Widget config must be an object');
+      return { valid: false, errors };
+    }
+    
+    // Check widget type
+    if (!config.type) {
+      errors.push('Widget config missing required "type" field');
+    } else if (!BetterScriptsFeature.WIDGET_TYPES.has(config.type)) {
+      errors.push(`Unknown widget type: "${config.type}". Valid types: ${[...BetterScriptsFeature.WIDGET_TYPES].join(', ')}`);
+    }
+    
+    // Type-specific validation
+    if (config.type === 'bar') {
+      if (config.max !== undefined && (typeof config.max !== 'number' || config.max <= 0)) {
+        errors.push('Bar widget "max" must be a positive number');
+      }
+      if (config.value !== undefined && typeof config.value !== 'number') {
+        errors.push('Bar widget "value" must be a number');
+      }
+    }
+    
+    if (config.type === 'panel' && config.items !== undefined) {
+      if (!Array.isArray(config.items)) {
+        errors.push('Panel widget "items" must be an array');
+      }
+    }
+    
+    if (config.type === 'custom' && config.html !== undefined) {
+      if (typeof config.html !== 'string') {
+        errors.push('Custom widget "html" must be a string');
+      }
+    }
+    
+    return { valid: errors.length === 0, errors };
+  }
+
+  /**
    * Create a widget based on configuration from script
    */
   createWidget(widgetId, config) {
-    if (!config || !config.type) {
-      this.log('Widget config missing type');
+    // Validate configuration
+    const validation = this.validateWidgetConfig(widgetId, config);
+    if (!validation.valid) {
+      this.warn(`Invalid widget config for "${widgetId}":`, validation.errors.join('; '));
+      
+      // Emit validation error event
+      window.dispatchEvent(new CustomEvent('betterscripts:error', {
+        detail: { 
+          type: 'validation_error',
+          widgetId: widgetId,
+          errors: validation.errors
+        }
+      }));
       return;
     }
     
@@ -712,7 +922,8 @@ class BetterScriptsFeature {
         widgetElement = this.createCustomWidget(widgetId, config);
         break;
       default:
-        this.log('Unknown widget type:', config.type);
+        // This shouldn't happen after validation, but just in case
+        this.warn('Unknown widget type:', config.type);
         return;
     }
     
@@ -720,6 +931,11 @@ class BetterScriptsFeature {
       this.widgetContainer.appendChild(widgetElement);
       this.registeredWidgets.set(widgetId, { element: widgetElement, config });
       this.log('Widget created:', widgetId);
+      
+      // Emit widget created event
+      window.dispatchEvent(new CustomEvent('betterscripts:widget', {
+        detail: { action: 'created', widgetId, config }
+      }));
     }
   }
 
@@ -860,7 +1076,7 @@ class BetterScriptsFeature {
   }
 
   /**
-   * Create a custom HTML widget (use with caution)
+   * Create a custom HTML widget with sanitized content
    */
   createCustomWidget(widgetId, config) {
     const widget = document.createElement('div');
@@ -868,25 +1084,219 @@ class BetterScriptsFeature {
     widget.id = `bd-widget-${widgetId}`;
     widget.style.pointerEvents = 'auto'; // Re-enable interactions on widget
     
-    // Only allow safe HTML (no scripts)
+    // Sanitize and apply HTML content
     if (config.html) {
       const sanitized = this.sanitizeHTML(config.html);
       widget.innerHTML = sanitized;
     }
     
+    // Apply custom styles if provided (sanitized)
+    if (config.style && typeof config.style === 'object') {
+      const sanitizedStyles = this.sanitizeStyleObject(config.style);
+      Object.assign(widget.style, sanitizedStyles);
+    }
+    
     return widget;
   }
 
+  // ==================== HTML SANITIZATION ====================
+
   /**
-   * Basic HTML sanitization to prevent XSS
+   * Sanitize HTML content using a whitelist-based approach
+   * Allows safe tags and attributes while stripping dangerous content
    */
   sanitizeHTML(html) {
-    const temp = document.createElement('div');
-    temp.textContent = html;
+    if (typeof html !== 'string') {
+      return '';
+    }
     
-    // For now, just escape everything
-    // In the future, we could implement a whitelist-based sanitizer
+    // Parse HTML into a temporary container
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    
+    // Recursively sanitize all nodes
+    this.sanitizeNode(temp);
+    
     return temp.innerHTML;
+  }
+  
+  /**
+   * Recursively sanitize a DOM node and its children
+   */
+  sanitizeNode(node) {
+    // Process child nodes in reverse order (so removal doesn't skip nodes)
+    const children = Array.from(node.childNodes);
+    
+    for (const child of children) {
+      if (child.nodeType === Node.ELEMENT_NODE) {
+        const tagName = child.tagName.toLowerCase();
+        
+        // Remove disallowed elements entirely
+        if (!BetterScriptsFeature.ALLOWED_TAGS.has(tagName)) {
+          // For script/style tags, remove completely
+          if (tagName === 'script' || tagName === 'style' || tagName === 'iframe' || tagName === 'object' || tagName === 'embed') {
+            child.remove();
+            continue;
+          }
+          
+          // For other disallowed tags, unwrap (keep text content)
+          const fragment = document.createDocumentFragment();
+          while (child.firstChild) {
+            fragment.appendChild(child.firstChild);
+          }
+          child.replaceWith(fragment);
+          
+          // Sanitize the unwrapped children
+          this.sanitizeNode(node);
+          continue;
+        }
+        
+        // Sanitize attributes
+        this.sanitizeAttributes(child, tagName);
+        
+        // Recursively sanitize children
+        this.sanitizeNode(child);
+      }
+      // Text nodes and comments are safe, leave them as-is
+    }
+  }
+  
+  /**
+   * Sanitize attributes on an element
+   */
+  sanitizeAttributes(element, tagName) {
+    const allowedGlobal = BetterScriptsFeature.ALLOWED_ATTRS['*'] || [];
+    const allowedForTag = BetterScriptsFeature.ALLOWED_ATTRS[tagName] || [];
+    const allAllowed = new Set([...allowedGlobal, ...allowedForTag]);
+    
+    // Get list of attributes to remove (can't modify while iterating)
+    const attrsToRemove = [];
+    
+    for (const attr of element.attributes) {
+      const attrName = attr.name.toLowerCase();
+      
+      // Remove event handlers (onclick, onload, etc.)
+      if (attrName.startsWith('on')) {
+        attrsToRemove.push(attr.name);
+        continue;
+      }
+      
+      // Remove disallowed attributes
+      if (!allAllowed.has(attrName)) {
+        attrsToRemove.push(attr.name);
+        continue;
+      }
+      
+      // Special handling for specific attributes
+      if (attrName === 'href') {
+        // Only allow safe URL protocols
+        const href = attr.value.trim().toLowerCase();
+        if (href.startsWith('javascript:') || href.startsWith('data:') || href.startsWith('vbscript:')) {
+          attrsToRemove.push(attr.name);
+          continue;
+        }
+      }
+      
+      if (attrName === 'src') {
+        // Only allow safe URL protocols for images
+        const src = attr.value.trim().toLowerCase();
+        if (src.startsWith('javascript:') || src.startsWith('vbscript:')) {
+          attrsToRemove.push(attr.name);
+          continue;
+        }
+      }
+      
+      if (attrName === 'style') {
+        // Sanitize inline styles
+        element.setAttribute('style', this.sanitizeStyleString(attr.value));
+      }
+    }
+    
+    // Remove flagged attributes
+    for (const attrName of attrsToRemove) {
+      element.removeAttribute(attrName);
+    }
+    
+    // Force rel="noopener noreferrer" on links with target
+    if (tagName === 'a' && element.hasAttribute('target')) {
+      element.setAttribute('rel', 'noopener noreferrer');
+    }
+  }
+  
+  /**
+   * Sanitize a CSS style string, keeping only allowed properties
+   */
+  sanitizeStyleString(styleString) {
+    if (!styleString || typeof styleString !== 'string') {
+      return '';
+    }
+    
+    const sanitizedParts = [];
+    
+    // Parse style declarations
+    const declarations = styleString.split(';');
+    
+    for (const declaration of declarations) {
+      const colonIndex = declaration.indexOf(':');
+      if (colonIndex === -1) continue;
+      
+      const property = declaration.substring(0, colonIndex).trim().toLowerCase();
+      const value = declaration.substring(colonIndex + 1).trim();
+      
+      // Check if property is allowed
+      if (!BetterScriptsFeature.ALLOWED_STYLES.has(property)) {
+        continue;
+      }
+      
+      // Check for dangerous values (url(), expression(), javascript:, etc.)
+      const lowerValue = value.toLowerCase();
+      if (lowerValue.includes('url(') || 
+          lowerValue.includes('expression(') || 
+          lowerValue.includes('javascript:') ||
+          lowerValue.includes('behavior:')) {
+        continue;
+      }
+      
+      sanitizedParts.push(`${property}: ${value}`);
+    }
+    
+    return sanitizedParts.join('; ');
+  }
+  
+  /**
+   * Sanitize a style object (from config.style)
+   */
+  sanitizeStyleObject(styleObj) {
+    if (!styleObj || typeof styleObj !== 'object') {
+      return {};
+    }
+    
+    const sanitized = {};
+    
+    for (const [property, value] of Object.entries(styleObj)) {
+      // Convert camelCase to kebab-case for checking
+      const kebabProperty = property.replace(/([A-Z])/g, '-$1').toLowerCase();
+      
+      // Check if property is allowed
+      if (!BetterScriptsFeature.ALLOWED_STYLES.has(kebabProperty)) {
+        continue;
+      }
+      
+      // Check for dangerous values
+      if (typeof value === 'string') {
+        const lowerValue = value.toLowerCase();
+        if (lowerValue.includes('url(') || 
+            lowerValue.includes('expression(') || 
+            lowerValue.includes('javascript:') ||
+            lowerValue.includes('behavior:')) {
+          continue;
+        }
+      }
+      
+      sanitized[property] = value;
+    }
+    
+    return sanitized;
   }
 
   /**
@@ -947,7 +1357,9 @@ class BetterScriptsFeature {
           element.textContent = config.text;
         }
         if (config.style) {
-          Object.assign(element.style, config.style);
+          // Sanitize styles before applying
+          const sanitizedStyles = this.sanitizeStyleObject(config.style);
+          Object.assign(element.style, sanitizedStyles);
         }
         break;
         
@@ -1001,12 +1413,21 @@ class BetterScriptsFeature {
         if (config.html !== undefined) {
           element.innerHTML = this.sanitizeHTML(config.html);
         }
+        if (config.style) {
+          const sanitizedStyles = this.sanitizeStyleObject(config.style);
+          Object.assign(element.style, sanitizedStyles);
+        }
         break;
     }
     
     // Update stored config
     this.registeredWidgets.set(widgetId, { element, config: mergedConfig });
     this.log('Widget updated:', widgetId);
+    
+    // Emit widget updated event
+    window.dispatchEvent(new CustomEvent('betterscripts:widget', {
+      detail: { action: 'updated', widgetId, config: mergedConfig }
+    }));
   }
 
   /**
@@ -1018,6 +1439,11 @@ class BetterScriptsFeature {
       widgetData.element.remove();
       this.registeredWidgets.delete(widgetId);
       this.log('Widget destroyed:', widgetId);
+      
+      // Emit widget destroyed event
+      window.dispatchEvent(new CustomEvent('betterscripts:widget', {
+        detail: { action: 'destroyed', widgetId }
+      }));
       
       // Remove container if no widgets remain
       if (this.registeredWidgets.size === 0) {

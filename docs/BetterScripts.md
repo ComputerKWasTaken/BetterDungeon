@@ -9,6 +9,8 @@ BetterScripts enables AI Dungeon scripts to communicate with the BetterDungeon e
 - **Auto-creation:** Update commands auto-create widgets if they don't exist
 - **Clean Integration:** Protocol messages are stripped before display
 - **Adventure-scoped:** Widgets automatically clear when changing adventures
+- **Secure Custom HTML:** Whitelist-based sanitization for custom widgets
+- **Event System:** Listen to widget lifecycle events from JavaScript
 
 ---
 
@@ -119,17 +121,25 @@ modifier(text);
 
 Messages use the format `[[BD:{json}:BD]]`.
 
+**Protocol Version:** `1.0` (optional `v` field for future compatibility)
+
 ## Widget Message
 The primary message type for UI interaction.
 
 ```javascript
 {
   "type": "widget",
+  "v": "1.0",           // Optional: protocol version
   "widgetId": "unique-id",
   "action": "create",  // 'create', 'update', or 'destroy'
   "config": { ... }    // See Widget Types below
 }
 ```
+
+### Widget ID Rules
+- Must be a non-empty string
+- Only alphanumeric characters, underscores, and hyphens allowed
+- Example valid IDs: `hp-bar`, `gold_stat`, `player1Health`
 
 ### Actions
 
@@ -189,13 +199,31 @@ Simple text or notification.
 ```
 
 ### Custom Widget
-Custom HTML content (sanitized for security).
+Custom HTML content with whitelist-based sanitization.
 ```javascript
 {
   "type": "custom",
-  "html": "<div>Custom content here</div>"
+  "html": "<div class='my-widget'><strong>HP:</strong> <span style='color: #22c55e'>100</span></div>",
+  "style": { "padding": "8px", "backgroundColor": "#1a1a2e" }
 }
 ```
+
+**Allowed HTML Tags:**
+`div`, `span`, `p`, `br`, `hr`, `strong`, `b`, `em`, `i`, `u`, `s`, `mark`, `h1`-`h6`, `ul`, `ol`, `li`, `table`, `thead`, `tbody`, `tr`, `th`, `td`, `img`, `a`, `pre`, `code`, `blockquote`
+
+**Allowed Attributes:**
+- Global: `class`, `id`, `style`, `title`
+- Links (`a`): `href`, `target`, `rel`
+- Images (`img`): `src`, `alt`, `width`, `height`
+
+**Allowed CSS Properties:**
+`color`, `background-color`, `background`, `font-size`, `font-weight`, `font-style`, `font-family`, `text-align`, `text-decoration`, `text-transform`, `padding`, `margin`, `border`, `border-radius`, `width`, `height`, `max-width`, `max-height`, `min-width`, `min-height`, `display`, `flex`, `flex-direction`, `justify-content`, `align-items`, `gap`, `opacity`, `visibility`, `overflow`, `position`, `top`, `right`, `bottom`, `left`, `z-index`
+
+**Security Notes:**
+- `<script>`, `<style>`, `<iframe>`, `<object>`, `<embed>` tags are removed
+- Event handlers (`onclick`, `onload`, etc.) are stripped
+- `javascript:` and `vbscript:` URLs are blocked
+- Links with `target` automatically get `rel="noopener noreferrer"`
 
 ---
 
@@ -209,18 +237,19 @@ When using the `update` action, you can modify these properties per widget type:
 | **bar** | `label`, `value`, `max`, `color` |
 | **text** | `text`, `style` |
 | **panel** | `title`, `items` |
-| **custom** | `html` |
+| **custom** | `html`, `style` |
 
 ---
 
 # Best Practices
 
 1. **Context Stripping is Mandatory:** Always use a Context Modifier to strip `[[BD:...:BD]]` tags. If you don't, the AI will start hallucinating protocol messages.
-2. **Unique IDs:** Prefix your widget IDs (e.g., `rpg_hp`, `inv_gold`) to avoid conflicts with other scripts.
+2. **Unique IDs:** Prefix your widget IDs (e.g., `rpg_hp`, `inv_gold`) to avoid conflicts with other scripts. IDs must be alphanumeric with underscores/hyphens only.
 3. **State Safety:** Always use `state.obj = state.obj ?? {}` to initialize persistent data.
 4. **No Async:** AI Dungeon scripts do not support `async/await` or `Promises`.
 5. **Use `update` for Changes:** Prefer the `update` action for value changes—it preserves existing config and enables smooth transitions.
 6. **Keep Widgets Minimal:** Don't overwhelm the UI; focus on essential game state.
+7. **Message Size Limit:** Protocol messages are limited to 16KB. Keep your HTML content concise.
 
 ---
 
@@ -230,9 +259,11 @@ When using the `update` action, you can modify these properties per widget type:
 |---------|-------|----------|
 | Visible `[[BD:...]]` tags | Extension not running or DOM area not monitored | Ensure BetterDungeon is enabled |
 | AI types protocol tags | Context Modifier missing or broken | Verify Context Modifier strips tags |
-| Widgets not appearing | Invalid config or JS error | Check browser console (F12) for `[BetterScripts]` errors |
+| Widgets not appearing | Invalid config or JS error | Check browser console (F12) for `[BetterScripts]` warnings |
 | Widgets not updating | Same message sent too fast | Updates within 500ms are deduplicated |
 | Old widgets persist | Adventure change not detected | Widgets auto-clear on adventure change |
+| Invalid widget ID | ID contains special characters | Use only alphanumeric, underscore, hyphen |
+| Custom HTML not rendering | Tags/attributes stripped | Check allowed tags and attributes list above |
 
 ---
 
@@ -244,4 +275,42 @@ Enable debug logging in the extension by setting `debug = true` in `better_scrip
 [BetterScripts] Processing message: widget
 [BetterScripts] Widget created: my-stat
 [BetterScripts] Widget updated: my-stat
+```
+
+Warnings and errors are always logged (even without debug mode):
+```
+[BetterScripts] Invalid widget config for "my-widget": Widget config missing required "type" field
+[BetterScripts] Message exceeds size limit (20000 > 16384), skipping
+```
+
+---
+
+# JavaScript Events
+
+BetterScripts emits custom events you can listen to from browser console or other extensions:
+
+```javascript
+// Widget lifecycle events
+window.addEventListener('betterscripts:widget', (e) => {
+  console.log(e.detail.action);   // 'created', 'updated', or 'destroyed'
+  console.log(e.detail.widgetId); // Widget ID
+  console.log(e.detail.config);   // Widget config (not present for 'destroyed')
+});
+
+// Script registration events
+window.addEventListener('betterscripts:registered', (e) => {
+  console.log(e.detail.scriptId);
+  console.log(e.detail.scriptName);
+});
+
+// Error events (for debugging)
+window.addEventListener('betterscripts:error', (e) => {
+  console.log(e.detail.type);    // 'validation_error' or 'processing_error'
+  console.log(e.detail.errors);  // Array of error messages
+});
+
+// Ping/pong for connectivity testing
+window.addEventListener('betterscripts:pong', (e) => {
+  console.log(e.detail.timestamp);
+});
 ```
