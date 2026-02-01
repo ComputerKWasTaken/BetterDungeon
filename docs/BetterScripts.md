@@ -130,24 +130,84 @@ Custom HTML content (sanitized).
 { type: 'custom', html: '<strong>HP:</strong> <span style="color:#22c55e">100</span>', order: 5 }
 ```
 
+### Badge
+Compact status tag/pill.
+```javascript
+{ type: 'badge', text: 'Poisoned', icon: '☠️', color: '#a855f7', variant: 'subtle', order: 6 }
+```
+Variants: `subtle` (default), `solid`, `outline`
+
+### List
+Simple item list with optional icons.
+```javascript
+{ type: 'list', title: 'Inventory', items: [
+  { icon: '🗡️', text: 'Iron Sword', color: '#60a5fa' },
+  { icon: '🛡️', text: 'Wooden Shield' },
+  'Health Potion'
+], order: 7 }
+```
+
+### Icon
+Compact icon-only display with tooltip.
+```javascript
+{ type: 'icon', icon: '❤️', color: '#ef4444', size: 20, tooltip: 'Health', order: 8 }
+```
+
+### Divider
+Visual separator between widgets.
+```javascript
+{ type: 'divider', label: 'Stats', color: '#60a5fa', order: 9 }
+```
+
+### Counter
+Compact number with change indicator.
+```javascript
+{ type: 'counter', icon: '💰', value: 1250, delta: +50, color: '#fbbf24', order: 10 }
+```
+
 ---
 
 ## Widget Properties
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `type` | string | **Required.** `stat`, `bar`, `panel`, `text`, or `custom` |
-| `label` | string | Display label (stat, bar) |
-| `value` | any | Display value (stat, bar, panel items) |
+| `type` | string | **Required.** `stat`, `bar`, `panel`, `text`, `custom`, `badge`, `list`, `icon`, `divider`, `counter` |
+| `position` | string | Widget area: `top` (default), `left`, `right` |
+| `label` | string | Display label (stat, bar, badge, divider) |
+| `value` | any | Display value (stat, bar, counter, panel items) |
 | `max` | number | Maximum value for bar (default: 100) |
-| `color` | string | CSS color for value/fill |
+| `color` | string | CSS color for value/fill/tint |
 | `showValue` | boolean | Show value text on bar (default: true) |
-| `title` | string | Panel title |
-| `items` | array | Panel items: `[{ label, value, color }]` |
-| `text` | string | Text widget content |
+| `title` | string | Panel/list title |
+| `items` | array | Panel/list items: `[{ label, value, color, icon, text }]` |
+| `text` | string | Text/badge widget content |
 | `html` | string | Custom widget HTML (sanitized) |
 | `style` | object | CSS styles for text/custom widgets |
-| `order` | number | Display order (lower = first) |
+| `order` | number | Display order within position (lower = first) |
+| `icon` | string | Icon/emoji (badge, list items, icon, counter) |
+| `variant` | string | Badge style: `subtle`, `solid`, `outline` |
+| `size` | number/string | Icon font size |
+| `tooltip` | string | Hover tooltip (icon widget) |
+| `delta` | number | Change indicator for counter (+/-) |
+
+### Widget Positions
+
+Widgets can be placed in three areas:
+
+- **`top`** - Horizontal bar at the top (default)
+- **`left`** - Vertical sidebar on the left
+- **`right`** - Vertical sidebar on the right
+
+```javascript
+// Stats in top bar
+bdWidget('hp', { type: 'stat', label: 'HP', value: '85/100', position: 'top' });
+
+// Character panel on left
+bdWidget('char', { type: 'panel', title: 'Character', items: [...], position: 'left' });
+
+// Inventory list on right
+bdWidget('inv', { type: 'list', title: 'Items', items: [...], position: 'right' });
+```
 
 ---
 
@@ -199,6 +259,52 @@ Custom HTML content (sanitized).
 
 ---
 
+## Condensed Mode
+
+BetterScripts supports a condensed mode that reduces widget sizes for a more compact display.
+
+```javascript
+// Toggle condensed mode from browser console
+window.betterScripts.toggleCondensedMode();
+
+// Or set explicitly
+window.betterScripts.setCondensedMode(true);   // Enable
+window.betterScripts.setCondensedMode(false);  // Disable
+```
+
+Condensed mode reduces:
+- Widget padding and gaps
+- Font sizes across all widget types
+- Bar heights and minimum widths
+- Panel/list dimensions
+
+---
+
+## Responsive Design
+
+Widgets automatically adapt to screen size:
+
+| Screen Width | Behavior |
+|--------------|----------|
+| **< 480px** | Compact inline layout, panels/lists hidden |
+| **< 768px** | Left/right sidebars hidden, smaller widgets |
+| **Default** | Standard sizing |
+| **≥ 1440px** | Larger widgets for QHD displays |
+| **≥ 1920px** | Enhanced sizing for Full HD |
+| **≥ 2560px** | Maximum sizing for 4K/Ultra displays |
+
+### Mobile Behavior
+- Widgets display inline (wrapped) instead of stacked
+- Complex widgets (panels, lists) are hidden on very small screens
+- Left/right sidebars are hidden below 768px
+
+### Large Screen Behavior
+- All widget elements scale up proportionally
+- Bars become wider with larger text
+- Panels and lists expand to utilize space
+
+---
+
 ## Best Practices
 
 1. **Always strip context** — Use Context Modifier to remove `[[BD:...:BD]]` tags
@@ -206,6 +312,7 @@ Custom HTML content (sanitized).
 3. **Initialize state safely** — `state.x = state.x ?? defaultValue`
 4. **Prefer `update` action** — For value changes, preserves existing config
 5. **Keep widgets minimal** — Focus on essential game state
+6. **Avoid sidebar widgets** - You should focus on the top bar for widgets as mobile players will not see the sidebar
 
 ---
 

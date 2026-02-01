@@ -62,7 +62,7 @@ class BetterScriptsFeature {
   ]);
   
   // Valid widget types
-  static WIDGET_TYPES = new Set(['stat', 'bar', 'text', 'panel', 'custom']);
+  static WIDGET_TYPES = new Set(['stat', 'bar', 'text', 'panel', 'custom', 'badge', 'list', 'icon', 'divider', 'counter']);
   
   // Valid message types
   static MESSAGE_TYPES = new Set(['register', 'widget', 'update', 'remove', 'ping', 'clearAll']);
@@ -84,8 +84,15 @@ class BetterScriptsFeature {
     this.registeredWidgets = new Map();
     this.registeredScripts = new Map();
     
-    // UI container for script widgets
-    this.widgetContainer = null;
+    // UI containers for script widgets (multi-position support)
+    this.widgetContainers = {
+      top: null,
+      left: null,
+      right: null
+    };
+    
+    // Valid widget positions
+    this.VALID_POSITIONS = new Set(['top', 'left', 'right']);
     
     // URL change detection
     this.boundUrlChangeHandler = null;
@@ -96,7 +103,11 @@ class BetterScriptsFeature {
     this.boundResizeHandler = null;
     this.resizeDebounceTimer = null;
     this.layoutObserver = null;
+    this.gameTextMaskObserver = null;
     this.cachedLayout = null;
+    
+    // Condensed mode state
+    this.condensedMode = false;
     
     // Cached regex pattern for protocol messages
     this.protocolRegex = /\[\[BD:([\s\S]*?):BD\]\]/g;
@@ -684,33 +695,58 @@ class BetterScriptsFeature {
   // ==================== WIDGET SYSTEM ====================
 
   createWidgetContainer() {
-    if (this.widgetContainer && document.body.contains(this.widgetContainer)) {
-      return;
-    }
+    // Check if containers already exist
+    const hasContainers = Object.values(this.widgetContainers).some(
+      c => c && document.body.contains(c)
+    );
+    if (hasContainers) return;
     
-    this.widgetContainer = document.createElement('div');
-    this.widgetContainer.className = 'bd-betterscripts-container';
-    this.widgetContainer.id = 'bd-betterscripts-widgets';
-    
-    // Base styles - will be dynamically adjusted
-    Object.assign(this.widgetContainer.style, {
+    // Create wrapper for all widget areas
+    const wrapper = document.createElement('div');
+    wrapper.className = 'bd-betterscripts-wrapper';
+    wrapper.id = 'bd-betterscripts-wrapper';
+    Object.assign(wrapper.style, {
       position: 'fixed',
       zIndex: '1000',
-      display: 'flex',
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      justifyContent: 'center',
-      alignItems: 'flex-start',
-      boxSizing: 'border-box',
       pointerEvents: 'none',
-      // Use fit-content width so container shrinks to widgets
-      width: 'fit-content',
-      // Center horizontally using left: 50% + transform
-      left: '50%',
-      transform: 'translateX(-50%)'
+      display: 'flex',
+      flexDirection: 'column'
     });
     
-    document.body.appendChild(this.widgetContainer);
+    // Create TOP container (horizontal bar)
+    this.widgetContainers.top = document.createElement('div');
+    this.widgetContainers.top.className = 'bd-betterscripts-container bd-position-top';
+    this.widgetContainers.top.id = 'bd-betterscripts-top';
+    
+    // Create LEFT container (vertical sidebar)
+    this.widgetContainers.left = document.createElement('div');
+    this.widgetContainers.left.className = 'bd-betterscripts-container bd-position-left';
+    this.widgetContainers.left.id = 'bd-betterscripts-left';
+    
+    // Create RIGHT container (vertical sidebar)
+    this.widgetContainers.right = document.createElement('div');
+    this.widgetContainers.right.className = 'bd-betterscripts-container bd-position-right';
+    this.widgetContainers.right.id = 'bd-betterscripts-right';
+    
+    // Apply condensed mode if enabled
+    if (this.condensedMode) {
+      Object.values(this.widgetContainers).forEach(c => {
+        if (c) c.classList.add('bd-condensed');
+      });
+    }
+    
+    // Add containers to wrapper
+    wrapper.appendChild(this.widgetContainers.top);
+    
+    // Create content row for left/right sidebars
+    const contentRow = document.createElement('div');
+    contentRow.className = 'bd-betterscripts-content-row';
+    contentRow.appendChild(this.widgetContainers.left);
+    contentRow.appendChild(this.widgetContainers.right);
+    wrapper.appendChild(contentRow);
+    
+    document.body.appendChild(wrapper);
+    this.widgetWrapper = wrapper;
     
     // Apply initial positioning
     this.updateContainerPosition();
@@ -718,11 +754,20 @@ class BetterScriptsFeature {
     // Set up layout monitoring
     this.setupLayoutMonitoring();
     
-    this.log('Widget container created');
+    this.log('Widget containers created (top, left, right)');
+  }
+  
+  /**
+   * Get the appropriate container for a widget position
+   */
+  getContainerForPosition(position) {
+    const pos = this.VALID_POSITIONS.has(position) ? position : 'top';
+    return this.widgetContainers[pos];
   }
 
   /**
    * Detect current page layout elements and calculate positioning
+   * Prioritizes game-text-mask for accurate width matching
    */
   detectLayout() {
     const layout = {
@@ -731,7 +776,8 @@ class BetterScriptsFeature {
       contentWidth: window.innerWidth,
       contentTop: 56,
       viewportWidth: window.innerWidth,
-      viewportHeight: window.innerHeight
+      viewportHeight: window.innerHeight,
+      gameTextMask: null   // Reference to the game-text-mask element
     };
     
     // Try to detect actual nav bar height
@@ -755,7 +801,21 @@ class BetterScriptsFeature {
       }
     }
     
-    // Try to detect main content area for width/positioning
+    // PRIMARY: Try to find game-text-mask for exact width matching
+    const gameTextMask = document.querySelector('.game-text-mask');
+    if (gameTextMask) {
+      const rect = gameTextMask.getBoundingClientRect();
+      if (rect.width > 100) {
+        layout.contentLeft = rect.left;
+        layout.contentWidth = rect.width;
+        layout.gameTextMask = gameTextMask;
+        // Cache the layout
+        this.cachedLayout = layout;
+        return layout;
+      }
+    }
+    
+    // FALLBACK: Try other content selectors
     const contentSelectors = [
       '#gameplay-output',
       '[class*="gameplay"]',
@@ -783,46 +843,63 @@ class BetterScriptsFeature {
 
   /**
    * Update container position based on detected layout
+   * Aligns with game-text-mask width and positions at top of viewport
    */
   updateContainerPosition() {
-    if (!this.widgetContainer) return;
+    if (!this.widgetWrapper) return;
     
     const layout = this.detectLayout();
     const vw = layout.viewportWidth;
     
     // Calculate responsive values based on viewport
+    // Be generous with full-size - only condense on very small screens
     let padding, gap, fontSize;
-    if (vw < 640) {
+    if (vw < 480) {
+      // Very small mobile only
       padding = 4;
       gap = 4;
-      fontSize = 12;
-    } else if (vw < 1024) {
-      padding = 6;
-      gap = 6;
-      fontSize = 13;
+      fontSize = 11;
     } else {
+      // Full size for everything else (480px+)
       padding = 8;
       gap = 8;
-      fontSize = 14;
+      fontSize = 13;
     }
     
-    // Calculate max width constraint
-    const maxWidth = Math.min(900, layout.contentWidth - 32, vw - 32);
+    // Condensed mode reduces spacing further (user-triggered only)
+    if (this.condensedMode) {
+      padding = Math.max(2, padding - 2);
+      gap = Math.max(3, gap - 2);
+      fontSize = Math.max(10, fontSize - 1);
+    }
     
-    Object.assign(this.widgetContainer.style, {
-      top: `${layout.contentTop + 8}px`,
-      // Keep centered with transform (set in createWidgetContainer)
-      maxWidth: `${maxWidth}px`,
-      padding: `${padding}px`,
-      gap: `${gap}px`,
-      fontSize: `${fontSize}px`
+    // Position wrapper to match game-text-mask
+    const contentWidth = layout.contentWidth;
+    const contentLeft = layout.contentLeft;
+    
+    Object.assign(this.widgetWrapper.style, {
+      top: `${layout.contentTop + 4}px`,
+      left: `${contentLeft}px`,
+      width: `${contentWidth}px`
     });
     
-    this.log('Container positioned:', { top: layout.contentTop + 8, maxWidth });
+    // Apply styling to all containers
+    Object.values(this.widgetContainers).forEach(container => {
+      if (container) {
+        Object.assign(container.style, {
+          padding: `${padding}px`,
+          gap: `${gap}px`,
+          fontSize: `${fontSize}px`
+        });
+      }
+    });
+    
+    this.log('Containers positioned:', { top: layout.contentTop + 4, left: contentLeft, width: contentWidth });
   }
 
   /**
    * Set up monitoring for layout changes
+   * Specifically observes game-text-mask for width changes
    */
   setupLayoutMonitoring() {
     // Debounced resize handler
@@ -833,15 +910,27 @@ class BetterScriptsFeature {
         }
         this.resizeDebounceTimer = setTimeout(() => {
           this.updateContainerPosition();
-        }, 100);
+        }, 50); // Faster response for smoother updates
       };
       
       window.addEventListener('resize', this.boundResizeHandler);
       window.addEventListener('orientationchange', this.boundResizeHandler);
     }
     
-    // Use ResizeObserver on content area if available
-    if (window.ResizeObserver && !this.layoutObserver) {
+    // PRIMARY: Observe game-text-mask for width changes
+    if (window.ResizeObserver && !this.gameTextMaskObserver) {
+      const gameTextMask = document.querySelector('.game-text-mask');
+      if (gameTextMask) {
+        this.gameTextMaskObserver = new ResizeObserver(() => {
+          this.boundResizeHandler();
+        });
+        this.gameTextMaskObserver.observe(gameTextMask);
+        this.log('Observing game-text-mask for size changes');
+      }
+    }
+    
+    // FALLBACK: Use ResizeObserver on content area if game-text-mask not found
+    if (window.ResizeObserver && !this.layoutObserver && !this.gameTextMaskObserver) {
       const contentArea = document.querySelector('#gameplay-output') || 
                           document.querySelector('main') ||
                           document.body;
@@ -853,14 +942,57 @@ class BetterScriptsFeature {
       this.layoutObserver.observe(contentArea);
     }
   }
+  
+  /**
+   * Toggle condensed mode for the widget panel
+   * @param {boolean} enabled - Whether condensed mode should be enabled
+   */
+  setCondensedMode(enabled) {
+    this.condensedMode = !!enabled;
+    
+    // Apply to all containers
+    Object.values(this.widgetContainers).forEach(container => {
+      if (container) {
+        if (this.condensedMode) {
+          container.classList.add('bd-condensed');
+        } else {
+          container.classList.remove('bd-condensed');
+        }
+      }
+    });
+    
+    this.updateContainerPosition();
+    this.log('Condensed mode:', this.condensedMode);
+  }
+  
+  /**
+   * Toggle condensed mode
+   */
+  toggleCondensedMode() {
+    this.setCondensedMode(!this.condensedMode);
+    return this.condensedMode;
+  }
 
   removeWidgetContainer() {
-    if (this.widgetContainer) {
-      this.widgetContainer.remove();
-      this.widgetContainer = null;
+    // Remove wrapper (which contains all containers)
+    if (this.widgetWrapper) {
+      this.widgetWrapper.remove();
+      this.widgetWrapper = null;
     }
     
+    // Clear container references
+    this.widgetContainers = {
+      top: null,
+      left: null,
+      right: null
+    };
+    
     // Clean up observers first (they may reference handlers)
+    if (this.gameTextMaskObserver) {
+      this.gameTextMaskObserver.disconnect();
+      this.gameTextMaskObserver = null;
+    }
+    
     if (this.layoutObserver) {
       this.layoutObserver.disconnect();
       this.layoutObserver = null;
@@ -989,20 +1121,39 @@ class BetterScriptsFeature {
       case 'custom':
         widgetElement = this.createCustomWidget(widgetId, config);
         break;
+      case 'badge':
+        widgetElement = this.createBadgeWidget(widgetId, config);
+        break;
+      case 'list':
+        widgetElement = this.createListWidget(widgetId, config);
+        break;
+      case 'icon':
+        widgetElement = this.createIconWidget(widgetId, config);
+        break;
+      case 'divider':
+        widgetElement = this.createDividerWidget(widgetId, config);
+        break;
+      case 'counter':
+        widgetElement = this.createCounterWidget(widgetId, config);
+        break;
       default:
         // This shouldn't happen after validation, but just in case
         this.warn('Unknown widget type:', config.type);
         return;
     }
     
-    if (widgetElement && this.widgetContainer) {
-      this.widgetContainer.appendChild(widgetElement);
-      this.registeredWidgets.set(widgetId, { element: widgetElement, config });
-      this.log('Widget created:', widgetId);
+    // Get the appropriate container based on position property
+    const position = config.position || 'top';
+    const container = this.getContainerForPosition(position);
+    
+    if (widgetElement && container) {
+      container.appendChild(widgetElement);
+      this.registeredWidgets.set(widgetId, { element: widgetElement, config, position });
+      this.log('Widget created:', widgetId, 'in position:', position);
       
       // Emit widget created event
       window.dispatchEvent(new CustomEvent('betterscripts:widget', {
-        detail: { action: 'created', widgetId, config }
+        detail: { action: 'created', widgetId, config, position }
       }));
     }
   }
@@ -1187,6 +1338,199 @@ class BetterScriptsFeature {
     if (config.style && typeof config.style === 'object') {
       const sanitizedStyles = this.sanitizeStyleObject(config.style);
       Object.assign(widget.style, sanitizedStyles);
+    }
+    
+    return widget;
+  }
+
+  /**
+   * Create a badge widget (compact status tag)
+   */
+  createBadgeWidget(widgetId, config) {
+    const widget = document.createElement('div');
+    widget.className = 'bd-widget bd-widget-badge';
+    widget.id = `bd-widget-${widgetId}`;
+    widget.style.pointerEvents = 'auto';
+    
+    if (config.order !== undefined) {
+      widget.style.order = config.order;
+    }
+    
+    // Optional icon/emoji prefix
+    if (config.icon) {
+      const icon = document.createElement('span');
+      icon.className = 'bd-widget-badge-icon';
+      icon.textContent = config.icon;
+      widget.appendChild(icon);
+    }
+    
+    const text = document.createElement('span');
+    text.className = 'bd-widget-badge-text';
+    text.textContent = config.text || config.label || '';
+    widget.appendChild(text);
+    
+    // Apply color as background tint
+    if (config.color) {
+      widget.style.setProperty('--badge-color', config.color);
+    }
+    
+    // Variant: outline, solid, subtle (default: subtle)
+    if (config.variant) {
+      widget.dataset.variant = config.variant;
+    }
+    
+    return widget;
+  }
+
+  /**
+   * Create a list widget (simple item list)
+   */
+  createListWidget(widgetId, config) {
+    const widget = document.createElement('div');
+    widget.className = 'bd-widget bd-widget-list';
+    widget.id = `bd-widget-${widgetId}`;
+    widget.style.pointerEvents = 'auto';
+    
+    if (config.order !== undefined) {
+      widget.style.order = config.order;
+    }
+    
+    // Optional title
+    if (config.title) {
+      const title = document.createElement('div');
+      title.className = 'bd-widget-list-title';
+      title.textContent = config.title;
+      widget.appendChild(title);
+    }
+    
+    // List items
+    const list = document.createElement('ul');
+    list.className = 'bd-widget-list-items';
+    
+    if (config.items && Array.isArray(config.items)) {
+      config.items.forEach(item => {
+        const li = document.createElement('li');
+        li.className = 'bd-widget-list-item';
+        
+        // Item can be string or object with icon/text/color
+        if (typeof item === 'string') {
+          li.textContent = item;
+        } else {
+          if (item.icon) {
+            const icon = document.createElement('span');
+            icon.className = 'bd-widget-list-item-icon';
+            icon.textContent = item.icon;
+            li.appendChild(icon);
+          }
+          const text = document.createElement('span');
+          text.textContent = item.text || item.label || '';
+          if (item.color) text.style.color = item.color;
+          li.appendChild(text);
+        }
+        
+        list.appendChild(li);
+      });
+    }
+    
+    widget.appendChild(list);
+    return widget;
+  }
+
+  /**
+   * Create an icon widget (compact icon-only display)
+   */
+  createIconWidget(widgetId, config) {
+    const widget = document.createElement('div');
+    widget.className = 'bd-widget bd-widget-icon';
+    widget.id = `bd-widget-${widgetId}`;
+    widget.style.pointerEvents = 'auto';
+    
+    if (config.order !== undefined) {
+      widget.style.order = config.order;
+    }
+    
+    widget.textContent = config.icon || config.text || '●';
+    
+    if (config.color) {
+      widget.style.color = config.color;
+    }
+    
+    if (config.size) {
+      widget.style.fontSize = typeof config.size === 'number' ? `${config.size}px` : config.size;
+    }
+    
+    // Optional tooltip
+    if (config.tooltip || config.title) {
+      widget.title = config.tooltip || config.title;
+    }
+    
+    return widget;
+  }
+
+  /**
+   * Create a divider widget (visual separator)
+   */
+  createDividerWidget(widgetId, config) {
+    const widget = document.createElement('div');
+    widget.className = 'bd-widget bd-widget-divider';
+    widget.id = `bd-widget-${widgetId}`;
+    
+    if (config.order !== undefined) {
+      widget.style.order = config.order;
+    }
+    
+    // Optional label in the middle of divider
+    if (config.label) {
+      widget.dataset.hasLabel = 'true';
+      const label = document.createElement('span');
+      label.className = 'bd-widget-divider-label';
+      label.textContent = config.label;
+      widget.appendChild(label);
+    }
+    
+    if (config.color) {
+      widget.style.setProperty('--divider-color', config.color);
+    }
+    
+    return widget;
+  }
+
+  /**
+   * Create a counter widget (compact number with optional delta indicator)
+   */
+  createCounterWidget(widgetId, config) {
+    const widget = document.createElement('div');
+    widget.className = 'bd-widget bd-widget-counter';
+    widget.id = `bd-widget-${widgetId}`;
+    widget.style.pointerEvents = 'auto';
+    
+    if (config.order !== undefined) {
+      widget.style.order = config.order;
+    }
+    
+    // Optional icon/emoji
+    if (config.icon) {
+      const icon = document.createElement('span');
+      icon.className = 'bd-widget-counter-icon';
+      icon.textContent = config.icon;
+      widget.appendChild(icon);
+    }
+    
+    // Value
+    const value = document.createElement('span');
+    value.className = 'bd-widget-counter-value';
+    value.textContent = config.value ?? 0;
+    if (config.color) value.style.color = config.color;
+    widget.appendChild(value);
+    
+    // Optional delta indicator (+5, -3, etc.)
+    if (config.delta !== undefined && config.delta !== 0) {
+      const delta = document.createElement('span');
+      delta.className = 'bd-widget-counter-delta';
+      const sign = config.delta > 0 ? '+' : '';
+      delta.textContent = sign + config.delta;
+      delta.dataset.positive = config.delta > 0 ? 'true' : 'false';
+      widget.appendChild(delta);
     }
     
     return widget;
@@ -1521,6 +1865,117 @@ class BetterScriptsFeature {
           Object.assign(element.style, sanitizedStyles);
         }
         break;
+      
+      case 'badge': {
+        const textEl = element.querySelector('.bd-widget-badge-text');
+        if (textEl && (config.text !== undefined || config.label !== undefined)) {
+          textEl.textContent = config.text || config.label;
+        }
+        if (config.color) {
+          element.style.setProperty('--badge-color', config.color);
+        }
+        if (config.variant) {
+          element.dataset.variant = config.variant;
+        }
+        break;
+      }
+      
+      case 'list': {
+        const titleEl = element.querySelector('.bd-widget-list-title');
+        if (titleEl && config.title !== undefined) {
+          titleEl.textContent = config.title;
+        }
+        if (config.items) {
+          const list = element.querySelector('.bd-widget-list-items');
+          if (list) {
+            list.innerHTML = '';
+            config.items.forEach(item => {
+              const li = document.createElement('li');
+              li.className = 'bd-widget-list-item';
+              if (typeof item === 'string') {
+                li.textContent = item;
+              } else {
+                if (item.icon) {
+                  const icon = document.createElement('span');
+                  icon.className = 'bd-widget-list-item-icon';
+                  icon.textContent = item.icon;
+                  li.appendChild(icon);
+                }
+                const text = document.createElement('span');
+                text.textContent = item.text || item.label || '';
+                if (item.color) text.style.color = item.color;
+                li.appendChild(text);
+              }
+              list.appendChild(li);
+            });
+          }
+        }
+        break;
+      }
+      
+      case 'icon':
+        if (config.icon !== undefined || config.text !== undefined) {
+          element.textContent = config.icon || config.text;
+        }
+        if (config.color) {
+          element.style.color = config.color;
+        }
+        if (config.size) {
+          element.style.fontSize = typeof config.size === 'number' ? `${config.size}px` : config.size;
+        }
+        if (config.tooltip || config.title) {
+          element.title = config.tooltip || config.title;
+        }
+        break;
+      
+      case 'divider': {
+        const labelEl = element.querySelector('.bd-widget-divider-label');
+        if (config.label !== undefined) {
+          if (labelEl) {
+            labelEl.textContent = config.label;
+          } else if (config.label) {
+            element.dataset.hasLabel = 'true';
+            const label = document.createElement('span');
+            label.className = 'bd-widget-divider-label';
+            label.textContent = config.label;
+            element.appendChild(label);
+          }
+        }
+        if (config.color) {
+          element.style.setProperty('--divider-color', config.color);
+        }
+        break;
+      }
+      
+      case 'counter': {
+        const valueEl = element.querySelector('.bd-widget-counter-value');
+        const deltaEl = element.querySelector('.bd-widget-counter-delta');
+        if (valueEl && config.value !== undefined) {
+          valueEl.textContent = config.value;
+        }
+        if (valueEl && config.color) {
+          valueEl.style.color = config.color;
+        }
+        if (config.delta !== undefined) {
+          if (deltaEl) {
+            if (config.delta === 0) {
+              deltaEl.remove();
+            } else {
+              const sign = config.delta > 0 ? '+' : '';
+              deltaEl.textContent = sign + config.delta;
+              deltaEl.dataset.positive = config.delta > 0 ? 'true' : 'false';
+            }
+          } else if (config.delta !== 0) {
+            const delta = document.createElement('span');
+            delta.className = 'bd-widget-counter-delta';
+            const sign = config.delta > 0 ? '+' : '';
+            delta.textContent = sign + config.delta;
+            delta.dataset.positive = config.delta > 0 ? 'true' : 'false';
+            element.appendChild(delta);
+          }
+        }
+        break;
+      }
     }
     
     // Update order property (applies to all widget types)
