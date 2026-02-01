@@ -382,6 +382,9 @@ class MarkdownFeature {
 
     const markdownIndicators = [
       /\+\+\/\/.+?\/\/\+\+/, // Bold Italic ++//text//++
+      /\/\/\+\+.+?\+\+\/\//, // Bold Italic //++text++//
+      /\+\+\/\/.+?\+\+\/\//, // Bold Italic ++//text++// (unordered)
+      /\/\/\+\+.+?\/\/\+\+/, // Bold Italic //++text//++ (unordered)
       /(?:^|[^+])\+\+[^+]+?\+\+(?:[^+]|$)/, // Bold ++text++
       /(?:^|[^\/])\/\/[^\/]+?\/\/(?:[^\/]|$)/, // Italic //text//
       /==.+?==/,           // Underline ==text==
@@ -450,8 +453,15 @@ class MarkdownFeature {
 
     let html = this.escapeHtml(text);
 
-    // Bold + Italic: ++//text//++
+    // Bold + Italic combinations (support all nesting orders)
+    // Properly nested: ++//text//++ (bold outside, italic inside)
     html = html.replace(/\+\+\/\/(.+?)\/\/\+\+/g, '<strong><em>$1</em></strong>');
+    // Properly nested: //++text++// (italic outside, bold inside)
+    html = html.replace(/\/\/\+\+(.+?)\+\+\/\//g, '<em><strong>$1</strong></em>');
+    // Unordered: ++//text++// (bold opens first, closes first)
+    html = html.replace(/\+\+\/\/(.+?)\+\+\/\//g, '<strong><em>$1</em></strong>');
+    // Unordered: //++text//++ (italic opens first, closes first)
+    html = html.replace(/\/\/\+\+(.+?)\/\/\+\+/g, '<em><strong>$1</strong></em>');
 
     // Bold + Underline: ++==text==++ or ==++text++==
     html = html.replace(/\+\+==(.+?)==\+\+/g, '<strong><u>$1</u></strong>');
