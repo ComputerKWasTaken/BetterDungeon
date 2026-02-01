@@ -1232,18 +1232,23 @@ class BetterScriptsFeature {
             continue;
           }
           
-          // For other disallowed tags, unwrap (keep text content)
-          // First, sanitize the children before unwrapping
+          // For other disallowed tags, unwrap (keep safe content only)
+          // Process each grandchild - remove dangerous ones, sanitize and keep safe ones
           const childrenToUnwrap = Array.from(child.childNodes);
           for (const grandchild of childrenToUnwrap) {
             if (grandchild.nodeType === Node.ELEMENT_NODE) {
+              const grandchildTag = grandchild.tagName.toLowerCase();
+              // Remove dangerous tags entirely - don't let them escape via unwrapping
+              if (grandchildTag === 'script' || grandchildTag === 'style' || 
+                  grandchildTag === 'iframe' || grandchildTag === 'object' || grandchildTag === 'embed') {
+                grandchild.remove();
+                continue;
+              }
+              // Recursively sanitize safe grandchildren
               this.sanitizeNode(grandchild);
             }
-          }
-          
-          // Now unwrap - move children to parent, remove the disallowed tag
-          while (child.firstChild) {
-            child.parentNode.insertBefore(child.firstChild, child);
+            // Move safe content to parent
+            child.parentNode.insertBefore(grandchild, child);
           }
           child.remove();
           continue;

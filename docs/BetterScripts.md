@@ -1,120 +1,38 @@
 # BetterScripts Developer Guide
 
-BetterScripts enables AI Dungeon scripts to communicate with the BetterDungeon extension, allowing you to create dynamic UI widgets that display game state, stats, and other information.
-
-## Features
-
-- **5 Widget Types:** Stat, Bar, Panel, Text, Custom
-- **Real-time Updates:** Widgets update instantly with smooth transitions
-- **Auto-creation:** Update commands auto-create widgets if they don't exist
-- **Clean Integration:** Protocol messages are stripped before display
-- **Adventure-scoped:** Widgets automatically clear when changing adventures
-- **Secure Custom HTML:** Whitelist-based sanitization for custom widgets
-- **Event System:** Listen to widget lifecycle events from JavaScript
+BetterScripts is a powerful bridge between AI Dungeon's scripting system and the BetterDungeon browser extension. It enables scripts to create dynamic, real-time UI widgets that display game state, statistics, progress bars, and custom content. This allows for rich visual feedback without lackluster vanilla implementations to communicate with the user of the script.
 
 ---
 
-## How It Works
+## Quick Start
 
-```
-┌─────────────────────┐                    ┌─────────────────────┐
-│  AI Dungeon Script  │  [[BD:...:BD]]     │    BetterDungeon    │
-│  (Output Modifier)  │ ────────────────►  │  (MutationObserver) │
-└─────────────────────┘   DOM Text         └─────────────────────┘
-                                                     │
-                                                     ▼
-                                           ┌─────────────────────┐
-                                           │   Widget Created    │
-                                           │  Protocol Stripped  │
-                                           └─────────────────────┘
-```
-
-1. Your script embeds a **protocol message** in the AI's output text.
-2. BetterDungeon detects the message via DOM observation.
-3. The message is parsed and executed (e.g., widget created).
-4. The protocol text is **stripped from the DOM** so the user never sees it.
-
----
-
-# Script Structure
-
-Our scripts consist of three parts: **Library**, **Context Modifier**, and **Output Modifier**.
-The **Input Modifier** is unused and is therefore irrelevant.
-
-## 1. Library (sharedLibrary)
-Use the Library to define shared state and helper functions.
-
+**1. Add helper functions to your Library:**
 ```javascript
-// Initialize state
 state.game = state.game ?? { hp: 100, gold: 0 };
 
-// Helper: Build a protocol message
-function bdMessage(message) {
-  return `[[BD:${JSON.stringify(message)}:BD]]`;
+function bdMessage(msg) {
+  return `[[BD:${JSON.stringify(msg)}:BD]]`;
 }
 
-// Helper: Create/update a widget
-function bdWidget(widgetId, config) {
-  return bdMessage({
-    type: 'widget',
-    widgetId: widgetId,
-    action: 'create',
-    config: config
-  });
-}
-
-// Helper: Update specific widget properties
-function bdUpdateWidget(widgetId, config) {
-  return bdMessage({
-    type: 'widget',
-    widgetId: widgetId,
-    action: 'update',
-    config: config
-  });
-}
-
-// Helper: Destroy a widget
-function bdDestroyWidget(widgetId) {
-  return bdMessage({
-    type: 'widget',
-    widgetId: widgetId,
-    action: 'destroy'
-  });
-}
-
-// Helper: Clear all widgets at once
-function bdClearAll() {
-  return bdMessage({ type: 'clearAll' });
+function bdWidget(id, config) {
+  return bdMessage({ type: 'widget', widgetId: id, action: 'create', config });
 }
 ```
 
-## 2. Context Modifier (onModelContext)
-**CRITICAL:** You must strip protocol messages from the context so the AI doesn't see or repeat them.
-
+**2. Strip protocol messages in Context Modifier:**
 ```javascript
 const modifier = (text) => {
-  // Remove protocol messages from context
-  text = text.replace(/\[\[BD:[\s\S]*?:BD\]\]/g, '');
-  return { text };
+  return { text: text.replace(/\[\[BD:[\s\S]*?:BD\]\]/g, '') };
 };
 modifier(text);
 ```
 
-## 3. Output Modifier (onOutput)
-This is where you update your game state and send widget commands.
-
+**3. Create widgets in Output Modifier:**
 ```javascript
 const modifier = (text) => {
-  // Logic to update state...
-  state.game.gold += 10;
-  
-  // Append widget update to the AI's output
-  const widget = bdWidget('gold-stat', { 
-    type: 'stat', 
-    label: 'Gold', 
-    value: state.game.gold 
+  const widget = bdWidget('hp-bar', { 
+    type: 'bar', label: 'HP', value: state.game.hp, max: 100, color: '#22c55e' 
   });
-  
   return { text: text + widget };
 };
 modifier(text);
@@ -122,237 +40,220 @@ modifier(text);
 
 ---
 
-# Protocol Reference
+## How It Works
 
-Messages use the format `[[BD:{json}:BD]]`.
-
-**Protocol Version:** `1.0` (optional `v` field for future compatibility)
-
-## Widget Message
-The primary message type for UI interaction.
-
-```javascript
-{
-  "type": "widget",
-  "v": "1.0",           // Optional: protocol version
-  "widgetId": "unique-id",
-  "action": "create",  // 'create', 'update', or 'destroy'
-  "config": { ... }    // See Widget Types below
-}
+```
+Script (Output Modifier)  →  [[BD:{json}:BD]]  →  BetterDungeon  →  Widget Created
+                                                        ↓
+                                              Protocol text stripped from DOM
 ```
 
-### Widget ID Rules
-- Must be a non-empty string
-- Only alphanumeric characters, underscores, and hyphens allowed
-- Example valid IDs: `hp-bar`, `gold_stat`, `player1Health`
+1. Your script embeds a protocol message in the AI's output
+2. BetterDungeon detects and parses the message
+3. Widget is created/updated based on the message
+4. Protocol text is removed so the user never sees it
 
-### Actions
+---
 
-| Action | Behavior |
-|--------|----------|
-| `create` | Creates widget or updates in place if same ID exists |
-| `update` | Updates specific properties; auto-creates if missing |
-| `destroy` | Removes the widget from display |
+## Script Structure
 
-## Other Message Types
+Scripts use three parts: **Library**, **Context Modifier**, and **Output Modifier**.
 
-### Clear All Widgets
-Efficiently removes all widgets with a single message.
+### Library
+Define state and helper functions that all modifiers can use.
+
 ```javascript
-{ "type": "clearAll" }
+state.game = state.game ?? { hp: 100, gold: 0 };
+
+function bdMessage(msg) { return `[[BD:${JSON.stringify(msg)}:BD]]`; }
+function bdWidget(id, cfg) { return bdMessage({ type: 'widget', widgetId: id, action: 'create', config: cfg }); }
+function bdUpdate(id, cfg) { return bdMessage({ type: 'widget', widgetId: id, action: 'update', config: cfg }); }
+function bdDestroy(id) { return bdMessage({ type: 'widget', widgetId: id, action: 'destroy' }); }
+function bdClearAll() { return bdMessage({ type: 'clearAll' }); }
 ```
 
-### Ping
-Test connectivity between script and extension.
+### Context Modifier
+**Required:** Strip protocol messages so the AI doesn't see or repeat them.
+
 ```javascript
-{ "type": "ping", "data": "optional-payload" }
+const modifier = (text) => {
+  return { text: text.replace(/\[\[BD:[\s\S]*?:BD\]\]/g, '') };
+};
+modifier(text);
 ```
 
-### Register
-Announce script presence (for debugging/logging).
+### Output Modifier
+Update game state and append widget commands to the AI's response.
+
 ```javascript
-{
-  "type": "register",
-  "scriptId": "my-script",
-  "scriptName": "My Script Name",
-  "version": "1.0.0"
-}
+const modifier = (text) => {
+  state.game.gold += 10;
+  return { text: text + bdWidget('gold', { type: 'stat', label: 'Gold', value: state.game.gold }) };
+};
+modifier(text);
 ```
+
+---
 
 ## Widget Types
 
-### Stat Widget
-Simple label and value display.
+### Stat
+Label + value display.
 ```javascript
-{
-  "type": "stat",
-  "label": "Health",
-  "value": 75,
-  "color": "#22c55e"
-}
+{ type: 'stat', label: 'Gold', value: 100, color: '#fbbf24', order: 1 }
 ```
 
-### Bar Widget
-Progress bar for resources with visual depth and glow effect.
+### Bar
+Progress bar with fill indicator.
 ```javascript
-{
-  "type": "bar",
-  "label": "HP",
-  "value": 75,
-  "max": 100,
-  "color": "#ef4444",
-  "showValue": true  // Optional, defaults to true
-}
+{ type: 'bar', label: 'HP', value: 75, max: 100, color: '#22c55e', showValue: true, order: 2 }
 ```
 
-### Panel Widget
-A container for multiple stat items.
+### Panel
+Container for multiple stats.
 ```javascript
-{
-  "type": "panel",
-  "title": "Character",
-  "items": [
-    { "label": "LVL", "value": 5 },
-    { "label": "XP", "value": "450/1000" }
-  ]
-}
+{ type: 'panel', title: 'Character', items: [
+  { label: 'LVL', value: 5 },
+  { label: 'XP', value: '450/1000', color: '#60a5fa' }
+], order: 3 }
 ```
 
-### Text Widget
-Simple text or notification.
+### Text
+Simple text display.
 ```javascript
-{
-  "type": "text",
-  "text": "Level Up!",
-  "style": { "fontWeight": "bold", "color": "#fbbf24" }
-}
+{ type: 'text', text: 'Level Up!', style: { fontWeight: 'bold', color: '#fbbf24' }, order: 4 }
 ```
 
-### Custom Widget
-Custom HTML content with whitelist-based sanitization.
+### Custom
+Custom HTML content (sanitized).
 ```javascript
-{
-  "type": "custom",
-  "html": "<div class='my-widget'><strong>HP:</strong> <span style='color: #22c55e'>100</span></div>",
-  "style": { "padding": "8px", "backgroundColor": "#1a1a2e" }
-}
+{ type: 'custom', html: '<strong>HP:</strong> <span style="color:#22c55e">100</span>', order: 5 }
 ```
 
-**Allowed HTML Tags:**
+---
+
+## Widget Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `type` | string | **Required.** `stat`, `bar`, `panel`, `text`, or `custom` |
+| `label` | string | Display label (stat, bar) |
+| `value` | any | Display value (stat, bar, panel items) |
+| `max` | number | Maximum value for bar (default: 100) |
+| `color` | string | CSS color for value/fill |
+| `showValue` | boolean | Show value text on bar (default: true) |
+| `title` | string | Panel title |
+| `items` | array | Panel items: `[{ label, value, color }]` |
+| `text` | string | Text widget content |
+| `html` | string | Custom widget HTML (sanitized) |
+| `style` | object | CSS styles for text/custom widgets |
+| `order` | number | Display order (lower = first) |
+
+---
+
+## Message Types
+
+### Widget Actions
+```javascript
+{ type: 'widget', widgetId: 'hp', action: 'create', config: { ... } }  // Create or update
+{ type: 'widget', widgetId: 'hp', action: 'update', config: { value: 50 } }  // Update properties
+{ type: 'widget', widgetId: 'hp', action: 'destroy' }  // Remove widget
+```
+
+| Action | Behavior |
+|--------|----------|
+| `create` | Creates widget, or updates in place if ID exists |
+| `update` | Updates specific properties; auto-creates if missing |
+| `destroy` | Removes the widget |
+
+### Other Messages
+```javascript
+{ type: 'clearAll' }  // Remove all widgets
+{ type: 'ping', data: 'test' }  // Test connectivity (logs to console)
+{ type: 'register', scriptId: 'my-script', scriptName: 'My Script', version: '1.0' }  // Announce script
+```
+
+### Widget ID Rules
+- Alphanumeric, underscores, and hyphens only
+- Examples: `hp-bar`, `gold_stat`, `player1Health`
+
+---
+
+## Custom HTML Reference
+
+**Allowed Tags:**
 `div`, `span`, `p`, `br`, `hr`, `strong`, `b`, `em`, `i`, `u`, `s`, `mark`, `h1`-`h6`, `ul`, `ol`, `li`, `table`, `thead`, `tbody`, `tr`, `th`, `td`, `img`, `a`, `pre`, `code`, `blockquote`
 
 **Allowed Attributes:**
-- Global: `class`, `id`, `style`, `title`
-- Links (`a`): `href`, `target`, `rel`
-- Images (`img`): `src`, `alt`, `width`, `height`
+- All: `class`, `id`, `style`, `title`
+- Links: `href`, `target`, `rel`
+- Images: `src`, `alt`, `width`, `height`
 
-**Allowed CSS Properties:**
-`color`, `background-color`, `background`, `font-size`, `font-weight`, `font-style`, `font-family`, `text-align`, `text-decoration`, `text-transform`, `padding`, `margin`, `border`, `border-radius`, `width`, `height`, `max-width`, `max-height`, `min-width`, `min-height`, `display`, `flex`, `flex-direction`, `justify-content`, `align-items`, `gap`, `opacity`, `visibility`, `overflow`, `position`, `top`, `right`, `bottom`, `left`, `z-index`
+**Allowed CSS:**
+`color`, `background-color`, `background`, `font-size`, `font-weight`, `font-style`, `font-family`, `text-align`, `text-decoration`, `padding`, `margin`, `border`, `border-radius`, `width`, `height`, `max-width`, `max-height`, `display`, `flex`, `flex-direction`, `justify-content`, `align-items`, `gap`, `opacity`
 
-**Security Notes:**
-- `<script>`, `<style>`, `<iframe>`, `<object>`, `<embed>` tags are removed
-- Event handlers (`onclick`, `onload`, etc.) are stripped
-- `javascript:` and `vbscript:` URLs are blocked
-- Links with `target` automatically get `rel="noopener noreferrer"`
+**Blocked:**
+- Tags: `<script>`, `<style>`, `<iframe>`, `<object>`, `<embed>`
+- Attributes: `onclick`, `onload`, etc.
+- URLs: `javascript:`, `vbscript:`
 
 ---
 
-# Updatable Properties
+## Best Practices
 
-When using the `update` action, you can modify these properties per widget type:
+1. **Always strip context** — Use Context Modifier to remove `[[BD:...:BD]]` tags
+2. **Use unique IDs** — Prefix with script name: `myscript_hp`, `myscript_gold`
+3. **Initialize state safely** — `state.x = state.x ?? defaultValue`
+4. **Prefer `update` action** — For value changes, preserves existing config
+5. **Keep widgets minimal** — Focus on essential game state
 
-| Widget | Updatable Properties |
-|--------|----------------------|
-| **stat** | `label`, `value`, `color`, `order` |
-| **bar** | `label`, `value`, `max`, `color`, `order` |
-| **text** | `text`, `style`, `order` |
-| **panel** | `title`, `items`, `order` |
-| **custom** | `html`, `style`, `order` |
+---
 
-### Widget Ordering
-All widgets support an `order` property (integer) to control display order. Lower values appear first.
-```javascript
-bdWidget('hp-bar', { type: 'bar', label: 'HP', value: 100, max: 100, order: 1 });
-bdWidget('mp-bar', { type: 'bar', label: 'MP', value: 50, max: 100, order: 2 });
+## Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| Visible `[[BD:...]]` tags | Ensure BetterDungeon is enabled |
+| AI repeats protocol tags | Add Context Modifier to strip tags |
+| Widgets not appearing | Check browser console (F12) for errors |
+| Widget not updating | Use `update` action, check widget ID matches |
+| Custom HTML stripped | Check allowed tags/attributes above |
+
+---
+
+## Debugging
+
+Console logs (F12) show widget activity:
+```
+[BetterScripts] Widget created: hp-bar
+[BetterScripts] Widget updated: hp-bar
+[BetterScripts] 🏓 PONG - Ping received
 ```
 
 ---
 
-# Best Practices
+## JavaScript Events
 
-1. **Context Stripping is Mandatory:** Always use a Context Modifier to strip `[[BD:...:BD]]` tags. If you don't, the AI will start hallucinating protocol messages.
-2. **Unique IDs:** Prefix your widget IDs (e.g., `rpg_hp`, `inv_gold`) to avoid conflicts with other scripts. IDs must be alphanumeric with underscores/hyphens only.
-3. **State Safety:** Always use `state.obj = state.obj ?? {}` to initialize persistent data.
-4. **No Async:** AI Dungeon scripts do not support `async/await` or `Promises`.
-5. **Use `update` for Changes:** Prefer the `update` action for value changes—it preserves existing config and enables smooth transitions.
-6. **Keep Widgets Minimal:** Don't overwhelm the UI; focus on essential game state.
-7. **Message Size Limit:** Protocol messages are limited to 16KB. Keep your HTML content concise.
-
----
-
-# Troubleshooting
-
-| Problem | Cause | Solution |
-|---------|-------|----------|
-| Visible `[[BD:...]]` tags | Extension not running or DOM area not monitored | Ensure BetterDungeon is enabled |
-| AI types protocol tags | Context Modifier missing or broken | Verify Context Modifier strips tags |
-| Widgets not appearing | Invalid config or JS error | Check browser console (F12) for `[BetterScripts]` warnings |
-| Widgets not updating | Same message sent too fast | Updates within 500ms are deduplicated |
-| Old widgets persist | Adventure change not detected | Widgets auto-clear on adventure change |
-| Invalid widget ID | ID contains special characters | Use only alphanumeric, underscore, hyphen |
-| Custom HTML not rendering | Tags/attributes stripped | Check allowed tags and attributes list above |
-
----
-
-# Debugging
-
-Enable debug logging in the extension by setting `debug = true` in `better_scripts_feature.js`. This logs all message processing to the browser console.
-
-```
-[BetterScripts] Processing message: widget
-[BetterScripts] Widget created: my-stat
-[BetterScripts] Widget updated: my-stat
-```
-
-Warnings and errors are always logged (even without debug mode):
-```
-[BetterScripts] Invalid widget config for "my-widget": Widget config missing required "type" field
-[BetterScripts] Message exceeds size limit (20000 > 16384), skipping
-```
-
----
-
-# JavaScript Events
-
-BetterScripts emits custom events you can listen to from browser console or other extensions:
+Listen to widget lifecycle from browser console or other extensions:
 
 ```javascript
-// Widget lifecycle events
 window.addEventListener('betterscripts:widget', (e) => {
-  console.log(e.detail.action);   // 'created', 'updated', or 'destroyed'
-  console.log(e.detail.widgetId); // Widget ID
-  console.log(e.detail.config);   // Widget config (not present for 'destroyed')
+  console.log(e.detail.action, e.detail.widgetId);  // 'created'/'updated'/'destroyed'
 });
 
-// Script registration events
-window.addEventListener('betterscripts:registered', (e) => {
-  console.log(e.detail.scriptId);
-  console.log(e.detail.scriptName);
-});
-
-// Error events (for debugging)
-window.addEventListener('betterscripts:error', (e) => {
-  console.log(e.detail.type);    // 'validation_error' or 'processing_error'
-  console.log(e.detail.errors);  // Array of error messages
-});
-
-// Ping/pong for connectivity testing
-window.addEventListener('betterscripts:pong', (e) => {
-  console.log(e.detail.timestamp);
-});
-
-// Clear all widgets event
 window.addEventListener('betterscripts:cleared', (e) => {
-  console.log('Widgets cleared:', e.detail.count);
+  console.log('Cleared', e.detail.count, 'widgets');
+});
+
+window.addEventListener('betterscripts:registered', (e) => {
+  console.log('Script registered:', e.detail.scriptName);
+});
+
+window.addEventListener('betterscripts:pong', (e) => {
+  console.log('Ping response:', e.detail.timestamp);
+});
+
+window.addEventListener('betterscripts:error', (e) => {
+  console.error('Error:', e.detail.type, e.detail.errors);
 });
 ```
