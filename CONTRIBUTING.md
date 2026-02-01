@@ -83,6 +83,7 @@ Each feature implements:
 - Fixed and improved the **Input Mode Color** feature
 - Added **Story Card Modal Dock** feature, which docks the story card modal to the right side of the screen and allows you to scroll through your story
 - Fixed color bleed issue on the buttons with the Input Mode color feature in custom themes
+- Fixed an issue with the Markdown rendering system where italic wrapping bold formatting and unordered formatting wouldn't work properly
 
 ### v0.9.5
 - Added **"Auto See"** feature, which automatically triggers a See input command after every AI response or after a certain amount of turns
