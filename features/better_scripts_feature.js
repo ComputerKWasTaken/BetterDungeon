@@ -1016,6 +1016,11 @@ class BetterScriptsFeature {
     widget.id = `bd-widget-${widgetId}`;
     widget.style.pointerEvents = 'auto'; // Re-enable interactions on widget
     
+    // Apply order if specified (for flex ordering)
+    if (config.order !== undefined) {
+      widget.style.order = config.order;
+    }
+    
     const label = document.createElement('span');
     label.className = 'bd-widget-label';
     label.textContent = config.label || 'Stat';
@@ -1042,6 +1047,11 @@ class BetterScriptsFeature {
     widget.className = 'bd-widget bd-widget-bar';
     widget.id = `bd-widget-${widgetId}`;
     widget.style.pointerEvents = 'auto'; // Re-enable interactions on widget
+    
+    // Apply order if specified (for flex ordering)
+    if (config.order !== undefined) {
+      widget.style.order = config.order;
+    }
     
     const label = document.createElement('span');
     label.className = 'bd-widget-label';
@@ -1083,6 +1093,11 @@ class BetterScriptsFeature {
     widget.id = `bd-widget-${widgetId}`;
     widget.style.pointerEvents = 'auto'; // Re-enable interactions on widget
     
+    // Apply order if specified (for flex ordering)
+    if (config.order !== undefined) {
+      widget.style.order = config.order;
+    }
+    
     widget.textContent = config.text || '';
     
     if (config.style) {
@@ -1100,6 +1115,11 @@ class BetterScriptsFeature {
     widget.className = 'bd-widget bd-widget-panel';
     widget.id = `bd-widget-${widgetId}`;
     widget.style.pointerEvents = 'auto'; // Re-enable interactions on widget
+    
+    // Apply order if specified (for flex ordering)
+    if (config.order !== undefined) {
+      widget.style.order = config.order;
+    }
     
     if (config.title) {
       const title = document.createElement('div');
@@ -1151,6 +1171,11 @@ class BetterScriptsFeature {
     widget.className = 'bd-widget bd-widget-custom';
     widget.id = `bd-widget-${widgetId}`;
     widget.style.pointerEvents = 'auto'; // Re-enable interactions on widget
+    
+    // Apply order if specified (for flex ordering)
+    if (config.order !== undefined) {
+      widget.style.order = config.order;
+    }
     
     // Sanitize and apply HTML content
     if (config.html) {
@@ -1491,6 +1516,11 @@ class BetterScriptsFeature {
           Object.assign(element.style, sanitizedStyles);
         }
         break;
+    }
+    
+    // Update order property (applies to all widget types)
+    if (config.order !== undefined) {
+      element.style.order = config.order;
     }
     
     // Update stored config

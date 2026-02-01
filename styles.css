@@ -1471,6 +1471,152 @@
   padding: 8px;
 }
 
+/* Custom Widget HTML Element Defaults */
+.bd-widget-custom ul,
+.bd-widget-custom ol {
+  margin: 4px 0;
+  padding-left: 20px;
+  display: block;
+}
+
+.bd-widget-custom ul {
+  list-style-type: disc;
+}
+
+.bd-widget-custom ol {
+  list-style-type: decimal;
+}
+
+.bd-widget-custom li {
+  display: list-item;
+  margin: 2px 0;
+  color: var(--bd-text-primary);
+}
+
+.bd-widget-custom table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 4px 0;
+}
+
+.bd-widget-custom th,
+.bd-widget-custom td {
+  padding: 4px 8px;
+  border: 1px solid var(--bd-border-default);
+  text-align: left;
+}
+
+.bd-widget-custom th {
+  background: rgba(255, 255, 255, 0.08);
+  font-weight: var(--bd-font-weight-semibold);
+  color: var(--bd-text-primary);
+}
+
+.bd-widget-custom td {
+  color: var(--bd-text-secondary);
+}
+
+.bd-widget-custom h1,
+.bd-widget-custom h2,
+.bd-widget-custom h3,
+.bd-widget-custom h4,
+.bd-widget-custom h5,
+.bd-widget-custom h6 {
+  margin: 4px 0;
+  color: var(--bd-text-primary);
+  font-weight: var(--bd-font-weight-semibold);
+}
+
+.bd-widget-custom h1 { font-size: 1.4em; }
+.bd-widget-custom h2 { font-size: 1.25em; }
+.bd-widget-custom h3 { font-size: 1.1em; }
+.bd-widget-custom h4,
+.bd-widget-custom h5,
+.bd-widget-custom h6 { font-size: 1em; }
+
+.bd-widget-custom p {
+  margin: 4px 0;
+  color: var(--bd-text-primary);
+}
+
+.bd-widget-custom blockquote {
+  margin: 4px 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--bd-accent-primary);
+  color: var(--bd-text-secondary);
+  font-style: italic;
+}
+
+.bd-widget-custom code {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--bd-font-family-mono);
+  font-size: 0.9em;
+}
+
+.bd-widget-custom pre {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 8px 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 4px 0;
+}
+
+.bd-widget-custom pre code {
+  background: none;
+  padding: 0;
+}
+
+.bd-widget-custom a {
+  color: var(--bd-info);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.bd-widget-custom a:hover {
+  color: #60a5fa;
+}
+
+.bd-widget-custom hr {
+  border: none;
+  border-top: 1px solid var(--bd-border-default);
+  margin: 8px 0;
+}
+
+.bd-widget-custom img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--bd-radius-sm);
+}
+
+.bd-widget-custom mark {
+  background: rgba(251, 191, 36, 0.4);
+  color: var(--bd-text-primary);
+  padding: 1px 3px;
+  border-radius: 2px;
+}
+
+.bd-widget-custom strong,
+.bd-widget-custom b {
+  font-weight: var(--bd-font-weight-bold);
+  color: var(--bd-text-primary);
+}
+
+.bd-widget-custom em,
+.bd-widget-custom i {
+  font-style: italic;
+}
+
+.bd-widget-custom u {
+  text-decoration: underline;
+}
+
+.bd-widget-custom s {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
 /* Widget animations removed to avoid issues with duplicate message processing */
 
 /* Widget Color Variants */
@@ -1514,4 +1660,69 @@
 .bd-widget[data-color="orange"] .bd-widget-bar-fill {
   color: var(--bd-accent-primary);
   background: linear-gradient(90deg, var(--bd-accent-primary) 0%, var(--bd-accent-light) 100%);
+}
+
+/* Responsive Widget Layout */
+@media (max-width: 768px) {
+  .bd-betterscripts-container {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding: 6px 8px;
+  }
+  
+  .bd-widget {
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .bd-widget-bar {
+    min-width: unset;
+  }
+  
+  .bd-widget-panel {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .bd-betterscripts-container {
+    padding: 4px 6px;
+    gap: 4px;
+    border-radius: var(--bd-radius-md);
+  }
+  
+  .bd-widget {
+    padding: 4px 8px;
+    font-size: var(--bd-font-size-xs);
+  }
+  
+  .bd-widget-label {
+    font-size: 9px;
+  }
+  
+  .bd-widget-value {
+    font-size: var(--bd-font-size-sm);
+  }
+  
+  .bd-widget-bar-container {
+    height: 14px;
+  }
+  
+  .bd-widget-bar-text {
+    font-size: 9px;
+  }
+  
+  .bd-widget-panel {
+    gap: 4px;
+  }
+  
+  .bd-widget-panel-title {
+    font-size: 9px;
+    padding-bottom: 3px;
+  }
+  
+  .bd-widget-panel-item {
+    gap: 8px;
+  }
 }

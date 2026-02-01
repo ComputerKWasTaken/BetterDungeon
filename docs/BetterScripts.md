@@ -263,11 +263,18 @@ When using the `update` action, you can modify these properties per widget type:
 
 | Widget | Updatable Properties |
 |--------|----------------------|
-| **stat** | `label`, `value`, `color` |
-| **bar** | `label`, `value`, `max`, `color` |
-| **text** | `text`, `style` |
-| **panel** | `title`, `items` |
-| **custom** | `html`, `style` |
+| **stat** | `label`, `value`, `color`, `order` |
+| **bar** | `label`, `value`, `max`, `color`, `order` |
+| **text** | `text`, `style`, `order` |
+| **panel** | `title`, `items`, `order` |
+| **custom** | `html`, `style`, `order` |
+
+### Widget Ordering
+All widgets support an `order` property (integer) to control display order. Lower values appear first.
+```javascript
+bdWidget('hp-bar', { type: 'bar', label: 'HP', value: 100, max: 100, order: 1 });
+bdWidget('mp-bar', { type: 'bar', label: 'MP', value: 50, max: 100, order: 2 });
+```
 
 ---
 
