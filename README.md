@@ -63,8 +63,6 @@ Settings sync across Chromium browsers.
 
 ### Small QOL Improvements
 
-- **Readable Tab Fix** — Moves the "Readable" tab back where it belongs. You're welcome.
-
 - **Auto Enable Scripts** - A small QOL feature that automatically retoggles the "Enable Scripts" option in the Scenario Creation page.
 
 - **Story Card Modal Dock** - A small QOL feature that docks the story card modal to the right of the screen, and allows you to scroll through your story while you edit your Story Cards

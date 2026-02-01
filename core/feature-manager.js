@@ -34,10 +34,6 @@ class FeatureManager {
       this.featureClasses.set('try', TryFeature);
     }
 
-    if (typeof ReadablePositionFeature !== 'undefined') {
-      this.featureClasses.set('readablePosition', ReadablePositionFeature);
-    }
-
     if (typeof TriggerHighlightFeature !== 'undefined') {
       this.featureClasses.set('triggerHighlight', TriggerHighlightFeature);
     }
@@ -88,7 +84,7 @@ class FeatureManager {
 
     this.featureClasses.forEach((FeatureClass, id) => {
       // Always-on QOL features that don't need user toggling
-      const alwaysEnabled = ['storyCardAnalytics', 'readablePosition', 'betterScripts', 'autoEnableScripts'];
+      const alwaysEnabled = ['storyCardAnalytics', 'betterScripts', 'autoEnableScripts'];
       // Features that are disabled by default
       const defaultOff = ['autoSee'];
       
