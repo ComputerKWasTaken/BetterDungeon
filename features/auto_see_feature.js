@@ -74,6 +74,13 @@ class AutoSeeFeature {
     // Safety reset timer for stuck states
     this.safetyResetTimer = null;
     this.waitingForAITimer = null;
+    
+    // Stability checking for reliable AI response detection
+    this.stabilityCheckTimer = null;
+    this.lastCheckedContent = '';
+    this.stableContentCount = 0;
+    this.STABILITY_THRESHOLD = 2; // Content must be stable for this many checks
+    this.STABILITY_CHECK_INTERVAL = 300; // ms between stability checks
   }
 
   // ==================== LIFECYCLE ====================
@@ -151,6 +158,10 @@ class AutoSeeFeature {
     if (this.waitingForAITimer) {
       clearTimeout(this.waitingForAITimer);
       this.waitingForAITimer = null;
+    }
+    if (this.stabilityCheckTimer) {
+      clearInterval(this.stabilityCheckTimer);
+      this.stabilityCheckTimer = null;
     }
   }
 
@@ -482,6 +493,14 @@ class AutoSeeFeature {
     this.log('[AutoSee] Turn counter incremented to:', this.turnCounter);
     this.log('[AutoSee] Waiting for AI response (content must change from current state)...');
     
+    // Reset stability tracking
+    this.lastCheckedContent = this.lastStoryContent;
+    this.stableContentCount = 0;
+    
+    // Start stability checking as a backup detection mechanism
+    // This catches cases where MutationObserver misses updates or debounce timing is off
+    this.startStabilityChecking();
+    
     // Set up timeout for waiting for AI response
     if (this.waitingForAITimer) {
       clearTimeout(this.waitingForAITimer);
@@ -489,11 +508,85 @@ class AutoSeeFeature {
     this.waitingForAITimer = setTimeout(() => {
       if (this.isWaitingForAIResponse) {
         console.warn('[AutoSee] Timeout waiting for AI response - resetting state');
+        this.stopStabilityChecking();
         this.isWaitingForAIResponse = false;
         this.turnCounter--; // Decrement since we didn't actually process this turn
         this.log('[AutoSee] Turn counter decremented back to:', this.turnCounter);
       }
     }, this.TIMEOUTS.WAITING_FOR_AI);
+  }
+
+  /**
+   * Starts periodic stability checking as a backup to MutationObserver
+   * This ensures we catch AI responses even if mutation events are missed
+   */
+  startStabilityChecking() {
+    this.stopStabilityChecking(); // Clear any existing interval
+    
+    this.stabilityCheckTimer = setInterval(() => {
+      if (!this.isWaitingForAIResponse || this.isProcessing) {
+        this.stopStabilityChecking();
+        return;
+      }
+      this.performStabilityCheck();
+    }, this.STABILITY_CHECK_INTERVAL);
+    
+    this.log('[AutoSee] Stability checking started');
+  }
+
+  /**
+   * Stops the stability checking interval
+   */
+  stopStabilityChecking() {
+    if (this.stabilityCheckTimer) {
+      clearInterval(this.stabilityCheckTimer);
+      this.stabilityCheckTimer = null;
+      this.log('[AutoSee] Stability checking stopped');
+    }
+  }
+
+  /**
+   * Performs a stability check to detect when AI response is complete
+   * Content is considered stable when it hasn't changed for STABILITY_THRESHOLD consecutive checks
+   */
+  performStabilityCheck() {
+    // Skip if input area is open (user typing or AI still generating in some UI states)
+    if (this.isInputAreaOpen()) {
+      this.stableContentCount = 0; // Reset stability counter
+      this.log('[AutoSee] Stability check: input area open, resetting counter');
+      return;
+    }
+    
+    const storyOutput = document.querySelector(this.storyOutputSelector);
+    if (!storyOutput) return;
+    
+    const currentContent = storyOutput.textContent?.trim() || '';
+    
+    // Check if content has changed from baseline (AI has responded)
+    const hasChanged = currentContent !== this.lastStoryContent && currentContent.length > 0;
+    
+    if (!hasChanged) {
+      this.log('[AutoSee] Stability check: no change from baseline yet');
+      return;
+    }
+    
+    // Content has changed - now check if it's stable (stopped changing)
+    if (currentContent === this.lastCheckedContent) {
+      this.stableContentCount++;
+      this.log('[AutoSee] Stability check: content stable, count:', this.stableContentCount, '/', this.STABILITY_THRESHOLD);
+      
+      if (this.stableContentCount >= this.STABILITY_THRESHOLD) {
+        // Content is stable - trigger the response detection
+        this.log('[AutoSee] Stability check: content is stable, triggering AI response detection');
+        this.stopStabilityChecking();
+        this.handleAIResponseDetected(currentContent);
+      }
+    } else {
+      // Content still changing, reset counter
+      this.stableContentCount = 0;
+      this.lastCheckedContent = currentContent;
+      this.log('[AutoSee] Stability check: content still changing, length:', currentContent.length);
+    }
   }
 
   // ==================== OUTPUT OBSERVATION ====================
@@ -575,31 +668,54 @@ class AutoSeeFeature {
       return;
     }
     
-    // Check if content has actually grown from our captured baseline
-    if (currentLength > this.lastStoryLength) {
-      this.log('[AutoSee] AI response detected! Content grew from', this.lastStoryLength, 'to', currentLength, '(+' + (currentLength - this.lastStoryLength) + ' chars)');
+    // Check if content has changed from our captured baseline
+    // Use both length comparison AND content comparison for reliability
+    const hasGrown = currentLength > this.lastStoryLength;
+    const hasChanged = currentContent !== this.lastStoryContent;
+    
+    if (hasGrown || (hasChanged && currentLength > 0)) {
+      const changeType = hasGrown ? 'grew' : 'changed';
+      this.log('[AutoSee] AI response detected! Content', changeType, 'from', this.lastStoryLength, 'to', currentLength, 
+        hasGrown ? '(+' + (currentLength - this.lastStoryLength) + ' chars)' : '(content replaced)');
       
-      // Update tracked content
-      this.lastStoryContent = currentContent;
-      this.lastStoryLength = currentLength;
+      // Stop stability checking since we detected via MutationObserver
+      this.stopStabilityChecking();
       
-      // Clear the waiting flag
-      this.isWaitingForAIResponse = false;
-      
-      // Check if we should trigger based on mode
-      if (this.shouldTriggerSee()) {
-        this.log('[AutoSee] AI response complete - waiting 300ms before triggering See action...');
-        // Add a small delay after AI response completes before triggering See
-        // This ensures the response is fully rendered and stable
-        setTimeout(() => {
-          this.log('[AutoSee] Delay complete - triggering See action now');
-          this.triggerSeeAction();
-        }, 300);
-      } else {
-        this.log('[AutoSee] Skipping See trigger - turn interval not reached (turn', this.turnCounter, ', interval', this.turnInterval, ')');
-      }
+      this.handleAIResponseDetected(currentContent);
     } else {
-      this.log('[AutoSee] Content unchanged or shrunk - current:', currentLength, 'baseline:', this.lastStoryLength);
+      this.log('[AutoSee] Content unchanged - current:', currentLength, 'baseline:', this.lastStoryLength);
+    }
+  }
+
+  /**
+   * Handles when an AI response is detected (called by both MutationObserver and stability checker)
+   * @param {string} currentContent - The current story content
+   */
+  handleAIResponseDetected(currentContent) {
+    // Prevent double-triggering
+    if (!this.isWaitingForAIResponse) {
+      this.log('[AutoSee] handleAIResponseDetected called but not waiting - ignoring');
+      return;
+    }
+    
+    // Update tracked content
+    this.lastStoryContent = currentContent;
+    this.lastStoryLength = currentContent.length;
+    
+    // Clear the waiting flag
+    this.isWaitingForAIResponse = false;
+    
+    // Check if we should trigger based on mode
+    if (this.shouldTriggerSee()) {
+      this.log('[AutoSee] AI response complete - waiting 300ms before triggering See action...');
+      // Add a small delay after AI response completes before triggering See
+      // This ensures the response is fully rendered and stable
+      setTimeout(() => {
+        this.log('[AutoSee] Delay complete - triggering See action now');
+        this.triggerSeeAction();
+      }, 300);
+    } else {
+      this.log('[AutoSee] Skipping See trigger - turn interval not reached (turn', this.turnCounter, ', interval', this.turnInterval, ')');
     }
   }
 
