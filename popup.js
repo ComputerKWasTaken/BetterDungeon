@@ -1192,7 +1192,8 @@ function openCharacterModal(character) {
 
 const PRIORITY_FIELDS = [
   'name', 'age', 'gender', 'pronouns', 'species', 'title', 'class',
-  'appearance', 'personality', 'backstory', 'occupation', 'goal'
+  'appearance', 'personality', 'backstory', 'occupation', 'goal',
+  'skills', 'inventory'
 ];
 
 function renderCharacterFields(fields) {
