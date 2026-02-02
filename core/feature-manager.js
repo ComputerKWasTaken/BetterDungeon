@@ -112,6 +112,10 @@ class FeatureManager {
       const feature = new FeatureClass();
       this.features.set(id, feature);
 
+      // Explicitly set enabled state - FeatureManager is the source of truth
+      // This ensures features don't rely on reading their own enabled state from storage
+      feature.enabled = true;
+
       if (typeof feature.init === 'function') {
         feature.init();
       }

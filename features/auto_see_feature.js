@@ -225,24 +225,14 @@ class AutoSeeFeature {
         'betterDungeon_autoSeeTriggerMode',
         'betterDungeon_autoSeeTurnInterval'
       ]);
-      // NOTE: We don't read 'betterDungeon_autoSeeEnabled' from storage anymore.
-      // The FeatureManager controls whether this feature is instantiated.
-      // If this code is running, the feature is enabled via the popup toggle.
-      this.enabled = true;
+      // NOTE: We don't touch this.enabled here - FeatureManager sets it before init()
+      // This ensures FeatureManager is the single source of truth for enabled state
       this.triggerMode = result.betterDungeon_autoSeeTriggerMode ?? 'everyTurn';
       this.turnInterval = result.betterDungeon_autoSeeTurnInterval ?? 2;
       this.log('[AutoSee] Settings loaded - Enabled:', this.enabled, 'TriggerMode:', this.triggerMode, 'TurnInterval:', this.turnInterval);
     } catch (e) {
       console.error('[AutoSee] ERROR: Error loading settings:', e);
     }
-  }
-
-  setEnabled(enabled) {
-    // NOTE: This method is kept for potential runtime state changes, but the main
-    // enabled/disabled toggle is controlled by the FeatureManager (feature instantiation).
-    // We no longer persist this to storage since the popup toggle handles that.
-    this.log('[AutoSee] Setting enabled:', enabled);
-    this.enabled = enabled;
   }
 
   setTriggerMode(mode) {
