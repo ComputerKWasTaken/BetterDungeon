@@ -7,7 +7,6 @@ class CharacterPresetFeature {
   constructor() {
     this.observer = null;
     this.checkInterval = null;
-    this.domUtils = window.DOMUtils;
     this.storageKey = 'betterDungeon_characterPresets';
     this.activePresetKey = 'betterDungeon_activeCharacterPreset';
     this.sessionCharacterKey = 'betterDungeon_sessionCharacter';
@@ -338,169 +337,225 @@ class CharacterPresetFeature {
   }
 
   // ============================================
-  // FIELD KEY NORMALIZATION
+  // FIELD KEY NORMALIZATION (DUAL-KEY SYSTEM)
   // ============================================
+  // 
+  // We use a dual-key approach:
+  // 1. PRIMARY KEY (exact): A sanitized version of the original question label
+  //    - Used for exact matching within the same scenario type
+  //    - Prevents false matches on unrelated questions
+  // 2. ARCHETYPE KEY (optional): A canonical field type (name, age, etc.)
+  //    - Only assigned when there's HIGH confidence the question matches
+  //    - Used as a fallback when exact match fails
+  //
+  // Fields are stored as: { exactKey: value } AND optionally { archetype: value }
+  // Lookup order: exact match first, then archetype fallback
 
-  // Core field types that we recognize
-  static KNOWN_FIELDS = [
-    'name', 'age', 'gender', 'pronouns', 'species', 'race', 'class', 'title', 'role',
-    'appearance', 'looks', 'personality', 'traits', 'backstory', 'background', 'history',
-    'occupation', 'job', 'profession', 'goal', 'goals', 'objective', 'motivation',
-    'skills', 'abilities', 'powers', 'inventory', 'items', 'equipment', 'weapons',
-    'strengths', 'weaknesses', 'flaws', 'fears', 'likes', 'dislikes', 'hobbies',
-    'relationships', 'family', 'friends', 'allies', 'enemies', 'faction', 'affiliation',
-    'homeland', 'origin', 'birthplace', 'location', 'home'
-  ];
-
-  // Canonical mappings for field variations
-  static FIELD_MAPPINGS = {
-    // Name
-    'name': 'name', 'names': 'name', 'called': 'name', 'call': 'name',
-    // Age
-    'age': 'age', 'old': 'age', 'years': 'age',
-    // Gender
-    'gender': 'gender', 'sex': 'gender',
+  // High-confidence archetype patterns
+  // These patterns must be VERY specific to avoid false matches
+  static ARCHETYPE_PATTERNS = {
+    // Name - only match explicit name questions
+    'name': [
+      /^(?:what(?:'?s|\s+is)\s+)?(?:your|the|their|character'?s?)\s+name\??$/i,
+      /^name\??$/i,
+      /^(?:enter|type|input)\s+(?:your|a|the)?\s*name$/i,
+      /^what\s+(?:are|should)\s+(?:you|they|we)\s+called\??$/i,
+    ],
+    // Age - only explicit age questions
+    'age': [
+      /^(?:what(?:'?s|\s+is)\s+)?(?:your|the|their|character'?s?)\s+age\??$/i,
+      /^age\??$/i,
+      /^how\s+old\s+(?:are|is)\s+(?:you|your\s+character|they)\??$/i,
+    ],
+    // Gender - explicit gender questions
+    'gender': [
+      /^(?:what(?:'?s|\s+is)\s+)?(?:your|the|their|character'?s?)\s+gender\??$/i,
+      /^gender\??$/i,
+    ],
     // Pronouns
-    'pronouns': 'pronouns', 'pronoun': 'pronouns',
-    // Species/Race
-    'species': 'species', 'race': 'species', 'creature': 'species', 'type': 'species',
-    // Class/Role
-    'class': 'class', 'role': 'class', 'title': 'title', 'rank': 'title',
-    // Appearance
-    'appearance': 'appearance', 'looks': 'appearance', 'look': 'appearance',
-    'physical': 'appearance', 'description': 'appearance', 'describe': 'appearance',
-    // Personality
-    'personality': 'personality', 'traits': 'personality', 'trait': 'personality',
-    'attitude': 'personality', 'demeanor': 'personality', 'temperament': 'personality',
-    // Backstory
-    'backstory': 'backstory', 'background': 'backstory', 'history': 'backstory',
-    'past': 'backstory', 'origin': 'backstory', 'story': 'backstory',
-    // Occupation
-    'occupation': 'occupation', 'job': 'occupation', 'profession': 'occupation',
-    'work': 'occupation', 'career': 'occupation', 'trade': 'occupation',
-    // Goals
-    'goal': 'goal', 'goals': 'goal', 'objective': 'goal', 'objectives': 'goal',
-    'motivation': 'goal', 'motivations': 'goal', 'ambition': 'goal', 'dream': 'goal',
-    // Skills
-    'skills': 'skills', 'skill': 'skills', 'abilities': 'skills', 'ability': 'skills',
-    'powers': 'skills', 'power': 'skills', 'talents': 'skills', 'talent': 'skills',
-    // Inventory
-    'inventory': 'inventory', 'items': 'inventory', 'equipment': 'inventory',
-    'gear': 'inventory', 'weapons': 'inventory', 'belongings': 'inventory',
-    // Strengths/Weaknesses
-    'strengths': 'strengths', 'strength': 'strengths', 'strong': 'strengths',
-    'weaknesses': 'weaknesses', 'weakness': 'weaknesses', 'weak': 'weaknesses',
-    'flaws': 'weaknesses', 'flaw': 'weaknesses',
-    // Preferences
-    'likes': 'likes', 'like': 'likes', 'love': 'likes', 'loves': 'likes', 'enjoy': 'likes',
-    'dislikes': 'dislikes', 'dislike': 'dislikes', 'hate': 'dislikes', 'hates': 'dislikes',
-    'fears': 'fears', 'fear': 'fears', 'afraid': 'fears', 'phobia': 'fears',
-    // Relationships
-    'relationships': 'relationships', 'relationship': 'relationships',
-    'family': 'family', 'parents': 'family', 'siblings': 'family',
-    'friends': 'friends', 'friend': 'friends', 'allies': 'friends', 'ally': 'friends',
-    'enemies': 'enemies', 'enemy': 'enemies', 'rivals': 'enemies', 'rival': 'enemies',
-    // Location
-    'homeland': 'homeland', 'home': 'homeland', 'birthplace': 'homeland',
-    'location': 'homeland', 'origin': 'homeland', 'from': 'homeland', 'where': 'homeland',
+    'pronouns': [
+      /^(?:what(?:'?s|\s+are)\s+)?(?:your|the|their|character'?s?)\s+pronouns?\??$/i,
+      /^pronouns?\??$/i,
+    ],
+    // Species/Race - must explicitly mention species or race
+    'species': [
+      /^(?:what(?:'?s|\s+is)\s+)?(?:your|the|their|character'?s?)\s+(?:species|race)\??$/i,
+      /^(?:species|race)\??$/i,
+      /^what\s+(?:species|race)\s+(?:are|is)\s+(?:you|your\s+character|they)\??$/i,
+    ],
+    // Class/Role - explicit class or role questions
+    'class': [
+      /^(?:what(?:'?s|\s+is)\s+)?(?:your|the|their|character'?s?)\s+(?:class|role)\??$/i,
+      /^(?:class|role)\??$/i,
+    ],
+    // Appearance - must clearly ask about looks/appearance
+    'appearance': [
+      /^(?:what(?:'?s|\s+is)\s+)?(?:your|the|their|character'?s?)\s+(?:appearance|physical\s+description)\??$/i,
+      /^(?:describe|what\s+does?)\s+(?:your|the)?\s*(?:character'?s?)?\s*(?:look\s+like|appearance)\??$/i,
+      /^(?:appearance|looks?)\??$/i,
+      /^what\s+do\s+(?:you|they)\s+look\s+like\??$/i,
+    ],
+    // Personality - explicit personality questions
+    'personality': [
+      /^(?:what(?:'?s|\s+is)\s+)?(?:your|the|their|character'?s?)\s+personality\??$/i,
+      /^(?:describe|what\s+is)\s+(?:your|the)?\s*personality\??$/i,
+      /^personality\??$/i,
+    ],
+    // Backstory/Background - explicit backstory questions
+    'backstory': [
+      /^(?:what(?:'?s|\s+is)\s+)?(?:your|the|their|character'?s?)\s+(?:backstory|background|history)\??$/i,
+      /^(?:backstory|background|history)\??$/i,
+      /^tell\s+(?:me|us)\s+about\s+(?:your|the)?\s*(?:character'?s?)?\s*(?:past|backstory|background)\??$/i,
+    ],
+    // Occupation - explicit job/occupation questions
+    'occupation': [
+      /^(?:what(?:'?s|\s+is)\s+)?(?:your|the|their|character'?s?)\s+(?:occupation|job|profession)\??$/i,
+      /^(?:occupation|job|profession)\??$/i,
+      /^what\s+do\s+(?:you|they)\s+do\s+(?:for\s+(?:a\s+)?(?:living|work))\??$/i,
+    ],
+    // Goals/Motivation - explicit goal questions
+    'goal': [
+      /^(?:what(?:'?s|\s+are|\s+is)\s+)?(?:your|the|their|character'?s?)\s+(?:goal|goals|objective|motivation)s?\??$/i,
+      /^(?:goal|goals|objective|motivation)s?\??$/i,
+    ],
+    // Skills/Abilities - explicit skills questions
+    'skills': [
+      /^(?:what(?:'?s|\s+are)\s+)?(?:your|the|their|character'?s?)\s+(?:skills?|abilities|powers?)\??$/i,
+      /^(?:skills?|abilities|powers?)\??$/i,
+    ],
+    // Inventory/Equipment
+    'inventory': [
+      /^(?:what(?:'?s|\s+are|\s+is)\s+)?(?:your|the|their|character'?s?)\s+(?:inventory|equipment|items?|gear|belongings)\??$/i,
+      /^(?:what\s+(?:do\s+)?(?:you|they)\s+(?:have|carry|bring))\??$/i,
+      /^(?:inventory|equipment|items?|gear)\??$/i,
+    ],
   };
 
-  normalizeFieldKey(label) {
+  // Simple word-to-archetype mapping for SINGLE-WORD labels only
+  // These are only used when the entire cleaned label is just one word
+  static SINGLE_WORD_ARCHETYPES = {
+    'name': 'name',
+    'age': 'age',
+    'gender': 'gender',
+    'pronouns': 'pronouns',
+    'species': 'species',
+    'race': 'species',
+    'class': 'class',
+    'role': 'class',
+    'appearance': 'appearance',
+    'looks': 'appearance',
+    'personality': 'personality',
+    'backstory': 'backstory',
+    'background': 'backstory',
+    'history': 'backstory',
+    'occupation': 'occupation',
+    'job': 'occupation',
+    'profession': 'occupation',
+    'goal': 'goal',
+    'goals': 'goal',
+    'skills': 'skills',
+    'abilities': 'skills',
+    'inventory': 'inventory',
+    'equipment': 'inventory',
+  };
+
+  // Generate a consistent exact key from the label
+  // This creates a sanitized, deterministic key from the original question
+  generateExactKey(label) {
     if (!label) return null;
     
-    const original = label;
-    
-    // Step 1: Clean up the label
-    let cleaned = label.toLowerCase()
+    return label.toLowerCase()
       .replace(/\s*\([^)]*\)/g, '')           // Remove (parenthetical content)
       .replace(/\s*-\s*preceded by.*$/i, '')  // Remove "- preceded by ..." suffix
       .replace(/\s*-\s*followed by.*$/i, '')  // Remove "- followed by ..." suffix
       .replace(/[?!.:;,"']/g, '')             // Remove punctuation
+      .replace(/[^a-z0-9\s]/g, '')            // Remove special chars
+      .trim()
+      .replace(/\s+/g, '_');                  // Spaces to underscores
+  }
+
+  // Attempt to detect a high-confidence archetype from the label
+  // Returns null if no confident match - this is intentional!
+  detectArchetype(label) {
+    if (!label) return null;
+    
+    const cleaned = label.toLowerCase()
+      .replace(/\s*\([^)]*\)/g, '')
+      .replace(/[?!.:;,"']/g, '')
+      .replace(/[^a-z0-9\s]/g, '')            // Remove curly apostrophes and other special chars
       .trim();
     
-    // Step 2: Try to extract the core field using patterns
-    const extractedField = this.extractFieldFromPattern(cleaned);
-    if (extractedField) {
-      return extractedField;
-    }
-    
-    // Step 3: Normalize to underscore format and check direct mappings
-    const normalized = cleaned
-      .replace(/[^a-z0-9\s]/g, '')
-      .trim()
-      .replace(/\s+/g, '_');
-    
-    // Step 4: Check if any known field appears in the normalized string
-    const foundField = this.findFieldInText(normalized.replace(/_/g, ' '));
-    if (foundField) {
-      return foundField;
-    }
-    
-    // Step 5: Return the normalized string as-is (unknown field type)
-    return normalized;
-  }
-
-  extractFieldFromPattern(text) {
-    // Common patterns for field questions
-    const patterns = [
-      // "What is your [field]?" / "What's your [field]?"
-      /what(?:'s|\s+is)\s+(?:your|the|their)\s+(?:character'?s?\s+)?(.+)/i,
-      // "Enter your [field]" / "Enter [field]"
-      /enter\s+(?:your|the|a)?\s*(?:character'?s?\s+)?(.+)/i,
-      // "Your [field]" / "Character's [field]"
-      /^(?:your|the|their|character'?s?)\s+(.+)/i,
-      // "Describe your [field]" / "Describe [field]"
-      /describe\s+(?:your|the)?\s*(?:character'?s?\s+)?(.+)/i,
-      // "How old are you" -> age
-      /how\s+old/i,
-      // "What do you look like" -> appearance  
-      /what\s+do\s+(?:you|they)\s+look\s+like/i,
-      // "[field]:" at start
-      /^([a-z]+)\s*$/i,
-    ];
-    
-    // Special case patterns that map to specific fields
-    if (/how\s+old/i.test(text)) return 'age';
-    if (/what\s+do\s+(?:you|they)\s+look\s+like/i.test(text)) return 'appearance';
-    if (/who\s+are\s+you/i.test(text)) return 'backstory';
-    if (/tell\s+(?:me|us)\s+about\s+(?:yourself|your\s+character)/i.test(text)) return 'backstory';
-    if (/where\s+(?:are|do)\s+(?:you|they)\s+(?:come\s+)?from/i.test(text)) return 'homeland';
-    if (/what\s+(?:do|can)\s+(?:you|they)\s+do/i.test(text)) return 'skills';
-    
-    // Try extraction patterns
-    for (const pattern of patterns) {
-      const match = text.match(pattern);
-      if (match && match[1]) {
-        const extracted = match[1].trim();
-        // Look up the extracted word in mappings
-        const field = this.findFieldInText(extracted);
-        if (field) return field;
+    // First check: If it's a single word, check simple mappings
+    const words = cleaned.split(/\s+/);
+    if (words.length === 1) {
+      const singleWord = words[0];
+      if (CharacterPresetFeature.SINGLE_WORD_ARCHETYPES[singleWord]) {
+        return CharacterPresetFeature.SINGLE_WORD_ARCHETYPES[singleWord];
       }
     }
     
-    return null;
-  }
-
-  findFieldInText(text) {
-    const words = text.toLowerCase().split(/\s+/);
-    
-    // Check each word against known field mappings
-    for (const word of words) {
-      if (CharacterPresetFeature.FIELD_MAPPINGS[word]) {
-        return CharacterPresetFeature.FIELD_MAPPINGS[word];
-      }
-    }
-    
-    // Check for partial matches (e.g., "personality" in "personality traits")
-    for (const word of words) {
-      for (const [key, value] of Object.entries(CharacterPresetFeature.FIELD_MAPPINGS)) {
-        if (word.includes(key) || key.includes(word)) {
-          return value;
+    // Second check: Test against high-confidence patterns
+    for (const [archetype, patterns] of Object.entries(CharacterPresetFeature.ARCHETYPE_PATTERNS)) {
+      for (const pattern of patterns) {
+        if (pattern.test(cleaned)) {
+          return archetype;
         }
       }
     }
     
+    // No confident match - return null (this is fine!)
     return null;
+  }
+
+  // Generate both keys for a field
+  // Returns { exactKey, archetype (or null) }
+  getFieldKeys(label) {
+    return {
+      exactKey: this.generateExactKey(label),
+      archetype: this.detectArchetype(label)
+    };
+  }
+
+  // DEPRECATED: Keep for backward compatibility during migration
+  // New code should use getFieldKeys() instead
+  normalizeFieldKey(label) {
+    // Return exact key for storage - archetype matching happens at lookup time
+    return this.generateExactKey(label);
+  }
+
+  // Look up a saved value for a field, trying exact match first, then archetype
+  lookupFieldValue(preset, label) {
+    if (!preset || !preset.fields) return undefined;
+    
+    const { exactKey, archetype } = this.getFieldKeys(label);
+    
+    // Priority 1: Exact key match (most reliable)
+    if (exactKey && preset.fields[exactKey] !== undefined) {
+      this.log(`[CharacterPreset] Found exact match for "${exactKey}"`);
+      return { value: preset.fields[exactKey], matchType: 'exact' };
+    }
+    
+    // Priority 2: Archetype match (only if high confidence)
+    if (archetype && preset.fields[archetype] !== undefined) {
+      this.log(`[CharacterPreset] Found archetype match "${archetype}" for label "${label}"`);
+      return { value: preset.fields[archetype], matchType: 'archetype' };
+    }
+    
+    // Priority 3: Check if any stored key has this archetype
+    // This handles cases where we saved "whats_your_name" but now see "name"
+    if (archetype) {
+      for (const [storedKey, storedValue] of Object.entries(preset.fields)) {
+        // Check if the stored key resolves to the same archetype
+        const storedArchetype = this.detectArchetype(storedKey.replace(/_/g, ' '));
+        if (storedArchetype === archetype) {
+          this.log(`[CharacterPreset] Found cross-archetype match: stored "${storedKey}" matches archetype "${archetype}"`);
+          return { value: storedValue, matchType: 'cross-archetype' };
+        }
+      }
+    }
+    
+    this.log(`[CharacterPreset] No match found for "${label}" (exactKey: ${exactKey}, archetype: ${archetype})`);
+    return undefined;
   }
 
   // ============================================
@@ -568,7 +623,6 @@ class CharacterPresetFeature {
         this.currentFieldKey = field.fieldKey;
         this.hasAutoFilled = false;
         
-        
         // Clean up previous UI
         this.removeOverlay();
         this.removeSaveButton();
@@ -588,7 +642,9 @@ class CharacterPresetFeature {
   }
 
   async handleField(field) {
-    const isNameField = field.fieldKey === 'name';
+    // Check if this is a name field using archetype detection (not exact key)
+    const fieldArchetype = this.detectArchetype(field.ariaLabel);
+    const isNameField = fieldArchetype === 'name';
     const sessionCharacter = this.getSessionCharacter();
     
     // Check if this is a new scenario (URL changed)
@@ -618,12 +674,13 @@ class CharacterPresetFeature {
       // We have a session character - show indicator and handle auto-fill
       this.showCharacterIndicator(field, sessionCharacter);
       
-      // Check if we have a saved value for this field
-      const savedValue = sessionCharacter.fields[field.fieldKey];
+      // Use the new dual-key lookup system: tries exact match first, then archetype
+      const lookupResult = this.lookupFieldValue(sessionCharacter, field.ariaLabel);
       
-      if (savedValue !== undefined && savedValue !== '') {
+      if (lookupResult && lookupResult.value !== undefined && lookupResult.value !== '') {
         // We have a saved value - auto-fill it
-        this.autoFillField(field, savedValue);
+        this.log(`[CharacterPreset] Auto-filling via ${lookupResult.matchType} match`);
+        this.autoFillField(field, lookupResult.value);
       } else {
         // No saved value - show "Save & Continue" button
         this.showSaveAndContinueButton(field);
@@ -694,27 +751,21 @@ class CharacterPresetFeature {
     
     requestAnimationFrame(() => {
       this.overlayElement.classList.add('bd-selector-visible');
-      
-      // Show first-use hint
-      this.showFirstUseHint();
     });
     
     this.setupCharacterSelectorHandlers(field);
     
   }
 
-  showFirstUseHint() {
-    // Hint service removed - tutorial covers this
-  }
-
   buildCharacterSelectorHTML() {
     const hasPresets = this.presets.length > 0;
     
     if (hasPresets) {
-      // Always default to "Select..." - don't auto-select based on sessionCharacterId
-      const options = this.presets.map(p => 
-        `<option value="${p.id}">${this.escapeHtml(p.name)}</option>`
-      ).join('');
+      // Auto-select if we have a session character (e.g., just created one)
+      const options = this.presets.map(p => {
+        const isSelected = this.sessionCharacterId === p.id;
+        return `<option value="${p.id}"${isSelected ? ' selected' : ''}>${this.escapeHtml(p.name)}</option>`;
+      }).join('');
       
       return `
         <div class="bd-selector-row" style="font-family: var(--bd-font-family-primary);">
@@ -885,12 +936,40 @@ class CharacterPresetFeature {
       return;
     }
     
-    await this.updatePresetField(sessionCharacter.id, field.fieldKey, value);
+    // Use the dual-key save system
+    await this.saveFieldWithDualKey(sessionCharacter.id, field.ariaLabel, value);
     this.showToast(`Saved to ${sessionCharacter.name}`, 'success');
     this.removeSaveButton();
     
     // Click continue
     setTimeout(() => continueBtn.click(), 100);
+  }
+
+  // Save a field value using the dual-key system
+  // Saves under exact key, and ALSO under archetype key if one is detected
+  // This ensures values can be found both by exact match and archetype fallback
+  async saveFieldWithDualKey(presetId, label, value) {
+    const { exactKey, archetype } = this.getFieldKeys(label);
+    
+    const preset = this.presets.find(p => p.id === presetId);
+    if (!preset) return null;
+    
+    // Always save under exact key
+    if (exactKey) {
+      preset.fields[exactKey] = value;
+      this.log(`[CharacterPreset] Saved under exact key: "${exactKey}"`);
+    }
+    
+    // Also save under archetype key if we detected one with high confidence
+    // This enables cross-scenario matching for recognized fields
+    if (archetype && archetype !== exactKey) {
+      preset.fields[archetype] = value;
+      this.log(`[CharacterPreset] Also saved under archetype: "${archetype}"`);
+    }
+    
+    preset.updatedAt = Date.now();
+    await this.savePresets();
+    return preset;
   }
 
   findContinueButton() {
