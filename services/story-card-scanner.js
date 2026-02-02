@@ -1,5 +1,5 @@
 // BetterDungeon - Story Card Scanner Service
-// Automatically scans all story cards to extract triggers
+// Automatically scans all story cards to extract triggers and build a database of rich card data
 
 class StoryCardScanner {
   constructor() {
@@ -11,13 +11,16 @@ class StoryCardScanner {
     // Rich card data storage: Map of cardName -> { type, description, triggers, keys, name }
     this.cardDatabase = new Map();
     
+    // Track which adventure was last scanned
+    this.lastScannedAdventureId = null;
+    
     // Performance optimization: adaptive timing
     this.totalCardTime = 0;
     this.cardCount = 0;
     this.averageCardTime = null;
     
     // Debug mode - set to true to enable verbose logging
-    this.debug = false;
+    this.debug = true;
     
     // Timing constants (ms) - optimized for speed
     this.TIMING = {
@@ -33,12 +36,68 @@ class StoryCardScanner {
     this.CARD_TYPES = ['character', 'location', 'item', 'faction', 'lore', 'other'];
   }
 
+  // ==================== PRE-VALIDATION ====================
+
+  // Check if the scanner can run (validates page state BEFORE starting)
+  validatePageState() {
+    // Check if we're on AI Dungeon
+    if (!window.location.hostname.includes('aidungeon.com')) {
+      return { valid: false, error: 'Not on AI Dungeon website' };
+    }
+
+    // Check if we're on an adventure page
+    if (!window.location.pathname.includes('/adventure/')) {
+      return { valid: false, error: 'Navigate to an adventure first' };
+    }
+
+    // Check if a scan is already in progress
+    if (this.isScanning) {
+      return { valid: false, error: 'Scan already in progress' };
+    }
+
+    return { valid: true };
+  }
+
+  // Get current adventure ID from URL
+  getCurrentAdventureId() {
+    const match = window.location.pathname.match(/\/adventure\/([^\/]+)/);
+    return match ? match[1] : null;
+  }
+
+  // Reset scanner state (call when adventure changes)
+  reset() {
+    this.log('Resetting scanner state...');
+    this.isScanning = false;
+    this.abortController = null;
+    this.scanStartTime = null;
+    this.scannedIndices = new Set();
+    this.cardDatabase = new Map();
+    this.totalCardTime = 0;
+    this.cardCount = 0;
+    this.averageCardTime = null;
+    this.lastScannedAdventureId = null;
+  }
+
+  // Reset if adventure has changed since last scan
+  resetIfAdventureChanged() {
+    const currentId = this.getCurrentAdventureId();
+    if (currentId && this.lastScannedAdventureId && currentId !== this.lastScannedAdventureId) {
+      this.log(`Adventure changed from ${this.lastScannedAdventureId} to ${currentId}, resetting...`);
+      this.reset();
+    }
+  }
+
   // Main scan method - now returns rich card data
   // Callbacks: onCardScanned(cardData), onProgress(current, total, status, eta)
   async scanAllCards(onTriggerFound, onProgress, onCardScanned) {
-    if (this.isScanning) {
-      return { success: false, error: 'Scan already in progress' };
+    // Pre-validate page state
+    const validation = this.validatePageState();
+    if (!validation.valid) {
+      return { success: false, error: validation.error };
     }
+
+    // Reset if adventure changed
+    this.resetIfAdventureChanged();
 
     this.isScanning = true;
     this.abortController = new AbortController();
@@ -48,6 +107,7 @@ class StoryCardScanner {
     this.averageCardTime = null;
     this.scannedIndices = new Set();
     this.cardDatabase = new Map(); // Reset card database
+    this.lastScannedAdventureId = this.getCurrentAdventureId();
     const results = new Map(); // trigger -> cardName (kept for backward compatibility)
 
     try {

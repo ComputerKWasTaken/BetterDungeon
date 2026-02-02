@@ -54,16 +54,28 @@ class StoryCardAnalyticsFeature {
     this.isOpen = true;
     this.createDashboardElement();
     
-    // Show loading state
+    // Show loading state briefly
     this.updateDashboardContent(this.renderLoadingState());
     
-    // Check if we have existing data
+    // Check page state to determine what to show
+    const validation = storyCardScanner.validatePageState();
+    
+    // Check if we have existing data for THIS adventure
     const cardDatabase = storyCardScanner.getCardDatabase();
-    if (cardDatabase.size > 0) {
+    const currentAdventureId = storyCardScanner.getCurrentAdventureId();
+    const dataIsForCurrentAdventure = cardDatabase.size > 0 && 
+      storyCardScanner.lastScannedAdventureId === currentAdventureId;
+    
+    if (dataIsForCurrentAdventure) {
+      // Show existing analytics
       this.lastAnalytics = storyCardScanner.getAnalytics();
       this.lastScanTime = new Date();
       this.updateDashboardContent(this.renderAnalytics(this.lastAnalytics));
+    } else if (!validation.valid) {
+      // Not on adventure page - show error state
+      this.updateDashboardContent(this.renderErrorState(validation.error));
     } else {
+      // On adventure but no data yet - show empty state
       this.updateDashboardContent(this.renderEmptyState());
     }
   }
@@ -157,6 +169,23 @@ class StoryCardAnalyticsFeature {
         <p class="bd-analytics-hint">The scan will open each card briefly to extract its data.</p>
       </div>
     `;
+  }
+
+  renderErrorState(errorMessage) {
+    return `
+      <div class="bd-analytics-empty">
+        <div class="bd-analytics-empty-icon bd-analytics-error-icon"><span class="icon-triangle-alert"></span></div>
+        <h3>Cannot Scan</h3>
+        <p>${this.escapeHtml(errorMessage)}</p>
+        <p class="bd-analytics-hint">Make sure you're on an adventure page before scanning.</p>
+      </div>
+    `;
+  }
+
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 
   renderAnalytics(analytics) {
@@ -446,9 +475,19 @@ class StoryCardAnalyticsFeature {
   // ==================== SCANNING ====================
 
   async runScan() {
+    // Check service availability first
     if (typeof storyCardScanner === 'undefined' || typeof loadingScreen === 'undefined') {
       console.error('StoryCardAnalyticsFeature: Required services not available');
-      return;
+      return { success: false, error: 'Required services not loaded' };
+    }
+
+    // Pre-validate page state BEFORE closing dashboard or showing loading screen
+    const validation = storyCardScanner.validatePageState();
+    if (!validation.valid) {
+      console.warn('StoryCardAnalyticsFeature: Cannot scan -', validation.error);
+      // Show error in dashboard instead of failing silently
+      this.updateDashboardContent(this.renderErrorState(validation.error));
+      return { success: false, error: validation.error };
     }
 
     // Close dashboard temporarily
@@ -468,6 +507,12 @@ class StoryCardAnalyticsFeature {
 
   // Internal scan method - mirrors TriggerHighlightFeature._doScanStoryCards()
   async _doScanStoryCards() {
+    // Double-check page state in case it changed while queued
+    const validation = storyCardScanner.validatePageState();
+    if (!validation.valid) {
+      return { success: false, error: validation.error };
+    }
+
     // Show loading screen with cancel button
     loadingScreen.show({
       title: 'Scanning Story Cards',
@@ -783,6 +828,10 @@ class StoryCardAnalyticsFeature {
 
       .bd-analytics-empty-icon span {
         font-size: inherit;
+      }
+
+      .bd-analytics-error-icon {
+        color: var(--bd-status-warning, #f59e0b);
       }
 
       .bd-analytics-empty h3 {

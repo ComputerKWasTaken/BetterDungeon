@@ -1,6 +1,6 @@
 # BetterScripts Developer Guide
 
-BetterScripts is a powerful bridge between AI Dungeon's scripting system and the BetterDungeon browser extension. It enables scripts to create dynamic, real-time UI widgets that display game state, statistics, progress bars, and custom content. This allows for rich visual feedback without lackluster vanilla implementations to communicate with the user of the script.
+BetterScripts provides a seamless connection between AI Dungeon's scripting system and the BetterDungeon browser extension. It allows scripts to generate dynamic, real-time UI widgets for displaying game state, statistics, progress bars, and custom content—delivering rich visual feedback that surpasses the limitations of vanilla implementations.
 
 ---
 

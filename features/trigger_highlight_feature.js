@@ -78,16 +78,21 @@ class TriggerHighlightFeature {
     const newAdventureId = match ? match[1] : null;
     const adventureChanged = this.currentAdventureId !== newAdventureId;
     
-    // If adventure changed, clear triggers
+    // If adventure changed, clear triggers and reset scanner
     if (adventureChanged && this.currentAdventureId !== null) {
       this.cachedTriggers.clear();
       this.processedElements = new WeakSet();
+      
+      // Also reset the scanner state for the new adventure
+      if (typeof storyCardScanner !== 'undefined') {
+        storyCardScanner.reset();
+      }
     }
     
     // Auto-scan when entering a new adventure (either on change or initial load)
     if (newAdventureId && adventureChanged && this.autoScanEnabled) {
-      // Delay to let the adventure page load
-      setTimeout(() => this.scanAllStoryCards(), 2000);
+      // Delay to let the adventure page load fully
+      setTimeout(() => this.scanAllStoryCards(), 2500);
     }
     
     this.currentAdventureId = newAdventureId;
@@ -95,9 +100,17 @@ class TriggerHighlightFeature {
 
   // Scan all story cards automatically using the loading screen
   async scanAllStoryCards() {
+    // Check service availability first
     if (typeof loadingScreen === 'undefined' || typeof storyCardScanner === 'undefined') {
       console.error('TriggerHighlightFeature: Loading screen or scanner not available');
       return { success: false, error: 'Required services not loaded' };
+    }
+
+    // Pre-validate page state BEFORE queueing/showing loading screen
+    const validation = storyCardScanner.validatePageState();
+    if (!validation.valid) {
+      console.warn('TriggerHighlightFeature: Cannot scan -', validation.error);
+      return { success: false, error: validation.error };
     }
 
     // Use queue to ensure sequential execution with other features
@@ -105,6 +118,12 @@ class TriggerHighlightFeature {
   }
 
   async _doScanStoryCards() {
+    // Double-check page state in case it changed while queued
+    const validation = storyCardScanner.validatePageState();
+    if (!validation.valid) {
+      return { success: false, error: validation.error };
+    }
+
     // Show loading screen with cancel button
     loadingScreen.show({
       title: 'Scanning Story Cards',
