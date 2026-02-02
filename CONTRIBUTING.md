@@ -80,7 +80,7 @@ Each feature implements:
 - **Improved the roll system** within the Try feature for more consistent odds and logic
 - Fixed and improved the **Input Mode Color** feature
 - Added **Story Card Modal Dock** feature, which docks the story card modal to the right side of the screen and allows you to scroll through your story
-- Improved **Character Creator** feature to be less overzealous and more intelligent
+- Improved **Character Preset** feature to be more consistent
 - Fixed color bleed issue on the buttons with the Input Mode color feature in custom themes
 - Fixed an issue with the Markdown rendering system where italic wrapping bold formatting and unordered formatting wouldn't work properly
 

@@ -1190,12 +1190,6 @@ function openCharacterModal(character) {
   openModal('character-modal');
 }
 
-const PRIORITY_FIELDS = [
-  'name', 'age', 'gender', 'pronouns', 'species', 'title', 'class',
-  'appearance', 'personality', 'backstory', 'occupation', 'goal',
-  'skills', 'inventory'
-];
-
 function renderCharacterFields(fields) {
   const container = document.getElementById('character-fields-list');
   if (!container) return;
@@ -1207,12 +1201,8 @@ function renderCharacterFields(fields) {
     return;
   }
 
-  // Sort by priority
-  const sorted = entries.sort((a, b) => {
-    const aIdx = PRIORITY_FIELDS.indexOf(a[0]);
-    const bIdx = PRIORITY_FIELDS.indexOf(b[0]);
-    return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
-  });
+  // Sort alphabetically by key
+  const sorted = entries.sort((a, b) => a[0].localeCompare(b[0]));
 
   container.innerHTML = sorted.map(([key, value]) => `
     <div class="field-item" data-key="${escapeHtml(key)}">
