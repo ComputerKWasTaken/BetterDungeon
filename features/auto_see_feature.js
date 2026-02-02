@@ -553,9 +553,10 @@ class AutoSeeFeature {
       return;
     }
     
-    // Don't trigger if input area is open (AI still generating or user typing)
+    // Don't trigger if input area is open (user is typing or about to submit something)
+    // Note: Input area is CLOSED during AI generation, this check prevents interference with user input
     if (this.isInputAreaOpen()) {
-      this.log('[AutoSee] Skipping check - input area is open (AI still generating)');
+      this.log('[AutoSee] Skipping check - input area is open (user may be typing)');
       return;
     }
 
