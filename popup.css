@@ -1320,8 +1320,8 @@ body {
 .fields-list {
   background: var(--bg-elevated);
   border-radius: var(--radius-md);
-  padding: 10px;
-  max-height: 160px;
+  padding: 14px;
+  max-height: 200px;
   overflow-y: auto;
 }
 
@@ -1335,8 +1335,8 @@ body {
 .field-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 0;
+  gap: 12px;
+  padding: 10px 0;
   border-bottom: 1px solid var(--border);
 }
 
@@ -1348,13 +1348,16 @@ body {
   font-size: 11px;
   font-weight: 600;
   color: var(--accent);
-  text-transform: capitalize;
-  min-width: 70px;
+  min-width: 120px;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .field-value {
   flex: 1;
-  padding: 6px 10px;
+  padding: 8px 12px;
   background: var(--bg-base);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -1388,8 +1391,8 @@ body {
 
 .field-add {
   display: flex;
-  gap: 6px;
-  margin-top: 10px;
+  gap: 10px;
+  margin-top: 14px;
 }
 
 .field-add .form-input {
