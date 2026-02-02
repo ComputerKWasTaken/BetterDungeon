@@ -116,7 +116,7 @@ class BetterScriptsFeature {
     this.isStrippingMessages = false;
     
     // Debug logging (controlled only by this property)
-    this.debug = true;
+    this.debug = false;
   }
 
   // ==================== LOGGING ====================

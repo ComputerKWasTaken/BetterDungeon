@@ -17,7 +17,7 @@ class TryFeature {
     this.weight = 0; // Weight modifier: -9 (5% success) to +9 (95% success)
     this.weightKeyHandler = null; // Handler for Up/Down arrow keys
     this.successBar = null; // The visible success chance bar element
-    this.debug = true;
+    this.debug = false;
 
     // Outcome phrase pools for variety
     this.phrases = {

@@ -20,7 +20,7 @@ class StoryCardScanner {
     this.averageCardTime = null;
     
     // Debug mode - set to true to enable verbose logging
-    this.debug = true;
+    this.debug = false;
     
     // Timing constants (ms) - optimized for speed
     this.TIMING = {
