@@ -10,8 +10,9 @@ class TutorialService {
     this.onComplete = null;
     this.onExit = null;
     
-    // Define tutorial steps - Updated for unified feature system
+    // Define tutorial steps - Ordered to match popup.html element structure
     this.steps = [
+      // Welcome Modal
       {
         id: 'welcome',
         type: 'modal',
@@ -19,6 +20,7 @@ class TutorialService {
         content: 'This quick tour will introduce you to the features that enhance your AI Dungeon experience.',
         icon: 'icon-wand-sparkles'
       },
+      // Features Tab Navigation
       {
         id: 'features-tab',
         type: 'spotlight',
@@ -27,6 +29,7 @@ class TutorialService {
         content: 'All your configurable features are organized here by category. Click any card to expand and see more options!',
         position: 'bottom'
       },
+      // === Input Modes Section ===
       {
         id: 'command-mode',
         type: 'spotlight',
@@ -45,21 +48,13 @@ class TutorialService {
         position: 'bottom',
         expandCard: true
       },
+      // === Formatting & Visuals Section ===
       {
         id: 'markdown',
         type: 'spotlight',
         target: '[data-feature="markdown"]',
         title: 'Markdown Formatting',
         content: 'Renders rich text in AI responses. Click "Apply Instructions" to teach the AI the syntax!',
-        position: 'bottom',
-        expandCard: true
-      },
-      {
-        id: 'trigger-highlight',
-        type: 'spotlight',
-        target: '[data-feature="triggerHighlight"]',
-        title: 'Trigger Highlighting',
-        content: 'Visualizes story card triggers in the context viewer. Hover over highlights to see which cards are active!',
         position: 'bottom',
         expandCard: true
       },
@@ -72,6 +67,7 @@ class TutorialService {
         position: 'bottom',
         expandCard: true
       },
+      // === Tools Section ===
       {
         id: 'hotkeys',
         type: 'spotlight',
@@ -82,12 +78,12 @@ class TutorialService {
         expandCard: true
       },
       {
-        id: 'auto-see',
+        id: 'trigger-highlight',
         type: 'spotlight',
-        target: '[data-feature="autoSee"]',
-        title: 'Auto See',
-        content: 'Automatically triggers a See action after AI responses to visualize the scene. Set it to run every turn or at custom intervals!',
-        position: 'top',
+        target: '[data-feature="triggerHighlight"]',
+        title: 'Trigger Highlighting',
+        content: 'Visualizes story card triggers in the context viewer. Hover over highlights to see which cards are active!',
+        position: 'bottom',
         expandCard: true
       },
       {
@@ -126,6 +122,17 @@ class TutorialService {
         position: 'top',
         expandCard: true
       },
+      // === Automations Section ===
+      {
+        id: 'auto-see',
+        type: 'spotlight',
+        target: '[data-feature="autoSee"]',
+        title: 'Auto See',
+        content: 'Automatically triggers a See action after AI responses to visualize the scene. Set it to run every turn or at custom intervals!',
+        position: 'top',
+        expandCard: true
+      },
+      // Presets Tab Navigation
       {
         id: 'presets-tab',
         type: 'spotlight',
@@ -136,6 +143,16 @@ class TutorialService {
         action: 'switchTab',
         actionTarget: 'presets'
       },
+      // === Plot Presets Section ===
+      {
+        id: 'plot-presets',
+        type: 'spotlight',
+        target: '#preset-list',
+        title: 'Plot Presets',
+        content: 'Save your current AI Instructions, Plot Essentials, and Author\'s Note as reusable presets. Apply them to any adventure with one click!',
+        position: 'bottom'
+      },
+      // === Character Presets Section ===
       {
         id: 'character-presets',
         type: 'spotlight',
@@ -144,6 +161,7 @@ class TutorialService {
         content: 'Tired of retyping character info? Save character profiles and auto-fill scenario entry questions with one click!',
         position: 'top'
       },
+      // Complete Modal
       {
         id: 'complete',
         type: 'modal',
