@@ -160,17 +160,18 @@ class TutorialService {
         title: 'Character Presets',
         content: 'Tired of retyping character info? Save character profiles and auto-fill scenario entry questions with one click!',
         position: 'top'
-      },
-      // Complete Modal
-      {
-        id: 'complete',
-        type: 'modal',
-        title: 'You\'re All Set!',
-        content: 'You now know the essentials of BetterDungeon. Toggle features on/off anytime, and enjoy your enhanced AI Dungeon experience!',
-        icon: 'icon-badge-check',
-        isComplete: true
       }
     ];
+    
+    // Completion modal is separate from steps - shown after all steps are done
+    this.completionModal = {
+      id: 'complete',
+      type: 'modal',
+      title: 'You\'re All Set!',
+      content: 'You now know the essentials of BetterDungeon. Toggle features on/off anytime, and enjoy your enhanced AI Dungeon experience!',
+      icon: 'icon-badge-check'
+    };
+    
     this.debug = false;
   }
 
@@ -195,21 +196,22 @@ class TutorialService {
     });
   }
 
-  async saveState(state) {
+  async saveState(updates) {
+    const currentState = await this.loadState();
+    const newState = { ...currentState, ...updates };
     return new Promise((resolve) => {
-      chrome.storage.sync.set({ [this.STORAGE_KEY]: state }, resolve);
+      chrome.storage.sync.set({ [this.STORAGE_KEY]: newState }, resolve);
     });
   }
 
   async markCompleted() {
-    await this.saveState({ completed: true, seenWelcome: true, lastStep: this.steps.length - 1 });
+    await this.saveState({ completed: true, seenWelcome: true });
     this.hasCompletedTutorial = true;
+    this.hasSeenWelcome = true;
   }
 
   async markSeenWelcome() {
-    const state = await this.loadState();
-    state.seenWelcome = true;
-    await this.saveState(state);
+    await this.saveState({ seenWelcome: true });
     this.hasSeenWelcome = true;
   }
 
@@ -263,6 +265,10 @@ class TutorialService {
   getCurrentStep() {
     return this.steps[this.currentStep];
   }
+  
+  getCompletionModal() {
+    return this.completionModal;
+  }
 
   getProgress() {
     return {
@@ -276,7 +282,7 @@ class TutorialService {
     this.isActive = false;
     await this.markCompleted();
     if (this.onComplete) {
-      this.onComplete();
+      this.onComplete(this.completionModal);
     }
   }
 
