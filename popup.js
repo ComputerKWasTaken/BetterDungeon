@@ -1381,11 +1381,17 @@ function setupTutorialHandlers() {
   document.getElementById('tutorial-skip')?.addEventListener('click', exitTutorial);
   
   document.getElementById('tutorial-modal-primary')?.addEventListener('click', () => {
-    closeTutorialModal();
-    const step = tutorialService?.getCurrentStep();
-    if (step?.isComplete) {
-      handleTutorialComplete();
+    // Check if we're on the completion modal (shown after all steps)
+    const modalTitle = document.getElementById('tutorial-modal-title')?.textContent;
+    const completionModal = tutorialService?.getCompletionModal();
+    
+    if (completionModal && modalTitle === completionModal.title) {
+      // This is the completion modal - finish up
+      closeTutorialModal();
+      switchToTab('features');
     } else {
+      // Regular step modal - proceed to next
+      closeTutorialModal();
       tutorialService?.next();
     }
   });
@@ -1606,10 +1612,16 @@ function switchToTab(tabName) {
   document.querySelector(`[data-tab="${tabName}"]`)?.click();
 }
 
-function handleTutorialComplete() {
+function handleTutorialComplete(completionModal) {
   cleanupTutorialStep();
-  closeTutorialModal();
-  switchToTab('features');
+  
+  // If completion modal data is provided, show it
+  if (completionModal) {
+    showTutorialModal({ ...completionModal, isComplete: true });
+  } else {
+    closeTutorialModal();
+    switchToTab('features');
+  }
 }
 
 function handleTutorialExit() {
