@@ -1,7 +1,5 @@
 # ![BetterDungeon Icon](icons/icon16.png) BetterDungeon
 
-**🚧 Early Access** — Things might break, features might change, feedback is welcome!
-
 The all-in-one browser extension for AI Dungeon that enhances the experience with QOL additions and brand new features.
 
 ## Installation
@@ -35,6 +33,8 @@ Settings sync across Chromium browsers.
 
 ### Quality of Life
 
+- **BetterScripts** — A communication layer between the extension and AI Dungeon scripts to allow for the creation of dynamic UI widgets
+
 - **Markdown Support** — Asterisk-free formatting that actually works with AI models. Bold, italic, underline, whisper text, scene breaks, and lists.
   - Hit "Apply Instructions" in the popup to teach the AI when to use each format
 
@@ -53,7 +53,7 @@ Settings sync across Chromium browsers.
 
 - **Auto See** — Automatically triggers a See input command after every AI response or after a certain amount of turns.
 
-- **Adventure Notes** — A resizable notes panel that saves per adventure. Write down plot points, character details, or session notes without leaving the game.
+- **Adventure Notes** — An embedded Plot Components notes card that saves per adventure. Track plot points, character details, or session notes without leaving the game.
 
 ### Presets
 
@@ -63,9 +63,9 @@ Settings sync across Chromium browsers.
 
 ### Small QOL Improvements
 
-- **Readable Tab Fix** — Moves the "Readable" tab back where it belongs. You're welcome.
-
 - **Auto Enable Scripts** - A small QOL feature that automatically retoggles the "Enable Scripts" option in the Scenario Creation page.
+
+- **Story Card Modal Dock** - A small QOL feature that docks the story card modal to the right of the screen, and allows you to scroll through your story while you edit your Story Cards
 
 ## Support
 

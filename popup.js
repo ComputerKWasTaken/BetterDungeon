@@ -72,7 +72,8 @@ const DEFAULT_FEATURES = {
   inputModeColor: true,
   characterPreset: true,
   autoSee: false,
-  notes: true
+  notes: true,
+  storyCardModalDock: true
 };
 
 const DEFAULT_SETTINGS = {
@@ -1189,11 +1190,6 @@ function openCharacterModal(character) {
   openModal('character-modal');
 }
 
-const PRIORITY_FIELDS = [
-  'name', 'age', 'gender', 'pronouns', 'species', 'title', 'class',
-  'appearance', 'personality', 'backstory', 'occupation', 'goal'
-];
-
 function renderCharacterFields(fields) {
   const container = document.getElementById('character-fields-list');
   if (!container) return;
@@ -1205,12 +1201,8 @@ function renderCharacterFields(fields) {
     return;
   }
 
-  // Sort by priority
-  const sorted = entries.sort((a, b) => {
-    const aIdx = PRIORITY_FIELDS.indexOf(a[0]);
-    const bIdx = PRIORITY_FIELDS.indexOf(b[0]);
-    return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
-  });
+  // Sort alphabetically by key
+  const sorted = entries.sort((a, b) => a[0].localeCompare(b[0]));
 
   container.innerHTML = sorted.map(([key, value]) => `
     <div class="field-item" data-key="${escapeHtml(key)}">
@@ -1389,11 +1381,17 @@ function setupTutorialHandlers() {
   document.getElementById('tutorial-skip')?.addEventListener('click', exitTutorial);
   
   document.getElementById('tutorial-modal-primary')?.addEventListener('click', () => {
-    closeTutorialModal();
-    const step = tutorialService?.getCurrentStep();
-    if (step?.isComplete) {
-      handleTutorialComplete();
+    // Check if we're on the completion modal (shown after all steps)
+    const modalTitle = document.getElementById('tutorial-modal-title')?.textContent;
+    const completionModal = tutorialService?.getCompletionModal();
+    
+    if (completionModal && modalTitle === completionModal.title) {
+      // This is the completion modal - finish up
+      closeTutorialModal();
+      switchToTab('features');
     } else {
+      // Regular step modal - proceed to next
+      closeTutorialModal();
       tutorialService?.next();
     }
   });
@@ -1614,10 +1612,16 @@ function switchToTab(tabName) {
   document.querySelector(`[data-tab="${tabName}"]`)?.click();
 }
 
-function handleTutorialComplete() {
+function handleTutorialComplete(completionModal) {
   cleanupTutorialStep();
-  closeTutorialModal();
-  switchToTab('features');
+  
+  // If completion modal data is provided, show it
+  if (completionModal) {
+    showTutorialModal({ ...completionModal, isComplete: true });
+  } else {
+    closeTutorialModal();
+    switchToTab('features');
+  }
 }
 
 function handleTutorialExit() {

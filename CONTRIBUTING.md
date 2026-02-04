@@ -26,68 +26,6 @@ Developer documentation for contributors and maintainers.
 
 ---
 
-## Project Roadmap
-
-### Future Additions
-
-These are future additions to the extension that I want to implement, both before Early Access, at launch, and after.
-
-### Most Likely Happening
-- **Automatic Model Selection** - A system added to the AI Dungeon that can automatically switch and select the best model for the user's needs, depending on their configuration.
-- **Adventure Statistics** — Track word count, turn count, and session duration for your adventures. Just for funsies.
-
-### Considering
-- **BetterScripts** - A system that allows AI Dungeon scripts to interface and interact with the extension, allowing for things like an "in game clock" with actual UI elements on the page, with a time management script.
-- **Quick Actions Menu** — A floating action button with common actions that aren't typically present on the main Adventure page, like "Add Story Card", "Change Image Generator", etc.
-- **Scenario/Adventure Folder Organization** - Group scenarios and adventures into collapsible folders for better management. (WARNING: This is an extensively difficult task from what I've experimented with. The problem is dealing with DOM virtualization and how AI Dungeon handles sorting and whatnot, which is an incredibly difficult problem to solve. We're limited by what we can do within the DOM. I'm hoping I can do this (it's an incredibly desired feature) but it's going to be a challenge.)
-- **Story Card Folder Organization** — Group story cards into collapsible folders for better management. In fact, just improve Story Cards overall. They lowkey reek.
-- **Correction** - An action (not a story input action) next to Retry that allows the user to instruct and specify a story correction that gets sent to the AI. Instead of hitting Retry over and over again, the user can specify what is wrong with the output and the AI will retry with the correction. (The issue is that this may be impossible without adjusting the way AI Dungeon sends information to the AI. And due to the nature of how the DOM works and how Chromium handles what extensions can or can't do with websites, I don't think it's possible. Not only that, why not just use Command? It works the same way and is probably clearer to the AI over longer contexts.)
-
-### Long-Term Ideas
-- **Text to Speech** - Reads your story aloud with text to speech.
-- **Background Music** - Plays background music while you play.
-- **Customizable UI** - Let users customize the UI to their liking.
-
-### Alternative Resource Ideas
-- **BetterRepository** - A community-driven platform for sharing and discovering BetterDungeon resources like AI Instructions, plot components, story cards, scripts, etc. May also include BetterScripts.
-
----
-
-## Project Management
-
-### To-Do List
-
-### 🔴 Urgent
-<!-- Critical items blocking release or severely impacting users -->
-
-### 🟠 High
-<!-- Important features or improvements to prioritize -->
-
-### 🟢 Low
-<!-- Nice-to-have improvements when time permits -->
-Change all features to use the natively downloaded IBM Plex Sans font instead of trying to inherit the font
-
-### 📋 Backlog
-<!-- Future ideas and long-term goals -->
-
----
-
-### Bug Tracker
-
-### 🔴 Urgent
-<!-- Critical bugs causing crashes or data loss -->
-
-### 🟠 High
-<!-- Bugs significantly impacting user experience -->
-
-### 🟢 Low
-<!-- Minor bugs or edge cases -->
-
-### 📋 Backlog
-<!-- Known issues with workarounds or minimal impact -->
-
----
-
 ## Architecture & Structure
 
 ### Project Overview
@@ -134,9 +72,17 @@ Each feature implements:
 
 ### Changelog
 
-### v0.9.6
+### v1.0.0 (in progress)
+- Added **BetterScripts**, a brand new communication layer between the extension and AI Dungeon scripts to allow for the creation of dynamic UI widgets
 - Ported over and improved the **Attempt** feature to be the **Try** feature
+- Improved **Try** feature formatting with **dynamic templates** and **varied outcome phrases** to reduce monotony
+- Embedded **Adventure Notes** directly in Plot Components (no floating panel or resizer)
+- **Improved the roll system** within the Try feature for more consistent odds and logic
 - Fixed and improved the **Input Mode Color** feature
+- Added **Story Card Modal Dock** feature, which docks the story card modal to the right side of the screen and allows you to scroll through your story
+- Improved **Character Preset** feature to be more consistent
+- Fixed color bleed issue on the buttons with the Input Mode color feature in custom themes
+- Fixed an issue with the Markdown rendering system where italic wrapping bold formatting and unordered formatting wouldn't work properly
 
 ### v0.9.5
 - Added **"Auto See"** feature, which automatically triggers a See input command after every AI response or after a certain amount of turns

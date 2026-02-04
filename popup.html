@@ -15,7 +15,7 @@
       <img src="icons/icon48.png" alt="" class="header-logo">
       <div class="header-title">
         <span class="header-name">BetterDungeon</span>
-        <span class="header-version">v0.9.5 <span class="header-badge">Early Access</span></span>
+        <span class="header-version">v1.0.0</span>
       </div>
     </div>
     <button class="header-help" id="tutorial-help-btn" aria-label="Start Tutorial" title="Help">
@@ -44,7 +44,7 @@
       <!-- Input Modes Group -->
       <div class="section">
         <div class="section-header">
-          <span class="section-icon icon-message-square"></span>
+          <span class="section-icon icon-message-square" style="color: var(--bd-section-input-modes);"></span>
           <h2 class="section-title">Input Modes</h2>
         </div>
         
@@ -105,7 +105,7 @@
       <!-- Formatting & Visuals Group -->
       <div class="section">
         <div class="section-header">
-          <span class="section-icon icon-type"></span>
+          <span class="section-icon icon-type" style="color: var(--bd-section-formatting);"></span>
           <h2 class="section-title">Formatting & Visuals</h2>
         </div>
 
@@ -114,7 +114,7 @@
           <div class="feature-row">
             <div class="feature-info">
               <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--bd-accent-primary);">
+                <span class="feature-icon" style="color: var(--bd-icon-markdown);">
                   <span class="icon-pilcrow"></span>
                 </span>
                 <h3 class="feature-title">Markdown Formatting</h3>
@@ -160,7 +160,7 @@
           <div class="feature-row">
             <div class="feature-info">
               <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--bd-mode-see-light);">
+                <span class="feature-icon" style="color: var(--bd-icon-palette);">
                   <span class="icon-palette"></span>
                 </span>
                 <h3 class="feature-title">Input Mode Colors</h3>
@@ -192,7 +192,7 @@
       <!-- Tools Group -->
       <div class="section">
         <div class="section-header">
-          <span class="section-icon icon-wrench"></span>
+          <span class="section-icon icon-wrench" style="color: var(--bd-section-tools);"></span>
           <h2 class="section-title">Tools</h2>
         </div>
 
@@ -201,7 +201,7 @@
           <div class="feature-row">
             <div class="feature-info">
               <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--bd-accent-primary);">
+                <span class="feature-icon" style="color: var(--bd-icon-hotkeys);">
                   <span class="icon-keyboard"></span>
                 </span>
                 <h3 class="feature-title">Hotkeys</h3>
@@ -251,7 +251,7 @@
           <div class="feature-row">
             <div class="feature-info">
               <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--bd-mode-command-light);">
+                <span class="feature-icon" style="color: var(--bd-icon-trigger);">
                   <span class="icon-sparkle"></span>
                 </span>
                 <h3 class="feature-title">Trigger Highlighting</h3>
@@ -292,7 +292,7 @@
           <div class="feature-row">
             <div class="feature-info">
               <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--bd-accent-primary);">
+                <span class="feature-icon" style="color: var(--bd-icon-notes);">
                   <span class="icon-notebook-pen"></span>
                 </span>
                 <h3 class="feature-title">Adventure Notes</h3>
@@ -305,8 +305,8 @@
             </label>
           </div>
           <div class="feature-details">
-            <p>A resizable notes panel that appears while playing. Notes are <strong>saved per adventure</strong>.</p>
-            <p class="feature-hint"><span class="icon-lightbulb"></span> Click the Notes button in the bottom-right corner to open a note for the current adventure.</p>
+            <p>An embedded Plot Components notes card that saves per adventure. Notes are <strong>saved per adventure</strong>.</p>
+            <p class="feature-hint"><span class="icon-lightbulb"></span> Notes appear at the bottom of the Plot Components section when enabled.</p>
           </div>
         </article>
 
@@ -315,7 +315,7 @@
           <div class="feature-row">
             <div class="feature-info">
               <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--bd-accent-secondary);">
+                <span class="feature-icon" style="color: var(--bd-icon-analytics);">
                   <span class="icon-chart-bar"></span>
                 </span>
                 <h3 class="feature-title">Story Card Analytics</h3>
@@ -334,12 +334,67 @@
           </div>
         </article>
 
+        <!-- BetterScripts -->
+        <article class="feature-card" data-feature="betterScripts">
+          <div class="feature-row">
+            <div class="feature-info">
+              <div class="feature-title-row">
+                <span class="feature-icon" style="color: var(--bd-icon-scripts);">
+                  <span class="icon-code"></span>
+                </span>
+                <h3 class="feature-title">BetterScripts</h3>
+              </div>
+              <p class="feature-desc">Script-to-extension widget communication</p>
+            </div>
+          </div>
+          <div class="feature-details">
+            <p>Enables AI Dungeon scripts to create <strong>dynamic UI widgets</strong> displaying HP bars, stats, and game state.</p>
+            <p class="feature-hint"><span class="icon-lightbulb"></span> Scripts send commands via <code>[[BD:...:BD]]</code> protocol messages.</p>
+            
+            <div class="syntax-box">
+              <div class="syntax-row"><code>stat</code><span>Label + value</span></div>
+              <div class="syntax-row"><code>bar</code><span>Progress bar</span></div>
+              <div class="syntax-row"><code>panel</code><span>Multi-stat container</span></div>
+              <div class="syntax-row"><code>text</code><span>Simple text display</span></div>
+              <div class="syntax-row"><code>custom</code><span>Custom HTML widgets</span></div>
+            </div>
+
+            <a href="https://better-repository.netlify.app/scripts" target="_blank" rel="noopener noreferrer" class="btn btn-action">
+              <span class="icon-external-link"></span>
+              View Example Scripts
+            </a>
+          </div>
+        </article>
+
+        <!-- Story Card Modal Dock -->
+        <article class="feature-card" data-feature="storyCardModalDock">
+          <div class="feature-row">
+            <div class="feature-info">
+              <div class="feature-title-row">
+                <span class="feature-icon" style="color: var(--bd-icon-modal-dock);">
+                  <span class="icon-panel-right"></span>
+                </span>
+                <h3 class="feature-title">Story Card Modal Dock</h3>
+              </div>
+              <p class="feature-desc">Docks story card editor to the side</p>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="feature-storyCardModalDock" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="feature-details">
+            <p>Docks the story card modal to the <strong>right side of the screen</strong>, allowing you to scroll through your story while editing Story Cards.</p>
+            <p class="feature-hint"><span class="icon-lightbulb"></span> Great for checking context without closing the editor.</p>
+          </div>
+        </article>
+
       </div>
 
       <!-- Automations -->
       <div class="section">
         <div class="section-header">
-          <span class="section-icon icon-zap"></span>
+          <span class="section-icon icon-zap" style="color: var(--bd-section-automations);"></span>
           <h2 class="section-title">Automations</h2>
         </div>
 
@@ -387,22 +442,26 @@
             </div>
           </div>
         </article>
-      </div>
 
-      <!-- Always-On Enhancements -->
-      <div class="section section-compact">
-        <div class="section-header">
-          <span class="section-icon icon-zap"></span>
-          <h2 class="section-title">Always On</h2>
-        </div>
-        <div class="enhancement-row">
-          <span class="icon-book-open"></span>
-          <span>Readable Tab Fix</span>
-        </div>
-        <div class="enhancement-row">
-          <span class="icon-terminal"></span>
-          <span>Auto Enable Scripts</span>
-        </div>
+        <!-- Auto Enable Scripts -->
+        <article class="feature-card" data-feature="autoEnableScripts">
+          <div class="feature-row">
+            <div class="feature-info">
+              <div class="feature-title-row">
+                <span class="feature-icon" style="color: var(--bd-icon-auto-scripts);">
+                  <span class="icon-terminal"></span>
+                </span>
+                <h3 class="feature-title">Auto Enable Scripts</h3>
+              </div>
+              <p class="feature-desc">Automatically re-enables scripts in scenario editor</p>
+            </div>
+          </div>
+          <div class="feature-details">
+            <p>Automatically retoggles the "Enable Scripts" option in the <strong>Scenario Creation page</strong> when it gets disabled.</p>
+            <p class="feature-hint"><span class="icon-lightbulb"></span> Saves you from manually re-enabling scripts every time.</p>
+          </div>
+        </article>
+
       </div>
 
     </section>
@@ -413,7 +472,7 @@
       <!-- Plot Presets -->
       <div class="section">
         <div class="section-header">
-          <span class="section-icon icon-star"></span>
+<span class="section-icon icon-star" style="color: var(--bd-accent-primary);"></span>
           <h2 class="section-title">Plot Presets</h2>
         </div>
 
@@ -439,7 +498,7 @@
       <!-- Character Presets -->
       <div class="section">
         <div class="section-header">
-          <span class="section-icon icon-user"></span>
+<span class="section-icon icon-user" style="color: var(--bd-accent-primary);"></span>
           <h2 class="section-title">Characters</h2>
           <label class="toggle sm section-toggle">
             <input type="checkbox" id="feature-characterPreset" checked>
@@ -459,6 +518,18 @@
             <p class="empty-desc">Create a character to auto-fill scenario entry fields.</p>
           </div>
         </div>
+      </div>
+
+      <!-- BetterRepository Link -->
+      <div class="section section-compact">
+        <a href="https://better-repository.netlify.app" target="_blank" rel="noopener noreferrer" class="ecosystem-link">
+          <img src="icons/betterrepository_logo.png" alt="" class="ecosystem-link-logo">
+          <div class="ecosystem-link-content">
+            <span class="ecosystem-link-title">BetterRepository</span>
+            <span class="ecosystem-link-desc">Find AI Instructions, Plot Components & Scripts</span>
+          </div>
+          <span class="icon-external-link ecosystem-link-arrow"></span>
+        </a>
       </div>
 
     </section>

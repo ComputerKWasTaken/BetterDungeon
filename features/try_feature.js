@@ -17,7 +17,50 @@ class TryFeature {
     this.weight = 0; // Weight modifier: -9 (5% success) to +9 (95% success)
     this.weightKeyHandler = null; // Handler for Up/Down arrow keys
     this.successBar = null; // The visible success chance bar element
-    this.debug = true;
+    this.debug = false;
+
+    // Outcome phrase pools for variety
+    this.phrases = {
+      crit_success: [
+        'succeed beyond expectations',
+        'achieve it perfectly',
+        'pull it off with incredible style',
+        'succeed spectacularly',
+        'masterfully succeed'
+      ],
+      success: [
+        'manage to do it',
+        'are successful',
+        'pull it off',
+        'succeed',
+        'make it happen'
+      ],
+      failure: [
+        'can\'t quite manage it',
+        'fall short',
+        'don\'t succeed',
+        'fail',
+        'falter'
+      ],
+      crit_fail: [
+        'fail catastrophically',
+        'make a complete mess of it',
+        'fail in the worst way possible',
+        'fail miserably',
+        'suffer a disastrous failure'
+      ]
+    };
+
+    // Sentence templates for variety
+    // {action} = the user's action
+    // {outcome} = the result phrase (usually bolded)
+    // {connector} = 'and' or 'but'
+    this.templates = [
+      'try to {action}, {connector} you {outcome}.',
+      'In an attempt to {action}, you {outcome}.',
+      'You {outcome} in your attempt to {action}.',
+      '{action}... you {outcome}.'
+    ];
   }
 
   log(message, ...args) {
@@ -744,11 +787,23 @@ class TryFeature {
     const critRoll = Math.random() * 100;
     const isCrit = critRoll < this.criticalChance;
     
+    let status = '';
     if (succeeded) {
-      return isCrit ? 'critically succeed' : 'succeed';
+      status = isCrit ? 'crit_success' : 'success';
     } else {
-      return isCrit ? 'critically fail' : 'fail';
+      status = isCrit ? 'crit_fail' : 'failure';
     }
+
+    // Pick a random phrase from the pool
+    const phrasePool = this.phrases[status];
+    const phrase = phrasePool[Math.floor(Math.random() * phrasePool.length)];
+    
+    return {
+      status,
+      succeeded,
+      isCrit,
+      phrase: `**${phrase}**` // Apply Markdown bolding (we use standard because we aren't actually formatting)
+    };
   }
 
   watchForTryAction(tryText) {
@@ -828,7 +883,7 @@ class TryFeature {
       action = action.replace(pattern, '');
     }
     
-    // Ensure the action starts lowercase (since it follows "try to")
+    // Ensure the action starts lowercase (since it follows "try to" in some templates)
     if (action.length > 0) {
       action = action.charAt(0).toLowerCase() + action.slice(1);
     }
@@ -837,10 +892,32 @@ class TryFeature {
     action = action.replace(/[.!?]+$/, '');
     
     // Roll for the outcome
-    const outcome = this.rollOutcome();
+    const result = this.rollOutcome();
     
-    // Format: "You try to [action], you [result]."
-    return `try to ${action}, you ${outcome}.`;
+    // Select a random template
+    const template = this.templates[Math.floor(Math.random() * this.templates.length)];
+    
+    // Prepare variables for template replacement
+    const connector = result.succeeded ? 'and' : 'but';
+    
+    // If the template starts with {action}, we might want to capitalize it
+    let formattedAction = action;
+    if (template.startsWith('{action}')) {
+      formattedAction = action.charAt(0).toUpperCase() + action.slice(1);
+    }
+
+    // Perform replacement
+    let finalOutput = template
+      .replace('{action}', formattedAction)
+      .replace('{outcome}', result.phrase)
+      .replace('{connector}', connector);
+
+    // Ensure it ends with a period
+    if (!finalOutput.endsWith('.')) {
+      finalOutput += '.';
+    }
+
+    return finalOutput;
   }
 }
 

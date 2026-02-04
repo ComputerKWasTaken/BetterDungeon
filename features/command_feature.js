@@ -667,12 +667,12 @@ class CommandFeature {
   }
 
   formatAsCommand(content) {
-    // Format: [ ## User Input: ]
+    // Format: ## User Input:
     const cleanedContent = content
       .replace(/^[\s#]+/, '')  // Remove leading whitespace and # characters
       .replace(/[\s.?!:]+$/, ''); // Remove trailing punctuation and whitespace
     
-    return `\n\n[ ## ${cleanedContent}: ]\n\n`;
+    return `\n\n## ${cleanedContent}:\n\n`;
   }
 
   scheduleCommandDeletion(commandText) {

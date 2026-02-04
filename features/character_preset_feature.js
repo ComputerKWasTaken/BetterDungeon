@@ -7,7 +7,6 @@ class CharacterPresetFeature {
   constructor() {
     this.observer = null;
     this.checkInterval = null;
-    this.domUtils = window.DOMUtils;
     this.storageKey = 'betterDungeon_characterPresets';
     this.activePresetKey = 'betterDungeon_activeCharacterPreset';
     this.sessionCharacterKey = 'betterDungeon_sessionCharacter';
@@ -340,167 +339,44 @@ class CharacterPresetFeature {
   // ============================================
   // FIELD KEY NORMALIZATION
   // ============================================
+  // Simple approach: sanitize the question label and use it as the field key.
+  // Same question = same key = auto-filled. Different question = different key.
 
-  // Core field types that we recognize
-  static KNOWN_FIELDS = [
-    'name', 'age', 'gender', 'pronouns', 'species', 'race', 'class', 'title', 'role',
-    'appearance', 'looks', 'personality', 'traits', 'backstory', 'background', 'history',
-    'occupation', 'job', 'profession', 'goal', 'goals', 'objective', 'motivation',
-    'skills', 'abilities', 'powers', 'inventory', 'items', 'equipment', 'weapons',
-    'strengths', 'weaknesses', 'flaws', 'fears', 'likes', 'dislikes', 'hobbies',
-    'relationships', 'family', 'friends', 'allies', 'enemies', 'faction', 'affiliation',
-    'homeland', 'origin', 'birthplace', 'location', 'home'
-  ];
-
-  // Canonical mappings for field variations
-  static FIELD_MAPPINGS = {
-    // Name
-    'name': 'name', 'names': 'name', 'called': 'name', 'call': 'name',
-    // Age
-    'age': 'age', 'old': 'age', 'years': 'age',
-    // Gender
-    'gender': 'gender', 'sex': 'gender',
-    // Pronouns
-    'pronouns': 'pronouns', 'pronoun': 'pronouns',
-    // Species/Race
-    'species': 'species', 'race': 'species', 'creature': 'species', 'type': 'species',
-    // Class/Role
-    'class': 'class', 'role': 'class', 'title': 'title', 'rank': 'title',
-    // Appearance
-    'appearance': 'appearance', 'looks': 'appearance', 'look': 'appearance',
-    'physical': 'appearance', 'description': 'appearance', 'describe': 'appearance',
-    // Personality
-    'personality': 'personality', 'traits': 'personality', 'trait': 'personality',
-    'attitude': 'personality', 'demeanor': 'personality', 'temperament': 'personality',
-    // Backstory
-    'backstory': 'backstory', 'background': 'backstory', 'history': 'backstory',
-    'past': 'backstory', 'origin': 'backstory', 'story': 'backstory',
-    // Occupation
-    'occupation': 'occupation', 'job': 'occupation', 'profession': 'occupation',
-    'work': 'occupation', 'career': 'occupation', 'trade': 'occupation',
-    // Goals
-    'goal': 'goal', 'goals': 'goal', 'objective': 'goal', 'objectives': 'goal',
-    'motivation': 'goal', 'motivations': 'goal', 'ambition': 'goal', 'dream': 'goal',
-    // Skills
-    'skills': 'skills', 'skill': 'skills', 'abilities': 'skills', 'ability': 'skills',
-    'powers': 'skills', 'power': 'skills', 'talents': 'skills', 'talent': 'skills',
-    // Inventory
-    'inventory': 'inventory', 'items': 'inventory', 'equipment': 'inventory',
-    'gear': 'inventory', 'weapons': 'inventory', 'belongings': 'inventory',
-    // Strengths/Weaknesses
-    'strengths': 'strengths', 'strength': 'strengths', 'strong': 'strengths',
-    'weaknesses': 'weaknesses', 'weakness': 'weaknesses', 'weak': 'weaknesses',
-    'flaws': 'weaknesses', 'flaw': 'weaknesses',
-    // Preferences
-    'likes': 'likes', 'like': 'likes', 'love': 'likes', 'loves': 'likes', 'enjoy': 'likes',
-    'dislikes': 'dislikes', 'dislike': 'dislikes', 'hate': 'dislikes', 'hates': 'dislikes',
-    'fears': 'fears', 'fear': 'fears', 'afraid': 'fears', 'phobia': 'fears',
-    // Relationships
-    'relationships': 'relationships', 'relationship': 'relationships',
-    'family': 'family', 'parents': 'family', 'siblings': 'family',
-    'friends': 'friends', 'friend': 'friends', 'allies': 'friends', 'ally': 'friends',
-    'enemies': 'enemies', 'enemy': 'enemies', 'rivals': 'enemies', 'rival': 'enemies',
-    // Location
-    'homeland': 'homeland', 'home': 'homeland', 'birthplace': 'homeland',
-    'location': 'homeland', 'origin': 'homeland', 'from': 'homeland', 'where': 'homeland',
-  };
-
+  // Normalize a label into a consistent field key
   normalizeFieldKey(label) {
     if (!label) return null;
     
-    const original = label;
-    
-    // Step 1: Clean up the label
-    let cleaned = label.toLowerCase()
+    return label.toLowerCase()
       .replace(/\s*\([^)]*\)/g, '')           // Remove (parenthetical content)
-      .replace(/\s*-\s*preceded by.*$/i, '')  // Remove "- preceded by ..." suffix
-      .replace(/\s*-\s*followed by.*$/i, '')  // Remove "- followed by ..." suffix
       .replace(/[?!.:;,"']/g, '')             // Remove punctuation
-      .trim();
-    
-    // Step 2: Try to extract the core field using patterns
-    const extractedField = this.extractFieldFromPattern(cleaned);
-    if (extractedField) {
-      return extractedField;
-    }
-    
-    // Step 3: Normalize to underscore format and check direct mappings
-    const normalized = cleaned
-      .replace(/[^a-z0-9\s]/g, '')
+      .replace(/[^a-z0-9\s]/g, '')            // Remove special chars
       .trim()
-      .replace(/\s+/g, '_');
-    
-    // Step 4: Check if any known field appears in the normalized string
-    const foundField = this.findFieldInText(normalized.replace(/_/g, ' '));
-    if (foundField) {
-      return foundField;
-    }
-    
-    // Step 5: Return the normalized string as-is (unknown field type)
-    return normalized;
+      .replace(/\s+/g, '_');                  // Spaces to underscores
   }
 
-  extractFieldFromPattern(text) {
-    // Common patterns for field questions
-    const patterns = [
-      // "What is your [field]?" / "What's your [field]?"
-      /what(?:'s|\s+is)\s+(?:your|the|their)\s+(?:character'?s?\s+)?(.+)/i,
-      // "Enter your [field]" / "Enter [field]"
-      /enter\s+(?:your|the|a)?\s*(?:character'?s?\s+)?(.+)/i,
-      // "Your [field]" / "Character's [field]"
-      /^(?:your|the|their|character'?s?)\s+(.+)/i,
-      // "Describe your [field]" / "Describe [field]"
-      /describe\s+(?:your|the)?\s*(?:character'?s?\s+)?(.+)/i,
-      // "How old are you" -> age
-      /how\s+old/i,
-      // "What do you look like" -> appearance  
-      /what\s+do\s+(?:you|they)\s+look\s+like/i,
-      // "[field]:" at start
-      /^([a-z]+)\s*$/i,
-    ];
-    
-    // Special case patterns that map to specific fields
-    if (/how\s+old/i.test(text)) return 'age';
-    if (/what\s+do\s+(?:you|they)\s+look\s+like/i.test(text)) return 'appearance';
-    if (/who\s+are\s+you/i.test(text)) return 'backstory';
-    if (/tell\s+(?:me|us)\s+about\s+(?:yourself|your\s+character)/i.test(text)) return 'backstory';
-    if (/where\s+(?:are|do)\s+(?:you|they)\s+(?:come\s+)?from/i.test(text)) return 'homeland';
-    if (/what\s+(?:do|can)\s+(?:you|they)\s+do/i.test(text)) return 'skills';
-    
-    // Try extraction patterns
-    for (const pattern of patterns) {
-      const match = text.match(pattern);
-      if (match && match[1]) {
-        const extracted = match[1].trim();
-        // Look up the extracted word in mappings
-        const field = this.findFieldInText(extracted);
-        if (field) return field;
-      }
-    }
-    
-    return null;
+  // Check if a field key looks like a "name" field
+  isNameFieldKey(fieldKey) {
+    if (!fieldKey) return false;
+    // Simple check: key is exactly "name" or ends with "_name" or contains "your_name"
+    return fieldKey === 'name' || 
+           fieldKey.endsWith('_name') || 
+           fieldKey.includes('your_name') ||
+           fieldKey.includes('characters_name');
   }
 
-  findFieldInText(text) {
-    const words = text.toLowerCase().split(/\s+/);
+  // Look up a saved value for a field
+  lookupFieldValue(preset, label) {
+    if (!preset || !preset.fields) return undefined;
     
-    // Check each word against known field mappings
-    for (const word of words) {
-      if (CharacterPresetFeature.FIELD_MAPPINGS[word]) {
-        return CharacterPresetFeature.FIELD_MAPPINGS[word];
-      }
+    const fieldKey = this.normalizeFieldKey(label);
+    
+    if (fieldKey && preset.fields[fieldKey] !== undefined) {
+      this.log(`[CharacterPreset] Found match for "${fieldKey}"`);
+      return preset.fields[fieldKey];
     }
     
-    // Check for partial matches (e.g., "personality" in "personality traits")
-    for (const word of words) {
-      for (const [key, value] of Object.entries(CharacterPresetFeature.FIELD_MAPPINGS)) {
-        if (word.includes(key) || key.includes(word)) {
-          return value;
-        }
-      }
-    }
-    
-    return null;
+    this.log(`[CharacterPreset] No match found for "${label}" (key: ${fieldKey})`);
+    return undefined;
   }
 
   // ============================================
@@ -568,7 +444,6 @@ class CharacterPresetFeature {
         this.currentFieldKey = field.fieldKey;
         this.hasAutoFilled = false;
         
-        
         // Clean up previous UI
         this.removeOverlay();
         this.removeSaveButton();
@@ -588,7 +463,9 @@ class CharacterPresetFeature {
   }
 
   async handleField(field) {
-    const isNameField = field.fieldKey === 'name';
+    // Check if this is a name field
+    const fieldKey = this.normalizeFieldKey(field.ariaLabel);
+    const isNameField = this.isNameFieldKey(fieldKey);
     const sessionCharacter = this.getSessionCharacter();
     
     // Check if this is a new scenario (URL changed)
@@ -618,8 +495,8 @@ class CharacterPresetFeature {
       // We have a session character - show indicator and handle auto-fill
       this.showCharacterIndicator(field, sessionCharacter);
       
-      // Check if we have a saved value for this field
-      const savedValue = sessionCharacter.fields[field.fieldKey];
+      // Look up saved value for this field
+      const savedValue = this.lookupFieldValue(sessionCharacter, field.ariaLabel);
       
       if (savedValue !== undefined && savedValue !== '') {
         // We have a saved value - auto-fill it
@@ -648,27 +525,6 @@ class CharacterPresetFeature {
   }
 
   // ============================================
-  // PRIORITY FIELDS (for sorting in editor)
-  // ============================================
-
-  static PRIORITY_FIELDS = [
-    'name', 'age', 'gender', 'pronouns', 'species', 'title', 'class',
-    'appearance', 'personality', 'backstory', 'occupation', 'goal',
-    'skills', 'inventory'
-  ];
-
-  getFieldPriority(fieldKey) {
-    const index = CharacterPresetFeature.PRIORITY_FIELDS.indexOf(fieldKey);
-    return index === -1 ? 999 : index;
-  }
-
-  getSortedFields(fields) {
-    return Object.entries(fields).sort((a, b) => {
-      return this.getFieldPriority(a[0]) - this.getFieldPriority(b[0]);
-    });
-  }
-
-  // ============================================
   // UI - CHARACTER SELECTOR (integrated into page)
   // ============================================
 
@@ -694,27 +550,21 @@ class CharacterPresetFeature {
     
     requestAnimationFrame(() => {
       this.overlayElement.classList.add('bd-selector-visible');
-      
-      // Show first-use hint
-      this.showFirstUseHint();
     });
     
     this.setupCharacterSelectorHandlers(field);
     
   }
 
-  showFirstUseHint() {
-    // Hint service removed - tutorial covers this
-  }
-
   buildCharacterSelectorHTML() {
     const hasPresets = this.presets.length > 0;
     
     if (hasPresets) {
-      // Always default to "Select..." - don't auto-select based on sessionCharacterId
-      const options = this.presets.map(p => 
-        `<option value="${p.id}">${this.escapeHtml(p.name)}</option>`
-      ).join('');
+      // Auto-select if we have a session character (e.g., just created one)
+      const options = this.presets.map(p => {
+        const isSelected = this.sessionCharacterId === p.id;
+        return `<option value="${p.id}"${isSelected ? ' selected' : ''}>${this.escapeHtml(p.name)}</option>`;
+      }).join('');
       
       return `
         <div class="bd-selector-row" style="font-family: var(--bd-font-family-primary);">
@@ -885,12 +735,30 @@ class CharacterPresetFeature {
       return;
     }
     
-    await this.updatePresetField(sessionCharacter.id, field.fieldKey, value);
+    // Save the field value
+    await this.saveField(sessionCharacter.id, field.ariaLabel, value);
     this.showToast(`Saved to ${sessionCharacter.name}`, 'success');
     this.removeSaveButton();
     
     // Click continue
     setTimeout(() => continueBtn.click(), 100);
+  }
+
+  // Save a field value under its normalized key
+  async saveField(presetId, label, value) {
+    const fieldKey = this.normalizeFieldKey(label);
+    
+    const preset = this.presets.find(p => p.id === presetId);
+    if (!preset) return null;
+    
+    if (fieldKey) {
+      preset.fields[fieldKey] = value;
+      this.log(`[CharacterPreset] Saved field: "${fieldKey}"`);
+    }
+    
+    preset.updatedAt = Date.now();
+    await this.savePresets();
+    return preset;
   }
 
   findContinueButton() {

@@ -34,10 +34,6 @@ class FeatureManager {
       this.featureClasses.set('try', TryFeature);
     }
 
-    if (typeof ReadablePositionFeature !== 'undefined') {
-      this.featureClasses.set('readablePosition', ReadablePositionFeature);
-    }
-
     if (typeof TriggerHighlightFeature !== 'undefined') {
       this.featureClasses.set('triggerHighlight', TriggerHighlightFeature);
     }
@@ -73,6 +69,14 @@ class FeatureManager {
     if (typeof AutoEnableScriptsFeature !== 'undefined') {
       this.featureClasses.set('autoEnableScripts', AutoEnableScriptsFeature);
     }
+
+    if (typeof StoryCardModalDockFeature !== 'undefined') {
+      this.featureClasses.set('storyCardModalDock', StoryCardModalDockFeature);
+    }
+
+    if (typeof BetterScriptsFeature !== 'undefined') {
+      this.featureClasses.set('betterScripts', BetterScriptsFeature);
+    }
   }
 
   async loadFeaturesFromStorage() {
@@ -80,7 +84,7 @@ class FeatureManager {
 
     this.featureClasses.forEach((FeatureClass, id) => {
       // Always-on QOL features that don't need user toggling
-      const alwaysEnabled = ['storyCardAnalytics', 'autoEnableScripts'];
+      const alwaysEnabled = ['storyCardAnalytics', 'betterScripts', 'autoEnableScripts'];
       // Features that are disabled by default
       const defaultOff = ['autoSee'];
       
@@ -107,6 +111,10 @@ class FeatureManager {
     try {
       const feature = new FeatureClass();
       this.features.set(id, feature);
+
+      // Explicitly set enabled state - FeatureManager is the source of truth
+      // This ensures features don't rely on reading their own enabled state from storage
+      feature.enabled = true;
 
       if (typeof feature.init === 'function') {
         feature.init();
