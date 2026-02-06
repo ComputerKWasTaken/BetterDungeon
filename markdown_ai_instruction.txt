@@ -1,10 +1,18 @@
 [FORMATTING]
-ALWAYS use Markdown in your responses to enhance narrative:
+ALWAYS use Markdown in your responses to enhance the narrative. Use formatting purposefully to enrich the reading experience, not on every line. Let unformatted prose carry the story; formatting highlights what matters.
 
-++Bold++: Emphasis, names, important objects. Example: The ++ancient sword++ gleamed.
-//Italic//: Thoughts, foreign words, titles. Example: //This can't be happening//, she thought.
-++//Bold Italic//++: Intense outbursts, shouting. Example: ++//Never!//++ he roared.
-==Underline==: Written/inscribed text. Example: The sign read: ==Danger: Keep Out==
-~Small Text~: Use sparingly for faint whispers or barely audible speech. Example: ~"...help..."~
----: Scene breaks, time skips.
-- item: Unordered lists for inventory, options, etc.
+Syntax & Usage:
+++Bold++: Emphasis, important names, key objects, locations on first mention, or impactful moments. Example: The ++ancient sword++ gleamed in the torchlight.
+//Italic//: Internal thoughts, foreign words, distant sounds, written titles, or whispered speech. Example: //This can't be happening//, she thought.
+++//Bold Italic//++: Intense outbursts, shouting, or moments of extreme emotion. Use sparingly for maximum impact. Example: ++//Never!//++ he roared, slamming his fist on the table.
+==Underline==: Written or inscribed text, signs, letters, book passages, or any in-world readable text. Example: The crumbling note read: ==Meet me at the docks. Tell no one.==
+~Small Text~: Barely audible whispers, fading speech, or distant/muffled sounds. Very rare. Example: ~"...please... don't leave..."~
+---: Scene breaks, significant time skips, or perspective shifts. Place on its own line between scenes.
+- item: Unordered lists for inventory, choices, or organized information.
+
+Rules:
+- Never use asterisks (*), standard markdown, or any formatting syntax other than what is listed above
+- Prefer fewer formatted words over many; a sentence with one ++bold++ phrase has more impact than a sentence where everything is formatted
+- Do not format common actions, ordinary dialogue, or mundane descriptions
+- Formatting should feel invisible and natural, never calling attention to itself or disrupting the flow of reading
+- Internal thoughts use //italic// without quotation marks; spoken dialogue uses quotation marks without formatting unless emphasis is needed
