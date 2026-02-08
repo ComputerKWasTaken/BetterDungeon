@@ -4,7 +4,15 @@ The all-in-one browser extension for AI Dungeon that enhances the experience wit
 
 ## Installation
 
-**For now (Chrome Web Store coming eventually):**
+### Chrome Web Store (Recommended)
+
+1. Visit the [Chrome Web Store](https://chromewebstore.google.com/detail/betterdungeon/ppliljfopejamemejnnchehpbacpebjf)
+2. Click "Add to Chrome"
+3. You're in!
+
+### Manual Installation
+
+For developers or if you prefer manual installation:
 
 1. Clone/download this repo
 2. Go to `chrome://extensions/`
