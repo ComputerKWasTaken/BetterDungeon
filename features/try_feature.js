@@ -454,6 +454,8 @@ class TryFeature {
       font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       font-size: 12px;
       color: #ccc;
+      position: relative;
+      z-index: 2;
     `;
     
     // Label
