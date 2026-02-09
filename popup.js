@@ -669,8 +669,14 @@ async function saveHotkeyBindings() {
 }
 
 // Reset hotkey bindings to defaults
-function resetHotkeyBindings() {
-  if (!confirm('Reset all hotkeys to their default values?')) return;
+async function resetHotkeyBindings() {
+  const confirmed = await showDialog({
+    title: 'Reset Hotkeys',
+    message: 'Reset all hotkeys to their default values?',
+    confirmText: 'Reset',
+    confirmClass: 'btn-danger'
+  });
+  if (!confirmed) return;
   
   currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS };
   renderHotkeyEditor();
@@ -785,7 +791,13 @@ async function saveModeColors() {
 
 // Reset mode colors to defaults
 async function resetModeColors() {
-  if (!confirm('Reset all colors to their default values?')) return;
+  const confirmed = await showDialog({
+    title: 'Reset Colors',
+    message: 'Reset all colors to their default values?',
+    confirmText: 'Reset',
+    confirmClass: 'btn-danger'
+  });
+  if (!confirmed) return;
   
   currentModeColors = { ...DEFAULT_MODE_COLORS };
   updateColorEditorInputs();
@@ -898,11 +910,15 @@ function createPresetCard(preset) {
   });
 
   // Delete button
-  card.querySelector('.preset-delete-btn').addEventListener('click', () => {
+  card.querySelector('.preset-delete-btn').addEventListener('click', async () => {
     menu.classList.remove('open');
-    if (confirm(`Delete "${preset.name}"?`)) {
-      deletePreset(preset.id);
-    }
+    const confirmed = await showDialog({
+      title: 'Delete Preset',
+      message: `Delete "${preset.name}"? This cannot be undone.`,
+      confirmText: 'Delete',
+      confirmClass: 'btn-danger'
+    });
+    if (confirmed) deletePreset(preset.id);
   });
 
   return card;
@@ -1100,11 +1116,16 @@ function updateTextareaStates() {
 function initCharacters() {
   loadCharacters();
   
-  document.getElementById('create-character-btn')?.addEventListener('click', () => {
-    const name = prompt('Enter character name:');
-    if (!name?.trim()) return;
+  document.getElementById('create-character-btn')?.addEventListener('click', async () => {
+    const name = await showDialog({
+      title: 'New Character',
+      message: 'Enter a name for the new character:',
+      confirmText: 'Create',
+      inputPlaceholder: 'Character name'
+    });
+    if (!name) return;
     
-    createCharacter(name.trim());
+    createCharacter(name);
   });
 }
 
@@ -1185,32 +1206,96 @@ function openCharacterModal(character) {
   currentEditingCharacter = character;
   
   document.getElementById('character-name-input').value = character.name;
+  
+  // Reset search state
+  const searchWrapper = document.getElementById('fields-search-wrapper');
+  const searchInput = document.getElementById('character-fields-search');
+  if (searchInput) searchInput.value = '';
+  
   renderCharacterFields(character.fields || {});
+  setupFieldSearch();
   
   openModal('character-modal');
 }
 
+// Humanize a normalized field key for display (e.g. "whats_your_age" -> "Whats Your Age")
+function humanizeFieldKey(key) {
+  if (!key) return '';
+  return key
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// Setup search/filter for character fields
+function setupFieldSearch() {
+  const searchInput = document.getElementById('character-fields-search');
+  if (!searchInput) return;
+  
+  // Remove old listeners by cloning
+  const newSearch = searchInput.cloneNode(true);
+  searchInput.parentNode.replaceChild(newSearch, searchInput);
+  
+  newSearch.addEventListener('input', () => {
+    const query = newSearch.value.toLowerCase().trim();
+    const items = document.querySelectorAll('#character-fields-list .field-item');
+    
+    items.forEach(item => {
+      const key = (item.dataset.key || '').toLowerCase();
+      const value = (item.querySelector('.field-value')?.value || '').toLowerCase();
+      const matches = !query || key.includes(query) || value.includes(query);
+      item.classList.toggle('field-item-hidden', !matches);
+    });
+  });
+}
+
 function renderCharacterFields(fields) {
   const container = document.getElementById('character-fields-list');
+  const countEl = document.getElementById('character-fields-count');
+  const searchWrapper = document.getElementById('fields-search-wrapper');
   if (!container) return;
 
   const entries = Object.entries(fields);
   
+  // Update field count badge
+  if (countEl) {
+    countEl.textContent = entries.length > 0 ? `${entries.length} field${entries.length !== 1 ? 's' : ''}` : '';
+  }
+  
+  // Show search bar only when there are enough fields to warrant it
+  if (searchWrapper) {
+    searchWrapper.style.display = entries.length >= 4 ? 'block' : 'none';
+  }
+  
   if (entries.length === 0) {
-    container.innerHTML = '<p class="fields-empty">No fields saved yet.</p>';
+    container.innerHTML = '<p class="fields-empty">No fields saved yet. Fields are saved automatically when you fill in scenario entry questions.</p>';
     return;
   }
 
   // Sort alphabetically by key
   const sorted = entries.sort((a, b) => a[0].localeCompare(b[0]));
 
-  container.innerHTML = sorted.map(([key, value]) => `
-    <div class="field-item" data-key="${escapeHtml(key)}">
-      <span class="field-key">${escapeHtml(key)}</span>
-      <input type="text" class="field-value" value="${escapeHtml(value)}" data-key="${escapeHtml(key)}">
-      <button class="field-delete" data-key="${escapeHtml(key)}">×</button>
-    </div>
-  `).join('');
+  container.innerHTML = sorted.map(([key, value]) => {
+    const displayKey = humanizeFieldKey(key);
+    // Show raw key only if it differs meaningfully from the display key
+    const showRaw = displayKey.toLowerCase().replace(/\s/g, '') !== key.replace(/_/g, '');
+    return `
+      <div class="field-item" data-key="${escapeHtml(key)}">
+        <div class="field-item-header">
+          <span class="field-key">
+            ${escapeHtml(displayKey)}${showRaw ? `<span class="field-key-raw">${escapeHtml(key)}</span>` : ''}
+          </span>
+          <button class="field-delete" data-key="${escapeHtml(key)}" title="Delete field">×</button>
+        </div>
+        <textarea class="field-value" data-key="${escapeHtml(key)}" rows="1">${escapeHtml(value)}</textarea>
+      </div>
+    `;
+  }).join('');
+
+  // Auto-resize textareas to fit content
+  container.querySelectorAll('.field-value').forEach(textarea => {
+    autoResizeTextarea(textarea);
+    textarea.addEventListener('input', () => autoResizeTextarea(textarea));
+  });
 
   // Delete handlers
   container.querySelectorAll('.field-delete').forEach(btn => {
@@ -1220,6 +1305,12 @@ function renderCharacterFields(fields) {
       renderCharacterFields(currentEditingCharacter.fields);
     });
   });
+}
+
+// Auto-resize a textarea to fit its content (up to max-height set in CSS)
+function autoResizeTextarea(textarea) {
+  textarea.style.height = 'auto';
+  textarea.style.height = Math.min(textarea.scrollHeight, 100) + 'px';
 }
 
 function addCharacterField() {
@@ -1250,11 +1341,11 @@ function saveCharacterChanges() {
   const nameInput = document.getElementById('character-name-input');
   currentEditingCharacter.name = nameInput.value.trim() || currentEditingCharacter.name;
 
-  // Update field values from inputs
-  document.querySelectorAll('#character-fields-list .field-value').forEach(input => {
-    const key = input.dataset.key;
+  // Update field values from textareas
+  document.querySelectorAll('#character-fields-list .field-value').forEach(textarea => {
+    const key = textarea.dataset.key;
     if (key && currentEditingCharacter.fields.hasOwnProperty(key)) {
-      currentEditingCharacter.fields[key] = input.value;
+      currentEditingCharacter.fields[key] = textarea.value;
     }
   });
 
@@ -1275,9 +1366,15 @@ function saveCharacterChanges() {
   });
 }
 
-function deleteCharacter() {
+async function deleteCharacter() {
   if (!currentEditingCharacter) return;
-  if (!confirm(`Delete "${currentEditingCharacter.name}"?`)) return;
+  const confirmed = await showDialog({
+    title: 'Delete Character',
+    message: `Delete "${currentEditingCharacter.name}"? This cannot be undone.`,
+    confirmText: 'Delete',
+    confirmClass: 'btn-danger'
+  });
+  if (!confirmed) return;
 
   chrome.storage.sync.get(STORAGE_KEYS.characters, (result) => {
     const characters = (result[STORAGE_KEYS.characters] || [])
@@ -1304,8 +1401,8 @@ function initModals() {
     });
   });
 
-  // Backdrop click to close
-  document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+  // Backdrop click to close (exclude dialog-modal — its Promise handles its own cleanup)
+  document.querySelectorAll('.modal-backdrop:not(#dialog-modal)').forEach(backdrop => {
     backdrop.addEventListener('click', (e) => {
       if (e.target === backdrop) closeModal(backdrop.id);
     });
@@ -1341,6 +1438,112 @@ function closeModal(id) {
   
   if (id === 'preset-modal') currentEditingPreset = null;
   if (id === 'character-modal') currentEditingCharacter = null;
+}
+
+// ============================================
+// REUSABLE DIALOG (replaces alert/confirm/prompt)
+// ============================================
+
+/**
+ * Show a dialog modal that replaces native alert/confirm/prompt.
+ * @param {Object} options
+ * @param {string} options.title - Dialog title
+ * @param {string} options.message - Dialog message
+ * @param {string} [options.confirmText='Confirm'] - Confirm button text
+ * @param {string} [options.cancelText='Cancel'] - Cancel button text
+ * @param {string} [options.confirmClass='btn-primary'] - CSS class for confirm button
+ * @param {string} [options.inputPlaceholder] - If set, shows an input field (prompt mode)
+ * @param {string} [options.inputValue=''] - Default value for the input field
+ * @returns {Promise<boolean|string|null>} true/false for confirm, string/null for prompt
+ */
+function showDialog(options = {}) {
+  return new Promise((resolve) => {
+    const {
+      title = 'Confirm',
+      message = '',
+      confirmText = 'Confirm',
+      cancelText = 'Cancel',
+      confirmClass = 'btn-primary',
+      inputPlaceholder,
+      inputValue = ''
+    } = options;
+    
+    const titleEl = document.getElementById('dialog-title');
+    const messageEl = document.getElementById('dialog-message');
+    const inputEl = document.getElementById('dialog-input');
+    const confirmBtn = document.getElementById('dialog-confirm');
+    const cancelBtn = document.getElementById('dialog-cancel');
+    
+    // Set content
+    if (titleEl) titleEl.textContent = title;
+    if (messageEl) messageEl.textContent = message;
+    if (confirmBtn) {
+      confirmBtn.textContent = confirmText;
+      confirmBtn.className = `btn ${confirmClass} btn-sm`;
+    }
+    if (cancelBtn) cancelBtn.textContent = cancelText;
+    
+    // Prompt mode: show input field
+    const isPrompt = inputPlaceholder !== undefined;
+    if (inputEl) {
+      inputEl.style.display = isPrompt ? 'block' : 'none';
+      inputEl.value = inputValue;
+      if (isPrompt) inputEl.placeholder = inputPlaceholder;
+    }
+    
+    // Backdrop element for click-outside-to-cancel
+    const backdropEl = document.getElementById('dialog-modal');
+    
+    // Cleanup function to remove listeners and close
+    let resolved = false;
+    const cleanup = () => {
+      if (resolved) return;
+      resolved = true;
+      closeModal('dialog-modal');
+      confirmBtn?.removeEventListener('click', onConfirm);
+      cancelBtn?.removeEventListener('click', onCancel);
+      backdropEl?.removeEventListener('click', onBackdropClick);
+      document.removeEventListener('keydown', onKeydown);
+    };
+    
+    const onConfirm = () => {
+      cleanup();
+      if (isPrompt) {
+        const val = inputEl?.value?.trim();
+        resolve(val || null);
+      } else {
+        resolve(true);
+      }
+    };
+    
+    const onCancel = () => {
+      cleanup();
+      resolve(isPrompt ? null : false);
+    };
+    
+    const onBackdropClick = (e) => {
+      if (e.target === backdropEl) onCancel();
+    };
+    
+    const onKeydown = (e) => {
+      if (e.key === 'Escape') onCancel();
+      if (e.key === 'Enter') onConfirm();
+    };
+    
+    confirmBtn?.addEventListener('click', onConfirm);
+    cancelBtn?.addEventListener('click', onCancel);
+    backdropEl?.addEventListener('click', onBackdropClick);
+    document.addEventListener('keydown', onKeydown);
+    
+    openModal('dialog-modal');
+    
+    // Focus the input in prompt mode, otherwise focus confirm button
+    if (isPrompt && inputEl) {
+      setTimeout(() => inputEl.focus(), 100);
+    } else {
+      setTimeout(() => confirmBtn?.focus(), 100);
+    }
+  });
 }
 
 // ============================================

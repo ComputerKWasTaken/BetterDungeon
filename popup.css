@@ -1316,63 +1316,149 @@ body {
   color: var(--text-primary);
 }
 
+/* === Character Modal (wider for field editing) === */
+.modal-character {
+  max-width: 380px;
+}
+
+/* === Fields Header === */
+.fields-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.fields-count {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-muted);
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+}
+
+/* === Fields Search === */
+.fields-search-wrapper {
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.fields-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.fields-search {
+  padding-left: 30px !important;
+  font-size: 12px !important;
+  height: 34px;
+}
+
 /* === Fields List (Character Modal) === */
 .fields-list {
   background: var(--bg-elevated);
   border-radius: var(--radius-md);
-  padding: 14px;
-  max-height: 200px;
+  padding: 8px;
+  max-height: 260px;
   overflow-y: auto;
+}
+
+.fields-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.fields-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.fields-list::-webkit-scrollbar-thumb {
+  background: var(--bg-active);
+  border-radius: 3px;
 }
 
 .fields-empty {
   font-size: 11px;
   color: var(--text-muted);
   text-align: center;
-  padding: 12px;
+  padding: 16px 12px;
 }
 
 .field-item {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border);
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  margin-bottom: 6px;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transition: border-color var(--transition-fast);
 }
 
 .field-item:last-child {
-  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.field-item:hover {
+  border-color: var(--border-hover);
+}
+
+.field-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .field-key {
   font-size: 11px;
   font-weight: 600;
   color: var(--accent);
-  min-width: 120px;
-  max-width: 150px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+}
+
+.field-key-raw {
+  font-size: 9px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  margin-left: 6px;
+  font-weight: 400;
 }
 
 .field-value {
-  flex: 1;
-  padding: 8px 12px;
-  background: var(--bg-base);
+  width: 100%;
+  padding: 7px 10px;
+  background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
   font-size: 12px;
   color: var(--text-primary);
+  resize: vertical;
+  min-height: 32px;
+  max-height: 100px;
+  line-height: 1.4;
+  transition: border-color var(--transition-fast);
 }
 
 .field-value:focus {
   outline: none;
   border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-muted);
 }
 
 .field-delete {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1381,7 +1467,9 @@ body {
   border-radius: var(--radius-sm);
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
 }
 
 .field-delete:hover {
@@ -1389,16 +1477,35 @@ body {
   color: var(--error);
 }
 
+.field-item-hidden {
+  display: none !important;
+}
+
+/* === Add Field Row === */
 .field-add {
   display: flex;
-  gap: 10px;
-  margin-top: 14px;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
 }
 
 .field-add .form-input {
   flex: 1;
-  padding: 8px 10px;
+  padding: 7px 10px;
   font-size: 12px;
+}
+
+.field-add .btn-icon {
+  background: var(--accent-muted);
+  border: 1px solid var(--border-accent);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.field-add .btn-icon:hover {
+  background: var(--accent);
+  color: white;
 }
 
 /* === Toast === */

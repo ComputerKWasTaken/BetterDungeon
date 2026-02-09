@@ -620,7 +620,7 @@
 
   <!-- Character Edit Modal -->
   <div class="modal-backdrop" id="character-modal">
-    <div class="modal">
+    <div class="modal modal-character">
       <div class="modal-header">
         <h3 class="modal-title" id="character-modal-title">Edit Character</h3>
         <button class="modal-close" id="character-modal-close" aria-label="Close">
@@ -633,14 +633,21 @@
           <input type="text" class="form-input" id="character-name-input" placeholder="Enter character name">
         </div>
         <div class="form-group">
-          <label class="form-label">Saved Fields</label>
+          <div class="fields-header">
+            <label class="form-label">Saved Fields</label>
+            <span class="fields-count" id="character-fields-count"></span>
+          </div>
+          <div class="fields-search-wrapper" id="fields-search-wrapper" style="display: none;">
+            <span class="icon-search fields-search-icon"></span>
+            <input type="text" class="form-input fields-search" id="character-fields-search" placeholder="Search fields...">
+          </div>
           <div class="fields-list" id="character-fields-list">
             <p class="fields-empty">No fields saved yet. Fields are saved automatically when you fill in scenario entry questions.</p>
           </div>
           <div class="field-add">
-            <input type="text" class="form-input" id="new-field-key" placeholder="Field name">
-            <input type="text" class="form-input" id="new-field-value" placeholder="Value">
-            <button class="btn btn-icon" id="add-field-btn" aria-label="Add field">
+            <input type="text" class="form-input" id="new-field-key" placeholder="Field name (e.g. age)">
+            <input type="text" class="form-input" id="new-field-value" placeholder="Value (e.g. 25)">
+            <button class="btn btn-icon" id="add-field-btn" aria-label="Add field" title="Add field">
               <span class="icon-plus"></span>
             </button>
           </div>
@@ -802,6 +809,23 @@
       <div class="tutorial-modal-actions">
         <button class="btn btn-primary" id="tutorial-modal-primary">Start Tour</button>
         <button class="btn btn-ghost" id="tutorial-modal-secondary">Maybe Later</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reusable Dialog Modal (replaces alert/confirm/prompt) -->
+  <div class="modal-backdrop" id="dialog-modal">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h3 class="modal-title" id="dialog-title">Confirm</h3>
+      </div>
+      <div class="modal-body">
+        <p id="dialog-message" style="margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.5;"></p>
+        <input type="text" id="dialog-input" class="form-input" style="display: none; margin-top: 12px;" placeholder="">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost btn-sm" id="dialog-cancel">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="dialog-confirm">Confirm</button>
       </div>
     </div>
   </div>
