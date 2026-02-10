@@ -37,6 +37,16 @@ class NotesFeature {
     this.debug = false;
   }
 
+  // Check if the Chrome extension runtime is still alive.
+  // Returns false after extension reload/update/disable while the content script lingers.
+  isExtensionContextValid() {
+    try {
+      return !!chrome.runtime?.id;
+    } catch {
+      return false;
+    }
+  }
+
   log(message, ...args) {
     if (this.debug) {
       console.log(message, ...args);
@@ -426,6 +436,7 @@ class NotesFeature {
 
   async loadNotes() {
     if (!this.currentAdventureId || !this.textarea) return;
+    if (!this.isExtensionContextValid()) return;
     
     const key = this.storageKeyPrefix + this.currentAdventureId;
     
@@ -436,12 +447,19 @@ class NotesFeature {
         this.textarea.value = notes;
       }
     } catch (e) {
+      // Silently ignore extension context invalidation — this is a benign
+      // race that occurs when the extension reloads while the page is open.
+      if (String(e).includes('Extension context invalidated')) {
+        this.log('[Notes] Extension context invalidated, skipping load');
+        return;
+      }
       console.error('[Notes] Error loading notes:', e);
     }
   }
 
   async saveNotes() {
     if (!this.currentAdventureId || !this.textarea) return;
+    if (!this.isExtensionContextValid()) return;
     
     const key = this.storageKeyPrefix + this.currentAdventureId;
     const notes = this.textarea.value;
@@ -449,6 +467,10 @@ class NotesFeature {
     try {
       await chrome.storage.local.set({ [key]: notes });
     } catch (e) {
+      if (String(e).includes('Extension context invalidated')) {
+        this.log('[Notes] Extension context invalidated, skipping save');
+        return;
+      }
       console.error('[Notes] Error saving notes:', e);
     }
   }
@@ -467,11 +489,13 @@ class NotesFeature {
 
   // Get notes for a specific adventure
   async getNotesForAdventure(adventureId) {
+    if (!this.isExtensionContextValid()) return '';
     const key = this.storageKeyPrefix + adventureId;
     try {
       const result = await chrome.storage.local.get(key);
       return result[key] || '';
     } catch (e) {
+      if (String(e).includes('Extension context invalidated')) return '';
       console.error('[Notes] Error getting notes:', e);
       return '';
     }
@@ -479,6 +503,7 @@ class NotesFeature {
 
   // Set notes for a specific adventure
   async setNotesForAdventure(adventureId, notes) {
+    if (!this.isExtensionContextValid()) return;
     const key = this.storageKeyPrefix + adventureId;
     try {
       await chrome.storage.local.set({ [key]: notes });
@@ -488,12 +513,14 @@ class NotesFeature {
         this.textarea.value = notes;
       }
     } catch (e) {
+      if (String(e).includes('Extension context invalidated')) return;
       console.error('[Notes] Error setting notes:', e);
     }
   }
 
   // Clear notes for a specific adventure
   async clearNotesForAdventure(adventureId) {
+    if (!this.isExtensionContextValid()) return;
     const key = this.storageKeyPrefix + adventureId;
     try {
       await chrome.storage.local.remove(key);
@@ -503,6 +530,7 @@ class NotesFeature {
         this.textarea.value = '';
       }
     } catch (e) {
+      if (String(e).includes('Extension context invalidated')) return;
       console.error('[Notes] Error clearing notes:', e);
     }
   }
