@@ -842,7 +842,7 @@ class BetterScriptsFeature {
     const layout = this.detectLayout();
     
     // Position wrapper to match game-text-mask
-    // Only dynamic positioning is set here — visual styling
+    // Only dynamic positioning is set here - visual styling
     // (padding, gap, font-size) is handled by CSS media queries
     const contentWidth = layout.contentWidth;
     const contentLeft = layout.contentLeft;
