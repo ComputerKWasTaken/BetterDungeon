@@ -840,42 +840,20 @@ class BetterScriptsFeature {
     if (!this.widgetWrapper) return;
     
     const layout = this.detectLayout();
-    const vw = layout.viewportWidth;
-    
-    // Calculate responsive values based on viewport
-    let padding, gap, fontSize;
-    if (vw < 480) {
-      // Very small mobile only
-      padding = 4;
-      gap = 4;
-      fontSize = 11;
-    } else {
-      // Full size for everything else (480px+)
-      padding = 8;
-      gap = 8;
-      fontSize = 13;
-    }
     
     // Position wrapper to match game-text-mask
+    // Only dynamic positioning is set here — visual styling
+    // (padding, gap, font-size) is handled by CSS media queries
     const contentWidth = layout.contentWidth;
     const contentLeft = layout.contentLeft;
     
     Object.assign(this.widgetWrapper.style, {
-      top: `${layout.contentTop + 4}px`,
+      top: `${layout.contentTop + 6}px`,
       left: `${contentLeft}px`,
       width: `${contentWidth}px`
     });
     
-    // Apply styling to container
-    if (this.widgetContainer) {
-      Object.assign(this.widgetContainer.style, {
-        padding: `${padding}px`,
-        gap: `${gap}px`,
-        fontSize: `${fontSize}px`
-      });
-    }
-    
-    this.log('Container positioned:', { top: layout.contentTop + 4, left: contentLeft, width: contentWidth });
+    this.log('Container positioned:', { top: layout.contentTop + 6, left: contentLeft, width: contentWidth });
   }
 
   /**

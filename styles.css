@@ -1495,9 +1495,9 @@
   display: flex;
   flex-direction: row;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 6px;
-  padding: 6px 8px;
+  padding: 8px 10px;
   width: 100%;
   background: transparent;
   border: none;
@@ -1512,7 +1512,7 @@
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
   gap: 6px;
   pointer-events: none;
 }
