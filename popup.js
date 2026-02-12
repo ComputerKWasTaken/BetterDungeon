@@ -14,6 +14,7 @@ const STORAGE_KEYS = {
   characters: 'betterDungeon_characterPresets',
   autoScan: 'betterDungeon_autoScanTriggers',
   autoApply: 'betterDungeon_autoApplyInstructions',
+  betterScriptsDebug: 'betterDungeon_betterScriptsDebug',
   customHotkeys: 'betterDungeon_customHotkeys',
   customModeColors: 'betterDungeon_customModeColors',
 };
@@ -212,6 +213,17 @@ function initToggles() {
   document.getElementById('auto-apply-instructions')?.addEventListener('change', (e) => {
     chrome.storage.sync.set({ [STORAGE_KEYS.autoApply]: e.target.checked });
     notifyContentScript('SET_AUTO_APPLY', { enabled: e.target.checked });
+  });
+
+  // BetterScripts debug toggle
+  chrome.storage.sync.get(STORAGE_KEYS.betterScriptsDebug, (result) => {
+    const toggle = document.getElementById('betterscripts-debug');
+    if (toggle) toggle.checked = result[STORAGE_KEYS.betterScriptsDebug] ?? false;
+  });
+
+  document.getElementById('betterscripts-debug')?.addEventListener('change', (e) => {
+    chrome.storage.sync.set({ [STORAGE_KEYS.betterScriptsDebug]: e.target.checked });
+    notifyContentScript('SET_BETTERSCRIPTS_DEBUG', { enabled: e.target.checked });
   });
 }
 

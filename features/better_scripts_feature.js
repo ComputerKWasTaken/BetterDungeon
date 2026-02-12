@@ -62,10 +62,13 @@ class BetterScriptsFeature {
   ]);
   
   // Valid widget types
-  static WIDGET_TYPES = new Set(['stat', 'bar', 'text', 'panel', 'custom', 'badge', 'list', 'icon', 'divider', 'counter']);
+  static WIDGET_TYPES = new Set(['stat', 'bar', 'text', 'panel', 'custom', 'badge', 'list', 'icon', 'counter']);
+  
+  // Valid alignment values for in-bar positioning
+  static VALID_ALIGNMENTS = new Set(['left', 'center', 'right']);
   
   // Valid message types
-  static MESSAGE_TYPES = new Set(['register', 'widget', 'update', 'remove', 'ping', 'clearAll']);
+  static MESSAGE_TYPES = new Set(['register', 'widget', 'ping', 'clearAll']);
 
   constructor() {
     // DOM observation
@@ -84,15 +87,9 @@ class BetterScriptsFeature {
     this.registeredWidgets = new Map();
     this.registeredScripts = new Map();
     
-    // UI containers for script widgets (multi-position support)
-    this.widgetContainers = {
-      top: null,
-      left: null,
-      right: null
-    };
-    
-    // Valid widget positions
-    this.VALID_POSITIONS = new Set(['top', 'left', 'right']);
+    // UI container for script widgets (top bar only)
+    this.widgetContainer = null;
+    this.widgetZones = { left: null, center: null, right: null };
     
     // URL change detection
     this.boundUrlChangeHandler = null;
@@ -105,9 +102,6 @@ class BetterScriptsFeature {
     this.layoutObserver = null;
     this.gameTextMaskObserver = null;
     this.cachedLayout = null;
-    
-    // Condensed mode state
-    this.condensedMode = false;
     
     // Cached regex pattern for protocol messages
     this.protocolRegex = /\[\[BD:([\s\S]*?):BD\]\]/g;
@@ -130,6 +124,20 @@ class BetterScriptsFeature {
     }
   }
   
+  /**
+   * Set debug mode on/off
+   * When enabled: verbose console logging + protocol messages remain visible in the DOM
+   */
+  setDebugMode(enabled) {
+    this.debug = enabled;
+    console.log(`[BetterScripts] Debug mode ${enabled ? 'enabled' : 'disabled'}`);
+    
+    // Expose on window for console access
+    if (window.betterScripts) {
+      window.betterScripts.debug = enabled;
+    }
+  }
+
   /**
    * Log a warning (always shown)
    */
@@ -194,6 +202,15 @@ class BetterScriptsFeature {
 
   init() {
     console.log('[BetterScripts] Initializing BetterScripts feature...');
+    
+    // Load persisted debug mode state from storage
+    chrome.storage.sync.get('betterDungeon_betterScriptsDebug', (result) => {
+      const enabled = result['betterDungeon_betterScriptsDebug'] ?? false;
+      if (enabled) {
+        this.debug = true;
+        console.log('[BetterScripts] Debug mode enabled (restored from settings)');
+      }
+    });
     
     this.detectCurrentAdventure();
     this.startObserving();
@@ -442,9 +459,11 @@ class BetterScriptsFeature {
         }
       }
       
-      // Reset regex and strip all protocol text from the node
-      this.protocolRegex.lastIndex = 0;
-      textNode.textContent = originalText.replace(this.protocolRegex, '');
+      // Strip protocol text from the node (skip when debug mode is on)
+      if (!this.debug) {
+        this.protocolRegex.lastIndex = 0;
+        textNode.textContent = originalText.replace(this.protocolRegex, '');
+      }
     }
   }
   
@@ -559,8 +578,6 @@ class BetterScriptsFeature {
           this.handleRegister(message);
           break;
         case 'widget':
-        case 'update':
-        case 'remove':
           this.handleWidgetCommand(message);
           break;
         case 'ping':
@@ -631,14 +648,8 @@ class BetterScriptsFeature {
       return;
     }
     
-    // Support both 'widget' type and legacy 'update'/'remove' types
-    // Default to 'create' for 'widget' type, 'update' for legacy 'update', 'destroy' for 'remove'
-    let effectiveAction = action;
-    if (!effectiveAction) {
-      if (message.type === 'remove') effectiveAction = 'destroy';
-      else if (message.type === 'update') effectiveAction = 'update';
-      else effectiveAction = 'create'; // Default for 'widget' type
-    }
+    // Determine the action to perform (default to 'create')
+    const effectiveAction = action || 'create';
     const effectiveConfig = config || data;
     
     switch (effectiveAction) {
@@ -695,13 +706,10 @@ class BetterScriptsFeature {
   // ==================== WIDGET SYSTEM ====================
 
   createWidgetContainer() {
-    // Check if containers already exist
-    const hasContainers = Object.values(this.widgetContainers).some(
-      c => c && document.body.contains(c)
-    );
-    if (hasContainers) return;
+    // Check if container already exists
+    if (this.widgetContainer && document.body.contains(this.widgetContainer)) return;
     
-    // Create wrapper for all widget areas
+    // Create wrapper for widget area
     const wrapper = document.createElement('div');
     wrapper.className = 'bd-betterscripts-wrapper';
     wrapper.id = 'bd-betterscripts-wrapper';
@@ -713,37 +721,28 @@ class BetterScriptsFeature {
       flexDirection: 'column'
     });
     
-    // Create TOP container (horizontal bar)
-    this.widgetContainers.top = document.createElement('div');
-    this.widgetContainers.top.className = 'bd-betterscripts-container bd-position-top';
-    this.widgetContainers.top.id = 'bd-betterscripts-top';
+    // Create widget container (horizontal bar at top)
+    this.widgetContainer = document.createElement('div');
+    this.widgetContainer.className = 'bd-betterscripts-container';
+    this.widgetContainer.id = 'bd-betterscripts-top';
     
-    // Create LEFT container (vertical sidebar)
-    this.widgetContainers.left = document.createElement('div');
-    this.widgetContainers.left.className = 'bd-betterscripts-container bd-position-left';
-    this.widgetContainers.left.id = 'bd-betterscripts-left';
+    // Create alignment zones within the container (left / center / right)
+    const leftZone = document.createElement('div');
+    leftZone.className = 'bd-bar-zone bd-bar-left';
     
-    // Create RIGHT container (vertical sidebar)
-    this.widgetContainers.right = document.createElement('div');
-    this.widgetContainers.right.className = 'bd-betterscripts-container bd-position-right';
-    this.widgetContainers.right.id = 'bd-betterscripts-right';
+    const centerZone = document.createElement('div');
+    centerZone.className = 'bd-bar-zone bd-bar-center';
     
-    // Apply condensed mode if enabled
-    if (this.condensedMode) {
-      Object.values(this.widgetContainers).forEach(c => {
-        if (c) c.classList.add('bd-condensed');
-      });
-    }
+    const rightZone = document.createElement('div');
+    rightZone.className = 'bd-bar-zone bd-bar-right';
     
-    // Add containers to wrapper
-    wrapper.appendChild(this.widgetContainers.top);
+    this.widgetContainer.appendChild(leftZone);
+    this.widgetContainer.appendChild(centerZone);
+    this.widgetContainer.appendChild(rightZone);
     
-    // Create content row for left/right sidebars
-    const contentRow = document.createElement('div');
-    contentRow.className = 'bd-betterscripts-content-row';
-    contentRow.appendChild(this.widgetContainers.left);
-    contentRow.appendChild(this.widgetContainers.right);
-    wrapper.appendChild(contentRow);
+    this.widgetZones = { left: leftZone, center: centerZone, right: rightZone };
+    
+    wrapper.appendChild(this.widgetContainer);
     
     document.body.appendChild(wrapper);
     this.widgetWrapper = wrapper;
@@ -754,15 +753,7 @@ class BetterScriptsFeature {
     // Set up layout monitoring
     this.setupLayoutMonitoring();
     
-    this.log('Widget containers created (top, left, right)');
-  }
-  
-  /**
-   * Get the appropriate container for a widget position
-   */
-  getContainerForPosition(position) {
-    const pos = this.VALID_POSITIONS.has(position) ? position : 'top';
-    return this.widgetContainers[pos];
+    this.log('Widget container created');
   }
 
   /**
@@ -852,7 +843,6 @@ class BetterScriptsFeature {
     const vw = layout.viewportWidth;
     
     // Calculate responsive values based on viewport
-    // Be generous with full-size - only condense on very small screens
     let padding, gap, fontSize;
     if (vw < 480) {
       // Very small mobile only
@@ -866,13 +856,6 @@ class BetterScriptsFeature {
       fontSize = 13;
     }
     
-    // Condensed mode reduces spacing further (user-triggered only)
-    if (this.condensedMode) {
-      padding = Math.max(2, padding - 2);
-      gap = Math.max(3, gap - 2);
-      fontSize = Math.max(10, fontSize - 1);
-    }
-    
     // Position wrapper to match game-text-mask
     const contentWidth = layout.contentWidth;
     const contentLeft = layout.contentLeft;
@@ -883,18 +866,16 @@ class BetterScriptsFeature {
       width: `${contentWidth}px`
     });
     
-    // Apply styling to all containers
-    Object.values(this.widgetContainers).forEach(container => {
-      if (container) {
-        Object.assign(container.style, {
-          padding: `${padding}px`,
-          gap: `${gap}px`,
-          fontSize: `${fontSize}px`
-        });
-      }
-    });
+    // Apply styling to container
+    if (this.widgetContainer) {
+      Object.assign(this.widgetContainer.style, {
+        padding: `${padding}px`,
+        gap: `${gap}px`,
+        fontSize: `${fontSize}px`
+      });
+    }
     
-    this.log('Containers positioned:', { top: layout.contentTop + 4, left: contentLeft, width: contentWidth });
+    this.log('Container positioned:', { top: layout.contentTop + 4, left: contentLeft, width: contentWidth });
   }
 
   /**
@@ -943,36 +924,6 @@ class BetterScriptsFeature {
     }
   }
   
-  /**
-   * Toggle condensed mode for the widget panel
-   * @param {boolean} enabled - Whether condensed mode should be enabled
-   */
-  setCondensedMode(enabled) {
-    this.condensedMode = !!enabled;
-    
-    // Apply to all containers
-    Object.values(this.widgetContainers).forEach(container => {
-      if (container) {
-        if (this.condensedMode) {
-          container.classList.add('bd-condensed');
-        } else {
-          container.classList.remove('bd-condensed');
-        }
-      }
-    });
-    
-    this.updateContainerPosition();
-    this.log('Condensed mode:', this.condensedMode);
-  }
-  
-  /**
-   * Toggle condensed mode
-   */
-  toggleCondensedMode() {
-    this.setCondensedMode(!this.condensedMode);
-    return this.condensedMode;
-  }
-
   removeWidgetContainer() {
     // Remove wrapper (which contains all containers)
     if (this.widgetWrapper) {
@@ -980,12 +931,9 @@ class BetterScriptsFeature {
       this.widgetWrapper = null;
     }
     
-    // Clear container references
-    this.widgetContainers = {
-      top: null,
-      left: null,
-      right: null
-    };
+    // Clear container and zone references
+    this.widgetContainer = null;
+    this.widgetZones = { left: null, center: null, right: null };
     
     // Clean up observers first (they may reference handlers)
     if (this.gameTextMaskObserver) {
@@ -1130,9 +1078,6 @@ class BetterScriptsFeature {
       case 'icon':
         widgetElement = this.createIconWidget(widgetId, config);
         break;
-      case 'divider':
-        widgetElement = this.createDividerWidget(widgetId, config);
-        break;
       case 'counter':
         widgetElement = this.createCounterWidget(widgetId, config);
         break;
@@ -1142,18 +1087,22 @@ class BetterScriptsFeature {
         return;
     }
     
-    // Get the appropriate container based on position property
-    const position = config.position || 'top';
-    const container = this.getContainerForPosition(position);
-    
-    if (widgetElement && container) {
-      container.appendChild(widgetElement);
-      this.registeredWidgets.set(widgetId, { element: widgetElement, config, position });
-      this.log('Widget created:', widgetId, 'in position:', position);
+    // Determine alignment zone and append widget
+    if (widgetElement && this.widgetContainer) {
+      const align = BetterScriptsFeature.VALID_ALIGNMENTS.has(config.align) ? config.align : 'center';
+      widgetElement.dataset.align = align;
+      const zone = this.widgetZones[align];
+      if (zone) {
+        zone.appendChild(widgetElement);
+      } else {
+        this.widgetContainer.appendChild(widgetElement);
+      }
+      this.registeredWidgets.set(widgetId, { element: widgetElement, config });
+      this.log('Widget created:', widgetId);
       
       // Emit widget created event
       window.dispatchEvent(new CustomEvent('betterscripts:widget', {
-        detail: { action: 'created', widgetId, config, position }
+        detail: { action: 'created', widgetId, config }
       }));
     }
   }
@@ -1468,34 +1417,6 @@ class BetterScriptsFeature {
   }
 
   /**
-   * Create a divider widget (visual separator)
-   */
-  createDividerWidget(widgetId, config) {
-    const widget = document.createElement('div');
-    widget.className = 'bd-widget bd-widget-divider';
-    widget.id = `bd-widget-${widgetId}`;
-    
-    if (config.order !== undefined) {
-      widget.style.order = config.order;
-    }
-    
-    // Optional label in the middle of divider
-    if (config.label) {
-      widget.dataset.hasLabel = 'true';
-      const label = document.createElement('span');
-      label.className = 'bd-widget-divider-label';
-      label.textContent = config.label;
-      widget.appendChild(label);
-    }
-    
-    if (config.color) {
-      widget.style.setProperty('--divider-color', config.color);
-    }
-    
-    return widget;
-  }
-
-  /**
    * Create a counter widget (compact number with optional delta indicator)
    */
   createCounterWidget(widgetId, config) {
@@ -1761,6 +1682,17 @@ class BetterScriptsFeature {
     const { element, config: existingConfig } = widgetData;
     const mergedConfig = { ...existingConfig, ...config };
     
+    // Handle alignment zone change
+    if (config.align !== undefined && config.align !== existingConfig.align) {
+      const newAlign = BetterScriptsFeature.VALID_ALIGNMENTS.has(config.align) ? config.align : 'center';
+      const targetZone = this.widgetZones[newAlign];
+      if (targetZone && element.parentNode !== targetZone) {
+        targetZone.appendChild(element);
+        element.dataset.align = newAlign;
+        this.log('Widget moved to zone:', widgetId, newAlign);
+      }
+    }
+    
     // Update based on widget type
     switch (existingConfig.type) {
       case 'stat': {
@@ -1927,25 +1859,6 @@ class BetterScriptsFeature {
           element.title = config.tooltip || config.title;
         }
         break;
-      
-      case 'divider': {
-        const labelEl = element.querySelector('.bd-widget-divider-label');
-        if (config.label !== undefined) {
-          if (labelEl) {
-            labelEl.textContent = config.label;
-          } else if (config.label) {
-            element.dataset.hasLabel = 'true';
-            const label = document.createElement('span');
-            label.className = 'bd-widget-divider-label';
-            label.textContent = config.label;
-            element.appendChild(label);
-          }
-        }
-        if (config.color) {
-          element.style.setProperty('--divider-color', config.color);
-        }
-        break;
-      }
       
       case 'counter': {
         const valueEl = element.querySelector('.bd-widget-counter-value');
