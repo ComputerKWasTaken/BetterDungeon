@@ -1504,7 +1504,7 @@
   font-family: var(--bd-font-family-primary);
 }
 
-.bd-betterscripts-container:has(.bd-bar-zone:empty):has(.bd-bar-zone:empty):has(.bd-bar-zone:empty) {
+.bd-betterscripts-container:not(:has(.bd-widget)) {
   display: none;
 }
 
