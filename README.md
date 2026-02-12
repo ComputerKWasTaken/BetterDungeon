@@ -32,21 +32,21 @@ Settings sync across Chromium browsers.
 
 ### New Input Modes
 
-- **Command Mode** — Send narrative commands like "Time Skip" or "Scene Change" as story headers. The easiest way to steer your story without awkward workarounds.
+- **Command Mode**: Send narrative commands like "Time Skip" or "Scene Change" as story headers. The easiest way to steer your story without awkward workarounds.
 
-- **Try Mode** — RNG-based action outcomes. Type what you want to try, roll the dice. Critical fails and critical successes included.
+- **Try Mode**: RNG-based action outcomes. Type what you want to try, roll the dice. Critical fails and critical successes included.
   - Configurable crit chance (0-20%)
   - Adjust success chance from 5% to 95% with arrow keys (↑↓)
   - Visual success bar shows your current odds
 
 ### Quality of Life
 
-- **BetterScripts** — A communication layer between the extension and AI Dungeon scripts to allow for the creation of dynamic UI widgets
+- **BetterScripts**: A communication layer between the extension and AI Dungeon scripts to allow for the creation of dynamic UI widgets
 
-- **Markdown Support** — Asterisk-free formatting that actually works with AI models. Bold, italic, underline, whisper text, scene breaks, and lists.
+- **Markdown Support**: Asterisk-free formatting that actually works with AI models. Bold, italic, underline, whisper text, scene breaks, and lists.
   - Hit "Apply Instructions" in the popup to teach the AI when to use each format
 
-- **Hotkeys** — Keyboard shortcuts when you're not typing. **Fully customizable** via the popup.
+- **Hotkeys**: Keyboard shortcuts when you're not typing. **Fully customizable** via the popup.
   
   | Key | Action | | Key | Action |
   |-----|--------|-|-----|--------|
@@ -55,19 +55,19 @@ Settings sync across Chromium browsers.
   | `R` | Retry | | `Y` | Redo |
   | `E` | Erase | | `Esc` | Exit Input |
 
-- **Input Mode Colors** — Color-coded input box so you know what mode you're in at a glance. **Fully customizable** via the popup. Default colors: Blue (Do), Purple (Try), Green (Say), Gold (Story), Cyan (See), Orange (Command).
+- **Input Mode Colors**: Color-coded input box so you know what mode you're in at a glance. **Fully customizable** via the popup. Default colors: Blue (Do), Purple (Try), Green (Say), Gold (Story), Cyan (See), Orange (Command).
 
-- **Trigger Highlighting** — Story card triggers get highlighted in the context viewer. Hover to jump to the card. Also suggests proper nouns that might deserve their own story cards.
+- **Trigger Highlighting**: Story card triggers get highlighted in the context viewer. Hover to jump to the card. Also suggests proper nouns that might deserve their own story cards.
 
-- **Auto See** — Automatically triggers a See input command after every AI response or after a certain amount of turns.
+- **Auto See**: Automatically triggers a See input command after every AI response or after a certain amount of turns.
 
-- **Adventure Notes** — An embedded Plot Components notes card that saves per adventure. Track plot points, character details, or session notes without leaving the game.
+- **Adventure Notes**: An embedded Plot Components notes card that saves per adventure. Track plot points, character details, or session notes without leaving the game.
 
 ### Presets
 
 - **Plot Presets** - Allows you to save your own custom Plot Components for use in scenarios.
 
-- **Character Presets** — Stop typing your character's name 47 times. Save profiles, auto-fill scenario entry questions, never suffer again.
+- **Character Presets**: Stop typing your character's name 47 times. Save profiles, auto-fill scenario entry questions, never suffer again.
 
 ### Small QOL Improvements
 

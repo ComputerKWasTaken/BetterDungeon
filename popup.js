@@ -1401,7 +1401,7 @@ function initModals() {
     });
   });
 
-  // Backdrop click to close (exclude dialog-modal — its Promise handles its own cleanup)
+  // Backdrop click to close (exclude dialog-modal since its Promise handles its own cleanup)
   document.querySelectorAll('.modal-backdrop:not(#dialog-modal)').forEach(backdrop => {
     backdrop.addEventListener('click', (e) => {
       if (e.target === backdrop) closeModal(backdrop.id);

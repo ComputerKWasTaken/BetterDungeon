@@ -55,16 +55,16 @@ BetterDungeon/
 
 BetterDungeon uses a modular, service-oriented architecture. Each feature is self-contained and independently managed.
 
-- **main.js** — Core orchestrator that initializes the system and handles message passing from the popup
-- **core/feature-manager.js** — Manages feature registration, lifecycle, and storage-based enable/disable
-- **services/** — Handles AI Dungeon-specific operations like instruction application
-- **utils/** — Shared utility functions for DOM manipulation and Chrome storage abstraction
-- **features/** — Self-contained modules that manage their own DOM observation, state, and cleanup
+- **main.js** - Core orchestrator that initializes the system and handles message passing from the popup
+- **core/feature-manager.js** - Manages feature registration, lifecycle, and storage-based enable/disable
+- **services/** - Handles AI Dungeon-specific operations like instruction application
+- **utils/** - Shared utility functions for DOM manipulation and Chrome storage abstraction
+- **features/** - Self-contained modules that manage their own DOM observation, state, and cleanup
 
 Each feature implements:
-- `static id` — Unique identifier (e.g., `'markdown'`, `'command'`)
-- `init()` — Called when enabled; setup observers, UI, etc.
-- `destroy()` — Called when disabled; cleanup observers, restore state
+- `static id` - Unique identifier (e.g., `'markdown'`, `'command'`)
+- `init()` - Called when enabled; setup observers, UI, etc.
+- `destroy()` - Called when disabled; cleanup observers, restore state
 
 ---
 
@@ -255,9 +255,9 @@ BetterDungeon follows a dark mode design system for consistency. All variables a
 
 ### Transitions
 
-- Fast: `0.15s` — Hover states
-- Normal: `0.2s` — Default
-- Slow: `0.3s` — Complex animations
+- Fast: `0.15s` for hover states
+- Normal: `0.2s` as default
+- Slow: `0.3s` for complex animations
 
 ### Usage Example
 
@@ -277,8 +277,8 @@ BetterDungeon follows a dark mode design system for consistency. All variables a
 
 ### Icons
 
-- **AI Dungeon Icons (w_icons)** — Use for features that integrate with AI Dungeon's UI
-- **Lucide Icons** — Use for BetterDungeon-specific UI (popup, overlays)
+- **AI Dungeon Icons (w_icons)** - Use for features that integrate with AI Dungeon's UI
+- **Lucide Icons** - Use for BetterDungeon-specific UI (popup, overlays)
 
 The Lucide icon font is in `fonts/lucide/`. Browse icons at [lucide.dev/icons](https://lucide.dev/icons).
 

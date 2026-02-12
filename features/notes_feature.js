@@ -349,7 +349,7 @@ class NotesFeature {
         </div>
       </div>
       <div class="bd-notes-card-body">
-        <div class="bd-notes-helper">Private to you — not sent to the AI.</div>
+        <div class="bd-notes-helper">Private to you - not sent to the AI.</div>
         <textarea class="bd-notes-textarea" placeholder="Write your notes here..."></textarea>
       </div>
     `;
@@ -447,7 +447,7 @@ class NotesFeature {
         this.textarea.value = notes;
       }
     } catch (e) {
-      // Silently ignore extension context invalidation — this is a benign
+      // Silently ignore extension context invalidation. This is a benign
       // race that occurs when the extension reloads while the page is open.
       if (String(e).includes('Extension context invalidated')) {
         this.log('[Notes] Extension context invalidated, skipping load');

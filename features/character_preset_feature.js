@@ -113,7 +113,7 @@ class CharacterPresetFeature {
   // STORAGE OPERATIONS
   // ============================================
 
-  // Generic chrome storage get — returns the value for `key`, or `fallback` on any error.
+  // Generic chrome storage get that returns the value for `key`, or `fallback` on any error.
   _chromeGet(area, key, fallback = null) {
     return new Promise((resolve) => {
       try {
@@ -125,7 +125,7 @@ class CharacterPresetFeature {
     });
   }
 
-  // Generic chrome storage set — silently resolves on error.
+  // Generic chrome storage set that silently resolves on error.
   _chromeSet(area, data) {
     return new Promise((resolve) => {
       try {
@@ -383,7 +383,7 @@ class CharacterPresetFeature {
     if (field) {
       const fieldId = field.ariaLabel;
       
-      // Field found — cancel any pending teardown grace timer
+      // Field found, so cancel any pending teardown grace timer
       if (this._fieldGraceTimer) {
         clearTimeout(this._fieldGraceTimer);
         this._fieldGraceTimer = null;
@@ -404,7 +404,7 @@ class CharacterPresetFeature {
         await this.handleField(field);
       }
     } else {
-      // Field not found — use a grace period before tearing down UI.
+      // Field not found, so use a grace period before tearing down UI.
       // React re-renders can cause the input to briefly disappear from the DOM.
       if (this.currentFieldLabel !== null && !this._fieldGraceTimer) {
         this._fieldGraceTimer = setTimeout(() => {
@@ -659,7 +659,7 @@ class CharacterPresetFeature {
       this.saveButtonElement?.classList.add('bd-save-visible');
     });
     
-    // Setup click handler — re-query continueBtn at click time to avoid stale references
+    // Setup click handler and re-query continueBtn at click time to avoid stale references
     const saveBtn = this.saveButtonElement.querySelector('#bd-save-continue');
     if (saveBtn) {
       saveBtn.addEventListener('click', async (e) => {
