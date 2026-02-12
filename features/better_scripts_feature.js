@@ -1068,7 +1068,6 @@ class BetterScriptsFeature {
     // Determine alignment zone and append widget
     if (widgetElement && this.widgetContainer) {
       const align = BetterScriptsFeature.VALID_ALIGNMENTS.has(config.align) ? config.align : 'center';
-      widgetElement.dataset.align = align;
       const zone = this.widgetZones[align];
       if (zone) {
         zone.appendChild(widgetElement);
@@ -1666,7 +1665,6 @@ class BetterScriptsFeature {
       const targetZone = this.widgetZones[newAlign];
       if (targetZone && element.parentNode !== targetZone) {
         targetZone.appendChild(element);
-        element.dataset.align = newAlign;
         this.log('Widget moved to zone:', widgetId, newAlign);
       }
     }
