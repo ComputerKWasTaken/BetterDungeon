@@ -1809,7 +1809,7 @@ class BetterScriptsFeature {
         if (valueEl && config.value !== undefined) {
           valueEl.textContent = config.value;
         }
-        if (valueEl && config.color) {
+        if (valueEl && config.color != null) {
           const colorLower = config.color.toLowerCase();
           if (BetterScriptsFeature.PRESET_COLORS.has(colorLower)) {
             element.dataset.color = colorLower;
@@ -1829,16 +1829,17 @@ class BetterScriptsFeature {
         if (labelEl && config.label !== undefined) {
           labelEl.textContent = config.label;
         }
-        if (barFill && config.value !== undefined) {
+        if (barFill && (config.value !== undefined || config.max !== undefined)) {
+          const value = config.value ?? existingConfig.value ?? 0;
           const max = config.max ?? existingConfig.max ?? 100;
-          const percentage = Math.min(100, Math.max(0, ((config.value ?? 0) / max) * 100));
+          const percentage = Math.min(100, Math.max(0, (value / max) * 100));
           barFill.style.width = `${percentage}%`;
         }
-        if (barText && (config.value !== undefined || config.showValue !== undefined)) {
+        if (barText && (config.value !== undefined || config.max !== undefined || config.showValue !== undefined)) {
           const showValue = mergedConfig.showValue !== false;
           barText.textContent = showValue ? `${mergedConfig.value ?? existingConfig.value}/${mergedConfig.max ?? 100}` : '';
         }
-        if (barFill && config.color) {
+        if (barFill && config.color != null) {
           const colorLower = config.color.toLowerCase();
           if (BetterScriptsFeature.PRESET_COLORS.has(colorLower)) {
             element.dataset.color = colorLower;
@@ -1854,6 +1855,9 @@ class BetterScriptsFeature {
       case 'text':
         if (config.text !== undefined) {
           element.textContent = config.text;
+        }
+        if (config.color !== undefined) {
+          element.style.color = config.color;
         }
         if (config.style) {
           // Sanitize styles before applying
@@ -1912,6 +1916,9 @@ class BetterScriptsFeature {
         if (config.html !== undefined) {
           element.innerHTML = this.sanitizeHTML(config.html);
         }
+        if (config.color !== undefined) {
+          element.style.color = config.color;
+        }
         if (config.style) {
           const sanitizedStyles = this.sanitizeStyleObject(config.style);
           Object.assign(element.style, sanitizedStyles);
@@ -1939,10 +1946,10 @@ class BetterScriptsFeature {
             iconEl.remove();
           }
         }
-        if (config.color) {
+        if (config.color !== undefined) {
           element.style.setProperty('--badge-color', config.color);
         }
-        if (config.variant) {
+        if (config.variant !== undefined) {
           element.dataset.variant = config.variant;
         }
         break;
@@ -1985,14 +1992,14 @@ class BetterScriptsFeature {
         if (config.icon !== undefined || config.text !== undefined) {
           element.textContent = config.icon || config.text;
         }
-        if (config.color) {
+        if (config.color !== undefined) {
           element.style.color = config.color;
         }
-        if (config.size) {
+        if (config.size !== undefined) {
           element.style.setProperty('--icon-size', typeof config.size === 'number' ? `${config.size}px` : config.size);
         }
-        if (config.tooltip || config.title) {
-          element.title = config.tooltip || config.title;
+        if (config.tooltip !== undefined || config.title !== undefined) {
+          element.title = config.tooltip || config.title || '';
         }
         break;
       
@@ -2018,7 +2025,7 @@ class BetterScriptsFeature {
         if (valueEl && config.value !== undefined) {
           valueEl.textContent = config.value;
         }
-        if (valueEl && config.color) {
+        if (valueEl && config.color !== undefined) {
           valueEl.style.color = config.color;
         }
         if (config.delta !== undefined) {
