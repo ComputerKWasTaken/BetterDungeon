@@ -72,13 +72,17 @@ Each feature implements:
 
 ### Changelog
 
-### v1.0.1 (in progress)
+### v1.0.1
 - Drastically revamped and improved the **BetterScripts** feature
   - Added a proper debug mode and system
+  - Reworked sidebar system to instead function as an alignment system
+  - Added a more dynamic resizing system that takes into account the widget quantities
+  - Reworked all example scripts
   - Drastically reduced systemic complexity
     - Replaced the sidebar widget system with an alignment system that allows for better visual organization on larger screens
     - Removed unnecessary features and functions like the bdUpdate helper and widget condenser system
   - Fully documented BetterScripts with BetterRepository
+  - 
 - Revamped and drastically improved the **Character Presets** feature
   - Now features and autofill approval UI, better editing mechanism, more intelligent features, and more.
 
