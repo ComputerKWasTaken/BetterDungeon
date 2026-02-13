@@ -69,6 +69,14 @@ class BetterScriptsFeature {
   
   // Valid message types
   static MESSAGE_TYPES = new Set(['register', 'widget', 'ping', 'clearAll']);
+  
+  // Preset color names that map to CSS [data-color] gradient styles
+  static PRESET_COLORS = new Set(['red', 'green', 'blue', 'yellow', 'purple', 'cyan', 'orange']);
+  
+  // Returns a fresh protocol regex each call — avoids lastIndex pitfalls of a shared /g regex
+  static protocolRegex() {
+    return /\[\[BD:([\s\S]*?):BD\]\]/g;
+  }
 
   constructor() {
     // DOM observation
@@ -89,6 +97,7 @@ class BetterScriptsFeature {
     
     // UI container for script widgets (top bar only)
     this.widgetContainer = null;
+    this.widgetWrapper = null;
     this.widgetZones = { left: null, center: null, right: null };
     
     // URL change detection
@@ -103,8 +112,8 @@ class BetterScriptsFeature {
     this.gameTextMaskObserver = null;
     this.cachedLayout = null;
     
-    // Cached regex pattern for protocol messages
-    this.protocolRegex = /\[\[BD:([\s\S]*?):BD\]\]/g;
+    // Density recalculation rAF handle (for debounce cancellation)
+    this._densityRafId = null;
     
     // Re-entry guard for stripProtocolMessagesFromGameplay
     this.isStrippingMessages = false;
@@ -426,12 +435,11 @@ class BetterScriptsFeature {
     for (const textNode of nodesToProcess) {
       const originalText = textNode.textContent;
       
-      // Reset regex lastIndex before use
-      this.protocolRegex.lastIndex = 0;
+      const regex = BetterScriptsFeature.protocolRegex();
       
       let match;
       // First, extract and process any messages we haven't seen recently
-      while ((match = this.protocolRegex.exec(originalText)) !== null) {
+      while ((match = regex.exec(originalText)) !== null) {
         const rawMessage = match[1];
         
         // Check message size limit
@@ -461,8 +469,7 @@ class BetterScriptsFeature {
       
       // Strip protocol text from the node (skip when debug mode is on)
       if (!this.debug) {
-        this.protocolRegex.lastIndex = 0;
-        textNode.textContent = originalText.replace(this.protocolRegex, '');
+        textNode.textContent = originalText.replace(BetterScriptsFeature.protocolRegex(), '');
       }
     }
   }
@@ -553,7 +560,7 @@ class BetterScriptsFeature {
     }
   }
 
-  debouncedProcessMutations(mutations) {
+  debouncedProcessMutations() {
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
     }
@@ -857,6 +864,105 @@ class BetterScriptsFeature {
   }
 
   /**
+   * Recalculate widget density based on total widget width vs available container width.
+   * Sets a data-density attribute on the container that CSS uses to zoom widgets:
+   *   - "spacious" : widgets use < 40% of width  → zoom 1.12
+   *   - (none)     : 40-90% → default sizing (no zoom)
+   *   - "compact"  : 90-120% → zoom 0.88
+   *   - "dense"    : > 120% → zoom 0.75
+   *
+   * Debounced via requestAnimationFrame so rapid widget create/update/destroy
+   * calls coalesce into a single measurement pass per frame.
+   *
+   * To avoid chicken-and-egg measurement issues, density is temporarily reset
+   * to default before measuring widget widths, then reapplied.
+   */
+  recalculateWidgetDensity() {
+    // Debounce: coalesce multiple calls into one rAF
+    if (this._densityRafId) return;
+    this._densityRafId = requestAnimationFrame(() => {
+      this._densityRafId = null;
+      this._performDensityCalculation();
+    });
+  }
+
+  /**
+   * Internal: performs the actual density measurement and attribute update.
+   * Called once per animation frame by the debounced recalculateWidgetDensity().
+   */
+  _performDensityCalculation() {
+    if (!this.widgetContainer || !this.widgetWrapper) return;
+    
+    const containerWidth = this.widgetWrapper.offsetWidth;
+    if (containerWidth <= 0) return;
+    
+    const widgetCount = this.registeredWidgets.size;
+    if (widgetCount === 0) {
+      this.widgetContainer.removeAttribute('data-density');
+      return;
+    }
+    
+    // Reset density to default so we measure natural (un-zoomed) widget sizes
+    delete this.widgetContainer.dataset.density;
+    
+    // Read actual computed padding from the container (varies with media queries)
+    const containerStyles = getComputedStyle(this.widgetContainer);
+    const containerPadding = parseFloat(containerStyles.paddingLeft) +
+                             parseFloat(containerStyles.paddingRight);
+    const containerGap = parseFloat(containerStyles.gap) || 6;
+    
+    // Measure each widget's natural width after density reset
+    let totalWidgetWidth = 0;
+    for (const [, data] of this.registeredWidgets) {
+      if (data.element) {
+        totalWidgetWidth += data.element.offsetWidth;
+      }
+    }
+    
+    // Calculate gaps: intra-zone (between widgets) + inter-zone (between zones)
+    const activeZones = Object.values(this.widgetZones)
+      .filter(z => z && z.children.length > 0);
+    const zoneCount = activeZones.length;
+    const widgetsInZones = activeZones.reduce((sum, z) => sum + z.children.length, 0);
+
+    // Read zone gap from first active zone (should be consistent)
+    let zoneGap = containerGap;
+    if (activeZones.length > 0) {
+      zoneGap = parseFloat(getComputedStyle(activeZones[0]).gap) || containerGap;
+    }
+
+    const intraZoneGaps = Math.max(0, widgetsInZones - zoneCount) * zoneGap;
+    const interZoneGaps = Math.max(0, zoneCount - 1) * containerGap;
+    
+    const usedWidth = totalWidgetWidth + intraZoneGaps + interZoneGaps + containerPadding;
+    const ratio = usedWidth / containerWidth;
+    
+    // Map ratio to density tier
+    let density = null;
+    if (ratio > 1.2) {
+      density = 'dense';
+    } else if (ratio > 0.9) {
+      density = 'compact';
+    } else if (ratio < 0.4 && widgetCount <= 3) {
+      density = 'spacious';
+    }
+    // else: comfortable/normal – no attribute needed
+    
+    if (density) {
+      this.widgetContainer.dataset.density = density;
+    }
+    
+    // Toggle scrollable class based on whether content overflows max-height.
+    // This enables pointer-events + overflow-y:auto only when a scrollbar is needed,
+    // keeping clicks passthrough to the game content in the normal case.
+    const isOverflowing = this.widgetContainer.scrollHeight > this.widgetContainer.clientHeight;
+    this.widgetContainer.classList.toggle('bd-scrollable', isOverflowing);
+    
+    this.log('Widget density:', density || 'normal',
+      `(ratio: ${ratio.toFixed(2)}, ${widgetCount} widgets, container: ${containerWidth}px, overflow: ${isOverflowing})`);
+  }
+
+  /**
    * Set up monitoring for layout changes
    * Specifically observes game-text-mask for width changes
    */
@@ -869,6 +975,7 @@ class BetterScriptsFeature {
         }
         this.resizeDebounceTimer = setTimeout(() => {
           this.updateContainerPosition();
+          this.recalculateWidgetDensity();
         }, 50); // Faster response for smoother updates
       };
       
@@ -903,6 +1010,12 @@ class BetterScriptsFeature {
   }
   
   removeWidgetContainer() {
+    // Cancel any pending density recalculation
+    if (this._densityRafId) {
+      cancelAnimationFrame(this._densityRafId);
+      this._densityRafId = null;
+    }
+    
     // Remove wrapper (which contains all containers)
     if (this.widgetWrapper) {
       this.widgetWrapper.remove();
@@ -1077,6 +1190,9 @@ class BetterScriptsFeature {
       this.registeredWidgets.set(widgetId, { element: widgetElement, config });
       this.log('Widget created:', widgetId);
       
+      // Recalculate density after adding a widget
+      this.recalculateWidgetDensity();
+      
       // Emit widget created event
       window.dispatchEvent(new CustomEvent('betterscripts:widget', {
         detail: { action: 'created', widgetId, config }
@@ -1106,8 +1222,14 @@ class BetterScriptsFeature {
     value.className = 'bd-widget-value';
     value.textContent = config.value ?? '0';
     
+    // Apply color: preset names use data-color for CSS gradients, arbitrary values use inline
     if (config.color) {
-      value.style.color = config.color;
+      const colorLower = config.color.toLowerCase();
+      if (BetterScriptsFeature.PRESET_COLORS.has(colorLower)) {
+        widget.dataset.color = colorLower;
+      } else {
+        value.style.color = config.color;
+      }
     }
     
     widget.appendChild(label);
@@ -1140,17 +1262,23 @@ class BetterScriptsFeature {
     const barFill = document.createElement('div');
     barFill.className = 'bd-widget-bar-fill';
     
-    const max = config.max || 100;
-    const percentage = Math.min(100, Math.max(0, ((config.value || 0) / max) * 100));
+    const max = config.max ?? 100;
+    const percentage = Math.min(100, Math.max(0, ((config.value ?? 0) / max) * 100));
     barFill.style.width = `${percentage}%`;
     
+    // Apply color: preset names use data-color for CSS gradients, arbitrary values use inline
     if (config.color) {
-      barFill.style.backgroundColor = config.color;
+      const colorLower = config.color.toLowerCase();
+      if (BetterScriptsFeature.PRESET_COLORS.has(colorLower)) {
+        widget.dataset.color = colorLower;
+      } else {
+        barFill.style.background = config.color;
+      }
     }
     
     const valueText = document.createElement('span');
     valueText.className = 'bd-widget-bar-text';
-    valueText.textContent = config.showValue !== false ? `${config.value}/${config.max || 100}` : '';
+    valueText.textContent = config.showValue !== false ? `${config.value ?? 0}/${config.max ?? 100}` : '';
     
     barContainer.appendChild(barFill);
     barContainer.appendChild(valueText);
@@ -1178,7 +1306,8 @@ class BetterScriptsFeature {
     widget.textContent = config.text || '';
     
     if (config.style) {
-      Object.assign(widget.style, config.style);
+      const sanitizedStyles = this.sanitizeStyleObject(config.style);
+      Object.assign(widget.style, sanitizedStyles);
     }
     
     return widget;
@@ -1382,7 +1511,7 @@ class BetterScriptsFeature {
     }
     
     if (config.size) {
-      widget.style.fontSize = typeof config.size === 'number' ? `${config.size}px` : config.size;
+      widget.style.setProperty('--icon-size', typeof config.size === 'number' ? `${config.size}px` : config.size);
     }
     
     // Optional tooltip
@@ -1545,7 +1674,7 @@ class BetterScriptsFeature {
       if (attrName === 'src') {
         // Only allow safe URL protocols for images
         const src = attr.value.trim().toLowerCase();
-        if (src.startsWith('javascript:') || src.startsWith('vbscript:')) {
+        if (src.startsWith('javascript:') || src.startsWith('data:') || src.startsWith('vbscript:')) {
           attrsToRemove.push(attr.name);
           continue;
         }
@@ -1681,7 +1810,14 @@ class BetterScriptsFeature {
           valueEl.textContent = config.value;
         }
         if (valueEl && config.color) {
-          valueEl.style.color = config.color;
+          const colorLower = config.color.toLowerCase();
+          if (BetterScriptsFeature.PRESET_COLORS.has(colorLower)) {
+            element.dataset.color = colorLower;
+            valueEl.style.color = '';
+          } else {
+            delete element.dataset.color;
+            valueEl.style.color = config.color;
+          }
         }
         break;
       }
@@ -1694,15 +1830,23 @@ class BetterScriptsFeature {
           labelEl.textContent = config.label;
         }
         if (barFill && config.value !== undefined) {
-          const max = config.max || existingConfig.max || 100;
-          const percentage = Math.min(100, Math.max(0, ((config.value || 0) / max) * 100));
+          const max = config.max ?? existingConfig.max ?? 100;
+          const percentage = Math.min(100, Math.max(0, ((config.value ?? 0) / max) * 100));
           barFill.style.width = `${percentage}%`;
         }
-        if (barText && config.value !== undefined) {
-          barText.textContent = `${config.value}/${config.max || existingConfig.max || 100}`;
+        if (barText && (config.value !== undefined || config.showValue !== undefined)) {
+          const showValue = mergedConfig.showValue !== false;
+          barText.textContent = showValue ? `${mergedConfig.value ?? existingConfig.value}/${mergedConfig.max ?? 100}` : '';
         }
         if (barFill && config.color) {
-          barFill.style.backgroundColor = config.color;
+          const colorLower = config.color.toLowerCase();
+          if (BetterScriptsFeature.PRESET_COLORS.has(colorLower)) {
+            element.dataset.color = colorLower;
+            barFill.style.background = '';
+          } else {
+            delete element.dataset.color;
+            barFill.style.background = config.color;
+          }
         }
         break;
       }
@@ -1779,6 +1923,22 @@ class BetterScriptsFeature {
         if (textEl && (config.text !== undefined || config.label !== undefined)) {
           textEl.textContent = config.text || config.label;
         }
+        // Update icon: create, update, or remove
+        if (config.icon !== undefined) {
+          let iconEl = element.querySelector('.bd-widget-badge-icon');
+          if (config.icon) {
+            if (iconEl) {
+              iconEl.textContent = config.icon;
+            } else {
+              iconEl = document.createElement('span');
+              iconEl.className = 'bd-widget-badge-icon';
+              iconEl.textContent = config.icon;
+              element.insertBefore(iconEl, element.firstChild);
+            }
+          } else if (iconEl) {
+            iconEl.remove();
+          }
+        }
         if (config.color) {
           element.style.setProperty('--badge-color', config.color);
         }
@@ -1829,7 +1989,7 @@ class BetterScriptsFeature {
           element.style.color = config.color;
         }
         if (config.size) {
-          element.style.fontSize = typeof config.size === 'number' ? `${config.size}px` : config.size;
+          element.style.setProperty('--icon-size', typeof config.size === 'number' ? `${config.size}px` : config.size);
         }
         if (config.tooltip || config.title) {
           element.title = config.tooltip || config.title;
@@ -1839,6 +1999,22 @@ class BetterScriptsFeature {
       case 'counter': {
         const valueEl = element.querySelector('.bd-widget-counter-value');
         const deltaEl = element.querySelector('.bd-widget-counter-delta');
+        // Update icon: create, update, or remove
+        if (config.icon !== undefined) {
+          let iconEl = element.querySelector('.bd-widget-counter-icon');
+          if (config.icon) {
+            if (iconEl) {
+              iconEl.textContent = config.icon;
+            } else {
+              iconEl = document.createElement('span');
+              iconEl.className = 'bd-widget-counter-icon';
+              iconEl.textContent = config.icon;
+              element.insertBefore(iconEl, element.firstChild);
+            }
+          } else if (iconEl) {
+            iconEl.remove();
+          }
+        }
         if (valueEl && config.value !== undefined) {
           valueEl.textContent = config.value;
         }
@@ -1876,6 +2052,9 @@ class BetterScriptsFeature {
     this.registeredWidgets.set(widgetId, { element, config: mergedConfig });
     this.log('Widget updated:', widgetId);
     
+    // Recalculate density after widget content changes
+    this.recalculateWidgetDensity();
+    
     // Emit widget updated event
     window.dispatchEvent(new CustomEvent('betterscripts:widget', {
       detail: { action: 'updated', widgetId, config: mergedConfig }
@@ -1897,9 +2076,11 @@ class BetterScriptsFeature {
         detail: { action: 'destroyed', widgetId }
       }));
       
-      // Remove container if no widgets remain
+      // Remove container if no widgets remain, otherwise recalculate density
       if (this.registeredWidgets.size === 0) {
         this.removeWidgetContainer();
+      } else {
+        this.recalculateWidgetDensity();
       }
     }
   }
