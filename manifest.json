@@ -22,7 +22,7 @@
         "features/try_feature.js",
         "features/trigger_highlight_feature.js",
         "features/hotkey_feature.js",
-        "features/favorite_instructions_feature.js",
+        "features/plot_presets_feature.js",
         "features/input_mode_color_feature.js",
         "features/character_preset_feature.js",
         "features/auto_see_feature.js",

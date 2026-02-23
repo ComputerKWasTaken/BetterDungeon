@@ -846,6 +846,15 @@ body {
 .btn-full {
   width: 100%;
   margin-bottom: 8px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.btn-full:hover {
+  background: var(--accent-muted);
+  border-color: var(--border-accent);
+  color: var(--accent);
 }
 
 .btn-sm {
@@ -911,10 +920,12 @@ body {
 }
 
 .preset-card {
+  position: relative;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 12px;
+  overflow: visible;
   transition: border-color var(--transition-fast);
 }
 
@@ -923,6 +934,7 @@ body {
 }
 
 .preset-header {
+  position: relative;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -949,6 +961,11 @@ body {
 
 .preset-components {
   color: var(--text-muted);
+}
+
+.preset-menu-wrapper {
+  position: relative;
+  flex-shrink: 0;
 }
 
 .preset-menu-btn {

@@ -1,7 +1,7 @@
-// BetterDungeon - Favorite Instructions Feature
+// BetterDungeon - Plot Presets Feature
 // Allows users to save, manage, and apply plot component presets
 
-class FavoriteInstructionsFeature {
+class PlotPresetsFeature {
   static id = 'favoriteInstructions';
 
   constructor() {
@@ -20,7 +20,7 @@ class FavoriteInstructionsFeature {
   }
 
   async init() {
-    console.log('[FavoriteInstructions] Initializing Favorite Instructions feature...');
+    console.log('[PlotPresets] Initializing Plot Presets feature...');
     await this.loadPresets();
   }
 
@@ -100,6 +100,72 @@ class FavoriteInstructionsFeature {
 
   getPresetsSortedByUsage() {
     return [...this.presets].sort((a, b) => b.useCount - a.useCount);
+  }
+
+  // ============================================
+  // NAVIGATION - Ensure Plot Tab is Visible
+  // ============================================
+
+  /**
+   * Get the AIDungeonService instance from the global BetterDungeon instance.
+   * This is used to navigate to the Plot settings tab when needed.
+   */
+  getAIDungeonService() {
+    if (typeof betterDungeonInstance !== 'undefined' && betterDungeonInstance?.aiDungeonService) {
+      return betterDungeonInstance.aiDungeonService;
+    }
+    return null;
+  }
+
+  /**
+   * Ensure the Plot tab is open and textareas are visible.
+   * This handles the case where the user navigated to the adventure page from another page
+   * (e.g., home page) without refreshing, so the settings panel may not be open.
+   * 
+   * @returns {Promise<{success: boolean, error?: string}>}
+   */
+  async ensurePlotTabVisible() {
+    const service = this.getAIDungeonService();
+    if (!service) {
+      this.log('[PlotPresets] AIDungeonService not available, attempting direct textarea detection');
+      return { success: true };
+    }
+
+    // Check if we can already find textareas - no navigation needed
+    const existing = this.findPlotComponentTextareas();
+    if (existing.aiInstructions || existing.plotEssentials || existing.authorsNote) {
+      this.log('[PlotPresets] Plot textareas already visible, skipping navigation');
+      return { success: true };
+    }
+
+    // Textareas not found - we need to navigate to the Plot settings
+    this.log('[PlotPresets] Plot textareas not found, navigating to Plot settings...');
+
+    // Validate we're on an adventure page
+    if (!service.isOnAdventurePage()) {
+      return { success: false, error: 'Navigate to an adventure first' };
+    }
+
+    // Navigate to Plot settings (opens settings panel -> Adventure tab -> Plot subtab)
+    const navResult = await service.navigateToPlotSettings();
+    if (!navResult.success) {
+      return navResult;
+    }
+
+    // Wait for textareas to appear after navigation
+    for (let i = 0; i < 20; i++) {
+      await this.wait(150);
+      const found = this.findPlotComponentTextareas();
+      if (found.aiInstructions || found.plotEssentials || found.authorsNote) {
+        return { success: true };
+      }
+    }
+
+    return { success: false, error: 'Plot components not found after navigation. Make sure you have active plot components.' };
+  }
+
+  wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   // ============================================
@@ -208,6 +274,12 @@ class FavoriteInstructionsFeature {
       return { success: false, error: 'Preset not found' };
     }
 
+    // Ensure Plot tab is visible before trying to find textareas
+    const navResult = await this.ensurePlotTabVisible();
+    if (!navResult.success) {
+      return navResult;
+    }
+
     const textareas = this.findPlotComponentTextareas();
     let appliedCount = 0;
 
@@ -244,6 +316,12 @@ class FavoriteInstructionsFeature {
 
   // Restore previous state (undo)
   async restorePreviousState(previousState) {
+    // Ensure Plot tab is visible before trying to find textareas
+    const navResult = await this.ensurePlotTabVisible();
+    if (!navResult.success) {
+      return navResult;
+    }
+
     const textareas = this.findPlotComponentTextareas();
     let restoredCount = 0;
 
@@ -321,6 +399,12 @@ class FavoriteInstructionsFeature {
   }
 
   async saveCurrentAsPreset(name, includeComponents = null) {
+    // Ensure Plot tab is visible before trying to find textareas
+    const navResult = await this.ensurePlotTabVisible();
+    if (!navResult.success) {
+      return navResult;
+    }
+
     const textareas = this.findPlotComponentTextareas();
     
     const components = {};
@@ -354,7 +438,7 @@ class FavoriteInstructionsFeature {
     }
 
     if (Object.keys(components).length === 0) {
-      return { success: false, error: 'No plot components with content found. Make sure you are on the Plot tab and have text in at least one component.' };
+      return { success: false, error: 'No plot components with content found. Make sure you are on an adventure and have text in at least one component.' };
     }
 
     const preset = await this.createPreset(name, components);
@@ -362,7 +446,8 @@ class FavoriteInstructionsFeature {
   }
 }
 
-// Make available globally
+// Make available globally (both old and new names for backward compatibility)
 if (typeof window !== 'undefined') {
-  window.FavoriteInstructionsFeature = FavoriteInstructionsFeature;
+  window.PlotPresetsFeature = PlotPresetsFeature;
+  window.FavoriteInstructionsFeature = PlotPresetsFeature;
 }
