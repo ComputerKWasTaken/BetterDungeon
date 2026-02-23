@@ -885,15 +885,17 @@ function createPresetCard(preset) {
           <span class="preset-components">${components.join(' • ')}</span>
         </div>
       </div>
-      <button class="preset-menu-btn" aria-label="Options">⋮</button>
+      <div class="preset-menu-wrapper">
+        <button class="preset-menu-btn" aria-label="Options">⋮</button>
+        <div class="preset-menu">
+          <button class="preset-menu-item preset-edit-btn">Edit</button>
+          <button class="preset-menu-item danger preset-delete-btn">Delete</button>
+        </div>
+      </div>
     </div>
     <div class="preset-actions">
       <button class="btn btn-primary" data-mode="replace">Replace</button>
       <button class="btn btn-ghost" data-mode="append">Append</button>
-    </div>
-    <div class="preset-menu">
-      <button class="preset-menu-item preset-edit-btn">Edit</button>
-      <button class="preset-menu-item danger preset-delete-btn">Delete</button>
     </div>
   `;
 
