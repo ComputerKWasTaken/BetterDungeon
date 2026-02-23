@@ -72,6 +72,13 @@ Each feature implements:
 
 ### Changelog
 
+### v1.0.2
+- Plot Presets improvements and fixes:
+  - Fixed an issue where the Plot Presets feature would only detect plot components if the Adventure page was refreshed
+  - Fixed an issue with the triple dot menu where it would have no proper position due to not having an anchor (regression)
+  - Fixed an issue where the button colors in the Presets section of the popup didn't have proper CSS color attachments which would cause the buttons to appear white
+  - Renamed the file associated with the Plot Presets feature from `favorite_instructions_feature.js` to `plot_presets_feature.js`
+
 ### v1.0.1
 - Drastically revamped and improved the **BetterScripts** feature
   - Added a proper debug mode and system
