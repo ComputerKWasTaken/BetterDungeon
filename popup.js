@@ -985,34 +985,53 @@ async function saveNewPreset() {
     return;
   }
 
+  closeModal('save-modal');
+
+  // Try to save from the current page first
+  let saved = false;
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
-    if (!tab?.url?.includes('aidungeon.com')) {
-      showToast('Navigate to AI Dungeon first', 'error');
-      return;
-    }
+    if (tab?.url?.includes('aidungeon.com')) {
+      const response = await chrome.tabs.sendMessage(tab.id, {
+        type: 'SAVE_CURRENT_AS_PRESET',
+        name,
+        includeComponents: {
+          aiInstructions: includeAi,
+          plotEssentials: includeEssentials,
+          authorsNote: includeNote
+        }
+      });
 
-    closeModal('save-modal');
-
-    const response = await chrome.tabs.sendMessage(tab.id, {
-      type: 'SAVE_CURRENT_AS_PRESET',
-      name,
-      includeComponents: {
-        aiInstructions: includeAi,
-        plotEssentials: includeEssentials,
-        authorsNote: includeNote
+      if (response?.success) {
+        showToast('Preset saved!', 'success');
+        loadPresets();
+        saved = true;
       }
-    });
-
-    if (response?.success) {
-      showToast('Preset saved!', 'success');
-      loadPresets();
-    } else {
-      showToast(response?.error || 'Failed to save', 'error');
     }
   } catch {
-    showToast('Error saving preset', 'error');
+    // Content script unavailable or page not ready — fall through to manual creation
+  }
+
+  // Fallback: create an empty preset directly in storage and open the edit modal
+  if (!saved) {
+    const newPreset = {
+      id: Date.now().toString(36) + Math.random().toString(36).substring(2, 7),
+      name,
+      components: {},
+      useCount: 0,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    chrome.storage.sync.get(STORAGE_KEYS.presets, (result) => {
+      const presets = result[STORAGE_KEYS.presets] || [];
+      presets.unshift(newPreset);
+      chrome.storage.sync.set({ [STORAGE_KEYS.presets]: presets }, () => {
+        loadPresets();
+        showToast('Preset created — fill in the details below', 'info');
+        openPresetEditModal(newPreset);
+      });
+    });
   }
 }
 
