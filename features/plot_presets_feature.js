@@ -1,5 +1,6 @@
 // BetterDungeon - Plot Presets Feature
 // Allows users to save, manage, and apply plot component presets
+// Includes in-page quick-apply overlay, active preset indicator, and quick-save
 
 class PlotPresetsFeature {
   static id = 'plotPresets';
@@ -9,16 +10,19 @@ class PlotPresetsFeature {
     this.checkInterval = null;
     this.storageKey = 'betterDungeon_plotPresets';
     this.activePresetKey = 'betterDungeon_activePlotPreset';
+    this.legacyStorageKey = 'betterDungeon_favoritePresets'; // Migration source
     this.presets = [];
     this.activePresetId = null;
-    this.saveButton = null;
     this.overlayElement = null;
+    this.saveButtonElement = null;
+    this.presetIndicator = null;
     this.lastApplyState = null; // Previous state for undo
     this.isProcessing = false;
     this.debug = false;
     this._checkDebounceTimer = null;
     this._fieldGraceTimer = null;
     this._lastPlotTabState = null; // Track whether we were on the Plot tab
+    this._indicatorPresetId = null; // Track which preset the indicator is showing
   }
 
   log(message, ...args) {
@@ -29,10 +33,12 @@ class PlotPresetsFeature {
 
   async init() {
     console.log('[PlotPresets] Initializing Plot Presets feature...');
+    await this.migrateFromLegacyStorage();
     await this.loadPresets();
     await this.loadActivePreset();
     this.setupObserver();
     this.startPolling();
+    this.checkForPlotTab();
   }
 
   destroy() {
@@ -54,6 +60,7 @@ class PlotPresetsFeature {
     }
     this.removeOverlay();
     this.removeSaveButton();
+    this.removePresetIndicator();
   }
 
   // Shared helper: fade out a tracked UI element, null the reference, then
@@ -81,7 +88,12 @@ class PlotPresetsFeature {
   }
 
   removeSaveButton() {
-    this._removeUIElement('saveButton', 'bd-save-visible', '.bd-plot-save-wrapper');
+    this._removeUIElement('saveButtonElement', 'bd-save-visible', '.bd-plot-save-wrapper');
+  }
+
+  removePresetIndicator() {
+    this._indicatorPresetId = null;
+    this._removeUIElement('presetIndicator', 'bd-indicator-visible', '.bd-plot-indicator');
   }
 
   startPolling() {
@@ -124,6 +136,46 @@ class PlotPresetsFeature {
         chrome.storage[area].set(data, () => resolve());
       } catch { resolve(); }
     });
+  }
+
+  // Generic chrome storage remove that silently resolves on error.
+  _chromeRemove(area, key) {
+    return new Promise((resolve) => {
+      try {
+        if (!chrome.runtime?.id) { resolve(); return; }
+        chrome.storage[area].remove(key, () => resolve());
+      } catch { resolve(); }
+    });
+  }
+
+  // ============================================
+  // DATA MIGRATION
+  // ============================================
+
+  async migrateFromLegacyStorage() {
+    // Check if legacy presets exist under the old key
+    const legacyPresets = await this._chromeGet('sync', this.legacyStorageKey, null);
+    if (!legacyPresets || !Array.isArray(legacyPresets) || legacyPresets.length === 0) return;
+
+    // Check if new key already has data (don't overwrite)
+    const existing = await this._chromeGet('sync', this.storageKey, null);
+    if (existing && Array.isArray(existing) && existing.length > 0) {
+      // Both exist - merge legacy into new (skip duplicates by id)
+      const existingIds = new Set(existing.map(p => p.id));
+      const toMerge = legacyPresets.filter(p => !existingIds.has(p.id));
+      if (toMerge.length > 0) {
+        const merged = [...existing, ...toMerge];
+        await this._chromeSet('sync', { [this.storageKey]: merged });
+        console.log(`[PlotPresets] Merged ${toMerge.length} legacy presets`);
+      }
+    } else {
+      // No new data - copy legacy directly
+      await this._chromeSet('sync', { [this.storageKey]: legacyPresets });
+      console.log(`[PlotPresets] Migrated ${legacyPresets.length} legacy presets`);
+    }
+
+    // Clean up legacy key
+    await this._chromeRemove('sync', this.legacyStorageKey);
   }
 
   async loadPresets() {
@@ -187,6 +239,26 @@ class PlotPresetsFeature {
     
     await this.savePresets();
     return true;
+  }
+
+  async duplicatePreset(id) {
+    const source = this.presets.find(p => p.id === id);
+    if (!source) return null;
+
+    const copy = {
+      id: Date.now().toString(36) + Math.random().toString(36).substring(2, 7),
+      name: source.name + ' (Copy)',
+      components: { ...source.components },
+      useCount: 0,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+
+    // Insert right after the source
+    const sourceIndex = this.presets.findIndex(p => p.id === id);
+    this.presets.splice(sourceIndex + 1, 0, copy);
+    await this.savePresets();
+    return copy;
   }
 
   async incrementUseCount(id) {
@@ -328,18 +400,261 @@ class PlotPresetsFeature {
     return result;
   }
 
-  // Check if we're on the Plot tab and handle UI accordingly
+  // Find a suitable parent container for injecting UI elements near the plot tab.
+  // Walks up the DOM from the element until it finds a layout boundary.
+  getFieldContainer(element) {
+    if (!element) return null;
+    
+    let el = element.parentElement;
+    let depth = 0;
+    
+    while (el && el !== document.body && depth < 10) {
+      if (el.parentElement && el.parentElement.children.length > 1) {
+        return el.parentElement;
+      }
+      el = el.parentElement;
+      depth++;
+    }
+    
+    return element.parentElement?.parentElement || null;
+  }
+
+  // Check if we're on the Plot tab and handle UI accordingly.
+  // Uses a grace period to avoid tearing down UI during React re-renders.
   checkForPlotTab() {
     const isActive = this.isPlotTabActive();
     
-    if (isActive !== this._lastPlotTabState) {
-      this._lastPlotTabState = isActive;
-      
-      if (!isActive) {
-        // Left the Plot tab - clean up UI
-        this.removeOverlay();
-        this.removeSaveButton();
+    if (isActive) {
+      // Plot tab is active - cancel any pending teardown
+      if (this._fieldGraceTimer) {
+        clearTimeout(this._fieldGraceTimer);
+        this._fieldGraceTimer = null;
       }
+      
+      if (this._lastPlotTabState !== true) {
+        this._lastPlotTabState = true;
+        this.showInPageUI();
+      }
+    } else {
+      // Plot tab not active - use grace period before tearing down UI
+      if (this._lastPlotTabState === true && !this._fieldGraceTimer) {
+        this._fieldGraceTimer = setTimeout(() => {
+          this._fieldGraceTimer = null;
+          // Re-check: if plot tab is genuinely gone, tear down
+          if (!this.isPlotTabActive()) {
+            this._lastPlotTabState = false;
+            this._indicatorPresetId = null;
+            this.removeOverlay();
+            this.removeSaveButton();
+            this.removePresetIndicator();
+          }
+        }, 400);
+      }
+    }
+  }
+
+  // ============================================
+  // IN-PAGE UI ORCHESTRATION
+  // ============================================
+
+  async showInPageUI() {
+    await this.loadPresets();
+    this.showPlotPresetOverlay();
+    this.showQuickSaveButton();
+    
+    // Show active preset indicator if one is set
+    const activePreset = this.getActivePreset();
+    if (activePreset) {
+      this.showPresetIndicator(activePreset);
+    }
+  }
+
+  // ============================================
+  // IN-PAGE UI - QUICK-APPLY OVERLAY
+  // ============================================
+
+  showPlotPresetOverlay() {
+    if (this.overlayElement?.isConnected) return;
+    this.removeOverlay();
+    
+    if (this.presets.length === 0) return;
+    
+    const plotTab = this.findPlotTab();
+    const container = this.getFieldContainer(plotTab);
+    if (!container) return;
+    
+    this.overlayElement = document.createElement('div');
+    this.overlayElement.className = 'bd-plot-preset-overlay';
+    this.overlayElement.innerHTML = this.buildOverlayHTML();
+    
+    container.appendChild(this.overlayElement);
+    
+    requestAnimationFrame(() => {
+      this.overlayElement?.classList.add('bd-plot-overlay-visible');
+    });
+    
+    this.setupOverlayHandlers();
+  }
+
+  buildOverlayHTML() {
+    const presets = this.getPresetsSortedByUsage();
+    const activeId = this.activePresetId;
+    
+    const options = presets.map(p => {
+      const selected = p.id === activeId ? ' selected' : '';
+      const badges = this.getComponentBadges(p);
+      return `<option value="${p.id}"${selected}>${this.escapeHtml(p.name)} ${badges}</option>`;
+    }).join('');
+    
+    return `
+      <div class="bd-plot-overlay-row">
+        <label class="bd-plot-overlay-label">Quick Apply Preset</label>
+        <select class="bd-plot-overlay-dropdown">
+          <option value="">-- Select Preset --</option>
+          ${options}
+        </select>
+        <button class="bd-plot-overlay-apply" title="Replace current plot components">Apply</button>
+        <button class="bd-plot-overlay-append" title="Append to current plot components">Append</button>
+      </div>
+    `;
+  }
+
+  getComponentBadges(preset) {
+    if (!preset?.components) return '';
+    const parts = [];
+    if (preset.components.aiInstructions) parts.push('AI');
+    if (preset.components.plotEssentials) parts.push('PE');
+    if (preset.components.authorsNote) parts.push('AN');
+    return parts.length > 0 ? `[${parts.join('+')}]` : '';
+  }
+
+  setupOverlayHandlers() {
+    if (!this.overlayElement) return;
+    
+    const applyBtn = this.overlayElement.querySelector('.bd-plot-overlay-apply');
+    const appendBtn = this.overlayElement.querySelector('.bd-plot-overlay-append');
+    const dropdown = this.overlayElement.querySelector('.bd-plot-overlay-dropdown');
+    
+    if (applyBtn) {
+      applyBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        await this.applyPresetFromOverlay('replace');
+      });
+    }
+    
+    if (appendBtn) {
+      appendBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        await this.applyPresetFromOverlay('append');
+      });
+    }
+  }
+
+  async applyPresetFromOverlay(mode) {
+    if (!this.overlayElement) return;
+    
+    const dropdown = this.overlayElement.querySelector('.bd-plot-overlay-dropdown');
+    const presetId = dropdown?.value;
+    
+    if (!presetId) {
+      this.showToast('Select a preset first', 'error');
+      return;
+    }
+    
+    const result = await this.applyPreset(presetId, mode);
+    if (result.success) {
+      this.showToast(`Preset applied (${result.appliedCount} components, ${mode})`, 'success');
+      // Refresh indicator
+      const preset = this.getActivePreset();
+      if (preset) this.showPresetIndicator(preset);
+    } else {
+      this.showToast(result.error || 'Failed to apply', 'error');
+    }
+  }
+
+  // ============================================
+  // IN-PAGE UI - ACTIVE PRESET INDICATOR
+  // ============================================
+
+  showPresetIndicator(preset) {
+    if (!preset) return;
+    // Skip rebuild if already showing indicator for the same preset
+    if (this._indicatorPresetId === preset.id && this.presetIndicator?.isConnected) return;
+    this.removePresetIndicator();
+    this._indicatorPresetId = preset.id;
+    
+    const plotTab = this.findPlotTab();
+    const container = this.getFieldContainer(plotTab);
+    if (!container) return;
+    
+    this.presetIndicator = document.createElement('div');
+    this.presetIndicator.className = 'bd-plot-indicator';
+    this.presetIndicator.innerHTML = `
+      <div class="bd-indicator-content">
+        <span style="color: var(--bd-accent-primary);">●</span>
+        <span>Active: <strong style="color: var(--bd-text-primary);">${this.escapeHtml(preset.name)}</strong></span>
+        <span class="bd-indicator-uses">(${preset.useCount || 0} uses)</span>
+      </div>
+    `;
+    
+    container.appendChild(this.presetIndicator);
+    
+    requestAnimationFrame(() => {
+      this.presetIndicator?.classList.add('bd-indicator-visible');
+    });
+  }
+
+  // ============================================
+  // IN-PAGE UI - QUICK SAVE BUTTON
+  // ============================================
+
+  showQuickSaveButton() {
+    if (this.saveButtonElement?.isConnected) return;
+    this.removeSaveButton();
+    
+    const plotTab = this.findPlotTab();
+    const container = this.getFieldContainer(plotTab);
+    if (!container) return;
+    
+    this.saveButtonElement = document.createElement('div');
+    this.saveButtonElement.className = 'bd-plot-save-wrapper';
+    this.saveButtonElement.innerHTML = `
+      <button class="bd-plot-save-btn" title="Save current plot components as a new preset">
+        <span>💾</span> Quick Save Plot
+      </button>
+    `;
+    
+    container.appendChild(this.saveButtonElement);
+    
+    requestAnimationFrame(() => {
+      this.saveButtonElement?.classList.add('bd-save-visible');
+    });
+    
+    const saveBtn = this.saveButtonElement.querySelector('.bd-plot-save-btn');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        await this.quickSaveFromPage();
+      });
+    }
+  }
+
+  async quickSaveFromPage() {
+    const name = `Plot ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    const result = await this.saveCurrentAsPreset(name);
+    
+    if (result.success) {
+      this.showToast(`Saved: "${result.preset.name}"`, 'success');
+      // Refresh the overlay to include the new preset
+      if (this.overlayElement?.isConnected) {
+        this.overlayElement.innerHTML = this.buildOverlayHTML();
+        this.setupOverlayHandlers();
+      }
+    } else {
+      this.showToast(result.error || 'Failed to save', 'error');
     }
   }
 

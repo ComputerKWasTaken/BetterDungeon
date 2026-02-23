@@ -56,6 +56,9 @@ class BetterDungeon {
       } else if (message.type === 'DELETE_PRESET') {
         this.handleDeletePreset(message.presetId).then(sendResponse);
         return true;
+      } else if (message.type === 'DUPLICATE_PRESET') {
+        this.handleDuplicatePreset(message.presetId).then(sendResponse);
+        return true;
       } else if (message.type === 'UPDATE_PRESET') {
         this.handleUpdatePreset(message.presetId, message.updates).then(sendResponse);
         return true;
@@ -163,6 +166,15 @@ class BetterDungeon {
     if (feature) {
       const deleted = await feature.deletePreset(presetId);
       return { success: deleted };
+    }
+    return { success: false, error: 'Feature not available' };
+  }
+
+  async handleDuplicatePreset(presetId) {
+    const feature = this.featureManager.features.get('plotPresets');
+    if (feature) {
+      const copy = await feature.duplicatePreset(presetId);
+      return { success: !!copy, preset: copy };
     }
     return { success: false, error: 'Feature not available' };
   }

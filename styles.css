@@ -1363,6 +1363,234 @@
 }
 
 /* ============================================
+   PLOT PRESET OVERLAY (in-page quick-apply)
+   ============================================ */
+
+.bd-plot-preset-overlay {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: auto !important;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.bd-plot-preset-overlay.bd-plot-overlay-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.bd-plot-preset-overlay * {
+  pointer-events: auto !important;
+  font-family: inherit;
+}
+
+.bd-plot-overlay-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.bd-plot-overlay-label {
+  font-size: 14px;
+  color: rgba(224, 239, 255, 0.7);
+  font-weight: 500;
+}
+
+.bd-plot-overlay-dropdown {
+  padding: 8px 12px;
+  font-size: 14px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  min-width: 160px;
+}
+
+.bd-plot-overlay-dropdown:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.bd-plot-overlay-dropdown:focus {
+  outline: none;
+  border-color: var(--bd-accent-primary, rgba(255, 149, 0, 0.6));
+}
+
+.bd-plot-overlay-dropdown option {
+  background: #1a1a2e;
+  color: #fff;
+}
+
+.bd-plot-overlay-apply,
+.bd-plot-overlay-append {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: none;
+}
+
+.bd-plot-overlay-apply {
+  background: linear-gradient(135deg, var(--bd-accent-primary, #ff9500) 0%, var(--bd-accent-secondary, #ff6b00) 100%);
+}
+
+.bd-plot-overlay-apply:hover {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 149, 0, 0.3);
+}
+
+.bd-plot-overlay-append {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.bd-plot-overlay-append:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* ============================================
+   PLOT PRESET INDICATOR (Active preset badge)
+   ============================================ */
+
+.bd-plot-indicator {
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: none;
+}
+
+.bd-plot-indicator.bd-indicator-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.bd-plot-indicator .bd-indicator-content {
+  font-family: var(--bd-font-family-primary);
+  font-size: var(--bd-font-size-sm);
+  color: var(--bd-text-secondary);
+  background: var(--bd-bg-tertiary);
+  border: 1px solid var(--bd-border-default);
+  border-radius: var(--bd-radius-md);
+  padding: var(--bd-space-1) var(--bd-space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bd-space-2);
+  margin-top: var(--bd-space-2);
+  animation: bd-indicator-pulse 2s ease-in-out infinite;
+}
+
+.bd-indicator-uses {
+  font-size: 11px;
+  color: rgba(224, 239, 255, 0.4);
+}
+
+/* ============================================
+   PLOT PRESET QUICK SAVE BUTTON
+   ============================================ */
+
+.bd-plot-save-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: auto !important;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.bd-plot-save-wrapper.bd-save-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.bd-plot-save-wrapper * {
+  pointer-events: auto !important;
+  font-family: inherit;
+}
+
+.bd-plot-save-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.9) 0%, rgba(22, 163, 74, 0.9) 100%);
+  border: 1px solid rgba(34, 197, 94, 0.5);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bd-plot-save-btn:hover {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 1) 0%, rgba(22, 163, 74, 1) 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(34, 197, 94, 0.3);
+}
+
+.bd-plot-save-btn:active {
+  transform: translateY(0);
+}
+
+/* ============================================
+   TOAST NOTIFICATIONS
+   ============================================ */
+
+.bd-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  z-index: 999999;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.bd-toast.bd-toast-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.bd-toast-success {
+  background: rgba(34, 197, 94, 0.95);
+  box-shadow: 0 4px 16px rgba(34, 197, 94, 0.3);
+}
+
+.bd-toast-error {
+  background: rgba(239, 68, 68, 0.95);
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
+}
+
+.bd-toast-info {
+  background: rgba(59, 130, 246, 0.95);
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+}
+
+/* ============================================
    NOTES FEATURE
    ============================================ */
 

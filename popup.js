@@ -833,6 +833,13 @@ function initPresets() {
 
   // Undo button
   document.getElementById('undo-preset-btn')?.addEventListener('click', undoLastApply);
+
+  // Single delegated listener to close all open preset menus on outside click
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.preset-menu-btn') && !e.target.closest('.preset-menu')) {
+      document.querySelectorAll('.preset-menu.open').forEach(m => m.classList.remove('open'));
+    }
+  });
 }
 
 async function loadPresets() {
@@ -876,6 +883,19 @@ function createPresetCard(preset) {
   if (preset.components.plotEssentials) components.push('Plot');
   if (preset.components.authorsNote) components.push('Note');
 
+  // Build component preview snippets
+  const previews = [];
+  if (preset.components.aiInstructions) {
+    previews.push(`<div class="preset-preview-line"><span class="preset-preview-tag">AI</span> ${escapeHtml(preset.components.aiInstructions.substring(0, 60))}${preset.components.aiInstructions.length > 60 ? '...' : ''}</div>`);
+  }
+  if (preset.components.plotEssentials) {
+    previews.push(`<div class="preset-preview-line"><span class="preset-preview-tag">PE</span> ${escapeHtml(preset.components.plotEssentials.substring(0, 60))}${preset.components.plotEssentials.length > 60 ? '...' : ''}</div>`);
+  }
+  if (preset.components.authorsNote) {
+    previews.push(`<div class="preset-preview-line"><span class="preset-preview-tag">AN</span> ${escapeHtml(preset.components.authorsNote.substring(0, 60))}${preset.components.authorsNote.length > 60 ? '...' : ''}</div>`);
+  }
+  const previewHTML = previews.length > 0 ? `<div class="preset-preview">${previews.join('')}</div>` : '';
+
   card.innerHTML = `
     <div class="preset-header">
       <div>
@@ -887,12 +907,14 @@ function createPresetCard(preset) {
       </div>
       <button class="preset-menu-btn" aria-label="Options">⋮</button>
     </div>
+    ${previewHTML}
     <div class="preset-actions">
       <button class="btn btn-primary" data-mode="replace">Replace</button>
       <button class="btn btn-ghost" data-mode="append">Append</button>
     </div>
     <div class="preset-menu">
       <button class="preset-menu-item preset-edit-btn">Edit</button>
+      <button class="preset-menu-item preset-duplicate-btn">Duplicate</button>
       <button class="preset-menu-item danger preset-delete-btn">Delete</button>
     </div>
   `;
@@ -907,18 +929,56 @@ function createPresetCard(preset) {
     menu.classList.toggle('open');
   });
 
-  // Close menu on outside click
-  document.addEventListener('click', () => menu.classList.remove('open'));
+  // Close menu when clicking outside (scoped to card, not document)
+  card.addEventListener('click', (e) => {
+    if (!e.target.closest('.preset-menu-btn') && !e.target.closest('.preset-menu')) {
+      menu.classList.remove('open');
+    }
+  });
 
-  // Apply buttons
+  // Apply buttons - add confirmation for replace mode
   card.querySelectorAll('[data-mode]').forEach(btn => {
-    btn.addEventListener('click', () => applyPreset(preset.id, btn.dataset.mode));
+    btn.addEventListener('click', async () => {
+      if (btn.dataset.mode === 'replace') {
+        const confirmed = await showDialog({
+          title: 'Replace Plot Components',
+          message: `Replace all current plot components with "${preset.name}"?`,
+          confirmText: 'Replace',
+          confirmClass: 'btn-primary'
+        });
+        if (!confirmed) return;
+      }
+      applyPreset(preset.id, btn.dataset.mode);
+    });
   });
 
   // Edit button
   card.querySelector('.preset-edit-btn').addEventListener('click', () => {
     menu.classList.remove('open');
     openPresetEditModal(preset);
+  });
+
+  // Duplicate button
+  card.querySelector('.preset-duplicate-btn').addEventListener('click', async () => {
+    menu.classList.remove('open');
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab?.url?.includes('aidungeon.com')) {
+        const response = await chrome.tabs.sendMessage(tab.id, {
+          type: 'DUPLICATE_PRESET',
+          presetId: preset.id
+        });
+        if (response?.success) {
+          showToast(`Duplicated: "${response.preset.name}"`, 'success');
+          loadPresets();
+          return;
+        }
+      }
+      // Fallback: duplicate directly in storage
+      duplicatePresetInStorage(preset);
+    } catch {
+      duplicatePresetInStorage(preset);
+    }
   });
 
   // Delete button
@@ -1090,6 +1150,26 @@ function deletePreset(presetId) {
     chrome.storage.sync.set({ [STORAGE_KEYS.presets]: presets }, () => {
       loadPresets();
       showToast('Preset deleted', 'success');
+    });
+  });
+}
+
+function duplicatePresetInStorage(preset) {
+  const copy = {
+    id: Date.now().toString(36) + Math.random().toString(36).substring(2, 7),
+    name: preset.name + ' (Copy)',
+    components: { ...preset.components },
+    useCount: 0,
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+  chrome.storage.sync.get(STORAGE_KEYS.presets, (result) => {
+    const presets = result[STORAGE_KEYS.presets] || [];
+    const idx = presets.findIndex(p => p.id === preset.id);
+    presets.splice(idx + 1, 0, copy);
+    chrome.storage.sync.set({ [STORAGE_KEYS.presets]: presets }, () => {
+      loadPresets();
+      showToast(`Duplicated: "${copy.name}"`, 'success');
     });
   });
 }

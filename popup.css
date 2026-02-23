@@ -1024,6 +1024,35 @@ body {
   background: var(--error-muted);
 }
 
+/* === Preset Component Preview === */
+.preset-preview {
+  padding: 0 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.preset-preview-line {
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preset-preview-tag {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-muted);
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
 /* === Character Card === */
 .character-card {
   background: var(--bg-surface);
