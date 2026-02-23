@@ -42,8 +42,8 @@ class FeatureManager {
       this.featureClasses.set('hotkey', HotkeyFeature);
     }
 
-    if (typeof FavoriteInstructionsFeature !== 'undefined') {
-      this.featureClasses.set('favoriteInstructions', FavoriteInstructionsFeature);
+    if (typeof PlotPresetsFeature !== 'undefined') {
+      this.featureClasses.set('plotPresets', PlotPresetsFeature);
     }
 
     if (typeof InputModeColorFeature !== 'undefined') {

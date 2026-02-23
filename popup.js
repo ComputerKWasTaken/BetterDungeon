@@ -10,7 +10,7 @@ const DEBUG = false;
 const STORAGE_KEYS = {
   features: 'betterDungeonFeatures',
   settings: 'betterDungeonSettings',
-  presets: 'betterDungeon_favoritePresets',
+  presets: 'betterDungeon_plotPresets',
   characters: 'betterDungeon_characterPresets',
   autoScan: 'betterDungeon_autoScanTriggers',
   autoApply: 'betterDungeon_autoApplyInstructions',
@@ -69,7 +69,7 @@ const DEFAULT_FEATURES = {
   try: true,
   triggerHighlight: true,
   hotkey: true,
-  favoriteInstructions: true,
+  plotPresets: true,
   inputModeColor: true,
   characterPreset: true,
   autoSee: false,

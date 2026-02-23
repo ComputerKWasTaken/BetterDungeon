@@ -133,7 +133,7 @@ class BetterDungeon {
   }
 
   async handleGetPresets() {
-    const feature = this.featureManager.features.get('favoriteInstructions');
+    const feature = this.featureManager.features.get('plotPresets');
     if (feature) {
       const presets = await feature.getAllPresets();
       return { success: true, presets };
@@ -142,7 +142,7 @@ class BetterDungeon {
   }
 
   async handleSavePreset(name, components) {
-    const feature = this.featureManager.features.get('favoriteInstructions');
+    const feature = this.featureManager.features.get('plotPresets');
     if (feature) {
       const preset = await feature.createPreset(name, components);
       return { success: true, preset };
@@ -151,7 +151,7 @@ class BetterDungeon {
   }
 
   async handleApplyPreset(presetId, mode) {
-    const feature = this.featureManager.features.get('favoriteInstructions');
+    const feature = this.featureManager.features.get('plotPresets');
     if (feature) {
       return await feature.applyPreset(presetId, mode);
     }
@@ -159,7 +159,7 @@ class BetterDungeon {
   }
 
   async handleDeletePreset(presetId) {
-    const feature = this.featureManager.features.get('favoriteInstructions');
+    const feature = this.featureManager.features.get('plotPresets');
     if (feature) {
       const deleted = await feature.deletePreset(presetId);
       return { success: deleted };
@@ -168,7 +168,7 @@ class BetterDungeon {
   }
 
   async handleUpdatePreset(presetId, updates) {
-    const feature = this.featureManager.features.get('favoriteInstructions');
+    const feature = this.featureManager.features.get('plotPresets');
     if (feature) {
       const preset = await feature.updatePreset(presetId, updates);
       return { success: !!preset, preset };
@@ -177,7 +177,7 @@ class BetterDungeon {
   }
 
   async handleSaveCurrentAsPreset(name, includeComponents = null) {
-    const feature = this.featureManager.features.get('favoriteInstructions');
+    const feature = this.featureManager.features.get('plotPresets');
     if (feature) {
       try {
         return await feature.saveCurrentAsPreset(name, includeComponents);
@@ -186,11 +186,11 @@ class BetterDungeon {
         return { success: false, error: error.message };
       }
     }
-    return { success: false, error: 'Favorite Instructions feature not enabled. Enable it in the Presets tab.' };
+    return { success: false, error: 'Plot Presets feature not enabled. Enable it in the Presets tab.' };
   }
 
   async handleUndoPresetApply(previousState) {
-    const feature = this.featureManager.features.get('favoriteInstructions');
+    const feature = this.featureManager.features.get('plotPresets');
     if (feature) {
       try {
         return await feature.restorePreviousState(previousState);
