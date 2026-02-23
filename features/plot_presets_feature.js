@@ -319,7 +319,9 @@ class PlotPresetsFeature {
   isPlotTabActive() {
     const plotTab = this.findPlotTab();
     if (!plotTab) return false;
-    return plotTab.getAttribute('aria-label')?.toLowerCase().includes('selected');
+    // Check standard aria-selected attribute first, fall back to aria-label text
+    if (plotTab.getAttribute('aria-selected') === 'true') return true;
+    return plotTab.getAttribute('aria-label')?.toLowerCase().includes('selected') || false;
   }
 
   findPlotComponentTextareas() {
@@ -377,8 +379,12 @@ class PlotPresetsFeature {
 
     for (const { key, patterns } of componentNames) {
       for (const pattern of patterns) {
-        // Find any element containing this text
-        const elements = document.querySelectorAll('h1, h2, h3, h4, h5, h6, p, span, div');
+        // Scope to likely header elements near textareas to avoid querying thousands of DOM nodes.
+        // Fall back to a broader query if the scoped one finds nothing.
+        let elements = document.querySelectorAll('[class*="plot"] h1, [class*="plot"] h2, [class*="plot"] h3, [class*="plot"] h4, [class*="Plot"] h1, [class*="Plot"] h2, [class*="Plot"] h3, [class*="Plot"] h4, [role="tabpanel"] h1, [role="tabpanel"] h2, [role="tabpanel"] h3, [role="tabpanel"] h4, [role="tabpanel"] span, [role="tabpanel"] p');
+        if (elements.length === 0) {
+          elements = document.querySelectorAll('h1, h2, h3, h4, h5, h6, p, span');
+        }
         for (const el of elements) {
           const text = el.textContent?.toLowerCase().trim();
           if (text === pattern || text?.startsWith(pattern)) {
@@ -503,7 +509,7 @@ class PlotPresetsFeature {
     const options = presets.map(p => {
       const selected = p.id === activeId ? ' selected' : '';
       const badges = this.getComponentBadges(p);
-      return `<option value="${p.id}"${selected}>${this.escapeHtml(p.name)} ${badges}</option>`;
+      return `<option value="${p.id}"${selected}>${this.escapeHtml(p.name)}${badges ? ' ' + badges : ''}</option>`;
     }).join('');
     
     return `
@@ -533,7 +539,6 @@ class PlotPresetsFeature {
     
     const applyBtn = this.overlayElement.querySelector('.bd-plot-overlay-apply');
     const appendBtn = this.overlayElement.querySelector('.bd-plot-overlay-append');
-    const dropdown = this.overlayElement.querySelector('.bd-plot-overlay-dropdown');
     
     if (applyBtn) {
       applyBtn.addEventListener('click', async (e) => {
@@ -766,6 +771,17 @@ class PlotPresetsFeature {
   fillTextarea(textarea, text) {
     return new Promise((resolve) => {
       if (!textarea) { resolve(); return; }
+
+      // Short-circuit for empty/null text — just clear the field directly
+      if (!text) {
+        textarea.focus();
+        textarea.value = '';
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+        textarea.blur();
+        resolve();
+        return;
+      }
 
       textarea.focus();
       
