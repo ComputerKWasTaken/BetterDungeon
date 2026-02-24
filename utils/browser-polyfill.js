@@ -31,7 +31,20 @@
         const callback = args.pop();
         fn.apply(thisArg, args).then(
           function (result) { callback(result); },
-          function () { callback(undefined); }
+          function (err) {
+            // Surface errors via chrome.runtime.lastError so callers can detect them
+            try {
+              if (globalThis.chrome && globalThis.chrome.runtime) {
+                globalThis.chrome.runtime.lastError = { message: err ? err.message || String(err) : 'Unknown error' };
+              }
+            } catch (_) { /* runtime may be frozen */ }
+            callback(undefined);
+            try {
+              if (globalThis.chrome && globalThis.chrome.runtime) {
+                globalThis.chrome.runtime.lastError = undefined;
+              }
+            } catch (_) { /* ignore */ }
+          }
         );
       } else {
         return fn.apply(thisArg, args);
@@ -170,6 +183,19 @@
         }
       };
     } catch (_) { /* frozen property */ }
+
+    try {
+      chromeArea.remove = function (keys, callback) {
+        if (typeof callback === 'function') {
+          browserArea.remove(keys).then(
+            function () { callback(); },
+            function () { callback(); }
+          );
+        } else {
+          return browserArea.remove(keys);
+        }
+      };
+    } catch (_) { /* frozen property */ }
   }
 
   if (typeof chrome !== 'undefined') {
@@ -215,7 +241,8 @@
               function () { callback(undefined); }
             );
           } else {
-            return browser.tabs.sendMessage(tabId, message);
+            var sendArgs = options ? [tabId, message, options] : [tabId, message];
+            return browser.tabs.sendMessage.apply(browser.tabs, sendArgs);
           }
         };
       } catch (_) { /* frozen */ }
