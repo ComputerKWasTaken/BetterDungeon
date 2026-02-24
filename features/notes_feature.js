@@ -37,7 +37,7 @@ class NotesFeature {
     this.debug = false;
   }
 
-  // Check if the Chrome extension runtime is still alive.
+  // Check if the browser extension runtime is still alive.
   // Returns false after extension reload/update/disable while the content script lingers.
   isExtensionContextValid() {
     try {

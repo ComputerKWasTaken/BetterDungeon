@@ -32,16 +32,16 @@ class CommandFeature {
   }
 
   loadAutoDeleteSetting() {
-    if (typeof chrome !== 'undefined' && chrome.storage) {
-      chrome.storage.sync.get('betterDungeon_commandAutoDelete', (result) => {
+    if (typeof browser !== 'undefined' && browser.storage) {
+      browser.storage.sync.get('betterDungeon_commandAutoDelete', (result) => {
         this.autoDeleteEnabled = result.betterDungeon_commandAutoDelete ?? false;
       });
     }
   }
 
   setupMessageListener() {
-    if (typeof chrome !== 'undefined' && chrome.runtime) {
-      chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (typeof browser !== 'undefined' && browser.runtime) {
+      browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (message.type === 'SET_COMMAND_AUTO_DELETE') {
           this.autoDeleteEnabled = message.enabled;
           sendResponse({ success: true });

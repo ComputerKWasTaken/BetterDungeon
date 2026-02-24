@@ -622,7 +622,7 @@ class StoryCardAnalyticsFeature {
   injectStyles() {
     if (document.getElementById('bd-analytics-styles')) return;
 
-    // Build font URLs using chrome.runtime.getURL for proper extension paths
+    // Build font URLs using browser.runtime.getURL for proper extension paths
     const fontWoff2 = browser.runtime.getURL('fonts/lucide/lucide.woff2');
     const fontWoff = browser.runtime.getURL('fonts/lucide/lucide.woff');
     const fontTtf = browser.runtime.getURL('fonts/lucide/lucide.ttf');

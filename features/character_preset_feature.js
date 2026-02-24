@@ -113,55 +113,55 @@ class CharacterPresetFeature {
   // STORAGE OPERATIONS
   // ============================================
 
-  // Generic chrome storage get that returns the value for `key`, or `fallback` on any error.
-  _chromeGet(area, key, fallback = null) {
+  // Generic browser storage get that returns the value for `key`, or `fallback` on any error.
+  _storageGet(area, key, fallback = null) {
     return new Promise((resolve) => {
       try {
-        if (!chrome.runtime?.id) { resolve(fallback); return; }
-        chrome.storage[area].get(key, (result) => {
-          resolve(chrome.runtime.lastError ? fallback : (result[key] ?? fallback));
+        if (!browser.runtime?.id) { resolve(fallback); return; }
+        browser.storage[area].get(key, (result) => {
+          resolve(browser.runtime.lastError ? fallback : (result[key] ?? fallback));
         });
       } catch { resolve(fallback); }
     });
   }
 
-  // Generic chrome storage set that silently resolves on error.
-  _chromeSet(area, data) {
+  // Generic browser storage set that silently resolves on error.
+  _storageSet(area, data) {
     return new Promise((resolve) => {
       try {
-        if (!chrome.runtime?.id) { resolve(); return; }
-        chrome.storage[area].set(data, () => resolve());
+        if (!browser.runtime?.id) { resolve(); return; }
+        browser.storage[area].set(data, () => resolve());
       } catch { resolve(); }
     });
   }
 
   async loadPresets() {
-    this.presets = await this._chromeGet('sync', this.storageKey, []);
+    this.presets = await this._storageGet('sync', this.storageKey, []);
     return this.presets;
   }
 
   async savePresets() {
-    await this._chromeSet('sync', { [this.storageKey]: this.presets });
+    await this._storageSet('sync', { [this.storageKey]: this.presets });
   }
 
   async loadActivePreset() {
-    this.activePresetId = await this._chromeGet('sync', this.activePresetKey, null);
+    this.activePresetId = await this._storageGet('sync', this.activePresetKey, null);
     return this.activePresetId;
   }
 
   async setActivePreset(presetId) {
     this.activePresetId = presetId;
-    await this._chromeSet('sync', { [this.activePresetKey]: presetId });
+    await this._storageSet('sync', { [this.activePresetKey]: presetId });
   }
 
   async loadSessionCharacter() {
-    this.sessionCharacterId = await this._chromeGet('local', this.sessionCharacterKey, null);
+    this.sessionCharacterId = await this._storageGet('local', this.sessionCharacterKey, null);
     return this.sessionCharacterId;
   }
 
   async setSessionCharacter(presetId) {
     this.sessionCharacterId = presetId;
-    await this._chromeSet('local', { [this.sessionCharacterKey]: presetId });
+    await this._storageSet('local', { [this.sessionCharacterKey]: presetId });
   }
 
   // ============================================
@@ -169,12 +169,12 @@ class CharacterPresetFeature {
   // ============================================
 
   async loadScenarioSession() {
-    const session = await this._chromeGet('local', 'betterDungeon_scenarioSession', null);
+    const session = await this._storageGet('local', 'betterDungeon_scenarioSession', null);
     if (session) this.scenarioSessionUrl = session.url;
   }
 
   async saveScenarioSession() {
-    await this._chromeSet('local', {
+    await this._storageSet('local', {
       'betterDungeon_scenarioSession': { url: this.scenarioSessionUrl }
     });
   }

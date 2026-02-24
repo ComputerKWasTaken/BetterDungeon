@@ -232,7 +232,7 @@ class AutoSeeFeature {
   async loadSettings() {
     this.log('[AutoSee] Loading settings...');
     try {
-      const result = await chrome.storage.sync.get([
+      const result = await browser.storage.sync.get([
         'betterDungeon_autoSeeTriggerMode',
         'betterDungeon_autoSeeTurnInterval'
       ]);
@@ -249,13 +249,13 @@ class AutoSeeFeature {
   setTriggerMode(mode) {
     this.log('[AutoSee] Setting trigger mode:', mode);
     this.triggerMode = mode;
-    chrome.storage.sync.set({ betterDungeon_autoSeeTriggerMode: mode });
+    browser.storage.sync.set({ betterDungeon_autoSeeTriggerMode: mode });
   }
 
   setTurnInterval(interval) {
     this.turnInterval = Math.max(2, Math.min(10, interval));
     this.log('[AutoSee] Setting turn interval:', this.turnInterval);
-    chrome.storage.sync.set({ betterDungeon_autoSeeTurnInterval: this.turnInterval });
+    browser.storage.sync.set({ betterDungeon_autoSeeTurnInterval: this.turnInterval });
   }
 
   // ==================== ADVENTURE DETECTION ====================

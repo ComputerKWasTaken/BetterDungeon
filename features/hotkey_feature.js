@@ -1,6 +1,6 @@
 // BetterDungeon - Hotkey Feature
 // Adds keyboard shortcuts for common AI Dungeon actions
-// Supports custom hotkey bindings via Chrome storage
+// Supports custom hotkey bindings via browser storage
 
 class HotkeyFeature {
   static id = 'hotkey';
@@ -79,10 +79,10 @@ class HotkeyFeature {
     this.listenForBindingUpdates();
   }
 
-  // Load custom key bindings from Chrome storage
+  // Load custom key bindings from browser storage
   async loadCustomBindings() {
     return new Promise((resolve) => {
-      chrome.storage.sync.get(HotkeyFeature.STORAGE_KEY, (result) => {
+      browser.storage.sync.get(HotkeyFeature.STORAGE_KEY, (result) => {
         const customBindings = result[HotkeyFeature.STORAGE_KEY];
         if (customBindings && typeof customBindings === 'object') {
           // Merge custom bindings with defaults (custom takes precedence)
@@ -118,7 +118,7 @@ class HotkeyFeature {
       }
       return true;
     };
-    chrome.runtime.onMessage.addListener(this.boundMessageListener);
+    browser.runtime.onMessage.addListener(this.boundMessageListener);
   }
 
   destroy() {
@@ -130,7 +130,7 @@ class HotkeyFeature {
       this.boundKeyHandler = null;
     }
     if (this.boundMessageListener) {
-      chrome.runtime.onMessage.removeListener(this.boundMessageListener);
+      browser.runtime.onMessage.removeListener(this.boundMessageListener);
       this.boundMessageListener = null;
     }
     

@@ -1,6 +1,6 @@
 // BetterDungeon - Input Mode Color Feature
 // Adds color coding to the input box border and mode selection buttons based on input mode
-// Supports custom colors via Chrome storage
+// Supports custom colors via browser storage
 
 class InputModeColorFeature {
   static id = 'inputModeColor';
@@ -60,11 +60,11 @@ class InputModeColorFeature {
     this.currentMode = null;
   }
 
-  // Load custom colors from Chrome storage
+  // Load custom colors from browser storage
   async loadCustomColors() {
     return new Promise((resolve) => {
-      browser.storage.sync.get(this.STORAGE_KEY, (result) => {
-        const customColors = result[this.STORAGE_KEY];
+      browser.storage.sync.get(InputModeColorFeature.STORAGE_KEY, (result) => {
+        const customColors = result[InputModeColorFeature.STORAGE_KEY];
         if (customColors && typeof customColors === 'object') {
           this.customColors = { ...InputModeColorFeature.DEFAULT_COLORS, ...customColors };
           this.log('[InputModeColor] Loaded custom colors', this.customColors);
