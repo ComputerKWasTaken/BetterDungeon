@@ -171,29 +171,25 @@ function initFeatureCards() {
 // FEATURE TOGGLES
 // ============================================
 
-function initToggles() {
+async function initToggles() {
   console.log('[Popup] Initializing toggles...');
   // Load saved states
-  browser.storage.sync.get(STORAGE_KEYS.features, (result) => {
-    const features = result[STORAGE_KEYS.features] || DEFAULT_FEATURES;
-    
-    Object.entries(features).forEach(([id, enabled]) => {
-      const toggle = document.getElementById(`feature-${id}`);
-      if (toggle) toggle.checked = enabled;
-    });
+  const featuresResult = await browser.storage.sync.get(STORAGE_KEYS.features);
+  const features = featuresResult[STORAGE_KEYS.features] || DEFAULT_FEATURES;
+  Object.entries(features).forEach(([id, enabled]) => {
+    const toggle = document.getElementById(`feature-${id}`);
+    if (toggle) toggle.checked = enabled;
   });
 
   // Load auto-scan setting
-  browser.storage.sync.get(STORAGE_KEYS.autoScan, (result) => {
-    const toggle = document.getElementById('auto-scan-triggers');
-    if (toggle) toggle.checked = result[STORAGE_KEYS.autoScan] ?? false;
-  });
+  const autoScanResult = await browser.storage.sync.get(STORAGE_KEYS.autoScan);
+  const autoScanToggle = document.getElementById('auto-scan-triggers');
+  if (autoScanToggle) autoScanToggle.checked = autoScanResult[STORAGE_KEYS.autoScan] ?? false;
 
   // Load auto-apply setting
-  browser.storage.sync.get(STORAGE_KEYS.autoApply, (result) => {
-    const toggle = document.getElementById('auto-apply-instructions');
-    if (toggle) toggle.checked = result[STORAGE_KEYS.autoApply] ?? false;
-  });
+  const autoApplyResult = await browser.storage.sync.get(STORAGE_KEYS.autoApply);
+  const autoApplyToggle = document.getElementById('auto-apply-instructions');
+  if (autoApplyToggle) autoApplyToggle.checked = autoApplyResult[STORAGE_KEYS.autoApply] ?? false;
 
   // Setup change handlers
   document.querySelectorAll('input[type="checkbox"][id^="feature-"]').forEach(toggle => {
@@ -216,10 +212,9 @@ function initToggles() {
   });
 
   // BetterScripts debug toggle
-  browser.storage.sync.get(STORAGE_KEYS.betterScriptsDebug, (result) => {
-    const toggle = document.getElementById('betterscripts-debug');
-    if (toggle) toggle.checked = result[STORAGE_KEYS.betterScriptsDebug] ?? false;
-  });
+  const debugResult = await browser.storage.sync.get(STORAGE_KEYS.betterScriptsDebug);
+  const debugToggle = document.getElementById('betterscripts-debug');
+  if (debugToggle) debugToggle.checked = debugResult[STORAGE_KEYS.betterScriptsDebug] ?? false;
 
   document.getElementById('betterscripts-debug')?.addEventListener('change', (e) => {
     browser.storage.sync.set({ [STORAGE_KEYS.betterScriptsDebug]: e.target.checked });
@@ -227,50 +222,42 @@ function initToggles() {
   });
 }
 
-function saveFeatureState(featureId, enabled) {
+async function saveFeatureState(featureId, enabled) {
   log('[Popup] Saving feature state:', featureId, enabled);
-  browser.storage.sync.get(STORAGE_KEYS.features, (result) => {
-    const features = result[STORAGE_KEYS.features] || DEFAULT_FEATURES;
-    features[featureId] = enabled;
-    
-    browser.storage.sync.set({ [STORAGE_KEYS.features]: features }, () => {
-      notifyContentScript('FEATURE_TOGGLE', { featureId, enabled });
-    });
-  });
+  const result = await browser.storage.sync.get(STORAGE_KEYS.features);
+  const features = result[STORAGE_KEYS.features] || DEFAULT_FEATURES;
+  features[featureId] = enabled;
+  await browser.storage.sync.set({ [STORAGE_KEYS.features]: features });
+  notifyContentScript('FEATURE_TOGGLE', { featureId, enabled });
 }
 
 // ============================================
 // SETTINGS
 // ============================================
 
-function initSettings() {
+async function initSettings() {
   // Load settings
-  browser.storage.sync.get(STORAGE_KEYS.settings, (result) => {
-    const settings = result[STORAGE_KEYS.settings] || DEFAULT_SETTINGS;
-    
-    const slider = document.getElementById('critical-chance');
-    const display = document.getElementById('critical-chance-value');
-    
-    if (slider && display) {
-      slider.value = settings.tryCriticalChance;
-      display.textContent = `${settings.tryCriticalChance}%`;
-    }
-  });
-
-  // Slider handler
+  const settingsResult = await browser.storage.sync.get(STORAGE_KEYS.settings);
+  const settings = settingsResult[STORAGE_KEYS.settings] || DEFAULT_SETTINGS;
+  
   const slider = document.getElementById('critical-chance');
   const display = document.getElementById('critical-chance-value');
   
   if (slider && display) {
-    slider.addEventListener('input', () => {
+    slider.value = settings.tryCriticalChance;
+    display.textContent = `${settings.tryCriticalChance}%`;
+  }
+
+  // Slider handler
+  if (slider && display) {
+    slider.addEventListener('input', async () => {
       const value = parseInt(slider.value);
       display.textContent = `${value}%`;
       
-      browser.storage.sync.get(STORAGE_KEYS.settings, (result) => {
-        const settings = result[STORAGE_KEYS.settings] || DEFAULT_SETTINGS;
-        settings.tryCriticalChance = value;
-        browser.storage.sync.set({ [STORAGE_KEYS.settings]: settings });
-      });
+      const result = await browser.storage.sync.get(STORAGE_KEYS.settings);
+      const currentSettings = result[STORAGE_KEYS.settings] || DEFAULT_SETTINGS;
+      currentSettings.tryCriticalChance = value;
+      await browser.storage.sync.set({ [STORAGE_KEYS.settings]: currentSettings });
     });
   }
 
@@ -278,30 +265,29 @@ function initSettings() {
   initAutoSeeSettings();
 }
 
-function initAutoSeeSettings() {
+async function initAutoSeeSettings() {
   const triggerModeSelect = document.getElementById('auto-see-trigger-mode');
   const intervalSlider = document.getElementById('auto-see-interval');
   const intervalDisplay = document.getElementById('auto-see-interval-value');
   const intervalOption = document.getElementById('auto-see-interval-option');
 
   // Load saved Auto See settings
-  browser.storage.sync.get([
+  const result = await browser.storage.sync.get([
     'betterDungeon_autoSeeTriggerMode',
     'betterDungeon_autoSeeTurnInterval'
-  ], (result) => {
-    const triggerMode = result.betterDungeon_autoSeeTriggerMode ?? 'everyTurn';
-    const interval = result.betterDungeon_autoSeeTurnInterval ?? 2;
+  ]);
+  const triggerMode = result.betterDungeon_autoSeeTriggerMode ?? 'everyTurn';
+  const interval = result.betterDungeon_autoSeeTurnInterval ?? 2;
 
-    if (triggerModeSelect) {
-      triggerModeSelect.value = triggerMode;
-      updateAutoSeeIntervalVisibility(triggerMode);
-    }
+  if (triggerModeSelect) {
+    triggerModeSelect.value = triggerMode;
+    updateAutoSeeIntervalVisibility(triggerMode);
+  }
 
-    if (intervalSlider && intervalDisplay) {
-      intervalSlider.value = interval;
-      intervalDisplay.textContent = interval;
-    }
-  });
+  if (intervalSlider && intervalDisplay) {
+    intervalSlider.value = interval;
+    intervalDisplay.textContent = interval;
+  }
 
   // Trigger mode select handler
   if (triggerModeSelect) {
@@ -394,13 +380,16 @@ async function scanTriggers(btn) {
       return;
     }
 
-    browser.tabs.sendMessage(tab.id, { type: 'SCAN_STORY_CARDS' }, (response) => {
-      if (browser.runtime.lastError || !response?.success) {
+    try {
+      const response = await browser.tabs.sendMessage(tab.id, { type: 'SCAN_STORY_CARDS' });
+      if (!response?.success) {
         showButtonStatus(btn, 'error', response?.error || 'Failed', originalText);
       } else {
         showButtonStatus(btn, 'success', 'Done!', originalText);
       }
-    });
+    } catch {
+      showButtonStatus(btn, 'error', 'Failed', originalText);
+    }
   } catch (error) {
     showButtonStatus(btn, 'error', 'Error', originalText);
   }
@@ -419,8 +408,9 @@ async function openAnalyticsDashboard(btn) {
       return;
     }
 
-    browser.tabs.sendMessage(tab.id, { type: 'OPEN_STORY_CARD_ANALYTICS' }, (response) => {
-      if (browser.runtime.lastError || !response?.success) {
+    try {
+      const response = await browser.tabs.sendMessage(tab.id, { type: 'OPEN_STORY_CARD_ANALYTICS' });
+      if (!response?.success) {
         showButtonStatus(btn, 'error', response?.error || 'Failed', originalText);
       } else {
         // Close the popup after opening the dashboard
@@ -428,7 +418,9 @@ async function openAnalyticsDashboard(btn) {
         btn.innerHTML = originalText;
         window.close();
       }
-    });
+    } catch {
+      showButtonStatus(btn, 'error', 'Failed', originalText);
+    }
   } catch (error) {
     showButtonStatus(btn, 'error', 'Error', originalText);
   }
@@ -469,16 +461,15 @@ function initHotkeys() {
 }
 
 // Load hotkey bindings from storage
-function loadHotkeyBindings() {
-  browser.storage.sync.get(STORAGE_KEYS.customHotkeys, (result) => {
-    const customBindings = result[STORAGE_KEYS.customHotkeys];
-    if (customBindings && typeof customBindings === 'object') {
-      currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS, ...customBindings };
-    } else {
-      currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS };
-    }
-    updateHotkeyDisplay();
-  });
+async function loadHotkeyBindings() {
+  const result = await browser.storage.sync.get(STORAGE_KEYS.customHotkeys);
+  const customBindings = result[STORAGE_KEYS.customHotkeys];
+  if (customBindings && typeof customBindings === 'object') {
+    currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS, ...customBindings };
+  } else {
+    currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS };
+  }
+  updateHotkeyDisplay();
 }
 
 // Update the hotkey display in the feature card
@@ -525,18 +516,17 @@ function formatKeyDisplay(key) {
 }
 
 // Open the hotkey customization modal
-function openHotkeyModal() {
+async function openHotkeyModal() {
   // Reset to current saved bindings
-  browser.storage.sync.get(STORAGE_KEYS.customHotkeys, (result) => {
-    const customBindings = result[STORAGE_KEYS.customHotkeys];
-    if (customBindings && typeof customBindings === 'object') {
-      currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS, ...customBindings };
-    } else {
-      currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS };
-    }
-    renderHotkeyEditor();
-    openModal('hotkey-modal');
-  });
+  const result = await browser.storage.sync.get(STORAGE_KEYS.customHotkeys);
+  const customBindings = result[STORAGE_KEYS.customHotkeys];
+  if (customBindings && typeof customBindings === 'object') {
+    currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS, ...customBindings };
+  } else {
+    currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS };
+  }
+  renderHotkeyEditor();
+  openModal('hotkey-modal');
 }
 
 // Render the hotkey editor lists
@@ -728,17 +718,16 @@ function initModeColors() {
 }
 
 // Load mode colors from storage
-function loadModeColors() {
-  browser.storage.sync.get(STORAGE_KEYS.customModeColors, (result) => {
-    const customColors = result[STORAGE_KEYS.customModeColors];
-    if (customColors && typeof customColors === 'object') {
-      currentModeColors = { ...DEFAULT_MODE_COLORS, ...customColors };
-    } else {
-      currentModeColors = { ...DEFAULT_MODE_COLORS };
-    }
-    updateModeColorDisplay();
-    updateColorEditorInputs();
-  });
+async function loadModeColors() {
+  const result = await browser.storage.sync.get(STORAGE_KEYS.customModeColors);
+  const customColors = result[STORAGE_KEYS.customModeColors];
+  if (customColors && typeof customColors === 'object') {
+    currentModeColors = { ...DEFAULT_MODE_COLORS, ...customColors };
+  } else {
+    currentModeColors = { ...DEFAULT_MODE_COLORS };
+  }
+  updateModeColorDisplay();
+  updateColorEditorInputs();
 }
 
 // Update the color display in the feature card
@@ -767,18 +756,17 @@ function updateColorEditorInputs() {
 }
 
 // Open the color customization modal
-function openColorModal() {
+async function openColorModal() {
   // Reload from storage to ensure we have latest
-  browser.storage.sync.get(STORAGE_KEYS.customModeColors, (result) => {
-    const customColors = result[STORAGE_KEYS.customModeColors];
-    if (customColors && typeof customColors === 'object') {
-      currentModeColors = { ...DEFAULT_MODE_COLORS, ...customColors };
-    } else {
-      currentModeColors = { ...DEFAULT_MODE_COLORS };
-    }
-    updateColorEditorInputs();
-    openModal('color-modal');
-  });
+  const result = await browser.storage.sync.get(STORAGE_KEYS.customModeColors);
+  const customColors = result[STORAGE_KEYS.customModeColors];
+  if (customColors && typeof customColors === 'object') {
+    currentModeColors = { ...DEFAULT_MODE_COLORS, ...customColors };
+  } else {
+    currentModeColors = { ...DEFAULT_MODE_COLORS };
+  }
+  updateColorEditorInputs();
+  openModal('color-modal');
 }
 
 // Save mode colors to storage and notify content script
@@ -836,10 +824,9 @@ function initPresets() {
 }
 
 async function loadPresets() {
-  browser.storage.sync.get(STORAGE_KEYS.presets, (result) => {
-    const presets = result[STORAGE_KEYS.presets] || [];
-    renderPresets(presets);
-  });
+  const result = await browser.storage.sync.get(STORAGE_KEYS.presets);
+  const presets = result[STORAGE_KEYS.presets] || [];
+  renderPresets(presets);
 }
 
 function renderPresets(presets) {
@@ -1034,7 +1021,7 @@ function openPresetEditModal(preset) {
   openModal('preset-modal');
 }
 
-function savePresetChanges() {
+async function savePresetChanges() {
   if (!currentEditingPreset) return;
 
   const updates = {
@@ -1052,29 +1039,25 @@ function savePresetChanges() {
     updates.components.authorsNote = document.getElementById('modal-authors-note').value;
   }
 
-  browser.storage.sync.get(STORAGE_KEYS.presets, (result) => {
-    const presets = result[STORAGE_KEYS.presets] || [];
-    const index = presets.findIndex(p => p.id === currentEditingPreset.id);
-    
-    if (index !== -1) {
-      presets[index] = { ...presets[index], ...updates, updatedAt: Date.now() };
-      browser.storage.sync.set({ [STORAGE_KEYS.presets]: presets }, () => {
-        loadPresets();
-        showToast('Preset updated', 'success');
-        closeModal('preset-modal');
-      });
-    }
-  });
+  const result = await browser.storage.sync.get(STORAGE_KEYS.presets);
+  const presets = result[STORAGE_KEYS.presets] || [];
+  const index = presets.findIndex(p => p.id === currentEditingPreset.id);
+  
+  if (index !== -1) {
+    presets[index] = { ...presets[index], ...updates, updatedAt: Date.now() };
+    await browser.storage.sync.set({ [STORAGE_KEYS.presets]: presets });
+    loadPresets();
+    showToast('Preset updated', 'success');
+    closeModal('preset-modal');
+  }
 }
 
-function deletePreset(presetId) {
-  browser.storage.sync.get(STORAGE_KEYS.presets, (result) => {
-    const presets = (result[STORAGE_KEYS.presets] || []).filter(p => p.id !== presetId);
-    browser.storage.sync.set({ [STORAGE_KEYS.presets]: presets }, () => {
-      loadPresets();
-      showToast('Preset deleted', 'success');
-    });
-  });
+async function deletePreset(presetId) {
+  const result = await browser.storage.sync.get(STORAGE_KEYS.presets);
+  const presets = (result[STORAGE_KEYS.presets] || []).filter(p => p.id !== presetId);
+  await browser.storage.sync.set({ [STORAGE_KEYS.presets]: presets });
+  loadPresets();
+  showToast('Preset deleted', 'success');
 }
 
 async function undoLastApply() {
@@ -1144,10 +1127,9 @@ function initCharacters() {
 }
 
 async function loadCharacters() {
-  browser.storage.sync.get(STORAGE_KEYS.characters, (result) => {
-    const characters = result[STORAGE_KEYS.characters] || [];
-    renderCharacters(characters);
-  });
+  const result = await browser.storage.sync.get(STORAGE_KEYS.characters);
+  const characters = result[STORAGE_KEYS.characters] || [];
+  renderCharacters(characters);
 }
 
 function renderCharacters(characters) {
@@ -1195,25 +1177,23 @@ function createCharacterCard(character) {
   return card;
 }
 
-function createCharacter(name) {
-  browser.storage.sync.get(STORAGE_KEYS.characters, (result) => {
-    const characters = result[STORAGE_KEYS.characters] || [];
-    
-    const newChar = {
-      id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
-      name,
-      fields: {},
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    };
-    
-    characters.unshift(newChar);
-    
-    browser.storage.sync.set({ [STORAGE_KEYS.characters]: characters }, () => {
-      loadCharacters();
-      showToast('Character created!', 'success');
-    });
-  });
+async function createCharacter(name) {
+  const result = await browser.storage.sync.get(STORAGE_KEYS.characters);
+  const characters = result[STORAGE_KEYS.characters] || [];
+  
+  const newChar = {
+    id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
+    name,
+    fields: {},
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+  
+  characters.unshift(newChar);
+  
+  await browser.storage.sync.set({ [STORAGE_KEYS.characters]: characters });
+  loadCharacters();
+  showToast('Character created!', 'success');
 }
 
 function openCharacterModal(character) {
@@ -1349,7 +1329,7 @@ function addCharacterField() {
   keyInput.focus();
 }
 
-function saveCharacterChanges() {
+async function saveCharacterChanges() {
   if (!currentEditingCharacter) return;
 
   const nameInput = document.getElementById('character-name-input');
@@ -1365,19 +1345,17 @@ function saveCharacterChanges() {
 
   currentEditingCharacter.updatedAt = Date.now();
 
-  browser.storage.sync.get(STORAGE_KEYS.characters, (result) => {
-    const characters = result[STORAGE_KEYS.characters] || [];
-    const index = characters.findIndex(c => c.id === currentEditingCharacter.id);
-    
-    if (index !== -1) {
-      characters[index] = currentEditingCharacter;
-      browser.storage.sync.set({ [STORAGE_KEYS.characters]: characters }, () => {
-        loadCharacters();
-        showToast('Character updated', 'success');
-        closeModal('character-modal');
-      });
-    }
-  });
+  const result = await browser.storage.sync.get(STORAGE_KEYS.characters);
+  const characters = result[STORAGE_KEYS.characters] || [];
+  const index = characters.findIndex(c => c.id === currentEditingCharacter.id);
+  
+  if (index !== -1) {
+    characters[index] = currentEditingCharacter;
+    await browser.storage.sync.set({ [STORAGE_KEYS.characters]: characters });
+    loadCharacters();
+    showToast('Character updated', 'success');
+    closeModal('character-modal');
+  }
 }
 
 async function deleteCharacter() {
@@ -1390,16 +1368,14 @@ async function deleteCharacter() {
   });
   if (!confirmed) return;
 
-  browser.storage.sync.get(STORAGE_KEYS.characters, (result) => {
-    const characters = (result[STORAGE_KEYS.characters] || [])
-      .filter(c => c.id !== currentEditingCharacter.id);
-    
-    browser.storage.sync.set({ [STORAGE_KEYS.characters]: characters }, () => {
-      loadCharacters();
-      showToast('Character deleted', 'success');
-      closeModal('character-modal');
-    });
-  });
+  const result = await browser.storage.sync.get(STORAGE_KEYS.characters);
+  const characters = (result[STORAGE_KEYS.characters] || [])
+    .filter(c => c.id !== currentEditingCharacter.id);
+  
+  await browser.storage.sync.set({ [STORAGE_KEYS.characters]: characters });
+  loadCharacters();
+  showToast('Character deleted', 'success');
+  closeModal('character-modal');
 }
 
 // ============================================

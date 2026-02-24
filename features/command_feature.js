@@ -31,11 +31,10 @@ class CommandFeature {
     this.setupMessageListener();
   }
 
-  loadAutoDeleteSetting() {
+  async loadAutoDeleteSetting() {
     if (typeof browser !== 'undefined' && browser.storage) {
-      browser.storage.sync.get('betterDungeon_commandAutoDelete', (result) => {
-        this.autoDeleteEnabled = result.betterDungeon_commandAutoDelete ?? false;
-      });
+      const result = await browser.storage.sync.get('betterDungeon_commandAutoDelete');
+      this.autoDeleteEnabled = result.betterDungeon_commandAutoDelete ?? false;
     }
   }
 

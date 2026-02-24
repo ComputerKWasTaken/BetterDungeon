@@ -189,19 +189,14 @@ class TutorialService {
   }
 
   async loadState() {
-    return new Promise((resolve) => {
-      browser.storage.sync.get(this.STORAGE_KEY, (result) => {
-        resolve(result[this.STORAGE_KEY] || { completed: false, seenWelcome: false, lastStep: 0 });
-      });
-    });
+    const result = await browser.storage.sync.get(this.STORAGE_KEY);
+    return result[this.STORAGE_KEY] || { completed: false, seenWelcome: false, lastStep: 0 };
   }
 
   async saveState(updates) {
     const currentState = await this.loadState();
     const newState = { ...currentState, ...updates };
-    return new Promise((resolve) => {
-      browser.storage.sync.set({ [this.STORAGE_KEY]: newState }, resolve);
-    });
+    await browser.storage.sync.set({ [this.STORAGE_KEY]: newState });
   }
 
   async markCompleted() {

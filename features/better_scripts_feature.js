@@ -213,13 +213,13 @@ class BetterScriptsFeature {
     console.log('[BetterScripts] Initializing BetterScripts feature...');
     
     // Load persisted debug mode state from storage
-    browser.storage.sync.get('betterDungeon_betterScriptsDebug', (result) => {
+    browser.storage.sync.get('betterDungeon_betterScriptsDebug').then((result) => {
       const enabled = result['betterDungeon_betterScriptsDebug'] ?? false;
       if (enabled) {
         this.debug = true;
         console.log('[BetterScripts] Debug mode enabled (restored from settings)');
       }
-    });
+    }).catch(() => {});
     
     this.detectCurrentAdventure();
     this.startObserving();

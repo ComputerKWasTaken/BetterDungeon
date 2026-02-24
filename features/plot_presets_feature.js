@@ -36,20 +36,13 @@ class PlotPresetsFeature {
   // ============================================
 
   async loadPresets() {
-    return new Promise((resolve) => {
-      browser.storage.sync.get(this.storageKey, (result) => {
-        this.presets = result[this.storageKey] || [];
-        resolve(this.presets);
-      });
-    });
+    const result = await browser.storage.sync.get(this.storageKey);
+    this.presets = result[this.storageKey] || [];
+    return this.presets;
   }
 
   async savePresets() {
-    return new Promise((resolve) => {
-      browser.storage.sync.set({ [this.storageKey]: this.presets }, () => {
-        resolve();
-      });
-    });
+    await browser.storage.sync.set({ [this.storageKey]: this.presets });
   }
 
   async createPreset(name, components) {

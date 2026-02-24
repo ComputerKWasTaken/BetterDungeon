@@ -62,18 +62,14 @@ class InputModeColorFeature {
 
   // Load custom colors from browser storage
   async loadCustomColors() {
-    return new Promise((resolve) => {
-      browser.storage.sync.get(InputModeColorFeature.STORAGE_KEY, (result) => {
-        const customColors = result[InputModeColorFeature.STORAGE_KEY];
-        if (customColors && typeof customColors === 'object') {
-          this.customColors = { ...InputModeColorFeature.DEFAULT_COLORS, ...customColors };
-          this.log('[InputModeColor] Loaded custom colors', this.customColors);
-        } else {
-          this.customColors = { ...InputModeColorFeature.DEFAULT_COLORS };
-        }
-        resolve();
-      });
-    });
+    const result = await browser.storage.sync.get(InputModeColorFeature.STORAGE_KEY);
+    const customColors = result[InputModeColorFeature.STORAGE_KEY];
+    if (customColors && typeof customColors === 'object') {
+      this.customColors = { ...InputModeColorFeature.DEFAULT_COLORS, ...customColors };
+      this.log('[InputModeColor] Loaded custom colors', this.customColors);
+    } else {
+      this.customColors = { ...InputModeColorFeature.DEFAULT_COLORS };
+    }
   }
 
   // Convert hex color to RGB values

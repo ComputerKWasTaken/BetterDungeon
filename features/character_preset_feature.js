@@ -114,25 +114,24 @@ class CharacterPresetFeature {
   // ============================================
 
   // Generic browser storage get that returns the value for `key`, or `fallback` on any error.
-  _storageGet(area, key, fallback = null) {
-    return new Promise((resolve) => {
-      try {
-        if (!browser.runtime?.id) { resolve(fallback); return; }
-        browser.storage[area].get(key, (result) => {
-          resolve(browser.runtime.lastError ? fallback : (result[key] ?? fallback));
-        });
-      } catch { resolve(fallback); }
-    });
+  async _storageGet(area, key, fallback = null) {
+    try {
+      if (!browser.runtime?.id) return fallback;
+      const result = await browser.storage[area].get(key);
+      return result[key] ?? fallback;
+    } catch {
+      return fallback;
+    }
   }
 
   // Generic browser storage set that silently resolves on error.
-  _storageSet(area, data) {
-    return new Promise((resolve) => {
-      try {
-        if (!browser.runtime?.id) { resolve(); return; }
-        browser.storage[area].set(data, () => resolve());
-      } catch { resolve(); }
-    });
+  async _storageSet(area, data) {
+    try {
+      if (!browser.runtime?.id) return;
+      await browser.storage[area].set(data);
+    } catch {
+      // silently ignore
+    }
   }
 
   async loadPresets() {

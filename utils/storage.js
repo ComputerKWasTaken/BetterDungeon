@@ -17,22 +17,15 @@ class StorageManager {
   };
 
   static async getFeatures() {
-    return new Promise((resolve) => {
-      browser.storage.sync.get(this.STORAGE_KEY, (result) => {
-        const features = result[this.STORAGE_KEY] || this.DEFAULT_FEATURES;
-        this.log('[StorageManager] Retrieved features:', features);
-        resolve(features);
-      });
-    });
+    const result = await browser.storage.sync.get(this.STORAGE_KEY);
+    const features = result[this.STORAGE_KEY] || this.DEFAULT_FEATURES;
+    this.log('[StorageManager] Retrieved features:', features);
+    return features;
   }
 
   static async saveFeatures(features) {
-    return new Promise((resolve) => {
-      browser.storage.sync.set({ [this.STORAGE_KEY]: features }, () => {
-        this.log('[StorageManager] Saved features:', features);
-        resolve();
-      });
-    });
+    await browser.storage.sync.set({ [this.STORAGE_KEY]: features });
+    this.log('[StorageManager] Saved features:', features);
   }
 
   static async getFeatureState(featureId) {

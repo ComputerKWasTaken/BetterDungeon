@@ -81,19 +81,15 @@ class HotkeyFeature {
 
   // Load custom key bindings from browser storage
   async loadCustomBindings() {
-    return new Promise((resolve) => {
-      browser.storage.sync.get(HotkeyFeature.STORAGE_KEY, (result) => {
-        const customBindings = result[HotkeyFeature.STORAGE_KEY];
-        if (customBindings && typeof customBindings === 'object') {
-          // Merge custom bindings with defaults (custom takes precedence)
-          this.keyBindings = { ...HotkeyFeature.DEFAULT_BINDINGS, ...customBindings };
-          this.log('[Hotkey] Loaded custom bindings', this.keyBindings);
-        } else {
-          this.keyBindings = { ...HotkeyFeature.DEFAULT_BINDINGS };
-        }
-        resolve();
-      });
-    });
+    const result = await browser.storage.sync.get(HotkeyFeature.STORAGE_KEY);
+    const customBindings = result[HotkeyFeature.STORAGE_KEY];
+    if (customBindings && typeof customBindings === 'object') {
+      // Merge custom bindings with defaults (custom takes precedence)
+      this.keyBindings = { ...HotkeyFeature.DEFAULT_BINDINGS, ...customBindings };
+      this.log('[Hotkey] Loaded custom bindings', this.keyBindings);
+    } else {
+      this.keyBindings = { ...HotkeyFeature.DEFAULT_BINDINGS };
+    }
   }
 
   // Build the hotkeyMap from current keyBindings

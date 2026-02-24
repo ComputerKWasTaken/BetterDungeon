@@ -109,13 +109,16 @@ class TryFeature {
     this.weight = 0;
   }
 
-  loadSettings() {
+  async loadSettings() {
     // Load critical chance from storage
     if (typeof browser !== 'undefined' && browser.storage) {
-      browser.storage.sync.get('betterDungeonSettings', (result) => {
+      try {
+        const result = await browser.storage.sync.get('betterDungeonSettings');
         const settings = result.betterDungeonSettings || {};
         this.criticalChance = settings.tryCriticalChance ?? 5;
-      });
+      } catch {
+        // Ignore storage errors
+      }
 
       // Listen for settings changes
       browser.storage.onChanged.addListener((changes, namespace) => {
