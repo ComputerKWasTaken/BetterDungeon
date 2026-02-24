@@ -7,6 +7,12 @@
     "activeTab",
     "storage"
   ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "betterdungeon@computerkwastaken",
+      "strict_min_version": "109.0"
+    }
+  },
   "content_scripts": [
     {
       "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"],
