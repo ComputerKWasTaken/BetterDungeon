@@ -41,7 +41,7 @@ class NotesFeature {
   // Returns false after extension reload/update/disable while the content script lingers.
   isExtensionContextValid() {
     try {
-      return !!chrome.runtime?.id;
+      return !!browser.runtime?.id;
     } catch {
       return false;
     }
@@ -441,7 +441,7 @@ class NotesFeature {
     const key = this.storageKeyPrefix + this.currentAdventureId;
     
     try {
-      const result = await chrome.storage.local.get(key);
+      const result = await browser.storage.local.get(key);
       const notes = result[key] || '';
       if (this.textarea) {
         this.textarea.value = notes;
@@ -465,7 +465,7 @@ class NotesFeature {
     const notes = this.textarea.value;
     
     try {
-      await chrome.storage.local.set({ [key]: notes });
+      await browser.storage.local.set({ [key]: notes });
     } catch (e) {
       if (String(e).includes('Extension context invalidated')) {
         this.log('[Notes] Extension context invalidated, skipping save');
@@ -492,7 +492,7 @@ class NotesFeature {
     if (!this.isExtensionContextValid()) return '';
     const key = this.storageKeyPrefix + adventureId;
     try {
-      const result = await chrome.storage.local.get(key);
+      const result = await browser.storage.local.get(key);
       return result[key] || '';
     } catch (e) {
       if (String(e).includes('Extension context invalidated')) return '';
@@ -506,7 +506,7 @@ class NotesFeature {
     if (!this.isExtensionContextValid()) return;
     const key = this.storageKeyPrefix + adventureId;
     try {
-      await chrome.storage.local.set({ [key]: notes });
+      await browser.storage.local.set({ [key]: notes });
       
       // Update textarea if viewing the same adventure
       if (adventureId === this.currentAdventureId && this.textarea) {
@@ -523,7 +523,7 @@ class NotesFeature {
     if (!this.isExtensionContextValid()) return;
     const key = this.storageKeyPrefix + adventureId;
     try {
-      await chrome.storage.local.remove(key);
+      await browser.storage.local.remove(key);
       
       // Clear textarea if viewing the same adventure
       if (adventureId === this.currentAdventureId && this.textarea) {

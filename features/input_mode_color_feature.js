@@ -49,7 +49,7 @@ class InputModeColorFeature {
       this.observer = null;
     }
     if (this.boundMessageListener) {
-      chrome.runtime.onMessage.removeListener(this.boundMessageListener);
+      browser.runtime.onMessage.removeListener(this.boundMessageListener);
       this.boundMessageListener = null;
     }
     if (this.styleElement) {
@@ -63,8 +63,8 @@ class InputModeColorFeature {
   // Load custom colors from Chrome storage
   async loadCustomColors() {
     return new Promise((resolve) => {
-      chrome.storage.sync.get(InputModeColorFeature.STORAGE_KEY, (result) => {
-        const customColors = result[InputModeColorFeature.STORAGE_KEY];
+      browser.storage.sync.get(this.STORAGE_KEY, (result) => {
+        const customColors = result[this.STORAGE_KEY];
         if (customColors && typeof customColors === 'object') {
           this.customColors = { ...InputModeColorFeature.DEFAULT_COLORS, ...customColors };
           this.log('[InputModeColor] Loaded custom colors', this.customColors);
@@ -139,7 +139,7 @@ class InputModeColorFeature {
       }
       return true;
     };
-    chrome.runtime.onMessage.addListener(this.boundMessageListener);
+    browser.runtime.onMessage.addListener(this.boundMessageListener);
   }
 
   setupObserver() {

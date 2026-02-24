@@ -9,7 +9,7 @@ class LoadingScreen {
     this.subStatusText = null;
     this.currentProgress = 0;
     this.isVisible = false;
-    this.iconUrl = chrome.runtime.getURL('icons/icon128.png');
+    this.iconUrl = browser.runtime.getURL('icons/icon128.png');
     this.queue = [];
     this.isProcessingQueue = false;
     this.debug = false;

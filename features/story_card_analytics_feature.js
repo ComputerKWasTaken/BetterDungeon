@@ -623,9 +623,9 @@ class StoryCardAnalyticsFeature {
     if (document.getElementById('bd-analytics-styles')) return;
 
     // Build font URLs using chrome.runtime.getURL for proper extension paths
-    const fontWoff2 = chrome.runtime.getURL('fonts/lucide/lucide.woff2');
-    const fontWoff = chrome.runtime.getURL('fonts/lucide/lucide.woff');
-    const fontTtf = chrome.runtime.getURL('fonts/lucide/lucide.ttf');
+    const fontWoff2 = browser.runtime.getURL('fonts/lucide/lucide.woff2');
+    const fontWoff = browser.runtime.getURL('fonts/lucide/lucide.woff');
+    const fontTtf = browser.runtime.getURL('fonts/lucide/lucide.ttf');
 
     const style = document.createElement('style');
     style.id = 'bd-analytics-styles';

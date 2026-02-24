@@ -41,7 +41,7 @@ class MarkdownFeature {
 
   async loadAutoApplySetting() {
     try {
-      const result = await chrome.storage.sync.get('betterDungeon_autoApplyInstructions');
+      const result = await browser.storage.sync.get('betterDungeon_autoApplyInstructions');
       this.autoApplyEnabled = result.betterDungeon_autoApplyInstructions ?? false;
     } catch (e) {
       this.autoApplyEnabled = false;
@@ -50,7 +50,7 @@ class MarkdownFeature {
 
   setAutoApply(enabled) {
     this.autoApplyEnabled = enabled;
-    chrome.storage.sync.set({ betterDungeon_autoApplyInstructions: enabled });
+    browser.storage.sync.set({ betterDungeon_autoApplyInstructions: enabled });
   }
 
   detectCurrentAdventure() {

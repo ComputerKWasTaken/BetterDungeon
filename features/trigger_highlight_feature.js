@@ -42,7 +42,7 @@ class TriggerHighlightFeature {
 
   async loadAutoScanSetting() {
     try {
-      const result = await chrome.storage.sync.get([
+      const result = await browser.storage.sync.get([
         'betterDungeon_autoScanTriggers',
         'betterDungeon_suggestedTriggers',
         'betterDungeon_suggestedTriggerThreshold'
@@ -59,17 +59,17 @@ class TriggerHighlightFeature {
 
   setAutoScan(enabled) {
     this.autoScanEnabled = enabled;
-    chrome.storage.sync.set({ betterDungeon_autoScanTriggers: enabled });
+    browser.storage.sync.set({ betterDungeon_autoScanTriggers: enabled });
   }
 
   setSuggestedTriggers(enabled) {
     this.suggestedTriggersEnabled = enabled;
-    chrome.storage.sync.set({ betterDungeon_suggestedTriggers: enabled });
+    browser.storage.sync.set({ betterDungeon_suggestedTriggers: enabled });
   }
 
   setSuggestedTriggerThreshold(threshold) {
     this.suggestedTriggerThreshold = Math.max(2, Math.min(10, threshold));
-    chrome.storage.sync.set({ betterDungeon_suggestedTriggerThreshold: this.suggestedTriggerThreshold });
+    browser.storage.sync.set({ betterDungeon_suggestedTriggerThreshold: this.suggestedTriggerThreshold });
   }
 
   // Detect adventure ID from URL to scope triggers

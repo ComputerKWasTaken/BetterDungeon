@@ -24,7 +24,7 @@ class BetterDungeon {
 
   // Setup listener for messages from popup
   setupMessageListener() {
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message.type === 'FEATURE_TOGGLE') {
         this.handleFeatureToggle(message.featureId, message.enabled);
       } else if (message.type === 'APPLY_INSTRUCTIONS') {
@@ -299,7 +299,7 @@ class BetterDungeon {
 
 
   injectStyles() {
-    DOMUtils.injectStyles(chrome.runtime.getURL('styles.css'), 'better-dungeon-styles');
+    DOMUtils.injectStyles(browser.runtime.getURL('styles.css'), 'better-dungeon-styles');
   }
 
   destroy() {
