@@ -11,6 +11,7 @@
     {
       "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"],
       "js": [
+        "utils/browser-polyfill.js",
         "utils/dom.js",
         "utils/storage.js",
         "services/ai-dungeon-service.js",
@@ -40,6 +41,7 @@
   "web_accessible_resources": [
     {
       "resources": [
+        "utils/browser-polyfill.js",
         "styles.css",
         "markdown_ai_instruction.txt",
         "icons/icon128.png",
