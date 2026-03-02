@@ -64,7 +64,7 @@ class InputModeColorFeature {
   async loadCustomColors() {
     return new Promise((resolve) => {
       chrome.storage.sync.get(InputModeColorFeature.STORAGE_KEY, (result) => {
-        const customColors = result[InputModeColorFeature.STORAGE_KEY];
+        const customColors = (result || {})[InputModeColorFeature.STORAGE_KEY];
         if (customColors && typeof customColors === 'object') {
           this.customColors = { ...InputModeColorFeature.DEFAULT_COLORS, ...customColors };
           this.log('[InputModeColor] Loaded custom colors', this.customColors);

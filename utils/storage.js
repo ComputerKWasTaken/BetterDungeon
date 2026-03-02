@@ -19,7 +19,7 @@ class StorageManager {
   static async getFeatures() {
     return new Promise((resolve) => {
       chrome.storage.sync.get(this.STORAGE_KEY, (result) => {
-        const features = result[this.STORAGE_KEY] || this.DEFAULT_FEATURES;
+        const features = (result || {})[this.STORAGE_KEY] || this.DEFAULT_FEATURES;
         this.log('[StorageManager] Retrieved features:', features);
         resolve(features);
       });
