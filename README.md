@@ -10,7 +10,19 @@ The all-in-one browser extension for AI Dungeon that enhances the experience wit
 2. Click "Add to Chrome"
 3. You're in!
 
-### Manual Installation
+### Firefox (Manual Install)
+
+No Firefox Add-ons listing yet — install manually for now:
+
+1. Clone/download this repo
+2. Open Firefox and go to `about:debugging#/runtime/this-firefox`
+3. Click **"Load Temporary Add-on..."**
+4. Select any file inside the `BetterDungeon` folder (e.g. `manifest.json`)
+5. You're in!
+
+> **Note:** Temporary add-ons are removed when Firefox closes. You'll need to re-load the extension each session until a signed version is available on the Firefox Add-ons store.
+
+### Manual Installation (Chromium)
 
 For developers or if you prefer manual installation:
 
@@ -26,7 +38,7 @@ For developers or if you prefer manual installation:
 2. Click the BetterDungeon icon to toggle features and access settings
 3. Play your adventure with all the new goodies
 
-Settings sync across Chromium browsers.
+Settings sync across Chromium and Firefox browsers.
 
 ## Features
 
