@@ -83,7 +83,7 @@ class HotkeyFeature {
   async loadCustomBindings() {
     return new Promise((resolve) => {
       chrome.storage.sync.get(HotkeyFeature.STORAGE_KEY, (result) => {
-        const customBindings = result[HotkeyFeature.STORAGE_KEY];
+        const customBindings = (result || {})[HotkeyFeature.STORAGE_KEY];
         if (customBindings && typeof customBindings === 'object') {
           // Merge custom bindings with defaults (custom takes precedence)
           this.keyBindings = { ...HotkeyFeature.DEFAULT_BINDINGS, ...customBindings };

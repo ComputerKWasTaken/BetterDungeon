@@ -113,7 +113,7 @@ class TryFeature {
     // Load critical chance from storage
     if (typeof chrome !== 'undefined' && chrome.storage) {
       chrome.storage.sync.get('betterDungeonSettings', (result) => {
-        const settings = result.betterDungeonSettings || {};
+        const settings = (result || {}).betterDungeonSettings || {};
         this.criticalChance = settings.tryCriticalChance ?? 5;
       });
 

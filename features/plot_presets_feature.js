@@ -38,7 +38,7 @@ class PlotPresetsFeature {
   async loadPresets() {
     return new Promise((resolve) => {
       chrome.storage.sync.get(this.storageKey, (result) => {
-        this.presets = result[this.storageKey] || [];
+        this.presets = (result || {})[this.storageKey] || [];
         resolve(this.presets);
       });
     });
