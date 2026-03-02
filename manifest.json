@@ -7,17 +7,10 @@
     "activeTab",
     "storage"
   ],
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "betterdungeon@computerkwastaken",
-      "strict_min_version": "109.0"
-    }
-  },
   "content_scripts": [
     {
       "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"],
       "js": [
-        "utils/browser-polyfill.js",
         "utils/dom.js",
         "utils/storage.js",
         "services/ai-dungeon-service.js",

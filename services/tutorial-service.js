@@ -191,7 +191,7 @@ class TutorialService {
   async loadState() {
     return new Promise((resolve) => {
       chrome.storage.sync.get(this.STORAGE_KEY, (result) => {
-        resolve((result || {})[this.STORAGE_KEY] || { completed: false, seenWelcome: false, lastStep: 0 });
+        resolve(result[this.STORAGE_KEY] || { completed: false, seenWelcome: false, lastStep: 0 });
       });
     });
   }

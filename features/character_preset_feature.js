@@ -119,7 +119,7 @@ class CharacterPresetFeature {
       try {
         if (!chrome.runtime?.id) { resolve(fallback); return; }
         chrome.storage[area].get(key, (result) => {
-          resolve(chrome.runtime.lastError ? fallback : ((result || {})[key] ?? fallback));
+          resolve(chrome.runtime.lastError ? fallback : (result[key] ?? fallback));
         });
       } catch { resolve(fallback); }
     });
