@@ -214,7 +214,7 @@ class BetterScriptsFeature {
     
     // Load persisted debug mode state from storage
     chrome.storage.sync.get('betterDungeon_betterScriptsDebug', (result) => {
-      const enabled = (result || {})['betterDungeon_betterScriptsDebug'] ?? false;
+      const enabled = result['betterDungeon_betterScriptsDebug'] ?? false;
       if (enabled) {
         this.debug = true;
         console.log('[BetterScripts] Debug mode enabled (restored from settings)');

@@ -175,7 +175,7 @@ function initToggles() {
   console.log('[Popup] Initializing toggles...');
   // Load saved states
   chrome.storage.sync.get(STORAGE_KEYS.features, (result) => {
-    const features = (result || {})[STORAGE_KEYS.features] || DEFAULT_FEATURES;
+    const features = result[STORAGE_KEYS.features] || DEFAULT_FEATURES;
     
     Object.entries(features).forEach(([id, enabled]) => {
       const toggle = document.getElementById(`feature-${id}`);
@@ -186,13 +186,13 @@ function initToggles() {
   // Load auto-scan setting
   chrome.storage.sync.get(STORAGE_KEYS.autoScan, (result) => {
     const toggle = document.getElementById('auto-scan-triggers');
-    if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.autoScan] ?? false;
+    if (toggle) toggle.checked = result[STORAGE_KEYS.autoScan] ?? false;
   });
 
   // Load auto-apply setting
   chrome.storage.sync.get(STORAGE_KEYS.autoApply, (result) => {
     const toggle = document.getElementById('auto-apply-instructions');
-    if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.autoApply] ?? false;
+    if (toggle) toggle.checked = result[STORAGE_KEYS.autoApply] ?? false;
   });
 
   // Setup change handlers
@@ -218,7 +218,7 @@ function initToggles() {
   // BetterScripts debug toggle
   chrome.storage.sync.get(STORAGE_KEYS.betterScriptsDebug, (result) => {
     const toggle = document.getElementById('betterscripts-debug');
-    if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.betterScriptsDebug] ?? false;
+    if (toggle) toggle.checked = result[STORAGE_KEYS.betterScriptsDebug] ?? false;
   });
 
   document.getElementById('betterscripts-debug')?.addEventListener('change', (e) => {
@@ -230,7 +230,7 @@ function initToggles() {
 function saveFeatureState(featureId, enabled) {
   log('[Popup] Saving feature state:', featureId, enabled);
   chrome.storage.sync.get(STORAGE_KEYS.features, (result) => {
-    const features = (result || {})[STORAGE_KEYS.features] || DEFAULT_FEATURES;
+    const features = result[STORAGE_KEYS.features] || DEFAULT_FEATURES;
     features[featureId] = enabled;
     
     chrome.storage.sync.set({ [STORAGE_KEYS.features]: features }, () => {
@@ -246,7 +246,7 @@ function saveFeatureState(featureId, enabled) {
 function initSettings() {
   // Load settings
   chrome.storage.sync.get(STORAGE_KEYS.settings, (result) => {
-    const settings = (result || {})[STORAGE_KEYS.settings] || DEFAULT_SETTINGS;
+    const settings = result[STORAGE_KEYS.settings] || DEFAULT_SETTINGS;
     
     const slider = document.getElementById('critical-chance');
     const display = document.getElementById('critical-chance-value');
@@ -267,7 +267,7 @@ function initSettings() {
       display.textContent = `${value}%`;
       
       chrome.storage.sync.get(STORAGE_KEYS.settings, (result) => {
-        const settings = (result || {})[STORAGE_KEYS.settings] || DEFAULT_SETTINGS;
+        const settings = result[STORAGE_KEYS.settings] || DEFAULT_SETTINGS;
         settings.tryCriticalChance = value;
         chrome.storage.sync.set({ [STORAGE_KEYS.settings]: settings });
       });
@@ -289,9 +289,8 @@ function initAutoSeeSettings() {
     'betterDungeon_autoSeeTriggerMode',
     'betterDungeon_autoSeeTurnInterval'
   ], (result) => {
-    const r = result || {};
-    const triggerMode = r.betterDungeon_autoSeeTriggerMode ?? 'everyTurn';
-    const interval = r.betterDungeon_autoSeeTurnInterval ?? 2;
+    const triggerMode = result.betterDungeon_autoSeeTriggerMode ?? 'everyTurn';
+    const interval = result.betterDungeon_autoSeeTurnInterval ?? 2;
 
     if (triggerModeSelect) {
       triggerModeSelect.value = triggerMode;
@@ -472,7 +471,7 @@ function initHotkeys() {
 // Load hotkey bindings from storage
 function loadHotkeyBindings() {
   chrome.storage.sync.get(STORAGE_KEYS.customHotkeys, (result) => {
-    const customBindings = (result || {})[STORAGE_KEYS.customHotkeys];
+    const customBindings = result[STORAGE_KEYS.customHotkeys];
     if (customBindings && typeof customBindings === 'object') {
       currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS, ...customBindings };
     } else {
@@ -529,7 +528,7 @@ function formatKeyDisplay(key) {
 function openHotkeyModal() {
   // Reset to current saved bindings
   chrome.storage.sync.get(STORAGE_KEYS.customHotkeys, (result) => {
-    const customBindings = (result || {})[STORAGE_KEYS.customHotkeys];
+    const customBindings = result[STORAGE_KEYS.customHotkeys];
     if (customBindings && typeof customBindings === 'object') {
       currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS, ...customBindings };
     } else {
@@ -731,7 +730,7 @@ function initModeColors() {
 // Load mode colors from storage
 function loadModeColors() {
   chrome.storage.sync.get(STORAGE_KEYS.customModeColors, (result) => {
-    const customColors = (result || {})[STORAGE_KEYS.customModeColors];
+    const customColors = result[STORAGE_KEYS.customModeColors];
     if (customColors && typeof customColors === 'object') {
       currentModeColors = { ...DEFAULT_MODE_COLORS, ...customColors };
     } else {
@@ -771,7 +770,7 @@ function updateColorEditorInputs() {
 function openColorModal() {
   // Reload from storage to ensure we have latest
   chrome.storage.sync.get(STORAGE_KEYS.customModeColors, (result) => {
-    const customColors = (result || {})[STORAGE_KEYS.customModeColors];
+    const customColors = result[STORAGE_KEYS.customModeColors];
     if (customColors && typeof customColors === 'object') {
       currentModeColors = { ...DEFAULT_MODE_COLORS, ...customColors };
     } else {
@@ -838,7 +837,7 @@ function initPresets() {
 
 async function loadPresets() {
   chrome.storage.sync.get(STORAGE_KEYS.presets, (result) => {
-    const presets = (result || {})[STORAGE_KEYS.presets] || [];
+    const presets = result[STORAGE_KEYS.presets] || [];
     renderPresets(presets);
   });
 }
@@ -1054,7 +1053,7 @@ function savePresetChanges() {
   }
 
   chrome.storage.sync.get(STORAGE_KEYS.presets, (result) => {
-    const presets = (result || {})[STORAGE_KEYS.presets] || [];
+    const presets = result[STORAGE_KEYS.presets] || [];
     const index = presets.findIndex(p => p.id === currentEditingPreset.id);
     
     if (index !== -1) {
@@ -1070,7 +1069,7 @@ function savePresetChanges() {
 
 function deletePreset(presetId) {
   chrome.storage.sync.get(STORAGE_KEYS.presets, (result) => {
-    const presets = ((result || {})[STORAGE_KEYS.presets] || []).filter(p => p.id !== presetId);
+    const presets = (result[STORAGE_KEYS.presets] || []).filter(p => p.id !== presetId);
     chrome.storage.sync.set({ [STORAGE_KEYS.presets]: presets }, () => {
       loadPresets();
       showToast('Preset deleted', 'success');
@@ -1146,7 +1145,7 @@ function initCharacters() {
 
 async function loadCharacters() {
   chrome.storage.sync.get(STORAGE_KEYS.characters, (result) => {
-    const characters = (result || {})[STORAGE_KEYS.characters] || [];
+    const characters = result[STORAGE_KEYS.characters] || [];
     renderCharacters(characters);
   });
 }
@@ -1198,7 +1197,7 @@ function createCharacterCard(character) {
 
 function createCharacter(name) {
   chrome.storage.sync.get(STORAGE_KEYS.characters, (result) => {
-    const characters = (result || {})[STORAGE_KEYS.characters] || [];
+    const characters = result[STORAGE_KEYS.characters] || [];
     
     const newChar = {
       id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
@@ -1367,7 +1366,7 @@ function saveCharacterChanges() {
   currentEditingCharacter.updatedAt = Date.now();
 
   chrome.storage.sync.get(STORAGE_KEYS.characters, (result) => {
-    const characters = (result || {})[STORAGE_KEYS.characters] || [];
+    const characters = result[STORAGE_KEYS.characters] || [];
     const index = characters.findIndex(c => c.id === currentEditingCharacter.id);
     
     if (index !== -1) {
@@ -1392,7 +1391,7 @@ async function deleteCharacter() {
   if (!confirmed) return;
 
   chrome.storage.sync.get(STORAGE_KEYS.characters, (result) => {
-    const characters = ((result || {})[STORAGE_KEYS.characters] || [])
+    const characters = (result[STORAGE_KEYS.characters] || [])
       .filter(c => c.id !== currentEditingCharacter.id);
     
     chrome.storage.sync.set({ [STORAGE_KEYS.characters]: characters }, () => {

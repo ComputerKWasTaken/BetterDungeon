@@ -34,7 +34,7 @@ class CommandFeature {
   loadAutoDeleteSetting() {
     if (typeof chrome !== 'undefined' && chrome.storage) {
       chrome.storage.sync.get('betterDungeon_commandAutoDelete', (result) => {
-        this.autoDeleteEnabled = (result || {}).betterDungeon_commandAutoDelete ?? false;
+        this.autoDeleteEnabled = result.betterDungeon_commandAutoDelete ?? false;
       });
     }
   }
