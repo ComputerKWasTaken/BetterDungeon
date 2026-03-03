@@ -63,7 +63,7 @@ class TutorialService {
         type: 'spotlight',
         target: '[data-feature="inputHistory"]',
         title: 'Input History',
-        content: 'Terminal-style input history! Press Up and Down arrow keys in an empty input box to cycle through your recent actions.',
+        content: 'Terminal-style input history! Press Ctrl + Up/Down arrow keys while the input box is focused to cycle through your recent actions.',
         position: 'bottom',
         expandCard: true
       },

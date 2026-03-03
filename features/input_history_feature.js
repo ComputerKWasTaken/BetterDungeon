@@ -1,6 +1,6 @@
 // BetterDungeon - Input History Feature
 // Terminal-style input history: Save the user's recent inputs in local storage
-// Pressing Up and Down arrow keys inside an empty input box cycles through previously sent actions
+// Pressing Ctrl/Meta + Up/Down arrow keys inside an empty input box cycles through previously sent actions
 
 class InputHistoryFeature {
   static id = 'inputHistory';
@@ -30,6 +30,7 @@ class InputHistoryFeature {
     this.maxHistorySize = 50;
     this.storageKey = 'betterDungeon_inputHistory';
     this.isSettingValue = false;
+    this.modeSwitchTimeout = null;
     
     // Bound handlers for cleanup
     this.boundKeydownHandler = this.handleKeydown.bind(this);
@@ -218,24 +219,8 @@ class InputHistoryFeature {
     }
 
     // Handle history navigation
-    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
       const isUp = e.key === 'ArrowUp';
-      
-      // Only trigger if input is empty or we're already navigating history
-      const isEmpty = e.target.value.trim() === '';
-      
-      if (!isEmpty && this.historyIndex === -1) {
-        return; // Normal arrow behavior for editing text
-      }
-      
-      // Prevent conflict with TryFeature: 
-      // If we are in try mode, the input is empty, and we aren't already navigating history,
-      // let TryFeature handle the arrow keys for adjusting success chance.
-      if (isEmpty && this.historyIndex === -1 && this.detectCurrentInputMode() === 'try') {
-        return; 
-      }
-      
-      if (this.history.length === 0) return;
       
       e.preventDefault(); // Prevent cursor movement
       
@@ -271,8 +256,19 @@ class InputHistoryFeature {
     if (index >= 0 && index < this.history.length) {
       const item = this.history[index];
       this.log(`Applying history item ${index}: [${item.mode}] ${item.text}`);
+      
+      // Instantly update the text
       this.setInputValue(item.text);
-      this.setInputMode(item.mode);
+      
+      // Debounce the UI-heavy mode switch so it doesn't brick the React app when scrolling fast
+      if (this.modeSwitchTimeout) {
+        clearTimeout(this.modeSwitchTimeout);
+      }
+      
+      this.modeSwitchTimeout = setTimeout(() => {
+        this.setInputMode(item.mode);
+        this.modeSwitchTimeout = null;
+      }, 250);
     }
   }
 }
