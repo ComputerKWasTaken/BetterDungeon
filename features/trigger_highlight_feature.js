@@ -47,9 +47,9 @@ class TriggerHighlightFeature {
         'betterDungeon_suggestedTriggers',
         'betterDungeon_suggestedTriggerThreshold'
       ]);
-      this.autoScanEnabled = result.betterDungeon_autoScanTriggers ?? false;
-      this.suggestedTriggersEnabled = result.betterDungeon_suggestedTriggers ?? true;
-      this.suggestedTriggerThreshold = result.betterDungeon_suggestedTriggerThreshold ?? 3;
+      this.autoScanEnabled = (result || {}).betterDungeon_autoScanTriggers ?? false;
+      this.suggestedTriggersEnabled = (result || {}).betterDungeon_suggestedTriggers ?? true;
+      this.suggestedTriggerThreshold = (result || {}).betterDungeon_suggestedTriggerThreshold ?? 3;
     } catch (e) {
       this.autoScanEnabled = false;
       this.suggestedTriggersEnabled = true;

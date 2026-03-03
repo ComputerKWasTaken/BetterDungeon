@@ -42,7 +42,7 @@ class MarkdownFeature {
   async loadAutoApplySetting() {
     try {
       const result = await chrome.storage.sync.get('betterDungeon_autoApplyInstructions');
-      this.autoApplyEnabled = result.betterDungeon_autoApplyInstructions ?? false;
+      this.autoApplyEnabled = (result || {}).betterDungeon_autoApplyInstructions ?? false;
     } catch (e) {
       this.autoApplyEnabled = false;
     }
