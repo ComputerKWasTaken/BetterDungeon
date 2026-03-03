@@ -1,6 +1,6 @@
 // BetterDungeon - Input History Feature
 // Terminal-style input history: Save the user's recent inputs in local storage
-// Pressing Ctrl/Meta + Up/Down arrow keys inside an empty input box cycles through previously sent actions
+// Pressing Ctrl/Meta + Up/Down arrow keys inside the input box cycles through previously sent actions
 
 class InputHistoryFeature {
   static id = 'inputHistory';
@@ -30,7 +30,8 @@ class InputHistoryFeature {
     this.maxHistorySize = 50;
     this.storageKey = 'betterDungeon_inputHistory';
     this.isSettingValue = false;
-    this.modeSwitchTimeout = null;
+    this.lastModeSwitchTime = 0;
+    this.modeSwitchCooldown = 150;
     
     // Bound handlers for cleanup
     this.boundKeydownHandler = this.handleKeydown.bind(this);
@@ -45,16 +46,16 @@ class InputHistoryFeature {
   }
 
   async init() {
-    console.log('Initializing Input History feature...');
+    console.log('[InputHistory] Initializing Input History feature...');
     await this.loadHistory();
     this.attachListeners();
-    console.log('Initialization complete.');
+    console.log('[InputHistory] Initialization complete.');
   }
 
   destroy() {
-    console.log('Destroying Input History feature...');
+    console.log('[InputHistory] Destroying Input History feature...');
     this.detachListeners();
-    console.log('Cleanup complete');
+    console.log('[InputHistory] Cleanup complete');
   }
 
   async loadHistory() {
@@ -107,6 +108,12 @@ class InputHistoryFeature {
     
     if (targetMode === currentMode) return;
     
+    // Wait for any previous mode switch animation to finish
+    const elapsed = Date.now() - this.lastModeSwitchTime;
+    if (elapsed < this.modeSwitchCooldown) {
+      await new Promise(resolve => setTimeout(resolve, this.modeSwitchCooldown - elapsed));
+    }
+    
     this.log(`Changing mode from ${currentMode} to ${targetMode}`);
     
     // Open mode menu
@@ -132,6 +139,8 @@ class InputHistoryFeature {
       // Fallback
       document.body.click();
     }
+    
+    this.lastModeSwitchTime = Date.now();
   }
 
   setInputValue(text) {
@@ -222,6 +231,8 @@ class InputHistoryFeature {
     if ((e.ctrlKey || e.metaKey) && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
       const isUp = e.key === 'ArrowUp';
       
+      if (this.history.length === 0) return;
+      
       e.preventDefault(); // Prevent cursor movement
       
       if (isUp) {
@@ -260,15 +271,8 @@ class InputHistoryFeature {
       // Instantly update the text
       this.setInputValue(item.text);
       
-      // Debounce the UI-heavy mode switch so it doesn't brick the React app when scrolling fast
-      if (this.modeSwitchTimeout) {
-        clearTimeout(this.modeSwitchTimeout);
-      }
-      
-      this.modeSwitchTimeout = setTimeout(() => {
-        this.setInputMode(item.mode);
-        this.modeSwitchTimeout = null;
-      }, 250);
+      // Switch mode with a built-in cooldown to let UI animations finish
+      this.setInputMode(item.mode);
     }
   }
 }
