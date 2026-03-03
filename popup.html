@@ -41,7 +41,7 @@
     <!-- Features Tab -->
     <section class="tab-panel active" id="tab-features">
       
-      <!-- Input Modes Group -->
+      <!-- Input Modes -->
       <div class="section">
         <div class="section-header">
           <span class="section-icon icon-message-square" style="color: var(--bd-section-input-modes);"></span>
@@ -102,98 +102,11 @@
         </article>
       </div>
 
-      <!-- Formatting & Visuals Group -->
+      <!-- Gameplay -->
       <div class="section">
         <div class="section-header">
-          <span class="section-icon icon-type" style="color: var(--bd-section-formatting);"></span>
-          <h2 class="section-title">Formatting & Visuals</h2>
-        </div>
-
-        <!-- Markdown -->
-        <article class="feature-card" data-feature="markdown">
-          <div class="feature-row">
-            <div class="feature-info">
-              <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--bd-icon-markdown);">
-                  <span class="icon-pilcrow"></span>
-                </span>
-                <h3 class="feature-title">Markdown Formatting</h3>
-              </div>
-              <p class="feature-desc">Rich text in AI responses</p>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="feature-markdown" checked>
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="feature-details">
-            <p>Renders <strong>bold</strong>, <em>italic</em>, <u>underline</u>, and more using a custom asterisk-free markdown syntax.</p>
-            
-            <div class="syntax-box">
-              <div class="syntax-row"><code>++text++</code><span><strong>bold</strong></span></div>
-              <div class="syntax-row"><code>//text//</code><span><em>italic</em></span></div>
-              <div class="syntax-row"><code>==text==</code><span><u>underline</u></span></div>
-              <div class="syntax-row"><code>~text~</code><span class="whisper">whisper</span></div>
-              <div class="syntax-row"><code>---</code><span>scene break</span></div>
-              <div class="syntax-row"><code>- item</code><span>• list item</span></div>
-            </div>
-
-            <div class="feature-option">
-              <span class="option-label">Auto-apply on adventure</span>
-              <label class="toggle sm">
-                <input type="checkbox" id="auto-apply-instructions">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-
-            <button class="btn btn-action" id="apply-instructions-btn">
-              <span class="icon-wand"></span>
-              Apply Instructions
-            </button>
-
-            <p class="feature-credit">Thanks to <a href="https://play.aidungeon.com/profile/OffMetaGamer">OffMetaGamer</a> & <a href="https://play.aidungeon.com/profile/effortlyss">Shiny</a></p>
-          </div>
-        </article>
-
-        <!-- Input Mode Colors -->
-        <article class="feature-card" data-feature="inputModeColor">
-          <div class="feature-row">
-            <div class="feature-info">
-              <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--bd-icon-palette);">
-                  <span class="icon-palette"></span>
-                </span>
-                <h3 class="feature-title">Input Mode Colors</h3>
-              </div>
-              <p class="feature-desc">Color-coded input box border</p>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="feature-inputModeColor" checked>
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="feature-details">
-            <div class="color-grid" id="mode-color-display">
-              <div class="color-chip" data-mode="do" style="--chip-color: #3b82f6"><span>Do</span></div>
-              <div class="color-chip" data-mode="try" style="--chip-color: #a855f7"><span>Try</span></div>
-              <div class="color-chip" data-mode="say" style="--chip-color: #22c55e"><span>Say</span></div>
-              <div class="color-chip" data-mode="story" style="--chip-color: #fbbf24"><span>Story</span></div>
-              <div class="color-chip" data-mode="see" style="--chip-color: #06b6d4"><span>See</span></div>
-              <div class="color-chip" data-mode="command" style="--chip-color: #f97316"><span>Command</span></div>
-            </div>
-            <button class="btn btn-action" id="customize-colors-btn">
-              <span class="icon-palette"></span>
-              Customize Colors
-            </button>
-          </div>
-        </article>
-      </div>
-
-      <!-- Tools Group -->
-      <div class="section">
-        <div class="section-header">
-          <span class="section-icon icon-wrench" style="color: var(--bd-section-tools);"></span>
-          <h2 class="section-title">Tools</h2>
+          <span class="section-icon icon-gamepad-2" style="color: var(--bd-section-tools);"></span>
+          <h2 class="section-title">Gameplay</h2>
         </div>
 
         <!-- Hotkeys -->
@@ -246,6 +159,147 @@
           </div>
         </article>
 
+        <!-- Input History -->
+        <article class="feature-card" data-feature="inputHistory">
+          <div class="feature-row">
+            <div class="feature-info">
+              <div class="feature-title-row">
+                <span class="feature-icon" style="color: var(--bd-mode-command);">
+                  <span class="icon-history"></span>
+                </span>
+                <h3 class="feature-title">Input History</h3>
+              </div>
+              <p class="feature-desc">Terminal-style input history with arrow keys</p>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="feature-inputHistory" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="feature-details">
+            <p>Press the <strong>Up</strong> and <strong>Down</strong> arrow keys while the input box is empty to cycle through your previously sent inputs.</p>
+            <p class="feature-hint"><span class="icon-history"></span> Remembers up to 50 of your recent actions and their respective input modes.</p>
+          </div>
+        </article>
+
+        <!-- Input Mode Colors -->
+        <article class="feature-card" data-feature="inputModeColor">
+          <div class="feature-row">
+            <div class="feature-info">
+              <div class="feature-title-row">
+                <span class="feature-icon" style="color: var(--bd-icon-palette);">
+                  <span class="icon-palette"></span>
+                </span>
+                <h3 class="feature-title">Input Mode Colors</h3>
+              </div>
+              <p class="feature-desc">Color-coded input box border</p>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="feature-inputModeColor" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="feature-details">
+            <div class="color-grid" id="mode-color-display">
+              <div class="color-chip" data-mode="do" style="--chip-color: #3b82f6"><span>Do</span></div>
+              <div class="color-chip" data-mode="try" style="--chip-color: #a855f7"><span>Try</span></div>
+              <div class="color-chip" data-mode="say" style="--chip-color: #22c55e"><span>Say</span></div>
+              <div class="color-chip" data-mode="story" style="--chip-color: #fbbf24"><span>Story</span></div>
+              <div class="color-chip" data-mode="see" style="--chip-color: #06b6d4"><span>See</span></div>
+              <div class="color-chip" data-mode="command" style="--chip-color: #f97316"><span>Command</span></div>
+            </div>
+            <button class="btn btn-action" id="customize-colors-btn">
+              <span class="icon-palette"></span>
+              Customize Colors
+            </button>
+          </div>
+        </article>
+
+        <!-- Adventure Notes -->
+        <article class="feature-card" data-feature="notes">
+          <div class="feature-row">
+            <div class="feature-info">
+              <div class="feature-title-row">
+                <span class="feature-icon" style="color: var(--bd-icon-notes);">
+                  <span class="icon-notebook-pen"></span>
+                </span>
+                <h3 class="feature-title">Adventure Notes</h3>
+              </div>
+              <p class="feature-desc">Write and save notes for each adventure</p>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="feature-notes">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="feature-details">
+            <p>An embedded Plot Components notes card that saves per adventure. Notes are <strong>saved per adventure</strong>.</p>
+            <p class="feature-hint"><span class="icon-lightbulb"></span> Notes appear at the bottom of the Plot Components section when enabled.</p>
+          </div>
+        </article>
+      </div>
+
+      <!-- Formatting -->
+      <div class="section">
+        <div class="section-header">
+          <span class="section-icon icon-type" style="color: var(--bd-section-formatting);"></span>
+          <h2 class="section-title">Formatting</h2>
+        </div>
+
+        <!-- Markdown -->
+        <article class="feature-card" data-feature="markdown">
+          <div class="feature-row">
+            <div class="feature-info">
+              <div class="feature-title-row">
+                <span class="feature-icon" style="color: var(--bd-icon-markdown);">
+                  <span class="icon-pilcrow"></span>
+                </span>
+                <h3 class="feature-title">Markdown Formatting</h3>
+              </div>
+              <p class="feature-desc">Rich text in AI responses</p>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="feature-markdown" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="feature-details">
+            <p>Renders <strong>bold</strong>, <em>italic</em>, <u>underline</u>, and more using a custom asterisk-free markdown syntax.</p>
+            
+            <div class="syntax-box">
+              <div class="syntax-row"><code>++text++</code><span><strong>bold</strong></span></div>
+              <div class="syntax-row"><code>//text//</code><span><em>italic</em></span></div>
+              <div class="syntax-row"><code>==text==</code><span><u>underline</u></span></div>
+              <div class="syntax-row"><code>~text~</code><span class="whisper">whisper</span></div>
+              <div class="syntax-row"><code>---</code><span>scene break</span></div>
+              <div class="syntax-row"><code>- item</code><span>• list item</span></div>
+            </div>
+
+            <div class="feature-option">
+              <span class="option-label">Auto-apply on adventure</span>
+              <label class="toggle sm">
+                <input type="checkbox" id="auto-apply-instructions">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <button class="btn btn-action" id="apply-instructions-btn">
+              <span class="icon-wand"></span>
+              Apply Instructions
+            </button>
+
+            <p class="feature-credit">Thanks to <a href="https://play.aidungeon.com/profile/OffMetaGamer">OffMetaGamer</a> & <a href="https://play.aidungeon.com/profile/effortlyss">Shiny</a></p>
+          </div>
+        </article>
+      </div>
+
+      <!-- Scenario Building -->
+      <div class="section">
+        <div class="section-header">
+          <span class="section-icon icon-wrench" style="color: var(--bd-section-tools);"></span>
+          <h2 class="section-title">Scenario Building</h2>
+        </div>
+
         <!-- Trigger Highlighting -->
         <article class="feature-card" data-feature="triggerHighlight">
           <div class="feature-row">
@@ -287,29 +341,6 @@
           </div>
         </article>
 
-        <!-- Adventure Notes -->
-        <article class="feature-card" data-feature="notes">
-          <div class="feature-row">
-            <div class="feature-info">
-              <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--bd-icon-notes);">
-                  <span class="icon-notebook-pen"></span>
-                </span>
-                <h3 class="feature-title">Adventure Notes</h3>
-              </div>
-              <p class="feature-desc">Write and save notes for each adventure</p>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="feature-notes">
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="feature-details">
-            <p>An embedded Plot Components notes card that saves per adventure. Notes are <strong>saved per adventure</strong>.</p>
-            <p class="feature-hint"><span class="icon-lightbulb"></span> Notes appear at the bottom of the Plot Components section when enabled.</p>
-          </div>
-        </article>
-
         <!-- Story Card Analytics -->
         <article class="feature-card" data-feature="storyCardAnalytics">
           <div class="feature-row">
@@ -331,6 +362,29 @@
               <span class="icon-chart-bar"></span>
               Open Analytics Dashboard
             </button>
+          </div>
+        </article>
+
+        <!-- Story Card Modal Dock -->
+        <article class="feature-card" data-feature="storyCardModalDock">
+          <div class="feature-row">
+            <div class="feature-info">
+              <div class="feature-title-row">
+                <span class="feature-icon" style="color: var(--bd-icon-modal-dock);">
+                  <span class="icon-panel-right"></span>
+                </span>
+                <h3 class="feature-title">Story Card Modal Dock</h3>
+              </div>
+              <p class="feature-desc">Docks story card editor to the side</p>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="feature-storyCardModalDock" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="feature-details">
+            <p>Docks the story card modal to the <strong>right side of the screen</strong>, allowing you to scroll through your story while editing Story Cards.</p>
+            <p class="feature-hint"><span class="icon-lightbulb"></span> Great for checking context without closing the editor.</p>
           </div>
         </article>
 
@@ -374,30 +428,6 @@
             </a>
           </div>
         </article>
-
-        <!-- Story Card Modal Dock -->
-        <article class="feature-card" data-feature="storyCardModalDock">
-          <div class="feature-row">
-            <div class="feature-info">
-              <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--bd-icon-modal-dock);">
-                  <span class="icon-panel-right"></span>
-                </span>
-                <h3 class="feature-title">Story Card Modal Dock</h3>
-              </div>
-              <p class="feature-desc">Docks story card editor to the side</p>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="feature-storyCardModalDock" checked>
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="feature-details">
-            <p>Docks the story card modal to the <strong>right side of the screen</strong>, allowing you to scroll through your story while editing Story Cards.</p>
-            <p class="feature-hint"><span class="icon-lightbulb"></span> Great for checking context without closing the editor.</p>
-          </div>
-        </article>
-
       </div>
 
       <!-- Automations -->

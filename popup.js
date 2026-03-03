@@ -74,7 +74,8 @@ const DEFAULT_FEATURES = {
   characterPreset: true,
   autoSee: false,
   notes: true,
-  storyCardModalDock: true
+  storyCardModalDock: true,
+  inputHistory: true
 };
 
 const DEFAULT_SETTINGS = {

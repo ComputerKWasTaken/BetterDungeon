@@ -79,6 +79,10 @@ class FeatureManager {
     if (typeof BetterScriptsFeature !== 'undefined') {
       this.featureClasses.set('betterScripts', BetterScriptsFeature);
     }
+
+    if (typeof InputHistoryFeature !== 'undefined') {
+      this.featureClasses.set('inputHistory', InputHistoryFeature);
+    }
   }
 
   async loadFeaturesFromStorage() {

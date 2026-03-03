@@ -87,6 +87,8 @@ Settings sync across Chromium and Firefox browsers.
 
 - **Story Card Modal Dock** - A small QOL feature that docks the story card modal to the right of the screen, and allows you to scroll through your story while you edit your Story Cards
 
+- **Input History**: Terminal-style input history. Press Up and Down arrows in an empty input box to cycle through your recently sent actions and modes.
+
 ## Support
 
 - 🐛 [Found a bug?](../../issues) Report it on GitHub

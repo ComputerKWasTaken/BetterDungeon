@@ -48,13 +48,22 @@ class TutorialService {
         position: 'bottom',
         expandCard: true
       },
-      // === Formatting & Visuals Section ===
+      // === Gameplay Section ===
       {
-        id: 'markdown',
+        id: 'hotkeys',
         type: 'spotlight',
-        target: '[data-feature="markdown"]',
-        title: 'Markdown Formatting',
-        content: 'Renders rich text in AI responses. Click "Apply Instructions" to teach the AI the syntax!',
+        target: '[data-feature="hotkey"]',
+        title: 'Keyboard Shortcuts',
+        content: 'Quick hotkeys for common actions! Press T to take a turn, C to continue, and number keys to switch modes. Fully customizable via the "Customize Hotkeys" button!',
+        position: 'bottom',
+        expandCard: true
+      },
+      {
+        id: 'input-history',
+        type: 'spotlight',
+        target: '[data-feature="inputHistory"]',
+        title: 'Input History',
+        content: 'Terminal-style input history! Press Up and Down arrow keys in an empty input box to cycle through your recent actions.',
         position: 'bottom',
         expandCard: true
       },
@@ -67,25 +76,6 @@ class TutorialService {
         position: 'bottom',
         expandCard: true
       },
-      // === Tools Section ===
-      {
-        id: 'hotkeys',
-        type: 'spotlight',
-        target: '[data-feature="hotkey"]',
-        title: 'Keyboard Shortcuts',
-        content: 'Quick hotkeys for common actions! Press T to take a turn, C to continue, and number keys to switch modes. Fully customizable via the "Customize Hotkeys" button!',
-        position: 'bottom',
-        expandCard: true
-      },
-      {
-        id: 'trigger-highlight',
-        type: 'spotlight',
-        target: '[data-feature="triggerHighlight"]',
-        title: 'Trigger Highlighting',
-        content: 'Visualizes story card triggers in the context viewer. Hover over highlights to see which cards are active!',
-        position: 'bottom',
-        expandCard: true
-      },
       {
         id: 'notes',
         type: 'spotlight',
@@ -93,6 +83,26 @@ class TutorialService {
         title: 'Adventure Notes',
         content: 'Jot down anything you want to remember about your adventure! Notes appear at the bottom of Plot Components and are saved per adventure.',
         position: 'top',
+        expandCard: true
+      },
+      // === Formatting Section ===
+      {
+        id: 'markdown',
+        type: 'spotlight',
+        target: '[data-feature="markdown"]',
+        title: 'Markdown Formatting',
+        content: 'Renders rich text in AI responses. Click "Apply Instructions" to teach the AI the syntax!',
+        position: 'bottom',
+        expandCard: true
+      },
+      // === Scenario Building Section ===
+      {
+        id: 'trigger-highlight',
+        type: 'spotlight',
+        target: '[data-feature="triggerHighlight"]',
+        title: 'Trigger Highlighting',
+        content: 'Visualizes story card triggers in the context viewer. Hover over highlights to see which cards are active!',
+        position: 'bottom',
         expandCard: true
       },
       {
@@ -105,20 +115,20 @@ class TutorialService {
         expandCard: true
       },
       {
-        id: 'better-scripts',
-        type: 'spotlight',
-        target: '[data-feature="betterScripts"]',
-        title: 'BetterScripts',
-        content: 'Enables scripts to display dynamic UI widgets like HP bars, stats, and game state. Scripts using this feature will just work!',
-        position: 'top',
-        expandCard: true
-      },
-      {
         id: 'story-card-modal-dock',
         type: 'spotlight',
         target: '[data-feature="storyCardModalDock"]',
         title: 'Story Card Modal Dock',
         content: 'Docks the story card editor to the side so you can scroll through your story while editing. Toggle this off if you prefer the original modal.',
+        position: 'top',
+        expandCard: true
+      },
+      {
+        id: 'better-scripts',
+        type: 'spotlight',
+        target: '[data-feature="betterScripts"]',
+        title: 'BetterScripts',
+        content: 'Enables scripts to display dynamic UI widgets like HP bars, stats, and game state. Scripts using this feature will just work!',
         position: 'top',
         expandCard: true
       },
