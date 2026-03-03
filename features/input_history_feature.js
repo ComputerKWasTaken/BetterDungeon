@@ -44,16 +44,16 @@ class InputHistoryFeature {
   }
 
   async init() {
-    this.log('Initializing Input History feature...');
+    console.log('Initializing Input History feature...');
     await this.loadHistory();
     this.attachListeners();
-    this.log('Initialization complete.');
+    console.log('Initialization complete.');
   }
 
   destroy() {
-    this.log('Destroying Input History feature...');
+    console.log('Destroying Input History feature...');
     this.detachListeners();
-    this.log('Cleanup complete');
+    console.log('Cleanup complete');
   }
 
   async loadHistory() {
