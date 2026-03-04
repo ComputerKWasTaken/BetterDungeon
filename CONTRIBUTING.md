@@ -73,6 +73,17 @@ Each feature implements:
 ### Changelog
 
 ### v1.0.2
+
+- Firefox support:
+  - Added support for Firefox browser using a polyfill system
+- What's New section:
+  - Added a What's New banner to the top of the Features tab in the BetterDungeon popup that lists out what's new with BetterDungeon
+- Input History feature:
+  - A new feature that allows users to navigate through their previous inputs using CTRL/Cmd + Up/Down arrow keys, across adventures
+- Character Preset improvements and fixes:
+  - Updated the Character Preset feature to work with the updates to the Placeholder system
+  - Updated the UI of the Character Preset feature
+  - Fixed lingering CSS issues, UI should be less fragile
 - Plot Presets improvements and fixes:
   - Fixed an issue where the Plot Presets feature would only detect plot components if the Adventure page was refreshed
   - Fixed an issue with the triple dot menu where it would have no proper position due to not having an anchor (regression)

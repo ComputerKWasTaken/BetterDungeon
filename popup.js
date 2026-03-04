@@ -17,6 +17,7 @@ const STORAGE_KEYS = {
   betterScriptsDebug: 'betterDungeon_betterScriptsDebug',
   customHotkeys: 'betterDungeon_customHotkeys',
   customModeColors: 'betterDungeon_customModeColors',
+  whatsNewDismissed: 'betterDungeon_whatsNewDismissed',
 };
 
 // Default mode colors (hex format)
@@ -111,6 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initTools();
   initHotkeys();
   initModeColors();
+  initWhatsNew();
   initTutorial();
 });
 
@@ -1559,6 +1561,40 @@ function showDialog(options = {}) {
     } else {
       setTimeout(() => confirmBtn?.focus(), 100);
     }
+  });
+}
+
+// ============================================
+// WHAT'S NEW BANNER
+// ============================================
+
+function initWhatsNew() {
+  const banner = document.getElementById('whats-new-banner');
+  const dismissBtn = document.getElementById('whats-new-dismiss');
+  if (!banner) return;
+
+  // Read the live version string from the header so there's one source of truth
+  const currentVersion = document.querySelector('.header-version')?.textContent?.trim() || '';
+
+  // Update the banner title to include the version
+  const titleEl = document.getElementById('whats-new-title');
+  if (titleEl && currentVersion) {
+    titleEl.textContent = `What's New in ${currentVersion}`;
+  }
+
+  // Hide if the user already dismissed the current (or a newer) version
+  chrome.storage.sync.get(STORAGE_KEYS.whatsNewDismissed, (result) => {
+    const dismissed = (result || {})[STORAGE_KEYS.whatsNewDismissed];
+    if (dismissed && dismissed === currentVersion) {
+      banner.classList.add('hidden');
+    }
+  });
+
+  // Dismiss handler — saves the current header version so the banner
+  // automatically reappears whenever the extension ships an update
+  dismissBtn?.addEventListener('click', () => {
+    banner.classList.add('hidden');
+    chrome.storage.sync.set({ [STORAGE_KEYS.whatsNewDismissed]: currentVersion });
   });
 }
 

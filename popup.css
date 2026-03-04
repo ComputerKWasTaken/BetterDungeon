@@ -2453,3 +2453,60 @@ body {
   border-color: var(--border-hover);
 }
 
+/* === What's New Section === */
+.whats-new-section {
+  animation: fadeIn 0.3s ease;
+}
+
+.whats-new-section.hidden {
+  display: none;
+}
+
+.whats-new-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.whats-new-badge {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+  background: var(--accent-muted);
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+}
+
+.whats-new-dismiss {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  transition: all var(--transition-fast);
+}
+
+.whats-new-dismiss:hover {
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+  border-color: var(--border);
+}
+
+/* Static Cards (e.g. inside What's New) */
+.static-card .feature-row {
+  cursor: default;
+}
+
+.static-card:hover {
+  border-color: var(--border);
+}
+
