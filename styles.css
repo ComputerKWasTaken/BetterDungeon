@@ -1015,11 +1015,7 @@
 
 /* Character Selector (integrated into page) */
 .bd-character-selector {
-  position: absolute;
-  top: 50%;
-  left: 0;
-  right: 0;
-  margin-top: 35px;
+  margin-top: 16px;
   z-index: 2;
   display: flex;
   justify-content: center;
