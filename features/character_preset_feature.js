@@ -610,8 +610,8 @@ class CharacterPresetFeature {
     const sessionCharacter = this.getSessionCharacter();
     if (!sessionCharacter) return;
     
-    // Find the Continue button and the field container
-    const continueBtn = this.findContinueButton();
+    // Find the Next/Start button and the field container
+    const continueBtn = this.findAdvanceButton(field);
     if (!continueBtn) {
       return;
     }
@@ -665,7 +665,7 @@ class CharacterPresetFeature {
       saveBtn.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const freshContinueBtn = this.findContinueButton();
+        const freshContinueBtn = this.findAdvanceButton(field);
         if (freshContinueBtn) {
           await this.saveFieldAndContinue(field, freshContinueBtn);
         }
@@ -731,12 +731,19 @@ class CharacterPresetFeature {
     return preset;
   }
 
-  findContinueButton() {
-    // Look for a button containing "Continue" text
-    const buttons = document.querySelectorAll('[role="button"], button');
+  findAdvanceButton(field) {
+    // Find the button that advances to the next placeholder step.
+    // The new placeholder UI uses "Next" (mid-flow) and "Start" (final step)
+    // instead of the old "Continue". We match all three for backward compat.
+    // When a field is provided, scope the search to its container to avoid
+    // matching unrelated buttons elsewhere on the page.
+    const searchRoot = field ? (this.getFieldContainer(field) || document) : document;
+    const buttons = searchRoot.querySelectorAll('[role="button"], button');
     for (const btn of buttons) {
       const text = btn.textContent?.toLowerCase() || '';
-      if (text.includes('continue')) {
+      if (text.includes('next') || text.includes('start') || text.includes('continue')) {
+        // Exclude the Back button so we don't accidentally match it
+        if (text.includes('back')) continue;
         return btn;
       }
     }
@@ -836,7 +843,7 @@ class CharacterPresetFeature {
         this.showToast(`Filled: ${this.truncate(value, 25)}`, 'success');
         
         setTimeout(() => {
-          const continueBtn = this.findContinueButton();
+          const continueBtn = this.findAdvanceButton(field);
           if (continueBtn) continueBtn.click();
         }, 300);
       } catch (err) {
@@ -977,7 +984,10 @@ class CharacterPresetFeature {
       }
       
       // Step 1: Simulate a single keystroke to trigger React's state update.
-      // This makes the "Continue" button appear via React's change detection.
+      // This ensures React's internal state stays in sync with the DOM value.
+      // (In older builds this also made the Continue button appear; the new
+      //  placeholder UI always shows Next/Start, but the two-step fill
+      //  remains necessary for React's controlled-input change detection.)
       const firstChar = text.charAt(0) || ' ';
       nativeSetter.call(input, firstChar);
       input.dispatchEvent(new InputEvent('input', {
@@ -987,7 +997,7 @@ class CharacterPresetFeature {
         data: firstChar
       }));
       
-      // Step 2: Brief pause for React to process the state change and show Continue
+      // Step 2: Brief pause for React to process the state change
       setTimeout(() => {
         // Now set the full text instantly using the native setter
         nativeSetter.call(input, text);

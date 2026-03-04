@@ -216,7 +216,7 @@ class InputHistoryFeature {
     this.log(`Saved input to history: [${mode}] ${text}`);
   }
 
-  handleKeydown(e) {
+  async handleKeydown(e) {
     // Only care if the target is the text input
     if (!e.target || e.target.id !== 'game-text-input') return;
 
@@ -263,7 +263,7 @@ class InputHistoryFeature {
     }
   }
 
-  applyHistoryItem(index) {
+  async applyHistoryItem(index) {
     if (index >= 0 && index < this.history.length) {
       const item = this.history[index];
       this.log(`Applying history item ${index}: [${item.mode}] ${item.text}`);
@@ -272,7 +272,7 @@ class InputHistoryFeature {
       this.setInputValue(item.text);
       
       // Switch mode with a built-in cooldown to let UI animations finish
-      this.setInputMode(item.mode);
+      await this.setInputMode(item.mode);
     }
   }
 }
