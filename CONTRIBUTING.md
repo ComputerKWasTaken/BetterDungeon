@@ -72,7 +72,7 @@ Each feature implements:
 
 ### Changelog
 
-### v1.0.2
+### v1.1.0
 
 - Firefox support:
   - Added support for Firefox browser using a polyfill system
