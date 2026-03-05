@@ -293,30 +293,51 @@ class NotesFeature {
   findPlotComponentsContainer() {
     const addButton = this.findAddPlotComponentButton();
     if (addButton) {
-      const addColumn = addButton.closest('[class*="Column"], [class*="column"]') || addButton.parentElement;
-      if (addColumn) {
-        let child = addColumn;
-        let node = addColumn.parentElement;
-        while (node) {
-          const className = node.className || '';
-          const isColumn = className.includes('Column') || className.includes('column');
-          const isStretch = className.includes('_ai-stretch') || className.includes('stretch');
-          const isCentered = className.includes('_ai-center') || className.includes('center');
-
-          if (isColumn && isStretch && !isCentered) {
-            // Insert above the Add Plot Component area, but inside the full-width Plot Components column.
-            return { container: node, insertBefore: child };
-          }
-
-          child = node;
-          node = node.parentElement;
+      // Start from the button and walk up
+      let current = addButton.parentElement;
+      let targetContainer = null;
+      let insertBeforeNode = null;
+      
+      while (current && current.tagName !== 'BODY') {
+        const className = current.className || '';
+        const isColumn = className.includes('Column') || className.includes('column');
+        
+        // Skip centered or row containers that act as wrappers for the button
+        if (className.includes('_ai-center') || className.includes('Row') || className.includes('row')) {
+          current = current.parentElement;
+          continue;
         }
+
+        // We want a column that is essentially full-width.
+        // The main plot components list is typically a column without center alignment
+        // and often has a max-width or width of 100%.
+        if (isColumn) {
+          const style = window.getComputedStyle(current);
+          const hasWidthConstraint = parseInt(style.maxWidth) > 500 || parseInt(style.width) > 500 || style.width === '100%';
+          
+          if (hasWidthConstraint || className.includes('_w-10037') /* common 100% class */) {
+            targetContainer = current;
+            
+            // Find the child of targetContainer that contains the addButton
+            let child = addButton;
+            while (child.parentElement && child.parentElement !== targetContainer) {
+              child = child.parentElement;
+            }
+            insertBeforeNode = child;
+            break;
+          }
+        }
+        current = current.parentElement;
+      }
+      
+      if (targetContainer && insertBeforeNode) {
+        return { container: targetContainer, insertBefore: insertBeforeNode };
       }
 
-      const addRow = addButton.closest('[class*="Row"], [class*="row"]') || addButton.parentElement;
+      // Fallback: Use the direct parent of the row/container holding the button
+      const addRow = addButton.closest('.is_Row') || addButton.parentElement;
       const container = addRow?.parentElement || addRow;
       if (container) {
-        // Insert above the Add Plot Component button so it stays last.
         return { container, insertBefore: addRow };
       }
     }
