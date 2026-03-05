@@ -41,13 +41,14 @@
         "features/input_history_feature.js",
         "main.js"
       ],
-      "css": ["styles.css", "fonts/lucide/lucide.css"],
+      "css": ["core/theme-variables.css", "styles.css", "fonts/lucide/lucide.css"],
       "run_at": "document_end"
     }
   ],
   "web_accessible_resources": [
     {
       "resources": [
+        "core/theme-variables.css",
         "styles.css",
         "markdown_ai_instruction.txt",
         "icons/icon128.png",
