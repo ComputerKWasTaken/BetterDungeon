@@ -915,7 +915,7 @@
 .bd-selector-dropdown:focus {
   outline: none;
   border-color: var(--bd-accent-primary);
-  box-shadow: var(--bd-input-focus-shadow);
+  box-shadow: var(--bd-input-focus-ring);
 }
 
 .bd-selector-dropdown option {
