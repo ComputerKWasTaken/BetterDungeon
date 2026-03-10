@@ -436,13 +436,18 @@ class TryFeature {
     const submitBtn = document.querySelector('[aria-label="Submit action"]');
     if (!submitBtn) return textarea.parentElement;
     
-    // Find common ancestor
+    // Find the *closest* common ancestor of textarea and submitBtn,
+    // but limit traversal depth to avoid selecting a page-level wrapper
+    // that would cause the success bar to take up the entire screen.
+    const MAX_DEPTH = 8;
     let current = textarea.parentElement;
-    while (current && current.tagName !== 'BODY') {
+    let depth = 0;
+    while (current && current.tagName !== 'BODY' && depth < MAX_DEPTH) {
       if (current.contains(submitBtn)) {
         return current;
       }
       current = current.parentElement;
+      depth++;
     }
     return textarea.parentElement;
   }

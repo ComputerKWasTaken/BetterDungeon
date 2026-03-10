@@ -8,16 +8,10 @@
    core/theme-variables.css (the unified ecosystem file).
    
    In content-script context, variables are injected by
-   the extension's manifest. This file only sets host-page
-   inheritance overrides below.
+   the extension's manifest.  No host-page overrides are
+   needed here — individual .bd-* selectors already use
+   'inherit' where appropriate.
    ============================================ */
-:root {
-  font-size: inherit;
-  font-weight: inherit;
-  line-height: inherit;
-  letter-spacing: inherit;
-  color: inherit;
-}
 
 /* ============================================
    TEXT FORMATTING

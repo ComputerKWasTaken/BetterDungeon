@@ -85,8 +85,10 @@ class HotkeyFeature {
       chrome.storage.sync.get(HotkeyFeature.STORAGE_KEY, (result) => {
         const customBindings = (result || {})[HotkeyFeature.STORAGE_KEY];
         if (customBindings && typeof customBindings === 'object') {
-          // Merge custom bindings with defaults (custom takes precedence)
-          this.keyBindings = { ...HotkeyFeature.DEFAULT_BINDINGS, ...customBindings };
+          // Use custom bindings as-is (full replacement, not merge).
+          // This allows users to unbind individual hotkeys — merging
+          // with defaults would silently re-add any key the user removed.
+          this.keyBindings = { ...customBindings };
           this.log('[Hotkey] Loaded custom bindings', this.keyBindings);
         } else {
           this.keyBindings = { ...HotkeyFeature.DEFAULT_BINDINGS };

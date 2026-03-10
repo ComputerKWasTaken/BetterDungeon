@@ -477,7 +477,9 @@ function loadHotkeyBindings() {
   chrome.storage.sync.get(STORAGE_KEYS.customHotkeys, (result) => {
     const customBindings = (result || {})[STORAGE_KEYS.customHotkeys];
     if (customBindings && typeof customBindings === 'object') {
-      currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS, ...customBindings };
+      // Use custom bindings as-is (full replacement, not merge)
+      // so that unbound hotkeys stay unbound.
+      currentHotkeyBindings = { ...customBindings };
     } else {
       currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS };
     }
@@ -501,8 +503,14 @@ function updateHotkeyDisplay() {
     const actionId = el.dataset.action;
     const key = actionToKey[actionId];
     const kbd = el.querySelector('kbd');
-    if (kbd && key) {
-      kbd.textContent = formatKeyDisplay(key);
+    if (kbd) {
+      if (key) {
+        kbd.textContent = formatKeyDisplay(key);
+        kbd.classList.remove('hotkey-unbound');
+      } else {
+        kbd.textContent = 'None';
+        kbd.classList.add('hotkey-unbound');
+      }
     }
   });
 }
@@ -534,7 +542,9 @@ function openHotkeyModal() {
   chrome.storage.sync.get(STORAGE_KEYS.customHotkeys, (result) => {
     const customBindings = (result || {})[STORAGE_KEYS.customHotkeys];
     if (customBindings && typeof customBindings === 'object') {
-      currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS, ...customBindings };
+      // Use custom bindings as-is (full replacement, not merge)
+      // so that unbound hotkeys stay unbound.
+      currentHotkeyBindings = { ...customBindings };
     } else {
       currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS };
     }
@@ -566,13 +576,15 @@ function renderHotkeyEditor() {
     if (!container) continue;
     
     const key = actionToKey[actionId] || '';
+    const isUnbound = !key;
     const item = document.createElement('div');
     item.className = 'hotkey-editor-item';
     item.dataset.action = actionId;
     
+    const displayText = isUnbound ? 'None' : formatKeyDisplay(key);
     item.innerHTML = `
       <span class="hotkey-editor-action">${config.description}</span>
-      <button class="hotkey-editor-key" data-action="${actionId}">${formatKeyDisplay(key)}</button>
+      <button class="hotkey-editor-key${isUnbound ? ' hotkey-unbound' : ''}" data-action="${actionId}">${displayText}</button>
     `;
     
     // Add click handler for key button
@@ -600,6 +612,20 @@ function startRecordingKey(actionId, keyBtn) {
     
     // Escape cancels recording
     if (e.key === 'Escape') {
+      stopRecordingKey();
+      renderHotkeyEditor();
+      return;
+    }
+    
+    // Backspace or Delete unbinds the hotkey
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      // Remove old key binding for this action
+      for (const [key, action] of Object.entries(currentHotkeyBindings)) {
+        if (action === actionId) {
+          delete currentHotkeyBindings[key];
+          break;
+        }
+      }
       stopRecordingKey();
       renderHotkeyEditor();
       return;
