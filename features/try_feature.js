@@ -401,7 +401,9 @@ class TryFeature {
       const textarea = document.querySelector('#game-text-input');
       if (!textarea || document.activeElement !== textarea) return;
       
-      // Only handle Up/Down arrows
+      // Only handle Up/Down arrows (but not if Ctrl/Cmd is held - that's for history navigation)
+      if (e.ctrlKey || e.metaKey) return;
+      
       if (e.key === 'ArrowUp') {
         e.preventDefault();
         this.adjustWeight(1);
@@ -432,98 +434,49 @@ class TryFeature {
     return Math.max(5, Math.min(95, baseChance + weightShift));
   }
 
-  getMainInputContainer(textarea) {
-    const submitBtn = document.querySelector('[aria-label="Submit action"]');
-    if (!submitBtn) return textarea.parentElement;
-    
-    // Find the *closest* common ancestor of textarea and submitBtn,
-    // but limit traversal depth to avoid selecting a page-level wrapper
-    // that would cause the success bar to take up the entire screen.
-    const MAX_DEPTH = 8;
-    let current = textarea.parentElement;
-    let depth = 0;
-    while (current && current.tagName !== 'BODY' && depth < MAX_DEPTH) {
-      if (current.contains(submitBtn)) {
-        return current;
-      }
-      current = current.parentElement;
-      depth++;
-    }
-    return textarea.parentElement;
-  }
-
   injectSuccessBar() {
-    // Remove any existing bar first
     this.removeSuccessBar();
-    
-    // Find the textarea
+
     const textarea = document.querySelector('#game-text-input');
     if (!textarea) return;
-    
-    // Find the main input container to attach our bar
-    const container = this.getMainInputContainer(textarea);
-    
-    // Create the success bar container
-    const barContainer = document.createElement('div');
-    barContainer.id = 'bd-success-bar-container';
-    barContainer.style.cssText = `
+
+    // The input row (textarea's parent) has position:absolute and 32px bottom padding
+    const inputRow = textarea.parentElement;
+    if (!inputRow) return;
+
+    const bar = document.createElement('div');
+    bar.id = 'bd-success-bar-container';
+    bar.style.cssText = `
+      position: absolute;
+      bottom: 6px;
+      left: 50%;
+      transform: translateX(-50%);
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 8px 16px 4px 16px;
-      width: 100%;
+      gap: 6px;
+      padding: 4px 14px;
+      background: rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 20px;
       font-family: var(--bd-font-family-primary, 'IBM Plex Sans', sans-serif);
-      font-size: 12px;
-      color: var(--bd-text-primary, #e8e8ec);
-      box-sizing: border-box;
+      font-size: 11px;
+      color: rgba(232, 232, 236, 0.7);
       z-index: 2;
+      pointer-events: none;
     `;
-    
-    // Label
-    const label = document.createElement('span');
-    label.textContent = 'Success:';
-    label.style.cssText = 'white-space: nowrap; font-weight: 600; color: var(--bd-text-primary, #e8e8ec);';
-    
-    // Bar background
-    const barBg = document.createElement('div');
-    barBg.style.cssText = `
-      flex: 1;
-      height: 8px;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 4px;
-      overflow: hidden;
-      position: relative;
+
+    bar.innerHTML = `
+      <span style="font-weight:500; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; opacity:0.5;">Success</span>
+      <div style="width:100px; height:4px; background:rgba(255,255,255,0.08); border-radius:2px; overflow:hidden;">
+        <div id="bd-success-bar-fill" style="height:100%; border-radius:2px; transition:width .3s cubic-bezier(.4,0,.2,1), background .3s;"></div>
+      </div>
+      <span id="bd-success-percent" style="min-width:28px; text-align:right; font-weight:600; font-variant-numeric:tabular-nums;"></span>
+      <span style="opacity:0.25; font-size:9px;">↕</span>
     `;
-    
-    // Bar fill
-    const barFill = document.createElement('div');
-    barFill.id = 'bd-success-bar-fill';
-    barFill.style.cssText = `
-      height: 100%;
-      border-radius: 4px;
-      transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease;
-    `;
-    barBg.appendChild(barFill);
-    
-    // Percentage text
-    const percentText = document.createElement('span');
-    percentText.id = 'bd-success-percent';
-    percentText.style.cssText = 'min-width: 32px; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums;';
-    
-    // Hint text
-    const hint = document.createElement('span');
-    hint.textContent = '(↑↓)';
-    hint.style.cssText = 'opacity: 0.5; font-size: 10px; margin-left: -2px;';
-    
-    barContainer.appendChild(label);
-    barContainer.appendChild(barBg);
-    barContainer.appendChild(percentText);
-    barContainer.appendChild(hint);
-    
-    // Insert at the top of the main input container
-    container.insertBefore(barContainer, container.firstChild);
-    
-    this.successBar = barContainer;
+
+    inputRow.appendChild(bar);
+    this.successBar = bar;
     this.updateSuccessBar();
   }
 
