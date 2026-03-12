@@ -72,6 +72,21 @@ Each feature implements:
 
 ### Changelog
 
+### v1.1.1
+
+- Major DOM compatibility fixes:
+  - Revamped the core `ai-dungeon-service.js` to work with AI Dungeon's recent major framework overhaul. Re-established stable element selectors and fixed navigation.
+- Story Card feature fixes:
+  - Fixed the Story Card Scanner which was broken by the DOM update. It now correctly identifies scroll containers, virtualized list items, card counts, and type badges.
+  - Fixed data extraction during scanning; it now properly reads all Story Card fields from the updated modal UI.
+  - Added a new Story Card Dashboard button directly to the Story Cards toolbar for easier access.
+- Formatting feature fixes:
+  - Fixed the Markdown automatic apply system that failed due to broken tab navigation.
+  - Inlined the markdown formatting instructions to avoid external file fetching issues.
+- Input Mode improvements:
+  - Fixed a critical layout bug in Try Mode where the success bar would completely block the user's text input area. Redesigned the bar into a sleek, unobtrusive UI element that sits cleanly below the text box.
+  - Added support for Input History navigation using Ctrl/Cmd + Up/Down arrows to ignore Try Mode's weight adjustment hotkeys, preventing conflicts.
+
 ### v1.1.0
 
 - Firefox support:
