@@ -85,6 +85,13 @@ Each feature implements:
 - Input Mode improvements:
   - Fixed a critical layout bug in Try Mode where the success bar would completely block the user's text input area. Redesigned the bar into a sleek, unobtrusive UI element that sits cleanly below the text box.
   - Added support for Input History navigation using Ctrl/Cmd + Up/Down arrows to ignore Try Mode's weight adjustment hotkeys, preventing conflicts.
+- Sprite theme compatibility (custom buttons):
+  - Fixed Try, Command, and See buttons displaying malformed sprites when a sprite-based theme (e.g., S'mores, Cyber) is active.
+  - Implemented correct sprite hover states for all custom buttons using horizontal positioner displacement (`17/90` of positioner width — matching native button behavior).
+  - Fixed Try button rendering with an empty sprite when cloned before React populates sprite content (re-clones from the reference Do button).
+  - Fixed See button losing hover functionality after being converted from end-cap to middle-button sprite when Command is appended.
+  - Eliminated gray background gaps between sprite-covered buttons by making the menu container background transparent when sprites are active (`data-bd-sprite-menu` attribute + CSS rule).
+  - Added reactive theme detection: custom buttons are force re-injected when switching between sprite and dynamic themes, preventing stale sprites from lingering and ensuring correct theming on every switch.
 
 ### v1.1.0
 
