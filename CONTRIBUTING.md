@@ -47,7 +47,6 @@ BetterDungeon/
 ├── features/               # Self-contained feature modules
 ├── styles.css              # CSS for all features
 ├── popup.html/js/css       # Extension popup interface
-├── markdown_ai_instruction.txt # Default AI formatting instructions for Markdown
 └── icons/                  # Extension icons (16, 32, 48, 128px)
 ```
 
