@@ -17,6 +17,7 @@ class TryFeature {
     this.weight = 0; // Weight modifier: -9 (5% success) to +9 (95% success)
     this.weightKeyHandler = null; // Handler for Up/Down arrow keys
     this.successBar = null; // The visible success chance bar element
+    this._lastSpriteState = null; // track sprite/dynamic theme for reactive re-injection
     this.debug = false;
 
     // Outcome phrase pools for variety
@@ -147,6 +148,16 @@ class TryFeature {
     return null;
   }
 
+  // Check whether a native button has a sprite-based theme active
+  _isSpriteActive(nativeButton) {
+    if (!nativeButton) return false;
+    const wrapper = nativeButton.querySelector('div[style*="position: absolute"]');
+    if (!wrapper) return false;
+    const viewport = wrapper.querySelector('div[class*="_ox-hidden"]');
+    if (!viewport) return false;
+    return parseFloat(window.getComputedStyle(viewport).width) > 0;
+  }
+
   injectTryButton() {
     const menu = this.findInputModeMenu();
     if (!menu) return;
@@ -155,6 +166,15 @@ class TryFeature {
     const doButton = menu.querySelector('[aria-label="Set to \'Do\' mode"]');
     if (!doButton) return;
     const sayButton = menu.querySelector('[aria-label="Set to \'Say\' mode"]');
+
+    // Detect theme switches (sprite <-> dynamic) and force re-inject
+    const isSpriteNow = this._isSpriteActive(doButton);
+    if (this._lastSpriteState !== null && this._lastSpriteState !== isSpriteNow) {
+      const stale = menu.querySelector('[aria-label="Set to \'Try\' mode"]');
+      if (stale) stale.remove();
+      this.tryButton = null;
+    }
+    this._lastSpriteState = isSpriteNow;
 
     // Check if we already added the button
     const existingButton = menu.querySelector('[aria-label="Set to \'Try\' mode"]');

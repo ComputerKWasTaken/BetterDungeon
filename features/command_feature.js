@@ -14,6 +14,7 @@ class CommandFeature {
     this.autoDeleteEnabled = false;
     this.pendingCommandDelete = null;
     this.responseObserver = null;
+    this._lastSpriteState = null; // track sprite/dynamic theme for reactive re-injection
     this.debug = false;
   }
 
@@ -98,6 +99,16 @@ class CommandFeature {
     return null;
   }
 
+  // Check whether a native button has a sprite-based theme active
+  _isSpriteActive(nativeButton) {
+    if (!nativeButton) return false;
+    const wrapper = nativeButton.querySelector('div[style*="position: absolute"]');
+    if (!wrapper) return false;
+    const viewport = wrapper.querySelector('div[class*="_ox-hidden"]');
+    if (!viewport) return false;
+    return parseFloat(window.getComputedStyle(viewport).width) > 0;
+  }
+
   injectCommandButton() {
     const menu = this.findInputModeMenu();
     if (!menu) return;
@@ -106,6 +117,15 @@ class CommandFeature {
     const storyButton = menu.querySelector('[aria-label="Set to \'Story\' mode"]');
     if (!storyButton) return;
     const seeButton = menu.querySelector('[aria-label="Set to \'See\' mode"]');
+
+    // Detect theme switches (sprite <-> dynamic) and force re-inject
+    const isSpriteNow = this._isSpriteActive(storyButton);
+    if (this._lastSpriteState !== null && this._lastSpriteState !== isSpriteNow) {
+      const stale = menu.querySelector('[aria-label="Set to \'Command\' mode"]');
+      if (stale) stale.remove();
+      this.commandButton = null;
+    }
+    this._lastSpriteState = isSpriteNow;
 
     // Check if we already added the button
     const existingButton = menu.querySelector('[aria-label="Set to \'Command\' mode"]');

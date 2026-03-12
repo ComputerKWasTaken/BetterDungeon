@@ -643,6 +643,12 @@
   --bd-mode-glow: var(--bd-mode-command-glow);
 }
 
+/* Hide the menu container background when a sprite theme is active,
+   preventing gray gaps from showing between sprite-covered buttons */
+[data-bd-sprite-menu] {
+  background-color: transparent !important;
+}
+
 /* Mode selection button gradient styling (Dynamic theme only - applied via JS) */
 .bd-mode-button-colored {
   position: relative;

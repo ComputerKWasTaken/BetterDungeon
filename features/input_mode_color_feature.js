@@ -25,6 +25,7 @@ class InputModeColorFeature {
     this.customColors = { ...InputModeColorFeature.DEFAULT_COLORS };
     this.styleElement = null;
     this.boundMessageListener = null;
+    this._lastDynamic = null; // track theme state for switch detection
     this.debug = false;
   }
 
@@ -236,8 +237,29 @@ class InputModeColorFeature {
   }
 
   styleModeButtons() {
-    // Only apply button coloring for Dynamic theme
-    if (!this.isDynamicTheme()) {
+    const isDynamic = this.isDynamicTheme();
+    const themeChanged = this._lastDynamic !== null && this._lastDynamic !== isDynamic;
+    this._lastDynamic = isDynamic;
+
+    // Toggle sprite-menu background attribute on the menu container
+    const menuContainer = document.querySelector('[aria-label="Set to \'Do\' mode"]')?.parentElement;
+    if (menuContainer) {
+      if (!isDynamic) {
+        menuContainer.setAttribute('data-bd-sprite-menu', '');
+      } else {
+        menuContainer.removeAttribute('data-bd-sprite-menu');
+      }
+    }
+
+    // When switching TO sprite theme, clean up dynamic-only button styling
+    if (!isDynamic) {
+      if (themeChanged) {
+        document.querySelectorAll('.bd-mode-button-colored').forEach(el => {
+          el.removeAttribute('data-bd-mode-styled');
+          el.style.removeProperty('--bd-button-rgb');
+          el.classList.remove('bd-mode-button-colored');
+        });
+      }
       return;
     }
 
