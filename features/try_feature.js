@@ -207,137 +207,103 @@ class TryFeature {
 
     this.tryButton = cleanButton;
 
-    // Apply sprite theming for non-Dynamic themes
-    this.applySpriteTheming(cleanButton, sayButton || doButton);
+    // Scale sprite viewport if a sprite theme is active (pass Do as reference
+    // in case the clone was created before AI Dungeon populated the sprite)
+    this.applySpriteTheming(cleanButton, doButton);
   }
 
+  // Scale the cloned button's sprite viewport to match its rendered width,
+  // then wire up hover to shift the sprite to its hover region.
+  // If the clone's sprite is empty (cloned before AI Dungeon populated it),
+  // we re-clone the sprite content from the reference button.
   applySpriteTheming(customButton, referenceButton) {
     if (!customButton || !referenceButton) return;
 
-    // Wait for button to be in DOM and rendered
     setTimeout(() => {
-      // Find sprite wrapper in reference button
-      const refSpriteWrapper = referenceButton.querySelector('div[style*="position: absolute"]');
-      if (!refSpriteWrapper) return;
+      // Check the reference button to determine if a sprite theme is active
+      const refWrapper = referenceButton.querySelector('div[style*="position: absolute"]');
+      if (!refWrapper) return;
 
-      // Check if the wrapper has actual sprite content (for sprite-based themes)
-      const refSpriteContainer = refSpriteWrapper.querySelector('div[class*="_ox-hidden"]');
-      if (!refSpriteContainer) return;
+      const refViewport = refWrapper.querySelector('div[class*="_ox-hidden"]');
+      if (!refViewport) return;
 
-      // Check if this is a sprite theme by looking at container dimensions
-      const containerStyle = window.getComputedStyle(refSpriteContainer);
-      if (parseFloat(containerStyle.width) === 0) return; // Dynamic theme, no sprites
+      const refWidth = parseFloat(window.getComputedStyle(refViewport).width);
+      if (refWidth === 0) return; // Dynamic theme — no sprites
 
-      // Find sprite wrapper in custom button
-      const customSpriteWrapper = customButton.querySelector('div[style*="position: absolute"]');
-      if (!customSpriteWrapper) return;
+      // Get our button's sprite wrapper
+      const spriteWrapper = customButton.querySelector('div[style*="position: absolute"]');
+      if (!spriteWrapper) return;
 
-      // Get button dimensions
-      const customButtonWidth = customButton.getBoundingClientRect().width;
-      const refButtonWidth = referenceButton.getBoundingClientRect().width;
-      
-      if (customButtonWidth === 0 || refButtonWidth === 0) return;
+      let viewport = spriteWrapper.querySelector('div[class*="_ox-hidden"]');
+      let srcWidth = viewport ? parseFloat(window.getComputedStyle(viewport).width) : 0;
 
-      // Deep clone the entire reference sprite wrapper content
-      while (customSpriteWrapper.firstChild) {
-        customSpriteWrapper.removeChild(customSpriteWrapper.firstChild);
-      }
-      
-      // Clone each child node from reference
-      Array.from(refSpriteWrapper.children).forEach(child => {
-        const clonedChild = child.cloneNode(true);
-        customSpriteWrapper.appendChild(clonedChild);
-      });
+      // If our sprite is empty (cloned before sprites loaded), clone from reference
+      if (srcWidth === 0) {
+        while (spriteWrapper.firstChild) spriteWrapper.removeChild(spriteWrapper.firstChild);
+        for (const child of refWrapper.children) {
+          spriteWrapper.appendChild(child.cloneNode(true));
+        }
+        spriteWrapper.style.justifyContent = window.getComputedStyle(refWrapper).justifyContent;
 
-      // Copy wrapper styles and ensure no gaps
-      customSpriteWrapper.style.justifyContent = window.getComputedStyle(refSpriteWrapper).justifyContent;
-      customSpriteWrapper.style.margin = '0';
-      customSpriteWrapper.style.padding = '0';
-
-      // Ensure all cloned containers have no margin and correct dimensions
-      customSpriteWrapper.querySelectorAll('div').forEach(div => {
-        div.style.margin = '0';
-      });
-
-      // Ensure the sprite containers fill the button width
-      const spriteContainers = customSpriteWrapper.querySelectorAll('div[class*="_ox-hidden"]');
-      if (spriteContainers.length === 1) {
-        // Middle button - single container should match button width
-        spriteContainers[0].style.width = `${customButtonWidth}px`;
+        // Re-query the now-populated viewport
+        viewport = spriteWrapper.querySelector('div[class*="_ox-hidden"]');
+        srcWidth = viewport ? parseFloat(window.getComputedStyle(viewport).width) : 0;
+        if (srcWidth === 0) return; // Still empty, bail
       }
 
-      // Adjust the middle section width if button sizes differ
-      const widthDiff = customButtonWidth - refButtonWidth;
-      if (Math.abs(widthDiff) > 1) {
-        const customContainers = customSpriteWrapper.querySelectorAll('div[class*="_ox-hidden"]');
-        const refContainers = refSpriteWrapper.querySelectorAll('div[class*="_ox-hidden"]');
-        
-        customContainers.forEach((container, index) => {
-          const refContainer = refContainers[index];
-          if (!refContainer) return;
+      const buttonWidth = customButton.getBoundingClientRect().width;
+      if (buttonWidth === 0) return;
 
-          const refWidth = parseFloat(window.getComputedStyle(refContainer).width);
-          
-          // Only scale non-end-cap containers (width > 20px)
-          if (refWidth > 20) {
-            const newWidth = refWidth + widthDiff;
-            container.style.width = `${newWidth}px`;
-            
-            // Also scale the inner positioner
-            const positioner = container.querySelector('.css-175oi2r');
-            if (positioner && positioner.style.width) {
-              const posWidth = parseFloat(positioner.style.width);
-              const posLeft = parseFloat(positioner.style.left) || 0;
-              const scale = newWidth / refWidth;
-              positioner.style.width = `${posWidth * scale}px`;
-              positioner.style.left = `${posLeft * scale}px`;
-            }
+      // Scale viewport + positioner if button width differs from source
+      if (Math.abs(buttonWidth - srcWidth) >= 1) {
+        const scale = buttonWidth / srcWidth;
+        viewport.style.width = `${buttonWidth}px`;
+
+        const positioner = viewport.firstElementChild;
+        if (positioner?.style) {
+          const w = parseFloat(positioner.style.width) || 0;
+          const l = parseFloat(positioner.style.left) || 0;
+          if (w > 0) {
+            positioner.style.width = `${w * scale}px`;
+            positioner.style.left = `${l * scale}px`;
           }
-        });
+        }
       }
 
-      // Add hover handling for the custom button
-      this.addHoverHandling(customButton);
-
+      // Wire up hover state (shift sprite to hover region)
+      this.addSpriteHover(customButton);
     }, 100);
   }
 
-  addHoverHandling(button) {
-    if (!button || button.dataset.hoverHandled) return;
-    button.dataset.hoverHandled = 'true';
+  // Shift the sprite positioner on hover to reveal the hover-state region.
+  // Native buttons displace left by 17/90 of positioner width — a fixed
+  // fraction that maps to the horizontal offset between non-hover and hover
+  // regions in every AI Dungeon sprite sheet.
+  addSpriteHover(button) {
+    if (button.dataset.bdSpriteHover) return;
+    button.dataset.bdSpriteHover = 'true';
 
     const spriteWrapper = button.querySelector('div[style*="position: absolute"]');
     if (!spriteWrapper) return;
 
-    // Find all positioner elements that have a left style
-    const getPositioners = () => spriteWrapper.querySelectorAll('.css-175oi2r[style*="left"]');
+    const viewport = spriteWrapper.querySelector('div[class*="_ox-hidden"]');
+    if (!viewport) return;
 
-    // Store original left values
-    const positioners = getPositioners();
-    const originalLefts = [];
-    positioners.forEach(p => {
-      originalLefts.push(parseFloat(p.style.left) || 0);
-    });
+    const positioner = viewport.firstElementChild;
+    if (!positioner?.style) return;
 
-    // Hover offset - hover sprite is to the RIGHT, so shift LEFT (more negative)
-    // Use -180 for smaller buttons (Try, Say, See) vs -250 for longer buttons (Attempt was longer)
-    const hoverOffset = -180;
+    const posWidth = parseFloat(positioner.style.width) || 0;
+    const restLeft = parseFloat(positioner.style.left) || 0;
+    if (posWidth === 0) return;
+
+    // Hover region offset: 17/90 of positioner width (empirically derived)
+    const hoverLeft = restLeft - (posWidth * 17 / 90);
 
     button.addEventListener('mouseenter', () => {
-      const ps = getPositioners();
-      ps.forEach((p, i) => {
-        const origLeft = originalLefts[i] !== undefined ? originalLefts[i] : parseFloat(p.style.left) || 0;
-        p.style.left = `${origLeft + hoverOffset}px`;
-      });
+      positioner.style.left = `${hoverLeft}px`;
     });
-
     button.addEventListener('mouseleave', () => {
-      const ps = getPositioners();
-      ps.forEach((p, i) => {
-        if (originalLefts[i] !== undefined) {
-          p.style.left = `${originalLefts[i]}px`;
-        }
-      });
+      positioner.style.left = `${restLeft}px`;
     });
   }
 

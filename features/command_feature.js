@@ -173,237 +173,171 @@ class CommandFeature {
     }
   }
 
+  // Convert an end-cap button (3-part sprite) to a middle button (single viewport).
+  // Used when See is no longer the last button because Command was appended after it.
   convertToMiddleButton(targetButton, referenceMiddleButton) {
     if (!targetButton || !referenceMiddleButton) return;
 
     setTimeout(() => {
-      const refSpriteWrapper = referenceMiddleButton.querySelector('div[style*="position: absolute"]');
-      if (!refSpriteWrapper) return;
+      const refWrapper = referenceMiddleButton.querySelector('div[style*="position: absolute"]');
+      if (!refWrapper) return;
 
-      const refSpriteContainer = refSpriteWrapper.querySelector('div[class*="_ox-hidden"]');
-      if (!refSpriteContainer) return;
+      const refViewport = refWrapper.querySelector('div[class*="_ox-hidden"]');
+      if (!refViewport) return;
 
-      const containerStyle = window.getComputedStyle(refSpriteContainer);
-      if (parseFloat(containerStyle.width) === 0) return; // Dynamic theme
+      const refWidth = parseFloat(window.getComputedStyle(refViewport).width);
+      if (refWidth === 0) return; // Dynamic theme
 
-      const targetSpriteWrapper = targetButton.querySelector('div[style*="position: absolute"]');
-      if (!targetSpriteWrapper) return;
+      const targetWrapper = targetButton.querySelector('div[style*="position: absolute"]');
+      if (!targetWrapper) return;
 
-      const targetButtonWidth = targetButton.getBoundingClientRect().width;
-      const refButtonWidth = referenceMiddleButton.getBoundingClientRect().width;
+      const targetWidth = targetButton.getBoundingClientRect().width;
+      if (targetWidth === 0) return;
 
-      if (targetButtonWidth === 0 || refButtonWidth === 0) return;
-
-      // Clear and clone from reference
-      while (targetSpriteWrapper.firstChild) {
-        targetSpriteWrapper.removeChild(targetSpriteWrapper.firstChild);
+      // Replace target's sprite content with a cloned middle-button sprite
+      while (targetWrapper.firstChild) targetWrapper.removeChild(targetWrapper.firstChild);
+      for (const child of refWrapper.children) {
+        targetWrapper.appendChild(child.cloneNode(true));
       }
+      targetWrapper.style.justifyContent = window.getComputedStyle(refWrapper).justifyContent;
 
-      Array.from(refSpriteWrapper.children).forEach(child => {
-        targetSpriteWrapper.appendChild(child.cloneNode(true));
-      });
+      // Scale the cloned viewport to match the target button's width
+      const clonedViewport = targetWrapper.querySelector('div[class*="_ox-hidden"]');
+      if (clonedViewport && refWidth > 0) {
+        const scale = targetWidth / refWidth;
+        clonedViewport.style.width = `${targetWidth}px`;
 
-      targetSpriteWrapper.style.justifyContent = window.getComputedStyle(refSpriteWrapper).justifyContent;
-      targetSpriteWrapper.style.margin = '0';
-      targetSpriteWrapper.style.padding = '0';
-
-      // Ensure all cloned containers have no margin
-      targetSpriteWrapper.querySelectorAll('div').forEach(div => {
-        div.style.margin = '0';
-      });
-
-      // Ensure the sprite container fills the button width (middle button = single container)
-      const spriteContainers = targetSpriteWrapper.querySelectorAll('div[class*="_ox-hidden"]');
-      if (spriteContainers.length === 1) {
-        spriteContainers[0].style.width = `${targetButtonWidth}px`;
-      }
-
-      // Adjust for width difference
-      const widthDiff = targetButtonWidth - refButtonWidth;
-      if (Math.abs(widthDiff) > 1) {
-        const containers = targetSpriteWrapper.querySelectorAll('div[class*="_ox-hidden"]');
-        const refContainers = refSpriteWrapper.querySelectorAll('div[class*="_ox-hidden"]');
-
-        containers.forEach((container, index) => {
-          const refContainer = refContainers[index];
-          if (!refContainer) return;
-
-          const refWidth = parseFloat(window.getComputedStyle(refContainer).width);
-          if (refWidth > 20) {
-            const newWidth = refWidth + widthDiff;
-            container.style.width = `${newWidth}px`;
-
-            const positioner = container.querySelector('.css-175oi2r');
-            if (positioner && positioner.style.width) {
-              const scale = newWidth / refWidth;
-              positioner.style.width = `${parseFloat(positioner.style.width) * scale}px`;
-              positioner.style.left = `${parseFloat(positioner.style.left || 0) * scale}px`;
-            }
+        const positioner = clonedViewport.firstElementChild;
+        if (positioner?.style) {
+          const w = parseFloat(positioner.style.width) || 0;
+          const l = parseFloat(positioner.style.left) || 0;
+          if (w > 0) {
+            positioner.style.width = `${w * scale}px`;
+            positioner.style.left = `${l * scale}px`;
           }
-        });
+        }
       }
 
-      // Add hover handling for See button (smaller, needs different offset)
-      this.addHoverHandling(targetButton, -180);
-
+      // Wire up hover — React can no longer manage it after we replaced the sprite
+      this.addSpriteHover(targetButton);
     }, 100);
   }
 
+  // Clone the end-cap sprite from the reference button (See) into Command,
+  // then scale the center section to fit Command's width and wire up hover.
   applySpriteTheming(customButton, referenceButton) {
     if (!customButton || !referenceButton) return;
 
-    // Wait for button to be in DOM and rendered
     setTimeout(() => {
-      // Find sprite wrapper in reference button
-      const refSpriteWrapper = referenceButton.querySelector('div[style*="position: absolute"]');
-      if (!refSpriteWrapper) return;
+      const refWrapper = referenceButton.querySelector('div[style*="position: absolute"]');
+      if (!refWrapper) return;
 
-      // Check if the wrapper has actual sprite content (for sprite-based themes)
-      const refSpriteContainer = refSpriteWrapper.querySelector('div[class*="_ox-hidden"]');
-      if (!refSpriteContainer) return;
+      const refViewports = refWrapper.querySelectorAll(':scope > div[class*="_ox-hidden"]');
+      if (refViewports.length === 0) return;
 
-      // Check if this is a sprite theme by looking at container dimensions
-      const containerStyle = window.getComputedStyle(refSpriteContainer);
-      if (parseFloat(containerStyle.width) === 0) return; // Dynamic theme, no sprites
+      // Check if sprite theme is active (non-zero viewport width)
+      if (parseFloat(window.getComputedStyle(refViewports[0]).width) === 0) return;
 
-      // Find sprite wrapper in custom button
-      const customSpriteWrapper = customButton.querySelector('div[style*="position: absolute"]');
-      if (!customSpriteWrapper) return;
+      const customWrapper = customButton.querySelector('div[style*="position: absolute"]');
+      if (!customWrapper) return;
 
-      // Get button dimensions
-      const customButtonWidth = customButton.getBoundingClientRect().width;
-      const refButtonWidth = referenceButton.getBoundingClientRect().width;
-      
-      if (customButtonWidth === 0 || refButtonWidth === 0) return;
+      const buttonWidth = customButton.getBoundingClientRect().width;
+      if (buttonWidth === 0) return;
 
-      // Deep clone the entire reference sprite wrapper content
-      while (customSpriteWrapper.firstChild) {
-        customSpriteWrapper.removeChild(customSpriteWrapper.firstChild);
+      // Clone reference sprite content into our button
+      while (customWrapper.firstChild) customWrapper.removeChild(customWrapper.firstChild);
+      for (const child of refWrapper.children) {
+        customWrapper.appendChild(child.cloneNode(true));
       }
-      
-      // Clone each child node from reference
-      Array.from(refSpriteWrapper.children).forEach(child => {
-        const clonedChild = child.cloneNode(true);
-        customSpriteWrapper.appendChild(clonedChild);
-      });
+      customWrapper.style.justifyContent = window.getComputedStyle(refWrapper).justifyContent;
 
-      // Copy wrapper styles and ensure no gaps
-      customSpriteWrapper.style.justifyContent = window.getComputedStyle(refSpriteWrapper).justifyContent;
-      customSpriteWrapper.style.margin = '0';
-      customSpriteWrapper.style.padding = '0';
+      const clonedViewports = customWrapper.querySelectorAll(':scope > div[class*="_ox-hidden"]');
 
-      // Ensure all cloned containers have no margin and correct dimensions
-      customSpriteWrapper.querySelectorAll('div').forEach(div => {
-        div.style.margin = '0';
-      });
+      if (refViewports.length === 3 && clonedViewports.length === 3) {
+        // 3-part end-cap: left cap (fixed), center (stretch), right cap (fixed)
+        const leftCapW = parseFloat(window.getComputedStyle(refViewports[0]).width);
+        const rightCapW = parseFloat(window.getComputedStyle(refViewports[2]).width);
+        const refCenterW = parseFloat(window.getComputedStyle(refViewports[1]).width);
+        const newCenterW = buttonWidth - leftCapW - rightCapW;
 
-      // Handle 3-part end cap structure for Command button
-      const spriteContainers = customSpriteWrapper.querySelectorAll(':scope > div[class*="_ox-hidden"]');
-      if (spriteContainers.length === 3) {
-        // End button structure: left cap, middle, right cap
-        // Get the original widths from reference
-        const refContainers = refSpriteWrapper.querySelectorAll(':scope > div[class*="_ox-hidden"]');
-        const leftCapWidth = parseFloat(window.getComputedStyle(refContainers[0]).width);
-        const rightCapWidth = parseFloat(window.getComputedStyle(refContainers[2]).width);
-        
-        // Calculate middle width to fill the remaining space
-        const middleWidth = customButtonWidth - leftCapWidth - rightCapWidth;
-        spriteContainers[1].style.width = `${middleWidth}px`;
-        
-        // Scale the inner positioner of the middle section
-        const refMiddleWidth = parseFloat(window.getComputedStyle(refContainers[1]).width);
-        const positioner = spriteContainers[1].querySelector('.css-175oi2r');
-        if (positioner && positioner.style.width && refMiddleWidth > 0) {
-          const scale = middleWidth / refMiddleWidth;
-          positioner.style.width = `${parseFloat(positioner.style.width) * scale}px`;
-          positioner.style.left = `${parseFloat(positioner.style.left || 0) * scale}px`;
+        if (newCenterW > 0 && refCenterW > 0) {
+          clonedViewports[1].style.width = `${newCenterW}px`;
+
+          // Scale center positioner proportionally
+          const scale = newCenterW / refCenterW;
+          const positioner = clonedViewports[1].firstElementChild;
+          if (positioner?.style) {
+            const w = parseFloat(positioner.style.width) || 0;
+            const l = parseFloat(positioner.style.left) || 0;
+            if (w > 0) {
+              positioner.style.width = `${w * scale}px`;
+              positioner.style.left = `${l * scale}px`;
+            }
+          }
         }
-      } else if (spriteContainers.length === 1) {
-        spriteContainers[0].style.width = `${customButtonWidth}px`;
+      } else if (clonedViewports.length === 1) {
+        // Fallback: reference was a middle button — scale single viewport
+        const refW = parseFloat(window.getComputedStyle(refViewports[0]).width);
+        if (refW > 0) {
+          const scale = buttonWidth / refW;
+          clonedViewports[0].style.width = `${buttonWidth}px`;
+
+          const positioner = clonedViewports[0].firstElementChild;
+          if (positioner?.style) {
+            const w = parseFloat(positioner.style.width) || 0;
+            const l = parseFloat(positioner.style.left) || 0;
+            if (w > 0) {
+              positioner.style.width = `${w * scale}px`;
+              positioner.style.left = `${l * scale}px`;
+            }
+          }
+        }
       }
 
-      // Add hover handling for Command button (3-part structure needs special handling)
-      this.addEndCapHoverHandling(customButton);
-
+      // Wire up hover state (shift sprite to hover region)
+      this.addSpriteHover(customButton);
     }, 100);
   }
 
-  addHoverHandling(button, hoverOffset = -180) {
-    if (!button || button.dataset.hoverHandled) return;
-    button.dataset.hoverHandled = 'true';
+  // Shift all sprite positioners on hover to reveal the hover-state region.
+  // Each viewport's positioner is displaced by 17/90 of its own width — a
+  // fixed fraction mapping to the horizontal gap between non-hover and hover
+  // regions in every AI Dungeon sprite sheet.
+  addSpriteHover(button) {
+    if (button.dataset.bdSpriteHover) return;
+    button.dataset.bdSpriteHover = 'true';
 
     const spriteWrapper = button.querySelector('div[style*="position: absolute"]');
     if (!spriteWrapper) return;
 
-    const positioner = spriteWrapper.querySelector('.css-175oi2r[style*="left"]');
-    if (!positioner) return;
+    const viewports = spriteWrapper.querySelectorAll(':scope > div[class*="_ox-hidden"]');
+    if (viewports.length === 0) return;
 
-    const originalLeft = parseFloat(positioner.style.left) || 0;
+    const hoverData = [];
+    for (const viewport of viewports) {
+      const positioner = viewport.firstElementChild;
+      if (!positioner?.style) continue;
 
-    button.addEventListener('mouseenter', () => {
-      positioner.style.left = `${originalLeft + hoverOffset}px`;
-    });
+      const posWidth = parseFloat(positioner.style.width) || 0;
+      const restLeft = parseFloat(positioner.style.left) || 0;
+      if (posWidth === 0) continue;
 
-    button.addEventListener('mouseleave', () => {
-      positioner.style.left = `${originalLeft}px`;
-    });
-  }
-
-  addEndCapHoverHandling(button) {
-    if (!button || button.dataset.hoverHandled) return;
-    button.dataset.hoverHandled = 'true';
-
-    const spriteWrapper = button.querySelector('div[style*="position: absolute"]');
-    if (!spriteWrapper) return;
-
-    // Get the 3 sprite containers (left cap, middle, right cap)
-    const containers = spriteWrapper.querySelectorAll(':scope > div[class*="_ox-hidden"]');
-    if (containers.length !== 3) {
-      // Fallback to standard hover handling
-      const positioner = spriteWrapper.querySelector('.css-175oi2r[style*="left"]');
-      if (!positioner) return;
-      
-      const originalLeft = parseFloat(positioner.style.left) || 0;
-      
-      button.addEventListener('mouseenter', () => {
-        positioner.style.left = `${originalLeft - 240}px`;
-      });
-      
-      button.addEventListener('mouseleave', () => {
-        positioner.style.left = `${originalLeft}px`;
-      });
-      return;
+      // Hover region offset: 17/90 of positioner width (empirically derived)
+      const hoverLeft = restLeft - (posWidth * 17 / 90);
+      hoverData.push({ positioner, restLeft, hoverLeft });
     }
 
-    // Store original left values for each container's positioner
-    const positioners = [];
-    const originalLefts = [];
-    containers.forEach(container => {
-      const positioner = container.querySelector('.css-175oi2r[style*="left"]');
-      if (positioner) {
-        positioners.push(positioner);
-        originalLefts.push(parseFloat(positioner.style.left) || 0);
-      }
-    });
-
-    // Different offsets for each part: left cap, middle, right cap
-    // Caps are smaller so need smaller offset
-    const hoverOffsets = [0, -200, 0];
+    if (hoverData.length === 0) return;
 
     button.addEventListener('mouseenter', () => {
-      positioners.forEach((p, i) => {
-        if (p && originalLefts[i] !== undefined) {
-          p.style.left = `${originalLefts[i] + hoverOffsets[i]}px`;
-        }
-      });
+      for (const { positioner, hoverLeft } of hoverData) {
+        positioner.style.left = `${hoverLeft}px`;
+      }
     });
-
     button.addEventListener('mouseleave', () => {
-      positioners.forEach((p, i) => {
-        if (p && originalLefts[i] !== undefined) {
-          p.style.left = `${originalLefts[i]}px`;
-        }
-      });
+      for (const { positioner, restLeft } of hoverData) {
+        positioner.style.left = `${restLeft}px`;
+      }
     });
   }
 
