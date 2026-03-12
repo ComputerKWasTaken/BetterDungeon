@@ -401,7 +401,7 @@ class TryFeature {
       const textarea = document.querySelector('#game-text-input');
       if (!textarea || document.activeElement !== textarea) return;
       
-      // Only handle Up/Down arrows (but not if Ctrl/Cmd is held - that's for history navigation)
+      // Only handle Up/Down arrows (ignore if Ctrl/Cmd is held for input history navigation)
       if (e.ctrlKey || e.metaKey) return;
       
       if (e.key === 'ArrowUp') {
@@ -449,30 +449,31 @@ class TryFeature {
     bar.style.cssText = `
       position: absolute;
       bottom: 6px;
-      left: 50%;
-      transform: translateX(-50%);
+      left: 32px;
+      right: 32px;
       display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 4px 14px;
-      background: rgba(0, 0, 0, 0.35);
+      gap: 8px;
+      padding: 5px 14px;
+      background: rgba(0, 0, 0, 0.3);
       backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-radius: 8px;
       border: 1px solid rgba(255, 255, 255, 0.06);
-      border-radius: 20px;
       font-family: var(--bd-font-family-primary, 'IBM Plex Sans', sans-serif);
       font-size: 11px;
-      color: rgba(232, 232, 236, 0.7);
+      color: rgba(255, 255, 255, 0.45);
       z-index: 2;
       pointer-events: none;
     `;
 
     bar.innerHTML = `
-      <span style="font-weight:500; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; opacity:0.5;">Success</span>
-      <div style="width:100px; height:4px; background:rgba(255,255,255,0.08); border-radius:2px; overflow:hidden;">
-        <div id="bd-success-bar-fill" style="height:100%; border-radius:2px; transition:width .3s cubic-bezier(.4,0,.2,1), background .3s;"></div>
+      <span style="white-space:nowrap; font-weight:600; font-size:10px; letter-spacing:0.4px; text-transform:uppercase;">Success</span>
+      <div style="flex:1; height:5px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden;">
+        <div id="bd-success-bar-fill" style="height:100%; border-radius:3px; transition:width .3s cubic-bezier(.4,0,.2,1), background .3s;"></div>
       </div>
-      <span id="bd-success-percent" style="min-width:28px; text-align:right; font-weight:600; font-variant-numeric:tabular-nums;"></span>
-      <span style="opacity:0.25; font-size:9px;">↕</span>
+      <span id="bd-success-percent" style="min-width:28px; text-align:right; font-weight:700; font-size:12px; font-variant-numeric:tabular-nums; transition:color .3s;"></span>
+      <span style="opacity:0.3; font-size:9px;">↑↓</span>
     `;
 
     inputRow.appendChild(bar);
@@ -484,25 +485,27 @@ class TryFeature {
     const fill = document.querySelector('#bd-success-bar-fill');
     const percentText = document.querySelector('#bd-success-percent');
     if (!fill || !percentText) return;
-    
+
     const chance = this.getSuccessChance();
     percentText.textContent = `${chance}%`;
     fill.style.width = `${chance}%`;
-    
+
     // Color gradient: red (low) -> yellow (mid) -> green (high)
     let color;
     if (chance <= 25) {
-      color = '#ef4444'; // Red
+      color = '#ef4444';
     } else if (chance <= 40) {
-      color = '#f97316'; // Orange
+      color = '#f97316';
     } else if (chance <= 60) {
-      color = '#eab308'; // Yellow
+      color = '#eab308';
     } else if (chance <= 75) {
-      color = '#84cc16'; // Lime
+      color = '#84cc16';
     } else {
-      color = '#22c55e'; // Green
+      color = '#22c55e';
     }
     fill.style.background = color;
+    // Tint the percentage text to match the bar fill
+    percentText.style.color = color;
   }
 
   removeSuccessBar() {
