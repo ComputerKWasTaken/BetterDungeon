@@ -16,6 +16,11 @@ class StoryCardAnalyticsFeature {
     // Settings
     this.autoRefresh = false;
     this.debug = false;
+
+    // Toolbar button injection
+    this.toolbarObserver = null;
+    this.toolbarButton = null;
+    this._toolbarCheckTimer = null;
   }
 
   log(message, ...args) {
@@ -29,11 +34,92 @@ class StoryCardAnalyticsFeature {
   async init() {
     console.log('[StoryCardAnalytics] Initializing Story Card Analytics feature...');
     this.injectStyles();
+    this.startToolbarObserver();
   }
 
   destroy() {
     this.closeDashboard();
+    this.stopToolbarObserver();
+    this.removeToolbarButton();
     this.removeStyles();
+  }
+
+  // ==================== TOOLBAR BUTTON ====================
+
+  // Watch for Story Cards toolbar and inject the Dashboard button when visible
+  startToolbarObserver() {
+    this.toolbarObserver = new MutationObserver(() => {
+      clearTimeout(this._toolbarCheckTimer);
+      this._toolbarCheckTimer = setTimeout(() => this.tryInjectToolbarButton(), 300);
+    });
+
+    this.toolbarObserver.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+
+    // Initial check after a short delay for page to settle
+    setTimeout(() => this.tryInjectToolbarButton(), 500);
+  }
+
+  stopToolbarObserver() {
+    if (this.toolbarObserver) {
+      this.toolbarObserver.disconnect();
+      this.toolbarObserver = null;
+    }
+    clearTimeout(this._toolbarCheckTimer);
+  }
+
+  // Inject Dashboard button into the Story Cards toolbar if not already present
+  tryInjectToolbarButton() {
+    // Already injected and still in DOM — skip
+    if (this.toolbarButton && document.contains(this.toolbarButton)) return;
+    this.toolbarButton = null;
+
+    // Find the view toggle group (only present when Story Cards tab is active)
+    const gridViewBtn = document.querySelector('[aria-label="Grid view"][role="button"]');
+    if (!gridViewBtn) return;
+
+    const viewToggleGroup = gridViewBtn.closest('.is_Row');
+    if (!viewToggleGroup) return;
+
+    // The toolbar row is the parent of the view toggle group
+    const toolbarRow = viewToggleGroup.parentElement;
+    if (!toolbarRow) return;
+
+    // Verify the toolbar also contains the Filters button
+    const filtersBtn = toolbarRow.querySelector('[aria-label="Filters"]');
+    if (!filtersBtn) return;
+
+    // Build the button
+    this.toolbarButton = document.createElement('div');
+    this.toolbarButton.setAttribute('role', 'button');
+    this.toolbarButton.setAttribute('aria-label', 'Story Card Dashboard');
+    this.toolbarButton.setAttribute('data-bd-dashboard-btn', '');
+    this.toolbarButton.className = 'bd-toolbar-dashboard-btn';
+    this.toolbarButton.tabIndex = 0;
+    this.toolbarButton.innerHTML = `
+      <span class="bd-toolbar-btn-icon icon-chart-column"></span>
+      <span class="bd-toolbar-btn-label">Dashboard</span>
+    `;
+
+    this.toolbarButton.addEventListener('click', () => this.openDashboard());
+    this.toolbarButton.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        this.openDashboard();
+      }
+    });
+
+    // Insert before the view toggle group so margin-left:auto pushes it right
+    toolbarRow.insertBefore(this.toolbarButton, viewToggleGroup);
+  }
+
+  removeToolbarButton() {
+    if (this.toolbarButton) {
+      this.toolbarButton.remove();
+      this.toolbarButton = null;
+    }
   }
 
   // ==================== DASHBOARD UI ====================
@@ -645,12 +731,64 @@ class StoryCardAnalyticsFeature {
       }
 
       .bd-analytics-dashboard [class^="icon-"],
-      .bd-analytics-dashboard [class*=" icon-"] {
+      .bd-analytics-dashboard [class*=" icon-"],
+      .bd-toolbar-dashboard-btn [class^="icon-"],
+      .bd-toolbar-dashboard-btn [class*=" icon-"] {
         font-family: 'lucide' !important;
         font-size: inherit;
         font-style: normal;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
+      }
+
+      /* Toolbar Dashboard Button — injected into Story Cards toolbar */
+      .bd-toolbar-dashboard-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: auto;
+        margin-right: 8px;
+        padding: 0 12px;
+        height: 28px;
+        background: rgba(255, 149, 0, 0.1);
+        border: 1px solid rgba(255, 149, 0, 0.25);
+        border-radius: 8px;
+        cursor: pointer;
+        user-select: none;
+        transition: all 0.15s ease;
+        flex-shrink: 0;
+        outline: none;
+      }
+
+      .bd-toolbar-dashboard-btn:hover {
+        background: rgba(255, 149, 0, 0.2);
+        border-color: rgba(255, 149, 0, 0.45);
+        box-shadow: 0 0 8px rgba(255, 149, 0, 0.12);
+      }
+
+      .bd-toolbar-dashboard-btn:active {
+        transform: scale(0.97);
+      }
+
+      .bd-toolbar-dashboard-btn:focus-visible {
+        outline: 2px solid rgba(255, 149, 0, 0.6);
+        outline-offset: 2px;
+      }
+
+      .bd-toolbar-btn-icon {
+        font-size: 14px;
+        line-height: 1;
+        color: rgba(255, 149, 0, 0.9);
+      }
+
+      .bd-toolbar-btn-label {
+        font-family: inherit;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: rgba(255, 149, 0, 0.9);
+        line-height: 1;
       }
 
       /* Dashboard Container - blocks ALL pointer events from reaching elements behind */

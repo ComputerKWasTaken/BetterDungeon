@@ -61,6 +61,18 @@ class AIDungeonService {
     AUTHORS_NOTE:        'textarea[placeholder*="Influence the AI\'s writing style"]',
     PLOT_ESSENTIALS:     'textarea[placeholder*="important information about the adventure"]',
 
+    // --- Story Cards Section ---
+    GRID_VIEW:           '[aria-label="Grid view"]',
+    LIST_VIEW:           '[aria-label="List view"]',
+    COMPACT_VIEW:        '[aria-label="Compact view"]',
+    FILTERS_BTN:         '[aria-label="Filters"]',
+    SEARCH_BOX:          '[role="searchbox"][placeholder="Search"]',
+    CARD_TYPE_BADGE:     'span[aria-label^="type:"]',    // e.g. aria-label="type: character"
+    CARD_HEADING:        'h1[role="heading"]',            // Card name inside role="button" cards
+    ADD_STORY_CARD:      '[aria-label="Add Story Card"]', // "Add a story card" button (grid view)
+    IMPORT_CARDS:        '[aria-label="import story cards"]',
+    EXPORT_CARDS:        '[aria-label="export story cards"]',
+
     // --- Structural Classes (Tamagui) ---
     IS_BUTTON:           '.is_Button',
     IS_VIEW:             '.is_View',
@@ -92,6 +104,26 @@ class AIDungeonService {
 
   // CDN base for theme sprite sheets
   static THEME_SPRITE_BASE = 'https://latitude-standard-pull-zone-1.b-cdn.net/site_assets/aidungeon/client/themes/';
+
+  // Inline markdown formatting instructions (previously loaded from markdown_ai_instruction.txt)
+  static MARKDOWN_INSTRUCTIONS = `[FORMATTING]
+ALWAYS use Markdown in your responses to enhance the narrative. Use formatting purposefully to enrich the reading experience, not on every line. Let unformatted prose carry the story; formatting highlights what matters.
+
+Syntax & Usage:
+++Bold++: Emphasis, important names, key objects, locations on first mention, or impactful moments. Example: The ++ancient sword++ gleamed in the torchlight.
+//Italic//: Internal thoughts, foreign words, distant sounds, written titles, or whispered speech. Example: //This can't be happening//, she thought.
+++//Bold Italic//++: Intense outbursts, shouting, or moments of extreme emotion. Use sparingly for maximum impact. Example: ++//Never!//++ he roared, slamming his fist on the table.
+==Underline==: Written or inscribed text, signs, letters, book passages, or any in-world readable text. Example: The crumbling note read: ==Meet me at the docks. Tell no one.==
+~Small Text~: Barely audible whispers, fading speech, or distant/muffled sounds. Very rare. Example: ~"...please... don't leave..."~
+---: Scene breaks, significant time skips, or perspective shifts. Place on its own line between scenes.
+- item: Unordered lists for inventory, choices, or organized information.
+
+Rules:
+- Never use asterisks (*), standard markdown, or any formatting syntax other than what is listed above
+- Prefer fewer formatted words over many; a sentence with one ++bold++ phrase has more impact than a sentence where everything is formatted
+- Do not format common actions, ordinary dialogue, or mundane descriptions
+- Formatting should feel invisible and natural, never calling attention to itself or disrupting the flow of reading
+- Internal thoughts use //italic// without quotation marks; spoken dialogue uses quotation marks without formatting unless emphasis is needed`;
 
   // ==================== CONSTRUCTOR & DEBUG ====================
 
@@ -839,19 +871,11 @@ class AIDungeonService {
     return this.getTextInput()?.value || '';
   }
 
-  // ==================== FILE FETCHING ====================
+  // ==================== INSTRUCTION DATA ====================
 
+  // Returns the inline markdown formatting instructions (no file fetch needed)
   async fetchInstructionsFile() {
-    try {
-      const url = chrome.runtime.getURL('markdown_ai_instruction.txt');
-      const resp = await fetch(url);
-      if (!resp.ok) {
-        return { success: false, error: 'Failed to load instructions file' };
-      }
-      return { success: true, data: await resp.text() };
-    } catch (e) {
-      return { success: false, error: e.message };
-    }
+    return { success: true, data: AIDungeonService.MARKDOWN_INSTRUCTIONS };
   }
 
   // ==================== UTILITIES ====================
