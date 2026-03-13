@@ -641,6 +641,7 @@ Rules:
   // ==================== NAVIGATION FLOWS ====================
 
   // Internal helper: validate page → open settings → select top tab → select sub tab
+  // Handles all possible states: panel closed, wrong top tab, wrong subtab.
   async _navigateToSettingsTab(topTab, subTab, options = {}) {
     const { onStepUpdate = null } = options;
 
@@ -651,17 +652,29 @@ Rules:
       return { success: false, error: 'Navigate to an adventure first' };
     }
 
+    // Step 1: Ensure the settings panel is open
     onStepUpdate?.('Opening settings panel...');
     const panelResult = await this.openSettingsPanel();
     if (!panelResult.success) return panelResult;
     await this.wait(200);
 
+    // Step 2: Select the top-level tab (Adventure / Gameplay)
     onStepUpdate?.(`Selecting ${topTab} tab...`);
     const topResult = await this.selectTab(topTab);
     if (!topResult.success) return topResult;
-    await this.wait(200);
 
+    // Step 3: If a subtab is requested, wait for it to render then select it
     if (subTab) {
+      onStepUpdate?.(`Waiting for ${subTab} tab...`);
+      // After switching top tabs, subtabs re-render — poll until the target exists
+      const subTabEl = await this.waitFor(
+        () => this.findTabByText(subTab),
+        { interval: 100, timeout: 3000 }
+      );
+      if (!subTabEl) {
+        return { success: false, error: `${subTab} tab did not appear after selecting ${topTab}` };
+      }
+
       onStepUpdate?.(`Selecting ${subTab} tab...`);
       const subResult = await this.selectTab(subTab);
       if (!subResult.success) return subResult;

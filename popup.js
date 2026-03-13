@@ -866,9 +866,26 @@ function initPresets() {
 }
 
 async function loadPresets() {
-  chrome.storage.sync.get(STORAGE_KEYS.presets, (result) => {
-    const presets = (result || {})[STORAGE_KEYS.presets] || [];
-    renderPresets(presets);
+  // Read from local storage (content script writes here after sync→local migration)
+  chrome.storage.local.get(STORAGE_KEYS.presets, (localResult) => {
+    const localPresets = (localResult || {})[STORAGE_KEYS.presets];
+
+    if (localPresets && localPresets.length > 0) {
+      renderPresets(localPresets);
+      return;
+    }
+
+    // One-time migration: pull legacy presets from sync storage
+    chrome.storage.sync.get(STORAGE_KEYS.presets, (syncResult) => {
+      const syncPresets = (syncResult || {})[STORAGE_KEYS.presets] || [];
+      if (syncPresets.length > 0) {
+        chrome.storage.local.set({ [STORAGE_KEYS.presets]: syncPresets }, () => {
+          chrome.storage.sync.remove(STORAGE_KEYS.presets);
+          log('[Popup] Migrated presets from sync to local storage');
+        });
+      }
+      renderPresets(syncPresets);
+    });
   });
 }
 
@@ -1082,13 +1099,13 @@ function savePresetChanges() {
     updates.components.authorsNote = document.getElementById('modal-authors-note').value;
   }
 
-  chrome.storage.sync.get(STORAGE_KEYS.presets, (result) => {
+  chrome.storage.local.get(STORAGE_KEYS.presets, (result) => {
     const presets = (result || {})[STORAGE_KEYS.presets] || [];
     const index = presets.findIndex(p => p.id === currentEditingPreset.id);
     
     if (index !== -1) {
       presets[index] = { ...presets[index], ...updates, updatedAt: Date.now() };
-      chrome.storage.sync.set({ [STORAGE_KEYS.presets]: presets }, () => {
+      chrome.storage.local.set({ [STORAGE_KEYS.presets]: presets }, () => {
         loadPresets();
         showToast('Preset updated', 'success');
         closeModal('preset-modal');
@@ -1098,9 +1115,9 @@ function savePresetChanges() {
 }
 
 function deletePreset(presetId) {
-  chrome.storage.sync.get(STORAGE_KEYS.presets, (result) => {
+  chrome.storage.local.get(STORAGE_KEYS.presets, (result) => {
     const presets = ((result || {})[STORAGE_KEYS.presets] || []).filter(p => p.id !== presetId);
-    chrome.storage.sync.set({ [STORAGE_KEYS.presets]: presets }, () => {
+    chrome.storage.local.set({ [STORAGE_KEYS.presets]: presets }, () => {
       loadPresets();
       showToast('Preset deleted', 'success');
     });

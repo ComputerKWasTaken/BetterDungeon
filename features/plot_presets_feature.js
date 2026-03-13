@@ -10,7 +10,7 @@ class PlotPresetsFeature {
     this.storageKey = 'betterDungeon_favoritePresets';
     this.presets = [];
     this.saveButton = null;
-    this.debug = false;
+    this.debug = true;
   }
 
   log(message, ...args) {
@@ -37,22 +37,51 @@ class PlotPresetsFeature {
 
   async loadPresets() {
     return new Promise((resolve) => {
-      chrome.storage.sync.get(this.storageKey, (result) => {
-        this.presets = (result || {})[this.storageKey] || [];
-        resolve(this.presets);
+      // Use local storage (no per-item size limit) instead of sync (8KB cap)
+      chrome.storage.local.get(this.storageKey, (localResult) => {
+        const localPresets = (localResult || {})[this.storageKey];
+
+        if (localPresets && localPresets.length > 0) {
+          this.presets = localPresets;
+          resolve(this.presets);
+          return;
+        }
+
+        // One-time migration: pull any legacy presets from sync storage
+        chrome.storage.sync.get(this.storageKey, (syncResult) => {
+          const syncPresets = (syncResult || {})[this.storageKey] || [];
+          this.presets = syncPresets;
+
+          if (syncPresets.length > 0) {
+            chrome.storage.local.set({ [this.storageKey]: syncPresets }, () => {
+              chrome.storage.sync.remove(this.storageKey);
+              this.log('[PlotPresets] Migrated presets from sync to local storage');
+            });
+          }
+
+          resolve(this.presets);
+        });
       });
     });
   }
 
   async savePresets() {
-    return new Promise((resolve) => {
-      chrome.storage.sync.set({ [this.storageKey]: this.presets }, () => {
-        resolve();
+    return new Promise((resolve, reject) => {
+      chrome.storage.local.set({ [this.storageKey]: this.presets }, () => {
+        if (chrome.runtime.lastError) {
+          console.error('[PlotPresets] Storage save error:', chrome.runtime.lastError.message);
+          reject(new Error(chrome.runtime.lastError.message));
+        } else {
+          resolve();
+        }
       });
     });
   }
 
   async createPreset(name, components) {
+    // Reload from storage to pick up any popup-side changes (deletes, edits)
+    await this.loadPresets();
+
     const preset = {
       id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
       name: name,
@@ -68,6 +97,8 @@ class PlotPresetsFeature {
   }
 
   async updatePreset(id, updates) {
+    await this.loadPresets();
+
     const index = this.presets.findIndex(p => p.id === id);
     if (index === -1) return null;
     
@@ -82,6 +113,8 @@ class PlotPresetsFeature {
   }
 
   async deletePreset(id) {
+    await this.loadPresets();
+
     const index = this.presets.findIndex(p => p.id === id);
     if (index === -1) return false;
     
@@ -91,6 +124,8 @@ class PlotPresetsFeature {
   }
 
   async incrementUseCount(id) {
+    await this.loadPresets();
+
     const preset = this.presets.find(p => p.id === id);
     if (preset) {
       preset.useCount++;
@@ -118,49 +153,76 @@ class PlotPresetsFeature {
   }
 
   /**
+   * Get the loading screen singleton for visual feedback during async operations.
+   */
+  getLoadingScreen() {
+    if (typeof loadingScreen !== 'undefined') {
+      return loadingScreen;
+    }
+    if (typeof window !== 'undefined' && window.loadingScreen) {
+      return window.loadingScreen;
+    }
+    return null;
+  }
+
+  /**
    * Ensure the Plot tab is open and textareas are visible.
    * This handles the case where the user navigated to the adventure page from another page
    * (e.g., home page) without refreshing, so the settings panel may not be open.
    * 
    * @returns {Promise<{success: boolean, error?: string}>}
    */
-  async ensurePlotTabVisible() {
+  async ensurePlotTabVisible(onStepUpdate = null) {
     const service = this.getAIDungeonService();
     if (!service) {
-      this.log('[PlotPresets] AIDungeonService not available, attempting direct textarea detection');
-      return { success: true };
+      this.log('[PlotPresets] AIDungeonService not available');
+      return { success: false, error: 'Navigation service not available' };
     }
 
-    // Check if we can already find textareas - no navigation needed
+    // Check if we can already find textareas — no navigation needed
     const existing = this.findPlotComponentTextareas();
-    if (existing.aiInstructions || existing.plotEssentials || existing.authorsNote) {
+    const alreadyVisible = !!(existing.aiInstructions || existing.plotEssentials || existing.authorsNote);
+    this.log('[PlotPresets] Pre-nav check:', {
+      aiInstructions: !!existing.aiInstructions,
+      plotEssentials: !!existing.plotEssentials,
+      authorsNote:    !!existing.authorsNote,
+      settingsOpen:   service.isSettingsPanelOpen(),
+    });
+
+    if (alreadyVisible) {
       this.log('[PlotPresets] Plot textareas already visible, skipping navigation');
       return { success: true };
     }
 
-    // Textareas not found - we need to navigate to the Plot settings
-    this.log('[PlotPresets] Plot textareas not found, navigating to Plot settings...');
-
-    // Validate we're on an adventure page
+    // Textareas not found — walk through the full navigation state machine
     if (!service.isOnAdventurePage()) {
       return { success: false, error: 'Navigate to an adventure first' };
     }
 
-    // Navigate to Plot settings (opens settings panel -> Adventure tab -> Plot subtab)
-    const navResult = await service.navigateToPlotSettings();
+    this.log('[PlotPresets] Navigating: Settings → Adventure → Plot');
+    const navResult = await service.navigateToPlotSettings({ onStepUpdate });
     if (!navResult.success) {
+      this.log('[PlotPresets] Navigation failed:', navResult.error);
       return navResult;
     }
 
-    // Wait for textareas to appear after navigation
-    for (let i = 0; i < 20; i++) {
-      await this.wait(150);
-      const found = this.findPlotComponentTextareas();
-      if (found.aiInstructions || found.plotEssentials || found.authorsNote) {
-        return { success: true };
-      }
+    // Poll for textareas to render after the subtab switch
+    onStepUpdate?.('Waiting for plot components...');
+    const found = await service.waitFor(() => {
+      const ta = this.findPlotComponentTextareas();
+      return (ta.aiInstructions || ta.plotEssentials || ta.authorsNote) ? ta : null;
+    }, { interval: 150, timeout: 3000 });
+
+    if (found) {
+      this.log('[PlotPresets] Textareas found after navigation:', {
+        aiInstructions: !!found.aiInstructions,
+        plotEssentials: !!found.plotEssentials,
+        authorsNote:    !!found.authorsNote,
+      });
+      return { success: true };
     }
 
+    this.log('[PlotPresets] Textareas NOT found after navigation');
     return { success: false, error: 'Plot components not found after navigation. Make sure you have active plot components.' };
   }
 
@@ -172,174 +234,149 @@ class PlotPresetsFeature {
   // DOM OPERATIONS - Finding Elements
   // ============================================
 
-  findPlotTab() {
-    const tabs = document.querySelectorAll('[role="tab"]');
-    for (const tab of tabs) {
-      const ariaLabel = tab.getAttribute('aria-label')?.toLowerCase() || '';
-      if (ariaLabel.includes('plot')) {
-        return tab;
-      }
-    }
-    return null;
-  }
-
-  isPlotTabActive() {
-    const plotTab = this.findPlotTab();
-    if (!plotTab) return false;
-    return plotTab.getAttribute('aria-label')?.toLowerCase().includes('selected');
-  }
-
   findPlotComponentTextareas() {
-    const result = {
-      aiInstructions: null,
-      plotEssentials: null,
-      authorsNote: null
+    // Delegate to AIDungeonService's centralized selectors for consistent detection
+    const service = this.getAIDungeonService();
+    if (service) {
+      return {
+        aiInstructions: service.findAIInstructionsTextarea(),
+        plotEssentials: service.findPlotEssentialsTextarea(),
+        authorsNote: service.findAuthorsNoteTextarea()
+      };
+    }
+
+    // Fallback: use centralized selectors directly if service instance unavailable
+    return {
+      aiInstructions: document.querySelector(AIDungeonService.SEL.AI_INSTRUCTIONS),
+      plotEssentials: document.querySelector(AIDungeonService.SEL.PLOT_ESSENTIALS),
+      authorsNote: document.querySelector(AIDungeonService.SEL.AUTHORS_NOTE)
     };
-
-    const allTextareas = document.querySelectorAll('textarea');
-
-    // Strategy 1: Find by placeholder text (multiple patterns)
-    for (const textarea of allTextareas) {
-      const placeholder = (textarea.placeholder || '').toLowerCase();
-      const value = textarea.value || '';
-      
-      // AI Instructions patterns
-      if (placeholder.includes('influence') && placeholder.includes('response')) {
-        result.aiInstructions = textarea;
-      }
-      // Author's Note patterns
-      else if (placeholder.includes('influence') && (placeholder.includes('style') || placeholder.includes('writing'))) {
-        result.authorsNote = textarea;
-      }
-      // Plot Essentials patterns
-      else if (placeholder.includes('important') || placeholder.includes('essential')) {
-        result.plotEssentials = textarea;
-      }
-    }
-
-    // Strategy 2: Find by looking at parent labels/headers
-    if (!result.aiInstructions || !result.authorsNote) {
-      const plotComponents = this.findPlotComponentsByHeader();
-      if (plotComponents.aiInstructions) result.aiInstructions = plotComponents.aiInstructions;
-      if (plotComponents.authorsNote) result.authorsNote = plotComponents.authorsNote;
-      if (plotComponents.plotEssentials) result.plotEssentials = plotComponents.plotEssentials;
-    }
-
-    return result;
-  }
-
-  // Find plot components by looking for header text near textareas
-  findPlotComponentsByHeader() {
-    const result = {
-      aiInstructions: null,
-      plotEssentials: null,
-      authorsNote: null
-    };
-
-    // Look for elements containing plot component names
-    const componentNames = [
-      { key: 'aiInstructions', patterns: ['ai instructions', 'ai-instructions'] },
-      { key: 'authorsNote', patterns: ["author's note", 'authors note', 'author note'] },
-      { key: 'plotEssentials', patterns: ['plot essentials', 'plot-essentials'] }
-    ];
-
-    for (const { key, patterns } of componentNames) {
-      for (const pattern of patterns) {
-        // Find any element containing this text
-        const elements = document.querySelectorAll('h1, h2, h3, h4, h5, h6, p, span, div');
-        for (const el of elements) {
-          const text = el.textContent?.toLowerCase().trim();
-          if (text === pattern || text?.startsWith(pattern)) {
-            // Found a header, now find the nearest textarea
-            const container = el.closest('[class*="Column"], [class*="Card"], [class*="component"], section, article') || el.parentElement?.parentElement;
-            if (container) {
-              const textarea = container.querySelector('textarea');
-              if (textarea && !result[key]) {
-                result[key] = textarea;
-                break;
-              }
-            }
-          }
-        }
-        if (result[key]) break;
-      }
-    }
-
-    return result;
   }
 
   async applyPreset(presetId, mode = 'replace') {
+    // Reload from storage so we have the latest data (popup may have edited/deleted)
+    await this.loadPresets();
+
     const preset = this.presets.find(p => p.id === presetId);
     if (!preset) {
       return { success: false, error: 'Preset not found' };
     }
 
-    // Ensure Plot tab is visible before trying to find textareas
-    const navResult = await this.ensurePlotTabVisible();
-    if (!navResult.success) {
-      return navResult;
+    const ls = this.getLoadingScreen();
+    if (!ls) return this._doApplyPreset(preset, mode);
+    return ls.queueOperation(() => this._doApplyPreset(preset, mode));
+  }
+
+  async _doApplyPreset(preset, mode) {
+    const ls = this.getLoadingScreen();
+
+    ls?.show({
+      title: 'Applying Plot Preset',
+      subtitle: 'Initializing...',
+      showProgress: false
+    });
+
+    try {
+      const navResult = await this.ensurePlotTabVisible((msg) => ls?.updateSubtitle(msg));
+      if (!navResult.success) throw new Error(navResult.error);
+
+      ls?.updateSubtitle('Applying to plot components...');
+      const textareas = this.findPlotComponentTextareas();
+      let appliedCount = 0;
+
+      // Capture previous state for undo
+      const previousState = {
+        aiInstructions: textareas.aiInstructions?.value || '',
+        plotEssentials: textareas.plotEssentials?.value || '',
+        authorsNote: textareas.authorsNote?.value || ''
+      };
+
+      if (preset.components.aiInstructions && textareas.aiInstructions) {
+        this.applyToTextarea(textareas.aiInstructions, preset.components.aiInstructions, mode);
+        appliedCount++;
+      }
+      if (preset.components.plotEssentials && textareas.plotEssentials) {
+        this.applyToTextarea(textareas.plotEssentials, preset.components.plotEssentials, mode);
+        appliedCount++;
+      }
+      if (preset.components.authorsNote && textareas.authorsNote) {
+        this.applyToTextarea(textareas.authorsNote, preset.components.authorsNote, mode);
+        appliedCount++;
+      }
+
+      await this.incrementUseCount(preset.id);
+
+      ls?.updateTitle('Preset Applied!');
+      ls?.updateSubtitle(`Applied "${preset.name}" to ${appliedCount} component(s)`);
+      await this.wait(1200);
+
+      return { success: true, appliedCount, previousState };
+
+    } catch (error) {
+      console.error('[PlotPresets] Apply error:', error);
+      ls?.updateTitle('Failed to Apply');
+      ls?.updateSubtitle(error.message);
+      await this.wait(2000);
+      return { success: false, error: error.message };
+
+    } finally {
+      ls?.hide();
     }
-
-    const textareas = this.findPlotComponentTextareas();
-    let appliedCount = 0;
-
-    // Capture previous state for undo
-    const previousState = {
-      aiInstructions: textareas.aiInstructions?.value || '',
-      plotEssentials: textareas.plotEssentials?.value || '',
-      authorsNote: textareas.authorsNote?.value || ''
-    };
-
-    // Apply AI Instructions
-    if (preset.components.aiInstructions && textareas.aiInstructions) {
-      this.applyToTextarea(textareas.aiInstructions, preset.components.aiInstructions, mode);
-      appliedCount++;
-    }
-
-    // Apply Plot Essentials
-    if (preset.components.plotEssentials && textareas.plotEssentials) {
-      this.applyToTextarea(textareas.plotEssentials, preset.components.plotEssentials, mode);
-      appliedCount++;
-    }
-
-    // Apply Author's Note
-    if (preset.components.authorsNote && textareas.authorsNote) {
-      this.applyToTextarea(textareas.authorsNote, preset.components.authorsNote, mode);
-      appliedCount++;
-    }
-
-    // Increment use count
-    await this.incrementUseCount(presetId);
-
-    return { success: true, appliedCount, previousState };
   }
 
   // Restore previous state (undo)
   async restorePreviousState(previousState) {
-    // Ensure Plot tab is visible before trying to find textareas
-    const navResult = await this.ensurePlotTabVisible();
-    if (!navResult.success) {
-      return navResult;
-    }
+    const ls = this.getLoadingScreen();
+    if (!ls) return this._doRestoreState(previousState);
+    return ls.queueOperation(() => this._doRestoreState(previousState));
+  }
 
-    const textareas = this.findPlotComponentTextareas();
-    let restoredCount = 0;
+  async _doRestoreState(previousState) {
+    const ls = this.getLoadingScreen();
 
-    if (textareas.aiInstructions && previousState.aiInstructions !== undefined) {
-      this.applyToTextarea(textareas.aiInstructions, previousState.aiInstructions, 'replace');
-      restoredCount++;
-    }
-    if (textareas.plotEssentials && previousState.plotEssentials !== undefined) {
-      this.applyToTextarea(textareas.plotEssentials, previousState.plotEssentials, 'replace');
-      restoredCount++;
-    }
-    if (textareas.authorsNote && previousState.authorsNote !== undefined) {
-      this.applyToTextarea(textareas.authorsNote, previousState.authorsNote, 'replace');
-      restoredCount++;
-    }
+    ls?.show({
+      title: 'Restoring Previous State',
+      subtitle: 'Initializing...',
+      showProgress: false
+    });
 
-    this.showToast('Previous state restored', 'success');
-    return { success: true, restoredCount };
+    try {
+      const navResult = await this.ensurePlotTabVisible((msg) => ls?.updateSubtitle(msg));
+      if (!navResult.success) throw new Error(navResult.error);
+
+      ls?.updateSubtitle('Restoring plot components...');
+      const textareas = this.findPlotComponentTextareas();
+      let restoredCount = 0;
+
+      if (textareas.aiInstructions && previousState.aiInstructions !== undefined) {
+        this.applyToTextarea(textareas.aiInstructions, previousState.aiInstructions, 'replace');
+        restoredCount++;
+      }
+      if (textareas.plotEssentials && previousState.plotEssentials !== undefined) {
+        this.applyToTextarea(textareas.plotEssentials, previousState.plotEssentials, 'replace');
+        restoredCount++;
+      }
+      if (textareas.authorsNote && previousState.authorsNote !== undefined) {
+        this.applyToTextarea(textareas.authorsNote, previousState.authorsNote, 'replace');
+        restoredCount++;
+      }
+
+      ls?.updateTitle('State Restored!');
+      ls?.updateSubtitle('Previous state has been restored');
+      await this.wait(1200);
+
+      return { success: true, restoredCount };
+
+    } catch (error) {
+      console.error('[PlotPresets] Restore error:', error);
+      ls?.updateTitle('Failed to Restore');
+      ls?.updateSubtitle(error.message);
+      await this.wait(2000);
+      return { success: false, error: error.message };
+
+    } finally {
+      ls?.hide();
+    }
   }
 
   applyToTextarea(textarea, content, mode) {
@@ -355,14 +392,21 @@ class PlotPresetsFeature {
       newValue = content;
     }
 
-    // Set the value
-    textarea.value = newValue;
-    
-    // Trigger input event so React picks up the change
+    // Use React-compatible native setter so the framework's internal state updates
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype, 'value'
+    )?.set;
+    if (setter) {
+      setter.call(textarea, newValue);
+    } else {
+      textarea.value = newValue;
+    }
+
+    // Dispatch events so React reconciles the change
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
     textarea.dispatchEvent(new Event('change', { bubbles: true }));
-    
-    // Focus and blur to ensure the change is registered
+
+    // Focus and blur to ensure the change is committed
     textarea.focus();
     textarea.blur();
   }
@@ -399,50 +443,65 @@ class PlotPresetsFeature {
   }
 
   async saveCurrentAsPreset(name, includeComponents = null) {
-    // Ensure Plot tab is visible before trying to find textareas
-    const navResult = await this.ensurePlotTabVisible();
-    if (!navResult.success) {
-      return navResult;
-    }
+    const ls = this.getLoadingScreen();
+    if (!ls) return this._doSavePreset(name, includeComponents);
+    return ls.queueOperation(() => this._doSavePreset(name, includeComponents));
+  }
 
-    const textareas = this.findPlotComponentTextareas();
-    
-    const components = {};
-    
-    // Check if we should include each component (default to true if not specified)
-    const shouldIncludeAi = includeComponents?.aiInstructions !== false;
-    const shouldIncludeEssentials = includeComponents?.plotEssentials !== false;
-    const shouldIncludeNote = includeComponents?.authorsNote !== false;
-    
-    if (shouldIncludeAi && textareas.aiInstructions?.value?.trim()) {
-      components.aiInstructions = textareas.aiInstructions.value;
-    }
-    if (shouldIncludeEssentials && textareas.plotEssentials?.value?.trim()) {
-      components.plotEssentials = textareas.plotEssentials.value;
-    }
-    if (shouldIncludeNote && textareas.authorsNote?.value?.trim()) {
-      components.authorsNote = textareas.authorsNote.value;
-    }
+  async _doSavePreset(name, includeComponents = null) {
+    const ls = this.getLoadingScreen();
 
-    // Fallback: If no components found by type, try to grab any visible textareas with content
-    if (Object.keys(components).length === 0) {
-      const allTextareas = document.querySelectorAll('textarea');
-      let fallbackIndex = 0;
-      for (const ta of allTextareas) {
-        if (ta.value?.trim()) {
-          const key = `component_${fallbackIndex}`;
-          components[key] = ta.value;
-          fallbackIndex++;
-        }
+    ls?.show({
+      title: 'Saving Plot Preset',
+      subtitle: 'Initializing...',
+      showProgress: false
+    });
+
+    try {
+      const navResult = await this.ensurePlotTabVisible((msg) => ls?.updateSubtitle(msg));
+      if (!navResult.success) throw new Error(navResult.error);
+
+      ls?.updateSubtitle('Reading plot components...');
+      const textareas = this.findPlotComponentTextareas();
+
+      const components = {};
+      const shouldIncludeAi = includeComponents?.aiInstructions !== false;
+      const shouldIncludeEssentials = includeComponents?.plotEssentials !== false;
+      const shouldIncludeNote = includeComponents?.authorsNote !== false;
+
+      if (shouldIncludeAi && textareas.aiInstructions?.value?.trim()) {
+        components.aiInstructions = textareas.aiInstructions.value;
       }
-    }
+      if (shouldIncludeEssentials && textareas.plotEssentials?.value?.trim()) {
+        components.plotEssentials = textareas.plotEssentials.value;
+      }
+      if (shouldIncludeNote && textareas.authorsNote?.value?.trim()) {
+        components.authorsNote = textareas.authorsNote.value;
+      }
 
-    if (Object.keys(components).length === 0) {
-      return { success: false, error: 'No plot components with content found. Make sure you are on an adventure and have text in at least one component.' };
-    }
+      if (Object.keys(components).length === 0) {
+        throw new Error('No plot components with content found. Make sure you have text in at least one component.');
+      }
 
-    const preset = await this.createPreset(name, components);
-    return { success: true, preset };
+      ls?.updateSubtitle('Saving preset...');
+      const preset = await this.createPreset(name, components);
+
+      ls?.updateTitle('Preset Saved!');
+      ls?.updateSubtitle(`"${name}" saved successfully`);
+      await this.wait(1200);
+
+      return { success: true, preset };
+
+    } catch (error) {
+      console.error('[PlotPresets] Save error:', error);
+      ls?.updateTitle('Failed to Save');
+      ls?.updateSubtitle(error.message);
+      await this.wait(2000);
+      return { success: false, error: error.message };
+
+    } finally {
+      ls?.hide();
+    }
   }
 }
 
