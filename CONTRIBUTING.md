@@ -73,25 +73,11 @@ Each feature implements:
 
 ### v1.1.1
 
-- Major DOM compatibility fixes:
-  - Revamped the core `ai-dungeon-service.js` to work with AI Dungeon's recent major framework overhaul. Re-established stable element selectors and fixed navigation.
-- Story Card feature fixes:
-  - Fixed the Story Card Scanner which was broken by the DOM update. It now correctly identifies scroll containers, virtualized list items, card counts, and type badges.
-  - Fixed data extraction during scanning; it now properly reads all Story Card fields from the updated modal UI.
-  - Added a new Story Card Dashboard button directly to the Story Cards toolbar for easier access.
-- Formatting feature fixes:
-  - Fixed the Markdown automatic apply system that failed due to broken tab navigation.
-  - Inlined the markdown formatting instructions to avoid external file fetching issues.
-- Input Mode improvements:
-  - Fixed a critical layout bug in Try Mode where the success bar would completely block the user's text input area. Redesigned the bar into a sleek, unobtrusive UI element that sits cleanly below the text box.
-  - Added support for Input History navigation using Ctrl/Cmd + Up/Down arrows to ignore Try Mode's weight adjustment hotkeys, preventing conflicts.
-- Sprite theme compatibility (custom buttons):
-  - Fixed Try, Command, and See buttons displaying malformed sprites when a sprite-based theme (e.g., S'mores, Cyber) is active.
-  - Implemented correct sprite hover states for all custom buttons using horizontal positioner displacement (`17/90` of positioner width — matching native button behavior).
-  - Fixed Try button rendering with an empty sprite when cloned before React populates sprite content (re-clones from the reference Do button).
-  - Fixed See button losing hover functionality after being converted from end-cap to middle-button sprite when Command is appended.
-  - Eliminated gray background gaps between sprite-covered buttons by making the menu container background transparent when sprites are active (`data-bd-sprite-menu` attribute + CSS rule).
-  - Added reactive theme detection: custom buttons are force re-injected when switching between sprite and dynamic themes, preventing stale sprites from lingering and ensuring correct theming on every switch.
+- Major DOM compatibility fixes for AI Dungeon's framework overhaul
+- Fixed Story Card Scanner, data extraction, and added Dashboard button to toolbar
+- Fixed Markdown auto-apply system and inlined formatting instructions
+- Fixed Try Mode layout bug blocking input; added Input History hotkey conflict handling
+- Fixed sprite theme compatibility for custom buttons (Try, Command, See) with proper hover states and theme detection
 
 ### v1.1.0
 
