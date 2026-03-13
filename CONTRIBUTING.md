@@ -71,6 +71,13 @@ Each feature implements:
 
 ### Changelog
 
+### v1.1.2
+
+- Fixed Plot Presets autonomous DOM navigation system to both have better state management, but to also use our loading screen service
+- Fixed Plot and Character Presets storage to use local storage instead of sync storage due to size limitations
+  - Developer's Note: I was running into issues where the Plot Presets weren't saving properly due to the 8KB limit of sync storage. This change means your saved Plot and Character Presets don't sync across devices, but they will save properly and no longer run into size issues.
+- Added migration logic to move existing presets from sync storage to local storage
+
 ### v1.1.1
 
 - Major DOM compatibility fixes for AI Dungeon's framework overhaul
