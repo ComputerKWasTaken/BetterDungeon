@@ -47,7 +47,6 @@ BetterDungeon/
 ├── features/               # Self-contained feature modules
 ├── styles.css              # CSS for all features
 ├── popup.html/js/css       # Extension popup interface
-├── markdown_ai_instruction.txt # Default AI formatting instructions for Markdown
 └── icons/                  # Extension icons (16, 32, 48, 128px)
 ```
 
@@ -71,6 +70,14 @@ Each feature implements:
 ## Version History
 
 ### Changelog
+
+### v1.1.1
+
+- Major DOM compatibility fixes for AI Dungeon's framework overhaul
+- Fixed Story Card Scanner, data extraction, and added Dashboard button to toolbar
+- Fixed Markdown auto-apply system and inlined formatting instructions
+- Fixed Try Mode layout bug blocking input; added Input History hotkey conflict handling
+- Fixed sprite theme compatibility for custom buttons (Try, Command, See) with proper hover states and theme detection
 
 ### v1.1.0
 

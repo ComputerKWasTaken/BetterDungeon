@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BetterDungeon",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "An all-in-one browser extension for AI Dungeon that enhances the experience with QOL additions and brand new features.",
   "permissions": [
     "activeTab",
@@ -50,7 +50,6 @@
       "resources": [
         "core/theme-variables.css",
         "styles.css",
-        "markdown_ai_instruction.txt",
         "icons/icon128.png",
         "fonts/lucide/lucide.css",
         "fonts/lucide/lucide.ttf",

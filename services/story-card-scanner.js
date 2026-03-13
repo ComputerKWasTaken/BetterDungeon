@@ -6,7 +6,8 @@ class StoryCardScanner {
     this.isScanning = false;
     this.abortController = null;
     this.scanStartTime = null;
-    this.scannedIndices = new Set(); // Track which card indices have been scanned
+    this.scannedIndices = new Set(); // Track which card position-indices have been scanned
+    this.scannedNames = new Set();  // Secondary dedup by card name (bulletproof against position shifts)
     
     // Rich card data storage: Map of cardName -> { type, description, triggers, keys, name }
     this.cardDatabase = new Map();
@@ -71,6 +72,7 @@ class StoryCardScanner {
     this.abortController = null;
     this.scanStartTime = null;
     this.scannedIndices = new Set();
+    this.scannedNames = new Set();
     this.cardDatabase = new Map();
     this.totalCardTime = 0;
     this.cardCount = 0;
@@ -106,6 +108,7 @@ class StoryCardScanner {
     this.cardCount = 0;
     this.averageCardTime = null;
     this.scannedIndices = new Set();
+    this.scannedNames = new Set();
     this.cardDatabase = new Map(); // Reset card database
     this.lastScannedAdventureId = this.getCurrentAdventureId();
     const results = new Map(); // trigger -> cardName (kept for backward compatibility)
@@ -277,18 +280,19 @@ class StoryCardScanner {
 
       const { element: card, index } = cardData;
 
-      // Skip if already scanned (by index) or if it's the "Add" button
-      if (this.scannedIndices.has(index) || this.isAddCardButton(card)) {
+      // Skip if already scanned (by position index or card name) or if it's the "Add" button
+      const cardName = this.getCardNameFromElement(card);
+      if (this.scannedIndices.has(index) || this.scannedNames.has(cardName) || this.isAddCardButton(card)) {
         continue;
       }
 
-      // Mark as scanned and update count
+      // Mark as scanned via both index and name for robust dedup
       this.scannedIndices.add(index);
+      this.scannedNames.add(cardName);
       const currentCount = getCount() + 1;
       setCount(currentCount);
       newCardsScanned++;
 
-      const cardName = this.getCardNameFromElement(card);
       // Try to get card type from the list view element first
       const cardTypeFromList = this.getCardTypeFromElement(card);
       const cardStartTime = Date.now();
@@ -423,25 +427,35 @@ class StoryCardScanner {
 
   // Get the total card count from the Story Cards tab badge
   getTotalCardCount() {
-    // Look for the Story Cards tab which shows the count (e.g., "Story Cards" with a number badge)
     const tabs = document.querySelectorAll('[role="tab"]');
     for (const tab of tabs) {
-      const text = tab.textContent?.toLowerCase() || '';
-      if (text.includes('story cards')) {
-        // Look for a number in the tab (the count badge)
-        const countElement = tab.querySelector('p.is_Paragraph');
-        if (countElement) {
-          const countText = countElement.textContent?.trim();
-          const count = parseInt(countText, 10);
-          if (!isNaN(count)) {
-            return count;
+      const ariaLabel = tab.getAttribute('aria-label')?.toLowerCase() || '';
+      const tabText = tab.textContent?.toLowerCase() || '';
+
+      if (ariaLabel.includes('story cards') || tabText.includes('story cards')) {
+        // Method 1: The count badge is a span.font_body inside a divider child
+        // Structure: tab > ... > div._blw-1px > span.font_body  (contains just the number)
+        const divider = tab.querySelector('div[class*="_blw-1px"]');
+        if (divider) {
+          const countSpan = divider.querySelector('.font_body');
+          if (countSpan) {
+            const count = parseInt(countSpan.textContent?.trim(), 10);
+            if (!isNaN(count)) return count;
           }
         }
-        // Try extracting from full text
-        const match = text.match(/(\d+)/);
-        if (match) {
-          return parseInt(match[1], 10);
+
+        // Method 2: Any numeric span inside the tab that isn't the label
+        const spans = tab.querySelectorAll('span.font_body');
+        for (const span of spans) {
+          const text = span.textContent?.trim();
+          if (text && /^\d+$/.test(text)) {
+            return parseInt(text, 10);
+          }
         }
+
+        // Method 3: Extract number from full tab text (e.g., "Story Cards4")
+        const match = tabText.match(/(\d+)/);
+        if (match) return parseInt(match[1], 10);
       }
     }
 
@@ -451,133 +465,153 @@ class StoryCardScanner {
   }
 
   // Find the scrollable container for the story cards list
+  // The Story Cards section uses a virtualized list whose scroll wrapper
+  // is a div with class r-150rngu (React Native Web's ScrollView).
+  // The outer wrapper has overflow:hidden; the inner r-150rngu div is the
+  // actual scrollable element.
   findScrollContainer() {
-    // The virtualized list container typically has overflow:auto/scroll and contains the cards
-    // Look for containers with virtualized list characteristics
-    
-    // Method 1: Find by the structure - look for scrollable div containing card elements
-    const cardContainers = document.querySelectorAll('[style*="overflow"], [class*="scroll"]');
-    for (const container of cardContainers) {
-      const style = window.getComputedStyle(container);
-      const hasOverflow = style.overflowY === 'auto' || style.overflowY === 'scroll' ||
-                          style.overflow === 'auto' || style.overflow === 'scroll';
-      
-      if (hasOverflow) {
-        // Check if this container has story cards inside
-        const hasCards = container.querySelector('[role="button"][index], [role="button"] h1, [id="top-down-mask"]');
-        if (hasCards) {
-          return container;
-        }
-      }
-    }
+    // Strategy: locate card elements first, then walk up to their scroll ancestor.
 
-    // Method 2: Look for virtualized list patterns (elements with index attribute and transform)
-    const virtualizedItems = document.querySelectorAll('[index][style*="transform"]');
-    if (virtualizedItems.length > 0) {
-      // Find the common scrollable ancestor
-      let current = virtualizedItems[0].parentElement;
-      while (current) {
-        const style = window.getComputedStyle(current);
-        if (style.overflowY === 'auto' || style.overflowY === 'scroll' ||
-            style.overflow === 'auto' || style.overflow === 'scroll') {
+    // Method 1: Find absolutely-positioned card wrappers and walk up to the scrollable ancestor.
+    // In all view modes (Grid/List/Compact), card items are absolutely positioned inside
+    // a virtualized content div. The scroll container is the nearest ancestor with
+    // r-150rngu class or actual overflow scrolling.
+    const cardHeadings = document.querySelectorAll('h1[role="heading"]');
+    for (const heading of cardHeadings) {
+      // Walk up from the heading to find a role="button" card, then find the scroll container
+      const cardBtn = heading.closest('[role="button"]');
+      if (!cardBtn) continue;
+
+      // The card button lives inside an absolutely-positioned wrapper div,
+      // which lives inside a content div, which lives inside the scroll container
+      let current = cardBtn.parentElement;
+      while (current && current !== document.body) {
+        const cls = current.className || '';
+        // The virtualized scroll container has the r-150rngu class (RNW ScrollView)
+        if (cls.includes('r-150rngu')) {
           return current;
         }
-        // Also check for r-scroll classes (common in the AI Dungeon UI)
-        if (current.className?.includes('scroll') || current.className?.includes('r-150rngu')) {
-          return current;
+        // Also check computed overflow — some views may use native scrolling
+        const style = window.getComputedStyle(current);
+        const hasScrollableOverflow = style.overflowY === 'auto' || style.overflowY === 'scroll';
+        if (hasScrollableOverflow && current.scrollHeight > current.clientHeight + 10) {
+          // Verify this container actually holds story cards
+          const hasCards = current.querySelector('h1[role="heading"]');
+          if (hasCards) return current;
         }
         current = current.parentElement;
       }
     }
 
-    // Method 3: Find scrollable panel in the adventure settings area
-    const panels = document.querySelectorAll('.is_Column');
-    for (const panel of panels) {
-      const style = window.getComputedStyle(panel);
-      if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && 
-          panel.scrollHeight > panel.clientHeight) {
-        const hasCardContent = panel.querySelector('[role="button"] h1, [id="top-down-mask"]');
-        if (hasCardContent) {
-          return panel;
+    // Method 2: Find the Story Cards content area by locating view toggle buttons
+    // and walking up to the scrollable ancestor
+    const viewToggle = document.querySelector('[aria-label="Grid view"], [aria-label="List view"], [aria-label="Compact view"]');
+    if (viewToggle) {
+      // The view toggles are siblings of the search bar, above the scroll container
+      // Walk up to their common settings column, then find the scroll container within
+      let settingsCol = viewToggle.closest('.is_Column');
+      if (settingsCol) {
+        // Look for r-150rngu scroll wrapper inside this settings column
+        const scrollDiv = settingsCol.querySelector('.r-150rngu');
+        if (scrollDiv) return scrollDiv;
+
+        // Fallback: find child with flex:1 and overflow:hidden wrapping the virtual list
+        const flexChildren = settingsCol.querySelectorAll('div[style*="flex: 1"]');
+        for (const child of flexChildren) {
+          const innerScroll = child.querySelector('.r-150rngu');
+          if (innerScroll) return innerScroll;
         }
       }
     }
 
+    // Method 3: Broad search for r-150rngu containers that hold card buttons
+    const scrollCandidates = document.querySelectorAll('.r-150rngu');
+    for (const candidate of scrollCandidates) {
+      const hasCards = candidate.querySelector('[role="button"] h1[role="heading"]');
+      if (hasCards) return candidate;
+    }
+
+    this.log('findScrollContainer: no container found');
     return null;
   }
 
-  // Find currently visible story cards in the DOM (works with any view mode)
-  // Now filters by actual visual position to handle virtual lists properly
+  // Find currently visible story cards in the DOM (works with Grid, List, and Compact views)
+  // Cards are absolutely-positioned wrapper divs inside a virtualized content container.
+  // Each wrapper holds a role="button" with an h1[role="heading"] for the card name.
+  // There are no [index] attributes — we derive sort order from the CSS `top` value.
   findVisibleStoryCards(scrollContainer = null) {
     const cards = [];
     const seenElements = new Set();
-    
-    // Get the scroll container bounds if provided
+
+    // Get the scroll container bounds for visibility filtering
     const containerRect = scrollContainer?.getBoundingClientRect();
     const viewportTop = containerRect?.top ?? 0;
     const viewportBottom = containerRect?.bottom ?? window.innerHeight;
 
-    // Method 1: Look for virtualized items with index attribute (most reliable for virtual lists)
-    document.querySelectorAll('[index][style*="transform"]').forEach(item => {
-      const index = parseInt(item.getAttribute('index'), 10);
-      const cardButton = item.querySelector('[role="button"]') || 
-                         (item.matches('[role="button"]') ? item : null);
-      
-      if (cardButton && !seenElements.has(cardButton) && !isNaN(index)) {
-        // Check if the card is actually visible in the viewport
-        const rect = item.getBoundingClientRect();
-        const isVisible = rect.bottom > viewportTop && rect.top < viewportBottom;
-        
-        if (isVisible) {
-          seenElements.add(cardButton);
-          cards.push({ element: cardButton, index });
-        }
+    // Primary strategy: find all card buttons with headings inside the Story Cards area.
+    // Cards live inside absolutely-positioned wrapper divs within the scroll container.
+    const searchRoot = scrollContainer || document;
+    const cardButtons = searchRoot.querySelectorAll('[role="button"] h1[role="heading"]');
+
+    for (const heading of cardButtons) {
+      const btn = heading.closest('[role="button"]');
+      if (!btn || seenElements.has(btn)) continue;
+
+      // Skip "Add Story Card" or similar non-card buttons
+      if (this.isAddCardButton(btn)) continue;
+
+      // The wrapper div is the absolutely-positioned ancestor (has style.top set)
+      const wrapper = btn.closest('div[style*="position: absolute"]') || btn.parentElement;
+
+      // Visibility check: is the card (or its wrapper) within the scroll viewport?
+      const checkEl = wrapper || btn;
+      const rect = checkEl.getBoundingClientRect();
+      const isVisible = rect.height > 0 && rect.bottom > viewportTop && rect.top < viewportBottom;
+
+      if (!isVisible) continue;
+
+      seenElements.add(btn);
+
+      // Derive a sort index from the wrapper's top position (virtualized list ordering)
+      let sortTop = 0;
+      if (wrapper?.style?.top) {
+        sortTop = parseFloat(wrapper.style.top) || 0;
       }
-    });
+      // For grid views also factor in left position so cards read left-to-right, top-to-bottom
+      let sortLeft = 0;
+      if (wrapper?.style?.left) {
+        sortLeft = parseFloat(wrapper.style.left) || 0;
+      }
 
-    // Method 2: Look for cards with top-down-mask (Large view)
-    if (cards.length === 0) {
-      document.querySelectorAll('[id="top-down-mask"]').forEach((mask, idx) => {
-        const cardButton = mask.closest('[role="button"]');
-        if (cardButton && !seenElements.has(cardButton)) {
-          // Check visibility
-          const rect = cardButton.getBoundingClientRect();
-          const isVisible = rect.bottom > viewportTop && rect.top < viewportBottom;
-          
-          if (isVisible) {
-            seenElements.add(cardButton);
-            const parent = cardButton.closest('[index]');
-            const index = parent ? parseInt(parent.getAttribute('index'), 10) : idx;
-            cards.push({ element: cardButton, index: isNaN(index) ? idx : index });
-          }
-        }
+      cards.push({
+        element: btn,
+        index: sortTop * 10000 + sortLeft, // Composite index for stable ordering
       });
     }
 
-    // Method 3: Look for list-style cards (List view) - buttons with headings
+    // Fallback: if primary strategy found nothing, try broader search
+    // (handles edge cases where cards may not have headings visible yet)
     if (cards.length === 0) {
-      document.querySelectorAll('[role="button"].is_Button').forEach((btn, idx) => {
-        // Check if this looks like a story card
+      const allButtons = searchRoot.querySelectorAll('[role="button"].is_Button');
+      let idx = 0;
+      for (const btn of allButtons) {
+        if (seenElements.has(btn) || this.isAddCardButton(btn)) continue;
+
+        // Must have a type badge or heading to qualify as a story card
         const hasHeading = btn.querySelector('h1, h2, [role="heading"]');
-        const hasCardType = btn.querySelector('p[aria-label*="type:"]');
-        const isInCardArea = btn.closest('[class*="grid"], [class*="Column"]');
-        
-        if ((hasHeading || hasCardType) && isInCardArea && !seenElements.has(btn)) {
-          // Check visibility
-          const rect = btn.getBoundingClientRect();
-          const isVisible = rect.bottom > viewportTop && rect.top < viewportBottom;
-          
-          if (isVisible) {
-            seenElements.add(btn);
-            const parent = btn.closest('[index]');
-            const index = parent ? parseInt(parent.getAttribute('index'), 10) : idx;
-            cards.push({ element: btn, index: isNaN(index) ? idx : index });
-          }
-        }
-      });
+        const hasTypeBadge = btn.querySelector('span[aria-label^="type:"]');
+        if (!hasHeading && !hasTypeBadge) continue;
+
+        const rect = btn.getBoundingClientRect();
+        const isVisible = rect.height > 0 && rect.bottom > viewportTop && rect.top < viewportBottom;
+        if (!isVisible) continue;
+
+        seenElements.add(btn);
+        cards.push({ element: btn, index: idx++ });
+      }
     }
 
-    // Sort by index to ensure consistent ordering
+    // Sort by composite index (top-to-bottom, left-to-right)
     cards.sort((a, b) => a.index - b.index);
 
     return cards;
@@ -588,15 +622,21 @@ class StoryCardScanner {
     const ariaLabel = element.getAttribute('aria-label')?.toLowerCase() || '';
     const text = element.textContent?.toLowerCase() || '';
     
-    // Check for "Add" button characteristics
-    if (ariaLabel.includes('add') || text.includes('add character info') || 
-        text.includes('add a story card')) {
+    // Check for "Add" button characteristics via aria-label
+    if (ariaLabel.includes('add story card') || ariaLabel.includes('add plot component') ||
+        ariaLabel.includes('add character info')) {
       return true;
     }
 
-    // Check for the add icon (w_add) without a heading
-    const hasAddIcon = element.querySelector('p.font_icons')?.textContent?.includes('w_add');
-    const hasHeading = element.querySelector('h1, h2');
+    // Check text content for add-related phrases
+    if (text.includes('add a story card') || text.includes('add character info')) {
+      return true;
+    }
+
+    // Check for the add icon (w_add) without a heading — handles both span and p icon elements
+    const iconEl = element.querySelector('.font_icons');
+    const hasAddIcon = iconEl?.textContent?.includes('w_add');
+    const hasHeading = element.querySelector('h1, h2, [role="heading"]');
     if (hasAddIcon && !hasHeading) {
       return true;
     }
@@ -630,23 +670,27 @@ class StoryCardScanner {
 
   // Extract card type from the list view element (before opening)
   getCardTypeFromElement(cardElement) {
-    // Look for type indicator in the card preview
-    // AI Dungeon typically shows type as a label like "type: character"
-    const typeLabel = cardElement.querySelector('p[aria-label*="type:"]');
+    // Method 1: Type badge is a span with aria-label="type: character" (etc.)
+    const typeLabel = cardElement.querySelector('span[aria-label^="type:"]');
     if (typeLabel) {
       const ariaLabel = typeLabel.getAttribute('aria-label') || '';
       const typeMatch = ariaLabel.match(/type:\s*(\w+)/i);
       if (typeMatch) {
         return typeMatch[1].toLowerCase();
       }
+      // The span's text content is the type name in uppercase (e.g., "CHARACTER")
+      const text = typeLabel.textContent?.trim().toLowerCase();
+      if (text && this.CARD_TYPES.includes(text)) {
+        return text;
+      }
     }
 
-    // Check for type in text content
-    const paragraphs = cardElement.querySelectorAll('p.is_Paragraph');
-    for (const p of paragraphs) {
-      const text = p.textContent?.trim().toLowerCase() || '';
+    // Method 2: Check all text elements for type keywords
+    const textElements = cardElement.querySelectorAll('span.font_body, p.is_Paragraph');
+    for (const el of textElements) {
+      const text = el.textContent?.trim().toLowerCase() || '';
       for (const cardType of this.CARD_TYPES) {
-        if (text === cardType || text.includes(`type: ${cardType}`)) {
+        if (text === cardType) {
           return cardType;
         }
       }
@@ -655,7 +699,10 @@ class StoryCardScanner {
     return null;
   }
 
-  // Extract full card data from the opened card editor
+  // Extract full card data from the opened card editor modal.
+  // The modal uses labeled fields with stable IDs (scTypeLabel, scTitleLabel,
+  // scEntryLabel, scTriggersLabel, scNotesLabel). Inputs reference their label
+  // via aria-labelledby. The type field is a combobox button.
   extractFullCardData(cardName, cardTypeFromList = null) {
     const cardData = {
       name: cardName,
@@ -667,118 +714,130 @@ class StoryCardScanner {
       hasImage: false
     };
 
-    // Find all labeled sections in the card editor
-    const labels = document.querySelectorAll('.is_Column > p.is_Paragraph, .is_Row > p.is_Paragraph');
-    
-    for (const label of labels) {
-      const labelText = label.textContent?.trim().toUpperCase() || '';
-      const container = label.closest('.is_Column') || label.parentElement;
-      
-      if (!container) continue;
+    // Find the card editor modal as our search root
+    const modal = document.querySelector('[role="alertdialog"][aria-label*="Story Card"]') ||
+                  document.querySelector('[role="dialog"]');
 
-      // Get all inputs/textareas in this section
-      const inputs = container.querySelectorAll('input, textarea');
-      const inputValues = Array.from(inputs).map(i => i.value).filter(v => v);
+    const root = modal || document;
 
-      switch (labelText) {
-        case 'TYPE':
-          // Extract type from dropdown or text
-          const typeValue = this.extractTypeFromSection(container);
-          if (typeValue) {
-            cardData.type = typeValue.toLowerCase();
-          }
-          break;
-
-        case 'TRIGGERS':
-        case 'TRIGGER':
-          // Extract triggers (comma-separated)
-          for (const value of inputValues) {
-            const parts = value.split(',');
-            for (const part of parts) {
-              const t = part.trim().toLowerCase();
-              if (t.length > 0 && t.length < 50) {
-                cardData.triggers.push(t);
-              }
-            }
-          }
-          break;
-
-        case 'KEYS':
-        case 'KEY':
-          // Extract keys (comma-separated)
-          for (const value of inputValues) {
-            const parts = value.split(',');
-            for (const part of parts) {
-              const k = part.trim().toLowerCase();
-              if (k.length > 0 && k.length < 50) {
-                cardData.keys.push(k);
-              }
-            }
-          }
-          break;
-
-        case 'ENTRY':
-        case 'ENTRY TEXT':
-          // Extract entry/description text
-          for (const value of inputValues) {
-            if (value.length > cardData.entryText.length) {
-              cardData.entryText = value;
-            }
-          }
-          break;
-
-        case 'DESCRIPTION':
-        case 'DETAILS':
-          // Extract description
-          for (const value of inputValues) {
-            if (value.length > cardData.description.length) {
-              cardData.description = value;
-            }
-          }
-          break;
+    // --- Type: combobox with aria-labelledby="scTypeLabel" ---
+    const typeCombobox = root.querySelector('button[role="combobox"][aria-labelledby="scTypeLabel"]');
+    if (typeCombobox) {
+      const typeText = typeCombobox.querySelector('span.font_body')?.textContent?.trim().toLowerCase();
+      if (typeText && this.CARD_TYPES.includes(typeText)) {
+        cardData.type = typeText;
       }
     }
 
-    // If no description found, use entry text as fallback
-    if (!cardData.description && cardData.entryText) {
+    // --- Name: input with aria-labelledby="scTitleLabel" ---
+    const nameInput = root.querySelector('input[aria-labelledby="scTitleLabel"]');
+    if (nameInput?.value) {
+      cardData.name = nameInput.value.trim();
+    }
+
+    // --- Entry: textarea with aria-labelledby="scEntryLabel" ---
+    const entryTextarea = root.querySelector('textarea[aria-labelledby="scEntryLabel"]');
+    if (entryTextarea?.value) {
+      cardData.entryText = entryTextarea.value.trim();
       cardData.description = cardData.entryText;
     }
 
+    // --- Triggers: input with aria-labelledby="scTriggersLabel" (comma-separated) ---
+    const triggersInput = root.querySelector('input[aria-labelledby="scTriggersLabel"]');
+    if (triggersInput?.value) {
+      const parts = triggersInput.value.split(',');
+      for (const part of parts) {
+        const t = part.trim().toLowerCase();
+        if (t.length > 0 && t.length < 50) {
+          cardData.triggers.push(t);
+        }
+      }
+    }
+
+    // --- Notes: textarea with aria-labelledby="scNotesLabel" ---
+    const notesTextarea = root.querySelector('textarea[aria-labelledby="scNotesLabel"]');
+    if (notesTextarea?.value) {
+      // Store notes in description if entry is empty, otherwise keep entry
+      if (!cardData.description) {
+        cardData.description = notesTextarea.value.trim();
+      }
+    }
+
+    // --- Fallback: if aria-labelledby selectors fail, try label ID + sibling approach ---
+    if (cardData.triggers.length === 0 && cardData.entryText === '') {
+      this.log('Primary extraction failed, trying fallback label scan...');
+      this._extractViaLabelScan(root, cardData);
+    }
+
     // Check for image presence
-    const imageElement = document.querySelector('[id="top-down-mask"], img[src*="story"], img[src*="card"]');
+    const imageElement = root.querySelector('[id="top-down-mask"], img[src*="story"], img[src*="card"]');
     cardData.hasImage = !!imageElement;
 
     this.log('Extracted card data:', cardData);
     return cardData;
   }
 
-  // Extract type from a TYPE section (handles dropdowns and text)
-  extractTypeFromSection(container) {
-    // Check for selected option in dropdown-like elements
-    const selectedOption = container.querySelector('[aria-selected="true"], [data-selected="true"]');
-    if (selectedOption) {
-      return selectedOption.textContent?.trim();
-    }
+  // Fallback extraction: scan all label spans by text content and find sibling inputs
+  _extractViaLabelScan(root, cardData) {
+    // Labels are uppercase span.font_body elements (e.g., "TYPE", "TRIGGERS", "ENTRY")
+    const labels = root.querySelectorAll('span.font_body');
 
-    // Check for button text (AI Dungeon uses buttons for type selection)
-    const buttons = container.querySelectorAll('[role="button"]');
-    for (const btn of buttons) {
-      const text = btn.textContent?.trim().toLowerCase();
-      if (this.CARD_TYPES.includes(text)) {
-        return text;
+    for (const label of labels) {
+      const labelText = label.textContent?.trim().toUpperCase();
+      if (!labelText) continue;
+
+      // The input/textarea is a sibling or near-sibling of the label within the same column
+      const container = label.closest('.is_Column') || label.parentElement;
+      if (!container) continue;
+
+      switch (labelText) {
+        case 'TYPE': {
+          const combobox = container.querySelector('button[role="combobox"]');
+          const typeText = combobox?.querySelector('span.font_body')?.textContent?.trim().toLowerCase();
+          if (typeText && this.CARD_TYPES.includes(typeText)) {
+            cardData.type = typeText;
+          }
+          break;
+        }
+        case 'TRIGGERS':
+        case 'TRIGGER': {
+          const input = container.querySelector('input');
+          if (input?.value) {
+            for (const part of input.value.split(',')) {
+              const t = part.trim().toLowerCase();
+              if (t.length > 0 && t.length < 50) cardData.triggers.push(t);
+            }
+          }
+          break;
+        }
+        case 'KEYS':
+        case 'KEY': {
+          const input = container.querySelector('input');
+          if (input?.value) {
+            for (const part of input.value.split(',')) {
+              const k = part.trim().toLowerCase();
+              if (k.length > 0 && k.length < 50) cardData.keys.push(k);
+            }
+          }
+          break;
+        }
+        case 'ENTRY': {
+          const textarea = container.querySelector('textarea');
+          if (textarea?.value && textarea.value.length > cardData.entryText.length) {
+            cardData.entryText = textarea.value.trim();
+            if (!cardData.description) cardData.description = cardData.entryText;
+          }
+          break;
+        }
+        case 'NAME': {
+          const input = container.querySelector('input');
+          if (input?.value && !cardData.name) {
+            cardData.name = input.value.trim();
+          }
+          break;
+        }
       }
     }
-
-    // Check paragraph elements
-    const paragraphs = container.querySelectorAll('p.is_Paragraph');
-    for (const p of paragraphs) {
-      const text = p.textContent?.trim().toLowerCase();
-      if (this.CARD_TYPES.includes(text)) {
-        return text;
-      }
-    }
-
-    return null;
   }
 
   // Get the card database (for external access)
@@ -925,19 +984,20 @@ class StoryCardScanner {
     return analytics;
   }
 
-  // Optimized: Wait for card editor to appear with smart detection
+  // Optimized: Wait for card editor modal to appear with smart detection
   async waitForCardEditor() {
     const maxWait = 500; // Maximum wait time
     const checkInterval = 25; // Check every 25ms
     const startTime = Date.now();
     
     while (Date.now() - startTime < maxWait) {
-      // Look for card editor indicators (TRIGGERS label or card editing UI)
-      const hasEditor = document.querySelector('input[placeholder*="trigger"], p.is_Paragraph');
-      const triggerLabel = this.findTriggerLabel();
+      // The modal is role="alertdialog" with aria-label containing "Story Card"
+      const modal = document.querySelector('[role="alertdialog"][aria-label*="Story Card"]');
+      // Also check for the triggers input (most reliable field indicator)
+      const triggersInput = document.querySelector('input[aria-labelledby="scTriggersLabel"]');
       
-      if (triggerLabel || hasEditor) {
-        // Give a tiny bit more time for inputs to populate
+      if (modal || triggersInput) {
+        // Give a tiny bit more time for input values to populate
         await this.wait(this.TIMING.MIN_WAIT);
         return true;
       }
@@ -950,41 +1010,52 @@ class StoryCardScanner {
     return false;
   }
 
-  // Optimized: Find trigger label with cached selector
+  // Find trigger label in the card editor modal
   findTriggerLabel() {
-    // Use more specific selector to find TRIGGERS label faster
-    const labels = document.querySelectorAll('.is_Column > p.is_Paragraph');
-    for (const p of labels) {
-      const text = p.textContent?.trim().toUpperCase();
+    // Primary: label has a stable ID
+    const label = document.querySelector('#scTriggersLabel');
+    if (label) return label;
+
+    // Fallback: scan uppercase span.font_body elements
+    const spans = document.querySelectorAll('span.font_body');
+    for (const span of spans) {
+      const text = span.textContent?.trim().toUpperCase();
       if (text === 'TRIGGERS' || text === 'TRIGGER') {
-        return p;
+        return span;
       }
     }
     return null;
   }
 
-  // Optimized: Extract triggers with targeted DOM queries (synchronous - no async needed)
+  // Extract triggers from the currently open card editor (synchronous)
   extractTriggersFromOpenCard() {
     const triggers = [];
-    
-    // Find the TRIGGERS label using optimized method
+
+    // Primary: use aria-labelledby to find the triggers input directly
+    const triggersInput = document.querySelector('input[aria-labelledby="scTriggersLabel"]');
+    if (triggersInput?.value) {
+      const parts = triggersInput.value.split(',');
+      for (let i = 0; i < parts.length; i++) {
+        const t = parts[i].trim().toLowerCase();
+        if (t.length > 0 && t.length < 50) {
+          triggers.push(t);
+        }
+      }
+      return triggers;
+    }
+
+    // Fallback: find the TRIGGERS label and get sibling input
     const triggerLabel = this.findTriggerLabel();
-    
     if (triggerLabel) {
       const container = triggerLabel.closest('.is_Column') || triggerLabel.parentElement;
       if (container) {
-        // Find inputs in the same container - use direct query
-        const inputs = container.querySelectorAll('input, textarea');
-        for (const input of inputs) {
-          const value = input.value;
-          if (value) {
-            // Optimized string splitting
-            const parts = value.split(',');
-            for (let i = 0; i < parts.length; i++) {
-              const t = parts[i].trim().toLowerCase();
-              if (t.length > 0 && t.length < 50) {
-                triggers.push(t);
-              }
+        const input = container.querySelector('input');
+        if (input?.value) {
+          const parts = input.value.split(',');
+          for (let i = 0; i < parts.length; i++) {
+            const t = parts[i].trim().toLowerCase();
+            if (t.length > 0 && t.length < 50) {
+              triggers.push(t);
             }
           }
         }
@@ -996,25 +1067,26 @@ class StoryCardScanner {
 
   // Close any open card editor - tries multiple methods for reliability
   closeCardEditor() {
-    // Method 1: Find and click FINISH button if visible
-    const buttons = document.querySelectorAll('[role="button"]');
-    for (const btn of buttons) {
-      const text = btn.textContent?.trim().toUpperCase();
-      if (text === 'FINISH' || text === 'DONE' || text === 'CLOSE') {
-        btn.click();
-        break;
+    // Method 1: Find and click the Finish button inside the modal
+    // The button text is "Finish" rendered as uppercase via CSS (is_ButtonText)
+    const modal = document.querySelector('[role="alertdialog"][aria-label*="Story Card"]');
+    if (modal) {
+      const buttons = modal.querySelectorAll('[role="button"]');
+      for (const btn of buttons) {
+        const text = btn.textContent?.trim().toUpperCase();
+        if (text === 'FINISH' || text === 'DONE' || text === 'CLOSE') {
+          btn.click();
+          return;
+        }
       }
     }
 
-    // Method 2: Click any close/X button in card editor overlays
-    const closeButtons = document.querySelectorAll('[aria-label="Close"], [aria-label="close"], .close-button, [data-testid="close"]');
-    closeButtons.forEach(btn => btn.click());
+    // Method 2: Send Escape key to dismiss the modal
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
-    // Method 3: Try clicking outside the card editor modal (backdrop click)
-    const cardEditorBackdrop = document.querySelector('.is_Modal__backdrop, [class*="backdrop"], [class*="overlay"]');
-    if (cardEditorBackdrop && !cardEditorBackdrop.closest('.bd-analytics-dashboard')) {
-      cardEditorBackdrop.click();
-    }
+    // Method 3: Click any close/X button in card editor overlays
+    const closeButtons = document.querySelectorAll('[aria-label="Close"], [aria-label="close"]');
+    closeButtons.forEach(btn => btn.click());
   }
 
   // Async version that waits for card to close
@@ -1024,8 +1096,8 @@ class StoryCardScanner {
     // Wait a bit for the UI to respond
     await this.wait(100);
     
-    // Check if card editor is still open, try again
-    const stillOpen = document.querySelector('[class*="CardEditor"], [class*="card-editor"], [data-testid*="card-editor"]');
+    // Check if the alertdialog modal is still open, try again
+    const stillOpen = document.querySelector('[role="alertdialog"][aria-label*="Story Card"]');
     if (stillOpen) {
       this.closeCardEditor();
       await this.wait(100);

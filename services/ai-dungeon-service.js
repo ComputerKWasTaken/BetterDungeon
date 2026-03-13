@@ -1,7 +1,132 @@
-// BetterDungeon - AI Dungeon Service
-// Handles AI Dungeon-specific navigation and interaction logic
+// BetterDungeon — AI Dungeon Service
+// Centralized DOM query layer for AI Dungeon's adventure page.
+// Provides stable selectors based on ARIA labels, roles, and scarce IDs
+// so that selector updates only need to happen in one place.
+// Reference: Project Management/docs/13-DOM/ for full DOM documentation.
 
 class AIDungeonService {
+
+  // ==================== CENTRALIZED SELECTORS ====================
+  // Stable selectors derived from AI Dungeon's ARIA attributes and IDs.
+  // These survive framework updates better than volatile atomic CSS classes.
+
+  static SEL = {
+    // --- Core IDs (scarce but reliable) ---
+    GAMEPLAY_OUTPUT:      '#gameplay-output',
+    TEXT_INPUT:           '#game-text-input',
+    BLUR_BUTTON:         '#game-blur-button',        // Reused across multiple nav-bar buttons — always disambiguate with aria-label
+    SATURATE_FILTER:     '#gameplay-saturate',
+    ACTION_ICON:         '#action-icon',
+    ACTION_TEXT:         '#action-text',
+    TRANSITION_OPACITY:  '#transition-opacity',
+    MODEL_SWITCHER_ID:   '#model-switcher-title',
+
+    // --- Navigation Bar ---
+    NAV_BAR:             '[aria-label="Navigation bar"]',
+    GAME_MENU:           '[aria-label="Game Menu"]',
+    GAME_SETTINGS:       '[aria-label="Game settings"]',
+    UNDO:                '[aria-label="Undo change"]',
+    REDO:                '[aria-label="Redo change"]',
+    MODEL_SWITCHER_BTN:  '[aria-label="Model Switcher"]',
+    STORY_TITLE:         '[aria-label^="Story title:"]',
+
+    // --- Input Area ---
+    SUBMIT_ACTION:       '[aria-label="Submit action"]',
+    CLOSE_INPUT:         '[aria-label="Close text input"]',
+    CHANGE_MODE:         '[aria-label="Change input mode"]',
+    CLOSE_MODE_MENU:     '[aria-label="Close \'Input Mode\' menu"]',
+
+    // --- Command Bar ---
+    COMMAND_BAR:         '[aria-label="Command bar"]',
+    CMD_TAKE_TURN:       '[aria-label="Command: take a turn"]',
+    CMD_CONTINUE:        '[aria-label="Command: continue"]',
+    CMD_RETRY:           '[aria-label="Command: retry"]',
+    CMD_ERASE:           '[aria-label="Command: erase"]',
+
+    // --- Model Switcher Dialog ---
+    MODEL_DIALOG:        '[role="dialog"][aria-labelledby="model-switcher-title"]',
+
+    // --- Settings Panel ---
+    CLOSE_SETTINGS:      '[aria-label="Close settings"]',
+    SECTION_TABS:        '[aria-label="Section Tabs"]',
+    TAB:                 '[role="tab"]',
+    TABLIST:             '[role="tablist"]',
+
+    // --- Settings Accordions ---
+    ACCESSIBILITY:       '[aria-label="Accessibility"]',
+    BEHAVIOR:            '[aria-label="Behavior"]',
+
+    // --- Plot Textareas (targeted by placeholder substring) ---
+    AI_INSTRUCTIONS:     'textarea[placeholder*="Influence the AI\'s responses"]',
+    AUTHORS_NOTE:        'textarea[placeholder*="Influence the AI\'s writing style"]',
+    PLOT_ESSENTIALS:     'textarea[placeholder*="important information about the adventure"]',
+
+    // --- Story Cards Section ---
+    GRID_VIEW:           '[aria-label="Grid view"]',
+    LIST_VIEW:           '[aria-label="List view"]',
+    COMPACT_VIEW:        '[aria-label="Compact view"]',
+    FILTERS_BTN:         '[aria-label="Filters"]',
+    SEARCH_BOX:          '[role="searchbox"][placeholder="Search"]',
+    CARD_TYPE_BADGE:     'span[aria-label^="type:"]',    // e.g. aria-label="type: character"
+    CARD_HEADING:        'h1[role="heading"]',            // Card name inside role="button" cards
+    ADD_STORY_CARD:      '[aria-label="Add Story Card"]', // "Add a story card" button (grid view)
+    IMPORT_CARDS:        '[aria-label="import story cards"]',
+    EXPORT_CARDS:        '[aria-label="export story cards"]',
+
+    // --- Structural Classes (Tamagui) ---
+    IS_BUTTON:           '.is_Button',
+    IS_VIEW:             '.is_View',
+    IS_TEXT:             '.is_Text',
+    IS_TEXTAREA:         '.is_TextArea',
+    FONT_ICONS:          '.font_icons',
+    FONT_BODY:           '.font_body',
+    FONT_HEADING:        '.font_heading',
+    FONT_MONO:           '.font_mono',
+  };
+
+  // Input mode selectors keyed by lowercase mode name
+  static MODES = {
+    do:      '[aria-label="Set to \'Do\' mode"]',
+    say:     '[aria-label="Set to \'Say\' mode"]',
+    story:   '[aria-label="Set to \'Story\' mode"]',
+    see:     '[aria-label="Set to \'See\' mode"]',
+    try:     '[aria-label="Set to \'Try\' mode"]',
+    command: '[aria-label="Set to \'Command\' mode"]',
+  };
+
+  // Icon glyphs for each native input mode (useful for submit-button identification)
+  static MODE_ICONS = {
+    do:    'w_run',
+    say:   'w_comment',
+    story: 'w_paper_plane',
+    see:   'w_image',
+  };
+
+  // CDN base for theme sprite sheets
+  static THEME_SPRITE_BASE = 'https://latitude-standard-pull-zone-1.b-cdn.net/site_assets/aidungeon/client/themes/';
+
+  // Inline markdown formatting instructions (previously loaded from markdown_ai_instruction.txt)
+  static MARKDOWN_INSTRUCTIONS = `[FORMATTING]
+ALWAYS use Markdown in your responses to enhance the narrative. Use formatting purposefully to enrich the reading experience, not on every line. Let unformatted prose carry the story; formatting highlights what matters.
+
+Syntax & Usage:
+++Bold++: Emphasis, important names, key objects, locations on first mention, or impactful moments. Example: The ++ancient sword++ gleamed in the torchlight.
+//Italic//: Internal thoughts, foreign words, distant sounds, written titles, or whispered speech. Example: //This can't be happening//, she thought.
+++//Bold Italic//++: Intense outbursts, shouting, or moments of extreme emotion. Use sparingly for maximum impact. Example: ++//Never!//++ he roared, slamming his fist on the table.
+==Underline==: Written or inscribed text, signs, letters, book passages, or any in-world readable text. Example: The crumbling note read: ==Meet me at the docks. Tell no one.==
+~Small Text~: Barely audible whispers, fading speech, or distant/muffled sounds. Very rare. Example: ~"...please... don't leave..."~
+---: Scene breaks, significant time skips, or perspective shifts. Place on its own line between scenes.
+- item: Unordered lists for inventory, choices, or organized information.
+
+Rules:
+- Never use asterisks (*), standard markdown, or any formatting syntax other than what is listed above
+- Prefer fewer formatted words over many; a sentence with one ++bold++ phrase has more impact than a sentence where everything is formatted
+- Do not format common actions, ordinary dialogue, or mundane descriptions
+- Formatting should feel invisible and natural, never calling attention to itself or disrupting the flow of reading
+- Internal thoughts use //italic// without quotation marks; spoken dialogue uses quotation marks without formatting unless emphasis is needed`;
+
+  // ==================== CONSTRUCTOR & DEBUG ====================
+
   constructor() {
     this.domUtils = window.DOMUtils;
     this.debug = false;
@@ -9,48 +134,270 @@ class AIDungeonService {
 
   log(message, ...args) {
     if (this.debug) {
-      console.log(message, ...args);
+      console.log('[AIDungeonService]', message, ...args);
     }
   }
 
-  // ==================== VALIDATION ====================
+  // ==================== PAGE DETECTION ====================
 
-  // Check if we're on the AI Dungeon website
+  // Whether the current hostname is AI Dungeon
   isOnAIDungeon() {
     return window.location.hostname.includes('aidungeon.com');
   }
 
-  // Check if we're on an adventure page (required for settings)
+  // Whether the URL indicates an active adventure
   isOnAdventurePage() {
     return window.location.pathname.includes('/adventure/');
   }
 
-  // ==================== SETTINGS PANEL DETECTION ====================
-
-  // Check if the settings panel is currently open
-  isSettingsPanelOpen() {
-    // Settings panel contains tabs like "Adventure", "General", etc.
-    // Check for the presence of the settings panel structure
-    const adventureTab = this.findTabByText('Adventure');
-    const generalTab = this.findTabByText('General');
-    return !!(adventureTab || generalTab);
+  // Extract the adventure UUID from the URL, or null
+  getAdventureId() {
+    const match = window.location.pathname.match(/\/adventure\/([^/]+)/);
+    return match ? match[1] : null;
   }
 
-  // Open the settings panel
+  // Checks for actual adventure UI elements, not just the URL
+  isAdventureUIReady() {
+    return !!(this.getGameplayOutput() && (this.getSettingsButton() || this.getNavBar()));
+  }
+
+  // ==================== ELEMENT QUERIES ====================
+  // Single-element getters returning the DOM node or null.
+  // Features should prefer these over raw querySelector calls so
+  // selector updates only need to happen here.
+
+  // --- Navigation Bar ---
+  getNavBar()             { return document.querySelector(AIDungeonService.SEL.NAV_BAR); }
+  getGameMenuButton()     { return document.querySelector(AIDungeonService.SEL.GAME_MENU); }
+  getSettingsButton()     { return document.querySelector(AIDungeonService.SEL.GAME_SETTINGS); }
+  getUndoButton()         { return document.querySelector(AIDungeonService.SEL.UNDO); }
+  getRedoButton()         { return document.querySelector(AIDungeonService.SEL.REDO); }
+  getModelSwitcherButton(){ return document.querySelector(AIDungeonService.SEL.MODEL_SWITCHER_BTN); }
+  getStoryTitle()         { return document.querySelector(AIDungeonService.SEL.STORY_TITLE); }
+
+  // Returns the story title text, e.g. "You're the Eccentric Cousin"
+  getStoryTitleText() {
+    return this.getStoryTitle()?.textContent?.trim() || null;
+  }
+
+  // Returns the current AI model name from the Model Switcher button image alt
+  getCurrentModelName() {
+    const img = this.getModelSwitcherButton()?.querySelector('img');
+    return img?.alt || null;
+  }
+
+  // --- Story Output ---
+  getGameplayOutput()     { return document.querySelector(AIDungeonService.SEL.GAMEPLAY_OUTPUT); }
+  getTransitionOpacity()  { return document.querySelector(AIDungeonService.SEL.TRANSITION_OPACITY); }
+
+  // Returns all #action-icon elements (one per story action block)
+  getActionIcons()        { return document.querySelectorAll(AIDungeonService.SEL.ACTION_ICON); }
+  // Returns all #action-text elements
+  getActionTexts()        { return document.querySelectorAll(AIDungeonService.SEL.ACTION_TEXT); }
+
+  // --- Input Area ---
+  getTextInput()          { return document.querySelector(AIDungeonService.SEL.TEXT_INPUT); }
+  getSubmitButton()       { return document.querySelector(AIDungeonService.SEL.SUBMIT_ACTION); }
+  getCloseInputButton()   { return document.querySelector(AIDungeonService.SEL.CLOSE_INPUT); }
+  getModeButton()         { return document.querySelector(AIDungeonService.SEL.CHANGE_MODE); }
+  getCloseModeMenuButton(){ return document.querySelector(AIDungeonService.SEL.CLOSE_MODE_MENU); }
+
+  // --- Command Bar ---
+  getCommandBar()         { return document.querySelector(AIDungeonService.SEL.COMMAND_BAR); }
+  getTakeATurnButton()    { return document.querySelector(AIDungeonService.SEL.CMD_TAKE_TURN); }
+  getContinueButton()     { return document.querySelector(AIDungeonService.SEL.CMD_CONTINUE); }
+  getRetryButton()        { return document.querySelector(AIDungeonService.SEL.CMD_RETRY); }
+  getEraseButton()        { return document.querySelector(AIDungeonService.SEL.CMD_ERASE); }
+
+  // --- Model Switcher Dialog ---
+  getModelDialog()        { return document.querySelector(AIDungeonService.SEL.MODEL_DIALOG); }
+  isModelSwitcherOpen()   { return !!this.getModelDialog(); }
+
+  // --- Settings Panel ---
+  getCloseSettingsButton(){ return document.querySelector(AIDungeonService.SEL.CLOSE_SETTINGS); }
+  getSectionTabsContainer() { return document.querySelector(AIDungeonService.SEL.SECTION_TABS); }
+
+  // ==================== INPUT MODE QUERIES ====================
+
+  // Returns the expanded input mode menu container, or null if closed
+  getInputModeMenu() {
+    // The menu parent wraps all mode buttons; detect via the Do button's parent
+    const doBtn = document.querySelector(AIDungeonService.MODES.do);
+    return doBtn ? doBtn.parentElement : null;
+  }
+
+  // Returns a specific mode button by lowercase name (e.g., 'do', 'try', 'command')
+  getModeButtonByName(modeName) {
+    const sel = AIDungeonService.MODES[modeName.toLowerCase()];
+    return sel ? document.querySelector(sel) : null;
+  }
+
+  // Returns all currently visible mode buttons inside the expanded menu
+  getAllModeButtons() {
+    const menu = this.getInputModeMenu();
+    if (!menu) return [];
+    return Array.from(menu.children).filter(el =>
+      el.getAttribute('aria-label')?.startsWith("Set to '")
+    );
+  }
+
+  // Reads the currently active input mode from the collapsed mode bar label
+  detectCurrentMode() {
+    const modeBtn = this.getModeButton();
+    if (!modeBtn) return null;
+    const label = modeBtn.querySelector('.font_body');
+    return label ? label.textContent.trim().toLowerCase() : null;
+  }
+
+  // Whether the expanded input mode menu is currently visible
+  isModeMenuOpen() {
+    return !!document.querySelector(AIDungeonService.MODES.do);
+  }
+
+  // Opens the expanded mode menu and waits for it to appear
+  async openModeMenu(maxWaitMs = 1000) {
+    if (this.isModeMenuOpen()) return true;
+    const btn = this.getModeButton();
+    if (!btn) return false;
+    btn.click();
+    const deadline = Date.now() + maxWaitMs;
+    while (Date.now() < deadline) {
+      await this.wait(50);
+      if (this.isModeMenuOpen()) return true;
+    }
+    return false;
+  }
+
+  // Closes the expanded mode menu via the back/close button
+  closeModeMenu() {
+    const closeBtn = this.getCloseModeMenuButton();
+    if (closeBtn) closeBtn.click();
+  }
+
+  // Switches to the specified input mode (opens menu, clicks mode, verifies)
+  async switchToMode(modeName, options = {}) {
+    const { maxWaitMs = 1500 } = options;
+    const target = modeName.toLowerCase();
+
+    // Already active — no-op
+    if (this.detectCurrentMode() === target) {
+      return { success: true, alreadyActive: true };
+    }
+
+    if (!(await this.openModeMenu())) {
+      return { success: false, error: 'Could not open input mode menu' };
+    }
+    await this.wait(50);
+
+    const modeBtn = this.getModeButtonByName(target);
+    if (!modeBtn) {
+      this.closeModeMenu();
+      return { success: false, error: `Mode '${target}' button not found` };
+    }
+
+    modeBtn.click();
+    await this.wait(200);
+
+    // Verify the switch happened
+    const deadline = Date.now() + maxWaitMs;
+    while (Date.now() < deadline) {
+      if (this.detectCurrentMode() === target) return { success: true };
+      await this.wait(100);
+    }
+    return { success: false, error: `Failed to confirm switch to '${target}' mode` };
+  }
+
+  // ==================== THEME & SPRITE DETECTION ====================
+
+  // Returns true when the active theme is "Dynamic" (no custom sprite sheet)
+  isDynamicTheme() {
+    // Sprite themes render absolute-positioned divs with background-image inside buttons.
+    // Dynamic themes have no such sprites, or the sprite div has zero width.
+    const refBtn = this.getModeButton()
+      || document.querySelector('[aria-label^="Set to"]');
+    if (refBtn) {
+      const spriteDiv = refBtn.querySelector('div[style*="position: absolute"]');
+      if (spriteDiv) {
+        return parseFloat(window.getComputedStyle(spriteDiv).width) === 0;
+      }
+    }
+    return true; // Default to Dynamic when undetectable
+  }
+
+  // Extracts the theme sprite URL from a reference element's background-image
+  getThemeSpriteUrl(referenceElement) {
+    if (!referenceElement) return null;
+    const bgDiv = referenceElement.querySelector('[style*="background-image"]')
+      || referenceElement.closest('[style*="background-image"]');
+    const match = bgDiv?.style?.backgroundImage?.match(/url\("([^"]+)"\)/);
+    return match?.[1] || null;
+  }
+
+  // Extracts the theme UUID from a sprite URL
+  getThemeIdFromUrl(spriteUrl) {
+    const match = spriteUrl?.match(/themes\/([a-f0-9-]+)\.png/);
+    return match?.[1] || null;
+  }
+
+  // Returns the active text style name ('Print', 'Clean', or 'Hacker'), or null
+  getActiveTextStyle() {
+    // Text style buttons live inside a blackA2-background container on the Gameplay tab
+    const labels = document.querySelectorAll('.is_Text.font_body');
+    const header = Array.from(labels).find(el => el.textContent.trim() === 'Text Style');
+    const container = header?.closest('.is_Column');
+    if (!container) return null;
+
+    const buttons = container.querySelectorAll('[role="button"]');
+    for (const btn of buttons) {
+      // The active button's theme wrapper uses t_coreA0 (bright), inactive uses t_coreA1
+      const wrapper = btn.closest('.is_Theme');
+      if (wrapper?.classList.contains('t_coreA0')) {
+        return btn.querySelector('.is_Text')?.textContent?.trim() || null;
+      }
+    }
+    return null;
+  }
+
+  // Reads sprite coordinates from an existing 9-slice cell for replication
+  getSpriteCoords(nineSliceCell) {
+    const inner = nineSliceCell?.querySelector('[style*="left"]');
+    if (!inner) return null;
+    const s = inner.style;
+    return {
+      width:  parseFloat(s.width),
+      height: parseFloat(s.height),
+      left:   parseFloat(s.left),
+      top:    parseFloat(s.top),
+      spriteUrl: this.getThemeSpriteUrl(inner),
+    };
+  }
+
+  // ==================== SETTINGS PANEL ====================
+
+  // Whether the settings panel sidebar is currently open
+  isSettingsPanelOpen() {
+    // Fastest check: the Close Settings button only exists when the panel is rendered
+    if (this.getCloseSettingsButton()) return true;
+
+    // Fallback: look for the top-level tabs (Adventure / Gameplay)
+    const adventureTab = this.findTabByText('Adventure');
+    const gameplayTab  = this.findTabByText('Gameplay');
+    return !!(adventureTab || gameplayTab);
+  }
+
+  // Opens the settings panel and waits for it to appear
   async openSettingsPanel() {
     if (this.isSettingsPanelOpen()) {
       return { success: true, alreadyOpen: true };
     }
 
-    // Find and click the settings button (gear icon)
-    const settingsBtn = document.querySelector('div[aria-label="Game settings"]');
+    const settingsBtn = this.getSettingsButton();
     if (!settingsBtn) {
-      return { success: false, error: 'Settings button not found - are you in an adventure?' };
+      return { success: false, error: 'Settings button not found — are you in an adventure?' };
     }
 
     settingsBtn.click();
-    
-    // Wait for the settings panel to open with verification
+
     for (let i = 0; i < 20; i++) {
       await this.wait(100);
       if (this.isSettingsPanelOpen()) {
@@ -61,144 +408,131 @@ class AIDungeonService {
     return { success: false, error: 'Settings panel failed to open' };
   }
 
+  // Closes the settings panel via the Close button
+  closeSettingsPanel() {
+    const btn = this.getCloseSettingsButton();
+    if (btn) { btn.click(); return true; }
+    return false;
+  }
+
   // ==================== TAB NAVIGATION ====================
 
-  // Find a tab element by its text content
+  // Locate a role="tab" element by its visible text using multiple strategies
   findTabByText(tabName) {
-    const tabs = document.querySelectorAll('[role="tab"]');
-    const targetLower = tabName.toLowerCase();
-    
+    const tabs = document.querySelectorAll(AIDungeonService.SEL.TAB);
+    const target = tabName.toLowerCase();
+
     for (const tab of tabs) {
-      // Method 1: Check aria-label (e.g., "Selected tab plot" or just "plot")
-      const ariaLabel = tab.getAttribute('aria-label')?.toLowerCase() || '';
-      if (ariaLabel === targetLower || ariaLabel.includes(`tab ${targetLower}`)) {
-        return tab;
+      // 1. aria-label match — handles both "Selected tab plot" and "Tab Story Cards"
+      const aria = tab.getAttribute('aria-label')?.toLowerCase() || '';
+      if (aria === target || aria.includes(`tab ${target}`)) return tab;
+
+      // 2. ButtonText span (top-level tabs: Adventure, Gameplay)
+      const btnText = tab.querySelector('.is_ButtonText');
+      if (btnText?.textContent?.trim().toLowerCase() === target) return tab;
+
+      // 3. Paragraph text (section subtabs: Plot, Story Cards, Details, Assets)
+      for (const p of tab.querySelectorAll('p.is_Paragraph')) {
+        if (p.textContent?.trim().toLowerCase() === target) return tab;
       }
-      
-      // Method 2: Look for ButtonText span (top-level tabs like Adventure, General)
-      const buttonText = tab.querySelector('.is_ButtonText');
-      if (buttonText) {
-        const text = buttonText.textContent?.trim().toLowerCase();
-        if (text === targetLower) {
-          return tab;
-        }
+
+      // 4. Plain font_body span inside subtabs (fallback for non-paragraph labels)
+      for (const span of tab.querySelectorAll('.font_body')) {
+        if (span.textContent?.trim().toLowerCase() === target) return tab;
       }
-      
-      // Method 3: Look for paragraph text (subtabs like Plot, Story Cards, Details)
-      const paragraphs = tab.querySelectorAll('p.is_Paragraph');
-      for (const p of paragraphs) {
-        const text = p.textContent?.trim().toLowerCase();
-        if (text === targetLower) {
-          return tab;
-        }
-      }
-      
-      // Method 4: Fallback - check if fullText ends with tab name
-      const fullText = tab.textContent?.trim().toLowerCase() || '';
-      if (fullText === targetLower || fullText.endsWith(targetLower)) {
-        return tab;
-      }
+
+      // 5. Full-text fallback
+      const full = tab.textContent?.trim().toLowerCase() || '';
+      if (full === target || full.endsWith(target)) return tab;
     }
     return null;
   }
 
-  // Check if a tab is currently selected/active
+  // Whether a given tab element is in the selected/active state
   isTabSelected(tab) {
     if (!tab) return false;
-    
-    // Method 1: Check aria-label for "Selected tab" (subtabs like Plot, Story Cards, Details)
-    const ariaLabel = tab.getAttribute('aria-label')?.toLowerCase() || '';
-    if (ariaLabel.includes('selected tab')) {
-      return true;
-    }
-    
-    // Method 2: Check standard accessibility attributes
+
+    // Subtabs use "Selected tab ..." prefix in aria-label
+    const aria = tab.getAttribute('aria-label')?.toLowerCase() || '';
+    if (aria.includes('selected tab')) return true;
+
+    // Standard a11y attributes
     if (tab.getAttribute('aria-selected') === 'true') return true;
     if (tab.getAttribute('data-state') === 'active') return true;
-    if (tab.classList.contains('active')) return true;
-    
-    // Method 3: AI Dungeon class-based styling for top-level tabs:
-    // Selected tabs have '_bbc-c-primary' (primary color bottom border)
-    const classList = tab.className || '';
-    if (classList.includes('_bbc-c-primary') && !classList.includes('_bbc-c-coreA0')) {
-      return true;
+
+    // AI Dungeon class-based indicator: primary-color bottom border
+    // Selected top-level tabs get _bbc-primary, unselected get _bbc-coreA0
+    const cls = tab.className || '';
+    if (cls.includes('_bbc-primary') || cls.includes('_bbc-c-primary')) {
+      if (!cls.includes('_bbc-coreA0') && !cls.includes('_bbc-c-coreA0')) {
+        return true;
+      }
     }
-    
+
     return false;
   }
 
-  // Navigate to the Adventure top tab
-  async selectAdventureTab() {
-    const adventureTab = this.findTabByText('Adventure');
-    if (!adventureTab) {
-      return { success: false, error: 'Adventure tab not found' };
+  // Generic: select any tab by name with click + verification polling
+  async selectTab(tabName, maxAttempts = 10) {
+    const tab = this.findTabByText(tabName);
+    if (!tab) {
+      return { success: false, error: `${tabName} tab not found` };
     }
 
-    if (this.isTabSelected(adventureTab)) {
+    if (this.isTabSelected(tab)) {
       return { success: true, alreadySelected: true };
     }
 
-    adventureTab.click();
+    tab.click();
     await this.wait(300);
 
-    // Verify the tab was selected
-    for (let i = 0; i < 10; i++) {
-      if (this.isTabSelected(adventureTab)) {
+    for (let i = 0; i < maxAttempts; i++) {
+      // Re-find in case the DOM rebuilt after the click
+      const freshTab = this.findTabByText(tabName);
+      if (this.isTabSelected(freshTab || tab)) {
         return { success: true };
       }
       await this.wait(100);
     }
 
-    return { success: false, error: 'Failed to select Adventure tab' };
+    return { success: false, error: `Failed to select ${tabName} tab` };
   }
 
-  // Navigate to the Plot subtab
-  async selectPlotTab() {
-    const plotTab = this.findTabByText('Plot');
-    if (!plotTab) {
-      return { success: false, error: 'Plot tab not found' };
-    }
-
-    if (this.isTabSelected(plotTab)) {
-      return { success: true, alreadySelected: true };
-    }
-
-    plotTab.click();
-    await this.wait(300);
-
-    // Verify the tab was selected
-    for (let i = 0; i < 10; i++) {
-      if (this.isTabSelected(plotTab)) {
-        return { success: true };
-      }
-      await this.wait(100);
-    }
-
-    return { success: false, error: 'Failed to select Plot tab' };
-  }
+  // Convenience wrappers — preserve backward compatibility for callers
+  async selectAdventureTab()  { return this.selectTab('Adventure'); }
+  async selectGameplayTab()   { return this.selectTab('Gameplay'); }
+  async selectPlotTab()       { return this.selectTab('Plot'); }
+  async selectStoryCardsTab() { return this.selectTab('Story Cards'); }
+  async selectDetailsTab()    { return this.selectTab('Details'); }
+  async selectAssetsTab()     { return this.selectTab('Assets'); }
 
   // ==================== PLOT COMPONENT DETECTION ====================
 
   // Find the AI Instructions textarea if it exists
   findAIInstructionsTextarea() {
-    return document.querySelector('textarea[placeholder*="Influence the AI\'s responses"]');
+    return document.querySelector(AIDungeonService.SEL.AI_INSTRUCTIONS);
   }
 
   // Find the Author's Note textarea if it exists
   findAuthorsNoteTextarea() {
-    return document.querySelector('textarea[placeholder*="Influence the AI\'s writing style"]');
+    return document.querySelector(AIDungeonService.SEL.AUTHORS_NOTE);
   }
 
-  // Check which plot components exist
+  // Find the Plot Essentials textarea if it exists
+  findPlotEssentialsTextarea() {
+    return document.querySelector(AIDungeonService.SEL.PLOT_ESSENTIALS);
+  }
+
+  // Check which plot components are currently rendered
   detectExistingPlotComponents() {
     const aiInstructions = this.findAIInstructionsTextarea();
-    const authorsNote = this.findAuthorsNoteTextarea();
-    
+    const authorsNote    = this.findAuthorsNoteTextarea();
+
     return {
-      hasAIInstructions: !!aiInstructions,
-      hasAuthorsNote: !!authorsNote,
+      hasAIInstructions:      !!aiInstructions,
+      hasAuthorsNote:         !!authorsNote,
       aiInstructionsTextarea: aiInstructions,
-      authorsNoteTextarea: authorsNote
+      authorsNoteTextarea:    authorsNote,
     };
   }
 
@@ -215,38 +549,30 @@ class AIDungeonService {
 
   // Find the "Add Plot Component" button
   findAddPlotComponentButton() {
-    // Try multiple selectors to find the add button
-    const byAriaLabel = document.querySelector('div[aria-label="Add Plot Component"]');
-    if (byAriaLabel) return byAriaLabel;
+    const byAria = document.querySelector('div[aria-label="Add Plot Component"]');
+    if (byAria) return byAria;
 
-    // Fallback: look for a button with "Add" text in the Plot section
-    const buttons = document.querySelectorAll('button, div[role="button"]');
-    for (const btn of buttons) {
-      if (btn.textContent?.toLowerCase().includes('add plot component')) {
-        return btn;
-      }
+    // Fallback: scan for a button with matching text
+    for (const btn of document.querySelectorAll('button, div[role="button"]')) {
+      if (btn.textContent?.toLowerCase().includes('add plot component')) return btn;
     }
     return null;
   }
 
   // Find a plot component type option in the dropdown/dialog
   findPlotComponentOption(optionName) {
-    // Look for menu items, options, or clickable elements with the option name
     const selectors = [
       '[role="menuitem"]',
       '[role="option"]',
       '[data-radix-collection-item]',
       'div[role="button"]',
-      'button'
+      'button',
     ];
+    const target = optionName.toLowerCase();
 
-    for (const selector of selectors) {
-      const elements = document.querySelectorAll(selector);
-      for (const el of elements) {
-        const text = el.textContent?.trim().toLowerCase();
-        if (text && text.includes(optionName.toLowerCase())) {
-          return el;
-        }
+    for (const sel of selectors) {
+      for (const el of document.querySelectorAll(sel)) {
+        if (el.textContent?.trim().toLowerCase().includes(target)) return el;
       }
     }
     return null;
@@ -254,12 +580,12 @@ class AIDungeonService {
 
   // Create a specific plot component by clicking Add and selecting the option
   async createPlotComponent(componentName) {
-    const addButton = this.findAddPlotComponentButton();
-    if (!addButton) {
+    const addBtn = this.findAddPlotComponentButton();
+    if (!addBtn) {
       return { success: false, error: 'Add Plot Component button not found' };
     }
 
-    addButton.click();
+    addBtn.click();
     await this.wait(300);
 
     // Wait for the dropdown/dialog to appear and find the option
@@ -282,13 +608,10 @@ class AIDungeonService {
 
   // Ensure both required plot components exist, creating them if needed
   async ensurePlotComponentsExist(callbacks = {}) {
-    let componentsCreated = [];
-
-    // First check what we currently have
+    let created = [];
     let detection = this.detectExistingPlotComponents();
 
-    // If we have "No Active Plot Components" message or missing components, create them
-    const needsAI = !detection.hasAIInstructions;
+    const needsAI   = !detection.hasAIInstructions;
     const needsNote = !detection.hasAuthorsNote;
 
     if (!needsAI && !needsNote) {
@@ -297,12 +620,9 @@ class AIDungeonService {
 
     // Create AI Instructions if missing
     if (needsAI) {
-      if (callbacks.onCreating) callbacks.onCreating('AI Instructions');
-      const result = await this.createPlotComponent('AI Instructions');
-      if (result.success) {
-        componentsCreated.push('AI Instructions');
-        await this.wait(500);
-      }
+      callbacks.onCreating?.('AI Instructions');
+      const r = await this.createPlotComponent('AI Instructions');
+      if (r.success) { created.push('AI Instructions'); await this.wait(500); }
     }
 
     // Refresh detection after creating the first component
@@ -310,156 +630,110 @@ class AIDungeonService {
 
     // Create Author's Note if missing
     if (!detection.hasAuthorsNote) {
-      if (callbacks.onCreating) callbacks.onCreating("Author's Note");
-      const result = await this.createPlotComponent("Author's Note");
-      if (result.success) {
-        componentsCreated.push("Author's Note");
-        await this.wait(500);
-      }
+      callbacks.onCreating?.("Author's Note");
+      const r = await this.createPlotComponent("Author's Note");
+      if (r.success) { created.push("Author's Note"); await this.wait(500); }
     }
 
-    return { 
-      success: true, 
-      created: componentsCreated.length > 0, 
-      componentsCreated 
+    return { success: true, created: created.length > 0, componentsCreated: created };
+  }
+
+  // ==================== NAVIGATION FLOWS ====================
+
+  // Internal helper: validate page → open settings → select top tab → select sub tab
+  async _navigateToSettingsTab(topTab, subTab, options = {}) {
+    const { onStepUpdate = null } = options;
+
+    if (!this.isOnAIDungeon()) {
+      return { success: false, error: 'Not on AI Dungeon website' };
+    }
+    if (!this.isOnAdventurePage()) {
+      return { success: false, error: 'Navigate to an adventure first' };
+    }
+
+    onStepUpdate?.('Opening settings panel...');
+    const panelResult = await this.openSettingsPanel();
+    if (!panelResult.success) return panelResult;
+    await this.wait(200);
+
+    onStepUpdate?.(`Selecting ${topTab} tab...`);
+    const topResult = await this.selectTab(topTab);
+    if (!topResult.success) return topResult;
+    await this.wait(200);
+
+    if (subTab) {
+      onStepUpdate?.(`Selecting ${subTab} tab...`);
+      const subResult = await this.selectTab(subTab);
+      if (!subResult.success) return subResult;
+      await this.wait(300);
+    }
+
+    return { success: true };
+  }
+
+  // Navigate to Adventure → Plot
+  async navigateToPlotSettings(options = {}) {
+    const result = await this._navigateToSettingsTab('Adventure', 'Plot', options);
+    if (result.success) options.onStepUpdate?.('Applying instructions...');
+    return result;
+  }
+
+  // Navigate to Adventure → Story Cards
+  async navigateToStoryCardsSettings(options = {}) {
+    return this._navigateToSettingsTab('Adventure', 'Story Cards', options);
+  }
+
+  // Navigate to Adventure → Details
+  async navigateToDetailsSettings(options = {}) {
+    return this._navigateToSettingsTab('Adventure', 'Details', options);
+  }
+
+  // Navigate to Adventure → Assets
+  async navigateToAssetsSettings(options = {}) {
+    return this._navigateToSettingsTab('Adventure', 'Assets', options);
+  }
+
+  // Navigate to Gameplay tab (no subtab)
+  async navigateToGameplaySettings(options = {}) {
+    return this._navigateToSettingsTab('Gameplay', null, options);
+  }
+
+  // ==================== TEXTAREA WAITING ====================
+
+  // Polls until both AI Instructions and Author's Note textareas are rendered
+  async waitForTextareas(maxAttempts = 20) {
+    for (let i = 0; i < maxAttempts; i++) {
+      const d = this.detectExistingPlotComponents();
+      if (d.hasAIInstructions && d.hasAuthorsNote) {
+        return {
+          success: true,
+          aiInstructionsTextarea: d.aiInstructionsTextarea,
+          authorsNoteTextarea:    d.authorsNoteTextarea,
+        };
+      }
+      await this.wait(150);
+    }
+
+    const d = this.detectExistingPlotComponents();
+    if (!d.hasAIInstructions && !d.hasAuthorsNote) {
+      return { success: false, error: 'Neither textarea found — plot components may need to be created' };
+    }
+    return {
+      success: false,
+      error: d.hasAIInstructions ? "Author's Note textarea not found" : 'AI Instructions textarea not found',
     };
   }
 
-  // ==================== FULL NAVIGATION FLOW ====================
-
-  // Navigate to the Plot settings tab and ensure it's ready
-  async navigateToPlotSettings(options = {}) {
-    const { onStepUpdate = null } = options;
-    
-    // Step 1: Validate we're on AI Dungeon
-    if (!this.isOnAIDungeon()) {
-      return { success: false, error: 'Not on AI Dungeon website' };
-    }
-
-    // Step 2: Validate we're on an adventure page
-    if (!this.isOnAdventurePage()) {
-      return { success: false, error: 'Navigate to an adventure first' };
-    }
-
-    // Step 3: Open settings panel if not open
-    if (onStepUpdate) onStepUpdate('Opening settings panel...');
-    const settingsResult = await this.openSettingsPanel();
-    if (!settingsResult.success) {
-      return settingsResult;
-    }
-    await this.wait(200);
-
-    // Step 4: Select Adventure tab
-    if (onStepUpdate) onStepUpdate('Selecting Adventure tab...');
-    const adventureResult = await this.selectAdventureTab();
-    if (!adventureResult.success) {
-      return adventureResult;
-    }
-    await this.wait(200);
-
-    // Step 5: Select Plot subtab
-    if (onStepUpdate) onStepUpdate('Selecting Plot tab...');
-    const plotResult = await this.selectPlotTab();
-    if (!plotResult.success) {
-      return plotResult;
-    }
-    await this.wait(300);
-
-    if (onStepUpdate) onStepUpdate('Applying instructions...');
-    return { success: true };
-  }
-
-  // Navigate to the Story Cards settings tab
-  async navigateToStoryCardsSettings(options = {}) {
-    const { onStepUpdate = null } = options;
-    
-    // Step 1: Validate we're on AI Dungeon
-    if (!this.isOnAIDungeon()) {
-      return { success: false, error: 'Not on AI Dungeon website' };
-    }
-
-    // Step 2: Validate we're on an adventure page
-    if (!this.isOnAdventurePage()) {
-      return { success: false, error: 'Navigate to an adventure first' };
-    }
-
-    // Step 3: Open settings panel if not open
-    if (onStepUpdate) onStepUpdate('Opening settings panel...');
-    const settingsResult = await this.openSettingsPanel();
-    if (!settingsResult.success) {
-      return settingsResult;
-    }
-    await this.wait(200);
-
-    // Step 4: Select Adventure tab
-    if (onStepUpdate) onStepUpdate('Selecting Adventure tab...');
-    const adventureResult = await this.selectAdventureTab();
-    if (!adventureResult.success) {
-      return adventureResult;
-    }
-    await this.wait(200);
-
-    // Step 5: Select Story Cards subtab
-    if (onStepUpdate) onStepUpdate('Selecting Story Cards tab...');
-    const storyCardsResult = await this.selectStoryCardsTab();
-    if (!storyCardsResult.success) {
-      return storyCardsResult;
-    }
-    await this.wait(300);
-
-    return { success: true };
-  }
-
-  // Navigate to the Story Cards subtab
-  async selectStoryCardsTab() {
-    const storyCardsTab = this.findTabByText('Story Cards');
-    if (!storyCardsTab) {
-      return { success: false, error: 'Story Cards tab not found' };
-    }
-
-    if (this.isTabSelected(storyCardsTab)) {
-      return { success: true, alreadySelected: true };
-    }
-
-    storyCardsTab.click();
-    await this.wait(300);
-
-    // Verify the tab was selected
-    for (let i = 0; i < 10; i++) {
-      if (this.isTabSelected(storyCardsTab)) {
-        return { success: true };
-      }
-      await this.wait(100);
-    }
-
-    return { success: false, error: 'Failed to select Story Cards tab' };
-  }
-
-  // Wait for both textareas to be available
-  async waitForTextareas(maxAttempts = 20) {
+  // Waits for the adventure UI to be fully loaded (gameplay output + nav controls)
+  async waitForAdventureReady(maxAttempts = 20) {
     for (let i = 0; i < maxAttempts; i++) {
-      const detection = this.detectExistingPlotComponents();
-      
-      if (detection.hasAIInstructions && detection.hasAuthorsNote) {
-        return { 
-          success: true, 
-          aiInstructionsTextarea: detection.aiInstructionsTextarea, 
-          authorsNoteTextarea: detection.authorsNoteTextarea 
-        };
+      if (this.isAdventureUIReady()) {
+        await this.wait(300); // Allow remaining elements to settle
+        return true;
       }
-      
-      await this.wait(150);
+      await this.wait(250);
     }
-    
-    const detection = this.detectExistingPlotComponents();
-    
-    if (!detection.hasAIInstructions && !detection.hasAuthorsNote) {
-      return { success: false, error: 'Neither textarea found - plot components may need to be created' };
-    } else if (!detection.hasAIInstructions) {
-      return { success: false, error: 'AI Instructions textarea not found' };
-    } else {
-      return { success: false, error: "Author's Note textarea not found" };
-    }
+    return false;
   }
 
   // ==================== INSTRUCTION APPLICATION ====================
@@ -467,79 +741,66 @@ class AIDungeonService {
   // Check if markdown instructions are already present in a textarea
   containsInstructions(textarea) {
     if (!textarea) return false;
-    const currentValue = textarea.value || '';
-    
+    const val = textarea.value || '';
+
     // Check for unique markers from the instruction file
     const markers = [
       '[FORMATTING]',
       'ALWAYS use Markdown in your responses',
       '++Bold++',
       '//Italic//',
-      '~Small Text~'
+      '~Small Text~',
     ];
-    
-    return markers.some(marker => currentValue.includes(marker));
+
+    return markers.some(m => val.includes(m));
   }
 
   // Main method to apply instructions to textareas
   async applyInstructionsToTextareas(instructionsText, options = {}) {
     const { forceApply = false, onCreatingComponents = null, onStepUpdate = null } = options;
-    
+
     // Navigate to Plot settings with step callbacks
     const navResult = await this.navigateToPlotSettings({ onStepUpdate });
-    if (!navResult.success) {
-      return navResult;
-    }
+    if (!navResult.success) return navResult;
 
     // Initial attempt to find textareas
     let textareas = await this.waitForTextareas(5);
-    
     let componentsCreated = false;
 
     // If textareas not found, create the missing plot components
     if (!textareas.success) {
-      if (onCreatingComponents) {
-        onCreatingComponents();
-      }
-      
+      onCreatingComponents?.();
       const ensureResult = await this.ensurePlotComponentsExist({
-        onCreating: onCreatingComponents ? (name) => onCreatingComponents(`Creating ${name}...`) : null
+        onCreating: onCreatingComponents ? (name) => onCreatingComponents(`Creating ${name}...`) : null,
       });
-      
+
       if (ensureResult.created) {
         componentsCreated = true;
-        // Wait longer for newly created components to render
-        textareas = await this.waitForTextareas(30);
+        textareas = await this.waitForTextareas(30); // Longer wait for newly created
       } else {
-        // Components exist but textareas not found - wait longer
         textareas = await this.waitForTextareas(20);
       }
     }
-    
-    if (!textareas.success) {
-      return textareas;
-    }
+
+    if (!textareas.success) return textareas;
 
     const { aiInstructionsTextarea, authorsNoteTextarea } = textareas;
 
     // Check if instructions already exist
-    const aiHasInstructions = this.containsInstructions(aiInstructionsTextarea);
-    const noteHasInstructions = this.containsInstructions(authorsNoteTextarea);
+    const aiHas   = this.containsInstructions(aiInstructionsTextarea);
+    const noteHas = this.containsInstructions(authorsNoteTextarea);
 
-    if (aiHasInstructions && noteHasInstructions && !forceApply) {
+    if (aiHas && noteHas && !forceApply) {
       return { success: true, alreadyApplied: true };
     }
 
     let appliedCount = 0;
 
-    // Apply to AI Instructions if needed
-    if (!aiHasInstructions || forceApply) {
+    if (!aiHas || forceApply) {
       this.domUtils.appendToTextarea(aiInstructionsTextarea, instructionsText);
       appliedCount++;
     }
-
-    // Apply to Author's Note if needed
-    if (!noteHasInstructions || forceApply) {
+    if (!noteHas || forceApply) {
       this.domUtils.appendToTextarea(authorsNoteTextarea, instructionsText);
       appliedCount++;
     }
@@ -547,28 +808,120 @@ class AIDungeonService {
     return { success: true, appliedCount, componentsCreated };
   }
 
-  // ==================== FILE FETCHING ====================
+  // ==================== INPUT AREA HELPERS ====================
 
-  async fetchInstructionsFile() {
-    try {
-      const instructionsUrl = chrome.runtime.getURL('markdown_ai_instruction.txt');
-      const response = await fetch(instructionsUrl);
-      if (!response.ok) {
-        return { success: false, error: 'Failed to load instructions file' };
-      }
-      const instructionsText = await response.text();
-      return { success: true, data: instructionsText };
-    } catch (error) {
-      return { success: false, error: error.message };
+  // Finds the rounded input container that wraps #game-text-input
+  getInputContainer() {
+    const textarea = this.getTextInput();
+    if (!textarea) return null;
+    // Walk up to the container with visible border-radius (the styled row)
+    const byClass = textarea.closest('div[class*="_btlr-"]');
+    if (byClass) return byClass;
+    let parent = textarea.parentElement;
+    while (parent && parent !== document.body) {
+      const style = window.getComputedStyle(parent);
+      if (style.borderRadius && parseFloat(style.borderRadius) > 8) return parent;
+      parent = parent.parentElement;
     }
+    return null;
+  }
+
+  // Detects whether the input drawer is currently open (visible and interactive)
+  isInputDrawerOpen() {
+    const textarea = this.getTextInput();
+    if (!textarea) return false;
+    const drawer = textarea.closest('[aria-hidden]');
+    // Open state: aria-hidden removed or set to "false"
+    return !drawer || drawer.getAttribute('aria-hidden') !== 'true';
+  }
+
+  // Gets the icon glyph name from the submit button (varies by active mode)
+  getSubmitIconGlyph() {
+    const btn = this.getSubmitButton();
+    const icon = btn?.querySelector('.font_icons');
+    return icon?.textContent?.trim() || null;
+  }
+
+  // Whether the submit button is currently enabled (textarea has content)
+  isSubmitEnabled() {
+    const btn = this.getSubmitButton();
+    return btn?.getAttribute('aria-disabled') !== 'true';
+  }
+
+  // Sets the text input value using React-compatible native setter
+  setTextInputValue(text) {
+    const input = this.getTextInput();
+    if (!input) return false;
+
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype, 'value'
+    )?.set;
+
+    if (setter) {
+      setter.call(input, text);
+    } else {
+      input.value = text;
+    }
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+  }
+
+  // Returns the current text input value
+  getTextInputValue() {
+    return this.getTextInput()?.value || '';
+  }
+
+  // ==================== INSTRUCTION DATA ====================
+
+  // Returns the inline markdown formatting instructions (no file fetch needed)
+  async fetchInstructionsFile() {
+    return { success: true, data: AIDungeonService.MARKDOWN_INSTRUCTIONS };
   }
 
   // ==================== UTILITIES ====================
 
+  // Simple delay promise
   wait(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
+
+  // Polls a condition function until it returns a truthy value or timeout
+  async waitFor(conditionFn, { interval = 100, timeout = 2000 } = {}) {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      const result = conditionFn();
+      if (result) return result;
+      await this.wait(interval);
+    }
+    return null;
+  }
+
+  // Returns a promise that resolves when a matching element appears in the DOM
+  async waitForElement(selector, { timeout = 3000, root = document } = {}) {
+    const existing = root.querySelector(selector);
+    if (existing) return existing;
+
+    return new Promise((resolve) => {
+      let resolved = false;
+      const timer = setTimeout(() => {
+        if (!resolved) { resolved = true; observer.disconnect(); resolve(null); }
+      }, timeout);
+
+      const observer = new MutationObserver(() => {
+        const el = root.querySelector(selector);
+        if (el && !resolved) {
+          resolved = true;
+          clearTimeout(timer);
+          observer.disconnect();
+          resolve(el);
+        }
+      });
+      observer.observe(root, { childList: true, subtree: true });
+    });
+  }
 }
+
+// ==================== GLOBAL & MODULE EXPORTS ====================
 
 if (typeof window !== 'undefined') {
   window.AIDungeonService = AIDungeonService;

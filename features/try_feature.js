@@ -17,6 +17,7 @@ class TryFeature {
     this.weight = 0; // Weight modifier: -9 (5% success) to +9 (95% success)
     this.weightKeyHandler = null; // Handler for Up/Down arrow keys
     this.successBar = null; // The visible success chance bar element
+    this._lastSpriteState = null; // track sprite/dynamic theme for reactive re-injection
     this.debug = false;
 
     // Outcome phrase pools for variety
@@ -147,6 +148,16 @@ class TryFeature {
     return null;
   }
 
+  // Check whether a native button has a sprite-based theme active
+  _isSpriteActive(nativeButton) {
+    if (!nativeButton) return false;
+    const wrapper = nativeButton.querySelector('div[style*="position: absolute"]');
+    if (!wrapper) return false;
+    const viewport = wrapper.querySelector('div[class*="_ox-hidden"]');
+    if (!viewport) return false;
+    return parseFloat(window.getComputedStyle(viewport).width) > 0;
+  }
+
   injectTryButton() {
     const menu = this.findInputModeMenu();
     if (!menu) return;
@@ -155,6 +166,15 @@ class TryFeature {
     const doButton = menu.querySelector('[aria-label="Set to \'Do\' mode"]');
     if (!doButton) return;
     const sayButton = menu.querySelector('[aria-label="Set to \'Say\' mode"]');
+
+    // Detect theme switches (sprite <-> dynamic) and force re-inject
+    const isSpriteNow = this._isSpriteActive(doButton);
+    if (this._lastSpriteState !== null && this._lastSpriteState !== isSpriteNow) {
+      const stale = menu.querySelector('[aria-label="Set to \'Try\' mode"]');
+      if (stale) stale.remove();
+      this.tryButton = null;
+    }
+    this._lastSpriteState = isSpriteNow;
 
     // Check if we already added the button
     const existingButton = menu.querySelector('[aria-label="Set to \'Try\' mode"]');
@@ -207,137 +227,103 @@ class TryFeature {
 
     this.tryButton = cleanButton;
 
-    // Apply sprite theming for non-Dynamic themes
-    this.applySpriteTheming(cleanButton, sayButton || doButton);
+    // Scale sprite viewport if a sprite theme is active (pass Do as reference
+    // in case the clone was created before AI Dungeon populated the sprite)
+    this.applySpriteTheming(cleanButton, doButton);
   }
 
+  // Scale the cloned button's sprite viewport to match its rendered width,
+  // then wire up hover to shift the sprite to its hover region.
+  // If the clone's sprite is empty (cloned before AI Dungeon populated it),
+  // we re-clone the sprite content from the reference button.
   applySpriteTheming(customButton, referenceButton) {
     if (!customButton || !referenceButton) return;
 
-    // Wait for button to be in DOM and rendered
     setTimeout(() => {
-      // Find sprite wrapper in reference button
-      const refSpriteWrapper = referenceButton.querySelector('div[style*="position: absolute"]');
-      if (!refSpriteWrapper) return;
+      // Check the reference button to determine if a sprite theme is active
+      const refWrapper = referenceButton.querySelector('div[style*="position: absolute"]');
+      if (!refWrapper) return;
 
-      // Check if the wrapper has actual sprite content (for sprite-based themes)
-      const refSpriteContainer = refSpriteWrapper.querySelector('div[class*="_ox-hidden"]');
-      if (!refSpriteContainer) return;
+      const refViewport = refWrapper.querySelector('div[class*="_ox-hidden"]');
+      if (!refViewport) return;
 
-      // Check if this is a sprite theme by looking at container dimensions
-      const containerStyle = window.getComputedStyle(refSpriteContainer);
-      if (parseFloat(containerStyle.width) === 0) return; // Dynamic theme, no sprites
+      const refWidth = parseFloat(window.getComputedStyle(refViewport).width);
+      if (refWidth === 0) return; // Dynamic theme — no sprites
 
-      // Find sprite wrapper in custom button
-      const customSpriteWrapper = customButton.querySelector('div[style*="position: absolute"]');
-      if (!customSpriteWrapper) return;
+      // Get our button's sprite wrapper
+      const spriteWrapper = customButton.querySelector('div[style*="position: absolute"]');
+      if (!spriteWrapper) return;
 
-      // Get button dimensions
-      const customButtonWidth = customButton.getBoundingClientRect().width;
-      const refButtonWidth = referenceButton.getBoundingClientRect().width;
-      
-      if (customButtonWidth === 0 || refButtonWidth === 0) return;
+      let viewport = spriteWrapper.querySelector('div[class*="_ox-hidden"]');
+      let srcWidth = viewport ? parseFloat(window.getComputedStyle(viewport).width) : 0;
 
-      // Deep clone the entire reference sprite wrapper content
-      while (customSpriteWrapper.firstChild) {
-        customSpriteWrapper.removeChild(customSpriteWrapper.firstChild);
-      }
-      
-      // Clone each child node from reference
-      Array.from(refSpriteWrapper.children).forEach(child => {
-        const clonedChild = child.cloneNode(true);
-        customSpriteWrapper.appendChild(clonedChild);
-      });
+      // If our sprite is empty (cloned before sprites loaded), clone from reference
+      if (srcWidth === 0) {
+        while (spriteWrapper.firstChild) spriteWrapper.removeChild(spriteWrapper.firstChild);
+        for (const child of refWrapper.children) {
+          spriteWrapper.appendChild(child.cloneNode(true));
+        }
+        spriteWrapper.style.justifyContent = window.getComputedStyle(refWrapper).justifyContent;
 
-      // Copy wrapper styles and ensure no gaps
-      customSpriteWrapper.style.justifyContent = window.getComputedStyle(refSpriteWrapper).justifyContent;
-      customSpriteWrapper.style.margin = '0';
-      customSpriteWrapper.style.padding = '0';
-
-      // Ensure all cloned containers have no margin and correct dimensions
-      customSpriteWrapper.querySelectorAll('div').forEach(div => {
-        div.style.margin = '0';
-      });
-
-      // Ensure the sprite containers fill the button width
-      const spriteContainers = customSpriteWrapper.querySelectorAll('div[class*="_ox-hidden"]');
-      if (spriteContainers.length === 1) {
-        // Middle button - single container should match button width
-        spriteContainers[0].style.width = `${customButtonWidth}px`;
+        // Re-query the now-populated viewport
+        viewport = spriteWrapper.querySelector('div[class*="_ox-hidden"]');
+        srcWidth = viewport ? parseFloat(window.getComputedStyle(viewport).width) : 0;
+        if (srcWidth === 0) return; // Still empty, bail
       }
 
-      // Adjust the middle section width if button sizes differ
-      const widthDiff = customButtonWidth - refButtonWidth;
-      if (Math.abs(widthDiff) > 1) {
-        const customContainers = customSpriteWrapper.querySelectorAll('div[class*="_ox-hidden"]');
-        const refContainers = refSpriteWrapper.querySelectorAll('div[class*="_ox-hidden"]');
-        
-        customContainers.forEach((container, index) => {
-          const refContainer = refContainers[index];
-          if (!refContainer) return;
+      const buttonWidth = customButton.getBoundingClientRect().width;
+      if (buttonWidth === 0) return;
 
-          const refWidth = parseFloat(window.getComputedStyle(refContainer).width);
-          
-          // Only scale non-end-cap containers (width > 20px)
-          if (refWidth > 20) {
-            const newWidth = refWidth + widthDiff;
-            container.style.width = `${newWidth}px`;
-            
-            // Also scale the inner positioner
-            const positioner = container.querySelector('.css-175oi2r');
-            if (positioner && positioner.style.width) {
-              const posWidth = parseFloat(positioner.style.width);
-              const posLeft = parseFloat(positioner.style.left) || 0;
-              const scale = newWidth / refWidth;
-              positioner.style.width = `${posWidth * scale}px`;
-              positioner.style.left = `${posLeft * scale}px`;
-            }
+      // Scale viewport + positioner if button width differs from source
+      if (Math.abs(buttonWidth - srcWidth) >= 1) {
+        const scale = buttonWidth / srcWidth;
+        viewport.style.width = `${buttonWidth}px`;
+
+        const positioner = viewport.firstElementChild;
+        if (positioner?.style) {
+          const w = parseFloat(positioner.style.width) || 0;
+          const l = parseFloat(positioner.style.left) || 0;
+          if (w > 0) {
+            positioner.style.width = `${w * scale}px`;
+            positioner.style.left = `${l * scale}px`;
           }
-        });
+        }
       }
 
-      // Add hover handling for the custom button
-      this.addHoverHandling(customButton);
-
+      // Wire up hover state (shift sprite to hover region)
+      this.addSpriteHover(customButton);
     }, 100);
   }
 
-  addHoverHandling(button) {
-    if (!button || button.dataset.hoverHandled) return;
-    button.dataset.hoverHandled = 'true';
+  // Shift the sprite positioner on hover to reveal the hover-state region.
+  // Native buttons displace left by 17/90 of positioner width — a fixed
+  // fraction that maps to the horizontal offset between non-hover and hover
+  // regions in every AI Dungeon sprite sheet.
+  addSpriteHover(button) {
+    if (button.dataset.bdSpriteHover) return;
+    button.dataset.bdSpriteHover = 'true';
 
     const spriteWrapper = button.querySelector('div[style*="position: absolute"]');
     if (!spriteWrapper) return;
 
-    // Find all positioner elements that have a left style
-    const getPositioners = () => spriteWrapper.querySelectorAll('.css-175oi2r[style*="left"]');
+    const viewport = spriteWrapper.querySelector('div[class*="_ox-hidden"]');
+    if (!viewport) return;
 
-    // Store original left values
-    const positioners = getPositioners();
-    const originalLefts = [];
-    positioners.forEach(p => {
-      originalLefts.push(parseFloat(p.style.left) || 0);
-    });
+    const positioner = viewport.firstElementChild;
+    if (!positioner?.style) return;
 
-    // Hover offset - hover sprite is to the RIGHT, so shift LEFT (more negative)
-    // Use -180 for smaller buttons (Try, Say, See) vs -250 for longer buttons (Attempt was longer)
-    const hoverOffset = -180;
+    const posWidth = parseFloat(positioner.style.width) || 0;
+    const restLeft = parseFloat(positioner.style.left) || 0;
+    if (posWidth === 0) return;
+
+    // Hover region offset: 17/90 of positioner width (empirically derived)
+    const hoverLeft = restLeft - (posWidth * 17 / 90);
 
     button.addEventListener('mouseenter', () => {
-      const ps = getPositioners();
-      ps.forEach((p, i) => {
-        const origLeft = originalLefts[i] !== undefined ? originalLefts[i] : parseFloat(p.style.left) || 0;
-        p.style.left = `${origLeft + hoverOffset}px`;
-      });
+      positioner.style.left = `${hoverLeft}px`;
     });
-
     button.addEventListener('mouseleave', () => {
-      const ps = getPositioners();
-      ps.forEach((p, i) => {
-        if (originalLefts[i] !== undefined) {
-          p.style.left = `${originalLefts[i]}px`;
-        }
-      });
+      positioner.style.left = `${restLeft}px`;
     });
   }
 
@@ -401,7 +387,9 @@ class TryFeature {
       const textarea = document.querySelector('#game-text-input');
       if (!textarea || document.activeElement !== textarea) return;
       
-      // Only handle Up/Down arrows
+      // Only handle Up/Down arrows (ignore if Ctrl/Cmd is held for input history navigation)
+      if (e.ctrlKey || e.metaKey) return;
+      
       if (e.key === 'ArrowUp') {
         e.preventDefault();
         this.adjustWeight(1);
@@ -432,93 +420,50 @@ class TryFeature {
     return Math.max(5, Math.min(95, baseChance + weightShift));
   }
 
-  getMainInputContainer(textarea) {
-    const submitBtn = document.querySelector('[aria-label="Submit action"]');
-    if (!submitBtn) return textarea.parentElement;
-    
-    // Find common ancestor
-    let current = textarea.parentElement;
-    while (current && current.tagName !== 'BODY') {
-      if (current.contains(submitBtn)) {
-        return current;
-      }
-      current = current.parentElement;
-    }
-    return textarea.parentElement;
-  }
-
   injectSuccessBar() {
-    // Remove any existing bar first
     this.removeSuccessBar();
-    
-    // Find the textarea
+
     const textarea = document.querySelector('#game-text-input');
     if (!textarea) return;
-    
-    // Find the main input container to attach our bar
-    const container = this.getMainInputContainer(textarea);
-    
-    // Create the success bar container
-    const barContainer = document.createElement('div');
-    barContainer.id = 'bd-success-bar-container';
-    barContainer.style.cssText = `
+
+    // The input row (textarea's parent) has position:absolute and 32px bottom padding
+    const inputRow = textarea.parentElement;
+    if (!inputRow) return;
+
+    const bar = document.createElement('div');
+    bar.id = 'bd-success-bar-container';
+    bar.style.cssText = `
+      position: absolute;
+      bottom: 6px;
+      left: 32px;
+      right: 32px;
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 8px 16px 4px 16px;
-      width: 100%;
+      padding: 5px 14px;
+      background: rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
       font-family: var(--bd-font-family-primary, 'IBM Plex Sans', sans-serif);
-      font-size: 12px;
-      color: var(--bd-text-primary, #e8e8ec);
-      box-sizing: border-box;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.45);
       z-index: 2;
+      pointer-events: none;
     `;
-    
-    // Label
-    const label = document.createElement('span');
-    label.textContent = 'Success:';
-    label.style.cssText = 'white-space: nowrap; font-weight: 600; color: var(--bd-text-primary, #e8e8ec);';
-    
-    // Bar background
-    const barBg = document.createElement('div');
-    barBg.style.cssText = `
-      flex: 1;
-      height: 8px;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 4px;
-      overflow: hidden;
-      position: relative;
+
+    bar.innerHTML = `
+      <span style="white-space:nowrap; font-weight:600; font-size:10px; letter-spacing:0.4px; text-transform:uppercase;">Success</span>
+      <div style="flex:1; height:5px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden;">
+        <div id="bd-success-bar-fill" style="height:100%; border-radius:3px; transition:width .3s cubic-bezier(.4,0,.2,1), background .3s;"></div>
+      </div>
+      <span id="bd-success-percent" style="min-width:28px; text-align:right; font-weight:700; font-size:12px; font-variant-numeric:tabular-nums; transition:color .3s;"></span>
+      <span style="opacity:0.3; font-size:9px;">↑↓</span>
     `;
-    
-    // Bar fill
-    const barFill = document.createElement('div');
-    barFill.id = 'bd-success-bar-fill';
-    barFill.style.cssText = `
-      height: 100%;
-      border-radius: 4px;
-      transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease;
-    `;
-    barBg.appendChild(barFill);
-    
-    // Percentage text
-    const percentText = document.createElement('span');
-    percentText.id = 'bd-success-percent';
-    percentText.style.cssText = 'min-width: 32px; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums;';
-    
-    // Hint text
-    const hint = document.createElement('span');
-    hint.textContent = '(↑↓)';
-    hint.style.cssText = 'opacity: 0.5; font-size: 10px; margin-left: -2px;';
-    
-    barContainer.appendChild(label);
-    barContainer.appendChild(barBg);
-    barContainer.appendChild(percentText);
-    barContainer.appendChild(hint);
-    
-    // Insert at the top of the main input container
-    container.insertBefore(barContainer, container.firstChild);
-    
-    this.successBar = barContainer;
+
+    inputRow.appendChild(bar);
+    this.successBar = bar;
     this.updateSuccessBar();
   }
 
@@ -526,25 +471,27 @@ class TryFeature {
     const fill = document.querySelector('#bd-success-bar-fill');
     const percentText = document.querySelector('#bd-success-percent');
     if (!fill || !percentText) return;
-    
+
     const chance = this.getSuccessChance();
     percentText.textContent = `${chance}%`;
     fill.style.width = `${chance}%`;
-    
+
     // Color gradient: red (low) -> yellow (mid) -> green (high)
     let color;
     if (chance <= 25) {
-      color = '#ef4444'; // Red
+      color = '#ef4444';
     } else if (chance <= 40) {
-      color = '#f97316'; // Orange
+      color = '#f97316';
     } else if (chance <= 60) {
-      color = '#eab308'; // Yellow
+      color = '#eab308';
     } else if (chance <= 75) {
-      color = '#84cc16'; // Lime
+      color = '#84cc16';
     } else {
-      color = '#22c55e'; // Green
+      color = '#22c55e';
     }
     fill.style.background = color;
+    // Tint the percentage text to match the bar fill
+    percentText.style.color = color;
   }
 
   removeSuccessBar() {

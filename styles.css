@@ -8,16 +8,10 @@
    core/theme-variables.css (the unified ecosystem file).
    
    In content-script context, variables are injected by
-   the extension's manifest. This file only sets host-page
-   inheritance overrides below.
+   the extension's manifest.  No host-page overrides are
+   needed here — individual .bd-* selectors already use
+   'inherit' where appropriate.
    ============================================ */
-:root {
-  font-size: inherit;
-  font-weight: inherit;
-  line-height: inherit;
-  letter-spacing: inherit;
-  color: inherit;
-}
 
 /* ============================================
    TEXT FORMATTING
@@ -647,6 +641,12 @@
 .bd-input-mode-colored[data-bd-input-mode="command"] {
   --bd-mode-border: rgba(var(--bd-mode-command-rgb), 0.6);
   --bd-mode-glow: var(--bd-mode-command-glow);
+}
+
+/* Hide the menu container background when a sprite theme is active,
+   preventing gray gaps from showing between sprite-covered buttons */
+[data-bd-sprite-menu] {
+  background-color: transparent !important;
 }
 
 /* Mode selection button gradient styling (Dynamic theme only - applied via JS) */
