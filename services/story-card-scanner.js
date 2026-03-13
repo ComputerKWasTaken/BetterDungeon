@@ -310,9 +310,18 @@ class StoryCardScanner {
       }
 
       try {
+        // Close any existing modal to ensure a fresh state for the next card
+        await this.closeCardEditorAndWait();
+
         // Click the card to open its editor
         card.click();
-        await this.waitForCardEditor();
+        
+        // Wait for the modal to appear in the DOM
+        await this.waitForCardEditorToOpen();
+        
+        // COMPROMISE ON SPEED FOR ACCURACY: Give React plenty of time to hydrate the fields
+        // after the modal mounts. This guarantees we don't extract stale data.
+        await this.wait(500);
 
         // Extract full card data from the opened card
         const fullCardData = this.extractFullCardData(cardName, cardTypeFromList);
@@ -340,6 +349,9 @@ class StoryCardScanner {
         if (onCardScanned) {
           onCardScanned(fullCardData);
         }
+
+        // Close the modal so the next card starts fresh
+        await this.closeCardEditorAndWait();
 
         // Record timing (no per-card close - only close at end of scan)
         const cardDuration = Date.now() - cardStartTime;
@@ -984,29 +996,27 @@ class StoryCardScanner {
     return analytics;
   }
 
-  // Optimized: Wait for card editor modal to appear with smart detection
-  async waitForCardEditor() {
-    const maxWait = 500; // Maximum wait time
+  // Wait for card editor modal to appear in the DOM
+  async waitForCardEditorToOpen() {
+    const maxWait = 1500; // Maximum wait time for React to update the DOM
     const checkInterval = 25; // Check every 25ms
     const startTime = Date.now();
     
     while (Date.now() - startTime < maxWait) {
       // The modal is role="alertdialog" with aria-label containing "Story Card"
-      const modal = document.querySelector('[role="alertdialog"][aria-label*="Story Card"]');
-      // Also check for the triggers input (most reliable field indicator)
-      const triggersInput = document.querySelector('input[aria-labelledby="scTriggersLabel"]');
+      const modal = document.querySelector('[role="alertdialog"][aria-label*="Story Card"]') ||
+                    document.querySelector('[role="dialog"]');
+                    
+      const nameInput = modal ? modal.querySelector('input[aria-labelledby="scTitleLabel"]') : null;
+      const triggersInput = modal ? modal.querySelector('input[aria-labelledby="scTriggersLabel"]') : null;
       
-      if (modal || triggersInput) {
-        // Give a tiny bit more time for input values to populate
-        await this.wait(this.TIMING.MIN_WAIT);
+      if (modal && (nameInput || triggersInput)) {
         return true;
       }
       
       await this.wait(checkInterval);
     }
     
-    // Fallback: just wait a bit if detection failed
-    await this.wait(this.TIMING.CARD_OPEN_WAIT);
     return false;
   }
 
@@ -1089,19 +1099,34 @@ class StoryCardScanner {
     closeButtons.forEach(btn => btn.click());
   }
 
-  // Async version that waits for card to close
-  async closeCardEditorAndWait(maxWaitMs = 500) {
+  // Async version that waits for card to close securely
+  async closeCardEditorAndWait(maxWaitMs = 1500) {
+    let modal = document.querySelector('[role="alertdialog"][aria-label*="Story Card"]') ||
+                document.querySelector('[role="dialog"]');
+    
+    if (!modal) return true; // Already closed
+    
     this.closeCardEditor();
     
-    // Wait a bit for the UI to respond
-    await this.wait(100);
-    
-    // Check if the alertdialog modal is still open, try again
-    const stillOpen = document.querySelector('[role="alertdialog"][aria-label*="Story Card"]');
-    if (stillOpen) {
-      this.closeCardEditor();
-      await this.wait(100);
+    const startTime = Date.now();
+    while (Date.now() - startTime < maxWaitMs) {
+      modal = document.querySelector('[role="alertdialog"][aria-label*="Story Card"]') ||
+              document.querySelector('[role="dialog"]');
+      
+      if (!modal) {
+        await this.wait(50); // Small buffer to ensure React is done cleaning up
+        return true;
+      }
+      
+      // If still open after 500ms, try closing again just in case the first click missed
+      if (Date.now() - startTime > 500 && Date.now() - startTime < 600) {
+        this.closeCardEditor();
+      }
+      
+      await this.wait(50);
     }
+    
+    return false;
   }
 
   wait(ms) {
