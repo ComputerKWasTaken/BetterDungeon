@@ -76,20 +76,17 @@ class StoryCardAnalyticsFeature {
     if (this.toolbarButton && document.contains(this.toolbarButton)) return;
     this.toolbarButton = null;
 
-    // Find the view toggle group (only present when Story Cards tab is active)
-    const gridViewBtn = document.querySelector('[aria-label="Grid view"][role="button"]');
-    if (!gridViewBtn) return;
+    // Check if we are in the Story Cards tab
+    const storyCardsTab = document.querySelector('[aria-label="Selected tab Story Cards"]');
+    if (!storyCardsTab) return;
 
-    const viewToggleGroup = gridViewBtn.closest('.is_Row');
-    if (!viewToggleGroup) return;
-
-    // The toolbar row is the parent of the view toggle group
-    const toolbarRow = viewToggleGroup.parentElement;
-    if (!toolbarRow) return;
-
-    // Verify the toolbar also contains the Filters button
-    const filtersBtn = toolbarRow.querySelector('[aria-label="Filters"]');
+    // Verify we have a Filters button
+    const filtersBtn = document.querySelector('[aria-label="Filters"]');
     if (!filtersBtn) return;
+
+    // The Filters button is wrapped in a span which is in a row
+    const filtersWrapper = filtersBtn.closest('span');
+    if (!filtersWrapper) return;
 
     // Build the button
     this.toolbarButton = document.createElement('div');
@@ -111,8 +108,8 @@ class StoryCardAnalyticsFeature {
       }
     });
 
-    // Insert before the view toggle group so margin-left:auto pushes it right
-    toolbarRow.insertBefore(this.toolbarButton, viewToggleGroup);
+    // Insert after the Filters wrapper
+    filtersWrapper.insertAdjacentElement('afterend', this.toolbarButton);
   }
 
   removeToolbarButton() {
