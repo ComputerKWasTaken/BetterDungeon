@@ -1191,9 +1191,26 @@ function initCharacters() {
 }
 
 async function loadCharacters() {
-  chrome.storage.sync.get(STORAGE_KEYS.characters, (result) => {
-    const characters = (result || {})[STORAGE_KEYS.characters] || [];
-    renderCharacters(characters);
+  // Read from local storage (content script writes here after sync→local migration)
+  chrome.storage.local.get(STORAGE_KEYS.characters, (localResult) => {
+    const localChars = (localResult || {})[STORAGE_KEYS.characters];
+
+    if (localChars && localChars.length > 0) {
+      renderCharacters(localChars);
+      return;
+    }
+
+    // One-time migration: pull legacy characters from sync storage
+    chrome.storage.sync.get(STORAGE_KEYS.characters, (syncResult) => {
+      const syncChars = (syncResult || {})[STORAGE_KEYS.characters] || [];
+      if (syncChars.length > 0) {
+        chrome.storage.local.set({ [STORAGE_KEYS.characters]: syncChars }, () => {
+          chrome.storage.sync.remove(STORAGE_KEYS.characters);
+          log('[Popup] Migrated characters from sync to local storage');
+        });
+      }
+      renderCharacters(syncChars);
+    });
   });
 }
 
@@ -1243,7 +1260,7 @@ function createCharacterCard(character) {
 }
 
 function createCharacter(name) {
-  chrome.storage.sync.get(STORAGE_KEYS.characters, (result) => {
+  chrome.storage.local.get(STORAGE_KEYS.characters, (result) => {
     const characters = (result || {})[STORAGE_KEYS.characters] || [];
     
     const newChar = {
@@ -1256,7 +1273,7 @@ function createCharacter(name) {
     
     characters.unshift(newChar);
     
-    chrome.storage.sync.set({ [STORAGE_KEYS.characters]: characters }, () => {
+    chrome.storage.local.set({ [STORAGE_KEYS.characters]: characters }, () => {
       loadCharacters();
       showToast('Character created!', 'success');
     });
@@ -1412,13 +1429,13 @@ function saveCharacterChanges() {
 
   currentEditingCharacter.updatedAt = Date.now();
 
-  chrome.storage.sync.get(STORAGE_KEYS.characters, (result) => {
+  chrome.storage.local.get(STORAGE_KEYS.characters, (result) => {
     const characters = (result || {})[STORAGE_KEYS.characters] || [];
     const index = characters.findIndex(c => c.id === currentEditingCharacter.id);
     
     if (index !== -1) {
       characters[index] = currentEditingCharacter;
-      chrome.storage.sync.set({ [STORAGE_KEYS.characters]: characters }, () => {
+      chrome.storage.local.set({ [STORAGE_KEYS.characters]: characters }, () => {
         loadCharacters();
         showToast('Character updated', 'success');
         closeModal('character-modal');
@@ -1437,11 +1454,11 @@ async function deleteCharacter() {
   });
   if (!confirmed) return;
 
-  chrome.storage.sync.get(STORAGE_KEYS.characters, (result) => {
+  chrome.storage.local.get(STORAGE_KEYS.characters, (result) => {
     const characters = ((result || {})[STORAGE_KEYS.characters] || [])
       .filter(c => c.id !== currentEditingCharacter.id);
     
-    chrome.storage.sync.set({ [STORAGE_KEYS.characters]: characters }, () => {
+    chrome.storage.local.set({ [STORAGE_KEYS.characters]: characters }, () => {
       loadCharacters();
       showToast('Character deleted', 'success');
       closeModal('character-modal');

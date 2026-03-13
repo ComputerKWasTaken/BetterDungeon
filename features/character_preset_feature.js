@@ -136,22 +136,49 @@ class CharacterPresetFeature {
   }
 
   async loadPresets() {
-    this.presets = await this._chromeGet('sync', this.storageKey, []);
+    // Use local storage (no per-item size limit) instead of sync (8KB cap)
+    let presets = await this._chromeGet('local', this.storageKey, null);
+
+    // One-time migration: pull legacy presets from sync storage
+    if (!presets || presets.length === 0) {
+      const syncPresets = await this._chromeGet('sync', this.storageKey, []);
+      if (syncPresets.length > 0) {
+        await this._chromeSet('local', { [this.storageKey]: syncPresets });
+        try { chrome.storage.sync.remove(this.storageKey); } catch { /* ignore */ }
+        this.log('[CharacterPreset] Migrated presets from sync to local storage');
+      }
+      presets = syncPresets;
+    }
+
+    this.presets = presets || [];
     return this.presets;
   }
 
   async savePresets() {
-    await this._chromeSet('sync', { [this.storageKey]: this.presets });
+    await this._chromeSet('local', { [this.storageKey]: this.presets });
   }
 
   async loadActivePreset() {
-    this.activePresetId = await this._chromeGet('sync', this.activePresetKey, null);
+    let activeId = await this._chromeGet('local', this.activePresetKey, null);
+
+    // One-time migration for the active preset ID
+    if (activeId === null) {
+      const syncActiveId = await this._chromeGet('sync', this.activePresetKey, null);
+      if (syncActiveId !== null) {
+        await this._chromeSet('local', { [this.activePresetKey]: syncActiveId });
+        try { chrome.storage.sync.remove(this.activePresetKey); } catch { /* ignore */ }
+        this.log('[CharacterPreset] Migrated active preset ID from sync to local storage');
+      }
+      activeId = syncActiveId;
+    }
+
+    this.activePresetId = activeId;
     return this.activePresetId;
   }
 
   async setActivePreset(presetId) {
     this.activePresetId = presetId;
-    await this._chromeSet('sync', { [this.activePresetKey]: presetId });
+    await this._chromeSet('local', { [this.activePresetKey]: presetId });
   }
 
   async loadSessionCharacter() {
