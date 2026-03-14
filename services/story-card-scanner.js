@@ -23,9 +23,6 @@ class StoryCardScanner {
     // Debug mode - set to true to enable verbose logging
     this.debug = false;
     
-    // Track the previous card's modal field snapshot to detect stale data
-    this._lastModalSnapshot = null;
-    
     // Timing constants (ms) - optimized for speed
     this.TIMING = {
       CARD_OPEN_WAIT: 150,      // Wait after clicking card (reduced from 400)
@@ -81,7 +78,6 @@ class StoryCardScanner {
     this.cardCount = 0;
     this.averageCardTime = null;
     this.lastScannedAdventureId = null;
-    this._lastModalSnapshot = null;
   }
 
   // Reset if adventure has changed since last scan
@@ -114,7 +110,6 @@ class StoryCardScanner {
     this.scannedIndices = new Set();
     this.scannedNames = new Set();
     this.cardDatabase = new Map(); // Reset card database
-    this._lastModalSnapshot = null; // Clear previous modal snapshot
     this.lastScannedAdventureId = this.getCurrentAdventureId();
     const results = new Map(); // trigger -> cardName (kept for backward compatibility)
 
@@ -343,9 +338,6 @@ class StoryCardScanner {
             }
           }
         }
-
-        // Save the modal snapshot after extraction so the next card can compare
-        this._lastModalSnapshot = this._getModalFieldSnapshot();
 
         // Notify about the full card data
         if (onCardScanned) {
@@ -1015,101 +1007,71 @@ class StoryCardScanner {
     return a.title === b.title && a.triggers === b.triggers && a.entry === b.entry;
   }
 
-  // Wait for the card editor modal to appear AND for React to finish updating all fields.
-  // Uses a three-phase approach:
-  //   Phase 1 – Wait for the modal to exist in the DOM.
-  //   Phase 2 – Wait for the title input to match the expected card name AND for at
-  //             least one field to differ from the pre-click snapshot (proving React
-  //             has started re-rendering). Skipped when no previous snapshot exists
-  //             (i.e. the very first card, where the modal opens fresh).
-  //   Phase 3 – Stability check: read all field values twice in a row with a short
-  //             gap and confirm they are identical, proving React's batch update is
-  //             complete and no further value changes are pending.
+  // Wait for the card editor modal to appear and for React to finish updating all fields.
+  // Three phases: (1) modal exists, (2) title matches + content changed from pre-click
+  // snapshot, (3) fields are stable across two consecutive reads.
   async waitForCardEditor(expectedCardName, preClickSnapshot = null) {
-    const maxWait = 1000; // Upper bound (most cards resolve in <200ms)
-    const checkInterval = 20; // Fast polling interval
+    const maxWait = 500;
+    const checkInterval = 15;
     const startTime = Date.now();
     
     while (Date.now() - startTime < maxWait) {
-      // Phase 1: Is the modal present?
       const modal = document.querySelector('[role="alertdialog"][aria-label*="Story Card"]');
       const triggersInput = document.querySelector('input[aria-labelledby="scTriggersLabel"]');
       
       if (!modal && !triggersInput) {
-        // Modal not yet in DOM – keep waiting
         await this.wait(checkInterval);
         continue;
       }
       
-      // Phase 2: Does the title match the expected card name?
       const currentSnapshot = this._getModalFieldSnapshot();
       
       if (expectedCardName && currentSnapshot.title !== expectedCardName) {
-        // Title hasn't updated yet – React is still re-rendering
         await this.wait(checkInterval);
         continue;
       }
       
-      // If we have a pre-click snapshot, verify that at least one field has actually
-      // changed. This guards against the case where the title updates but triggers /
-      // entry still hold the previous card's values.
+      // Verify content actually changed from before the click (guards against
+      // reading stale data when React updates the title before other fields).
       if (preClickSnapshot && this._snapshotsMatch(currentSnapshot, preClickSnapshot)) {
-        // Nothing has changed yet – the modal still shows the previous card's data
         await this.wait(checkInterval);
         continue;
       }
       
-      // Phase 3: Stability check – confirm fields have settled.
-      // Read the fields, wait briefly, read again. If they match we are confident
-      // React has finished its update cycle.
-      const stableResult = await this._waitForFieldStability(expectedCardName);
-      return stableResult;
+      // Stability check: confirm fields have settled
+      return await this._waitForFieldStability(expectedCardName);
     }
     
-    // Fallback: max wait exceeded. Log a warning and proceed with whatever is in the
-    // modal (better than blocking forever).
     this.log(`waitForCardEditor: timed out waiting for "${expectedCardName}" after ${maxWait}ms`);
     return false;
   }
 
-  // Repeatedly snapshot the modal fields until two consecutive reads are identical,
-  // proving React has finished updating. Returns true once stable.
+  // Confirm fields have settled: two consecutive identical reads.
   async _waitForFieldStability(expectedName) {
-    const maxStabilityWait = 300; // Should resolve very quickly once title matched
-    const checkInterval = 25;
-    const requiredStableChecks = 2; // Need 2 consecutive identical reads
-    let stableCount = 0;
+    const maxWait = 150;
+    const checkInterval = 15;
     let lastSnapshot = null;
     const startTime = Date.now();
     
-    while (Date.now() - startTime < maxStabilityWait) {
+    while (Date.now() - startTime < maxWait) {
       const snap = this._getModalFieldSnapshot();
       
-      // If the title drifted away (e.g. modal closed), reset
       if (expectedName && snap.title !== expectedName) {
-        stableCount = 0;
         lastSnapshot = null;
         await this.wait(checkInterval);
         continue;
       }
       
       if (lastSnapshot && this._snapshotsMatch(snap, lastSnapshot)) {
-        stableCount++;
-        if (stableCount >= requiredStableChecks) {
-          this.log(`Field stability reached for "${expectedName}" in ${Date.now() - startTime}ms`);
-          return true;
-        }
-      } else {
-        // Fields are still changing – reset the stable counter
-        stableCount = 0;
+        this.log(`Field stability reached for "${expectedName}" in ${Date.now() - startTime}ms`);
+        return true;
       }
       
       lastSnapshot = snap;
       await this.wait(checkInterval);
     }
     
-    // Timed out but title matches, proceed anyway
-    this.log(`_waitForFieldStability: timed out for "${expectedName}" after ${maxStabilityWait}ms (proceeding)`);
+    this.log(`_waitForFieldStability: timed out for "${expectedName}" after ${maxWait}ms (proceeding)`);
     return true;
   }
 
