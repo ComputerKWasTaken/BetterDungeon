@@ -296,6 +296,9 @@ class StoryCardScanner {
       // Try to get card type from the list view element first
       const cardTypeFromList = this.getCardTypeFromElement(card);
       const cardStartTime = Date.now();
+      
+      // Snapshot the current modal fields BEFORE clicking, so we can detect when React updates
+      const preClickSnapshot = this._getModalFieldSnapshot();
 
       // Calculate estimated time remaining
       let estimatedTimeRemaining = null;
@@ -312,7 +315,7 @@ class StoryCardScanner {
       try {
         // Click the card to open its editor
         card.click();
-        await this.waitForCardEditor(cardName);
+        await this.waitForCardEditor(cardName, preClickSnapshot);
 
         // Extract full card data from the opened card
         const fullCardData = this.extractFullCardData(cardName, cardTypeFromList);
@@ -984,44 +987,100 @@ class StoryCardScanner {
     return analytics;
   }
 
-  // Optimized: Wait for card editor modal to appear with smart detection and state update verification
-  async waitForCardEditor(expectedCardName) {
-    const maxWait = 500; // Maximum wait time
-    const checkInterval = 25; // Check every 25ms
+  // Take a snapshot of the current modal field values (title, triggers, entry)
+  // Used to detect when React has finished updating all fields after a card click
+  _getModalFieldSnapshot() {
+    const titleInput = document.querySelector('input[aria-labelledby="scTitleLabel"]');
+    const triggersInput = document.querySelector('input[aria-labelledby="scTriggersLabel"]');
+    const entryTextarea = document.querySelector('textarea[aria-labelledby="scEntryLabel"]');
+    
+    return {
+      title: titleInput?.value?.trim() || '',
+      triggers: triggersInput?.value?.trim() || '',
+      entry: entryTextarea?.value?.trim() || ''
+    };
+  }
+
+  // Check whether two modal snapshots have identical content
+  _snapshotsMatch(a, b) {
+    if (!a || !b) return false;
+    return a.title === b.title && a.triggers === b.triggers && a.entry === b.entry;
+  }
+
+  // Wait for the card editor modal to appear and for React to finish updating all fields.
+  // Three phases: (1) modal exists, (2) title matches + content changed from pre-click
+  // snapshot, (3) fields are stable across two consecutive reads.
+  async waitForCardEditor(expectedCardName, preClickSnapshot = null) {
+    const maxWait = 500;
+    const checkInterval = 15;
     const startTime = Date.now();
     
     while (Date.now() - startTime < maxWait) {
-      // The modal is role="alertdialog" with aria-label containing "Story Card"
       const modal = document.querySelector('[role="alertdialog"][aria-label*="Story Card"]');
-      // Also check for the triggers input (most reliable field indicator)
       const triggersInput = document.querySelector('input[aria-labelledby="scTriggersLabel"]');
       
-      if (modal || triggersInput) {
-        // We found the modal, now verify the state has updated for the current card.
-        // The card name is in the input with aria-labelledby="scTitleLabel"
-        const titleInput = document.querySelector('input[aria-labelledby="scTitleLabel"]');
-        if (titleInput && expectedCardName) {
-          if (titleInput.value.trim() === expectedCardName) {
-            // Give a tiny bit more time for other input values to populate after title matches
-            await this.wait(this.TIMING.MIN_WAIT);
-            return true;
-          }
-          // The modal is open but the title doesn't match yet - state is still updating
-          await this.wait(checkInterval);
-          continue;
-        }
-
-        // Give a tiny bit more time for input values to populate
-        await this.wait(this.TIMING.MIN_WAIT);
-        return true;
+      if (!modal && !triggersInput) {
+        await this.wait(checkInterval);
+        continue;
       }
       
+      const currentSnapshot = this._getModalFieldSnapshot();
+      
+      if (expectedCardName && currentSnapshot.title !== expectedCardName) {
+        await this.wait(checkInterval);
+        continue;
+      }
+      
+      // Verify content actually changed from before the click (guards against
+      // reading stale data when React updates the title before other fields).
+      if (preClickSnapshot && this._snapshotsMatch(currentSnapshot, preClickSnapshot)) {
+        await this.wait(checkInterval);
+        continue;
+      }
+      
+      // Stability check: confirm fields have settled
+      return await this._waitForFieldStability(expectedCardName);
+    }
+    
+    this.log(`waitForCardEditor: timed out waiting for "${expectedCardName}" after ${maxWait}ms`);
+    return false;
+  }
+
+  // Confirm fields have settled: require 2 consecutive identical reads.
+  async _waitForFieldStability(expectedName) {
+    const maxWait = 200;
+    const checkInterval = 15;
+    const requiredStableChecks = 2;
+    let stableCount = 0;
+    let lastSnapshot = null;
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < maxWait) {
+      const snap = this._getModalFieldSnapshot();
+      
+      if (expectedName && snap.title !== expectedName) {
+        stableCount = 0;
+        lastSnapshot = null;
+        await this.wait(checkInterval);
+        continue;
+      }
+      
+      if (lastSnapshot && this._snapshotsMatch(snap, lastSnapshot)) {
+        stableCount++;
+        if (stableCount >= requiredStableChecks) {
+          this.log(`Field stability reached for "${expectedName}" in ${Date.now() - startTime}ms`);
+          return true;
+        }
+      } else {
+        stableCount = 0;
+      }
+      
+      lastSnapshot = snap;
       await this.wait(checkInterval);
     }
     
-    // Fallback: just wait a bit if detection failed
-    await this.wait(this.TIMING.CARD_OPEN_WAIT);
-    return false;
+    this.log(`_waitForFieldStability: timed out for "${expectedName}" after ${maxWait}ms (proceeding)`);
+    return true;
   }
 
   // Find trigger label in the card editor modal

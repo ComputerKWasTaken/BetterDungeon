@@ -318,6 +318,11 @@ class StoryCardModalDockFeature {
 
     if (e.target?.closest?.('.bd-analytics-dashboard')) return;
 
+    // Allow the story card scanner to click cards in the list without interference.
+    // Without this, stopPropagation() below prevents the click from reaching React's
+    // event handler, so the modal never updates to show the newly-clicked card's data.
+    if (window.storyCardScanner?.isScanning) return;
+
     if (modal.contains(e.target)) {
       return;
     }
