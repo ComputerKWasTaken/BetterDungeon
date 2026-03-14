@@ -10,7 +10,7 @@ class PlotPresetsFeature {
     this.storageKey = 'betterDungeon_favoritePresets';
     this.presets = [];
     this.saveButton = null;
-    this.debug = true;
+    this.debug = false;
   }
 
   log(message, ...args) {
