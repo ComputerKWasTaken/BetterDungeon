@@ -1026,7 +1026,7 @@ class StoryCardScanner {
   //             gap and confirm they are identical, proving React's batch update is
   //             complete and no further value changes are pending.
   async waitForCardEditor(expectedCardName, preClickSnapshot = null) {
-    const maxWait = 2000; // Generous upper bound (most cards resolve in <200ms)
+    const maxWait = 1000; // Upper bound (most cards resolve in <200ms)
     const checkInterval = 20; // Fast polling interval
     const startTime = Date.now();
     
