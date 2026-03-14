@@ -1046,10 +1046,12 @@ class StoryCardScanner {
     return false;
   }
 
-  // Confirm fields have settled: two consecutive identical reads.
+  // Confirm fields have settled: require 2 consecutive identical reads.
   async _waitForFieldStability(expectedName) {
-    const maxWait = 150;
+    const maxWait = 200;
     const checkInterval = 15;
+    const requiredStableChecks = 2;
+    let stableCount = 0;
     let lastSnapshot = null;
     const startTime = Date.now();
     
@@ -1057,14 +1059,20 @@ class StoryCardScanner {
       const snap = this._getModalFieldSnapshot();
       
       if (expectedName && snap.title !== expectedName) {
+        stableCount = 0;
         lastSnapshot = null;
         await this.wait(checkInterval);
         continue;
       }
       
       if (lastSnapshot && this._snapshotsMatch(snap, lastSnapshot)) {
-        this.log(`Field stability reached for "${expectedName}" in ${Date.now() - startTime}ms`);
-        return true;
+        stableCount++;
+        if (stableCount >= requiredStableChecks) {
+          this.log(`Field stability reached for "${expectedName}" in ${Date.now() - startTime}ms`);
+          return true;
+        }
+      } else {
+        stableCount = 0;
       }
       
       lastSnapshot = snap;
