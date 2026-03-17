@@ -17,7 +17,8 @@ const STORAGE_KEYS = {
   betterScriptsDebug: 'betterDungeon_betterScriptsDebug',
   customHotkeys: 'betterDungeon_customHotkeys',
   customModeColors: 'betterDungeon_customModeColors',
-  whatsNewDismissed: 'betterDungeon_whatsNewDismissed',
+  commandSubMode: 'betterDungeon_commandSubMode',
+  markdownOptions: 'betterDungeon_markdownOptions',
 };
 
 // Default mode colors (hex format)
@@ -110,9 +111,14 @@ document.addEventListener('DOMContentLoaded', () => {
   initCharacters();
   initModals();
   initTools();
+  initMarkdownOptions();
   initHotkeys();
   initModeColors();
   initWhatsNew();
+  initCollapsibleSections();
+  initFeatureSearch();
+  initQuickToggles();
+  updateSectionCounts();
   initTutorial();
 });
 
@@ -228,6 +234,7 @@ function initToggles() {
     chrome.storage.sync.set({ [STORAGE_KEYS.betterScriptsDebug]: e.target.checked });
     notifyContentScript('SET_BETTERSCRIPTS_DEBUG', { enabled: e.target.checked });
   });
+
 }
 
 function saveFeatureState(featureId, enabled) {
@@ -436,6 +443,73 @@ async function openAnalyticsDashboard(btn) {
   } catch (error) {
     showButtonStatus(btn, 'error', 'Error', originalText);
   }
+}
+
+// ============================================
+// MARKDOWN OPTIONS
+// ============================================
+
+// Markdown format option definitions (mirrors AIDungeonService.MARKDOWN_FORMAT_OPTIONS)
+const MARKDOWN_FORMAT_OPTIONS = [
+  { id: 'bold',          label: 'Bold',          syntax: '++text++',     preview: '<strong>bold</strong>' },
+  { id: 'italic',        label: 'Italic',        syntax: '//text//',     preview: '<em>italic</em>' },
+  { id: 'boldItalic',    label: 'Bold Italic',    syntax: '++//text//++', preview: '<strong><em>bold italic</em></strong>' },
+  { id: 'underline',     label: 'Underline',      syntax: '==text==',     preview: '<u>underline</u>' },
+  { id: 'strikethrough', label: 'Strikethrough',  syntax: '~~text~~',     preview: '<s style="opacity:.65">strikethrough</s>' },
+  { id: 'highlight',     label: 'Highlight',      syntax: '::text::',     preview: '<mark style="background:rgba(255,149,0,.15);padding:1px 4px;border-radius:3px;">highlight</mark>' },
+  { id: 'smallText',     label: 'Small Text',     syntax: '~text~',       preview: '<span style="font-size:10px;opacity:.6">whisper</span>' },
+  { id: 'horizontalRule',label: 'Scene Break',    syntax: '---',          preview: 'scene break' },
+  { id: 'blockquote',    label: 'Blockquote',     syntax: '>> text',      preview: '<span style="border-left:2px solid;padding-left:6px;opacity:.85;font-style:italic;">quoted</span>' },
+  { id: 'list',          label: 'List',           syntax: '- item',       preview: '&bull; list item' },
+];
+
+const DEFAULT_MARKDOWN_CONFIG = Object.fromEntries(
+  MARKDOWN_FORMAT_OPTIONS.map(opt => [opt.id, true])
+);
+
+let currentMarkdownConfig = { ...DEFAULT_MARKDOWN_CONFIG };
+
+function initMarkdownOptions() {
+  const grid = document.getElementById('markdown-options-grid');
+  if (!grid) return;
+
+  // Load saved config then render
+  chrome.storage.sync.get(STORAGE_KEYS.markdownOptions, (result) => {
+    const saved = (result || {})[STORAGE_KEYS.markdownOptions];
+    if (saved) {
+      currentMarkdownConfig = { ...DEFAULT_MARKDOWN_CONFIG, ...saved };
+    }
+    renderMarkdownOptions(grid);
+  });
+}
+
+function renderMarkdownOptions(grid) {
+  grid.innerHTML = '';
+
+  for (const opt of MARKDOWN_FORMAT_OPTIONS) {
+    const item = document.createElement('label');
+    item.className = 'md-option-item';
+    item.innerHTML = `
+      <input type="checkbox" class="md-option-check" data-md-id="${opt.id}"
+        ${currentMarkdownConfig[opt.id] ? 'checked' : ''}>
+      <span class="md-option-body">
+        <code class="md-option-syntax">${escapeHtml(opt.syntax)}</code>
+        <span class="md-option-preview">${opt.preview}</span>
+      </span>
+    `;
+
+    const checkbox = item.querySelector('input');
+    checkbox.addEventListener('change', () => {
+      currentMarkdownConfig[opt.id] = checkbox.checked;
+      saveMarkdownOptions();
+    });
+
+    grid.appendChild(item);
+  }
+}
+
+function saveMarkdownOptions() {
+  chrome.storage.sync.set({ [STORAGE_KEYS.markdownOptions]: currentMarkdownConfig });
 }
 
 function showButtonStatus(btn, status, text, originalText) {
@@ -1630,7 +1704,6 @@ function showDialog(options = {}) {
 
 function initWhatsNew() {
   const banner = document.getElementById('whats-new-banner');
-  const dismissBtn = document.getElementById('whats-new-dismiss');
   if (!banner) return;
 
   // Read the live version string from the header so there's one source of truth
@@ -1642,19 +1715,218 @@ function initWhatsNew() {
     titleEl.textContent = `What's New in ${currentVersion}`;
   }
 
-  // Hide if the user already dismissed the current (or a newer) version
-  chrome.storage.sync.get(STORAGE_KEYS.whatsNewDismissed, (result) => {
-    const dismissed = (result || {})[STORAGE_KEYS.whatsNewDismissed];
-    if (dismissed && dismissed === currentVersion) {
-      banner.classList.add('hidden');
+  // Expand/collapse toggle for compact What's New
+  const toggleBtn = document.getElementById('whats-new-toggle');
+  const expandable = document.getElementById('whats-new-expandable');
+  toggleBtn?.addEventListener('click', () => {
+    const isExpanded = expandable.classList.toggle('expanded');
+    toggleBtn.classList.toggle('expanded', isExpanded);
+    toggleBtn.setAttribute('aria-label', isExpanded ? 'Collapse' : 'Expand');
+  });
+}
+
+// ============================================
+// COLLAPSIBLE SECTIONS
+// ============================================
+
+function initCollapsibleSections() {
+  const headers = document.querySelectorAll('.section-header-collapsible');
+
+  // Load saved collapse states
+  chrome.storage.sync.get('bd_collapsed_sections', (result) => {
+    const collapsed = (result || {})['bd_collapsed_sections'] || [];
+    collapsed.forEach(id => {
+      const header = document.querySelector(`[data-collapse="${id}"]`);
+      const body = document.getElementById(`collapse-${id}`);
+      if (header && body) {
+        header.setAttribute('aria-expanded', 'false');
+        body.classList.add('collapsed');
+      }
+    });
+  });
+
+  headers.forEach(header => {
+    header.addEventListener('click', () => {
+      const targetId = header.dataset.collapse;
+      const body = document.getElementById(`collapse-${targetId}`);
+      if (!body) return;
+
+      const isExpanded = header.getAttribute('aria-expanded') === 'true';
+      header.setAttribute('aria-expanded', String(!isExpanded));
+      body.classList.toggle('collapsed', isExpanded);
+
+      // Persist collapse state
+      saveSectionCollapseState();
+    });
+  });
+}
+
+function saveSectionCollapseState() {
+  const collapsed = [];
+  document.querySelectorAll('.section-header-collapsible').forEach(header => {
+    if (header.getAttribute('aria-expanded') === 'false') {
+      collapsed.push(header.dataset.collapse);
+    }
+  });
+  chrome.storage.sync.set({ 'bd_collapsed_sections': collapsed });
+}
+
+// ============================================
+// FEATURE SEARCH
+// ============================================
+
+function initFeatureSearch() {
+  const searchInput = document.getElementById('feature-search');
+  const clearBtn = document.getElementById('feature-search-clear');
+  const emptyState = document.getElementById('feature-search-empty');
+  if (!searchInput) return;
+
+  searchInput.addEventListener('input', () => {
+    const query = searchInput.value.toLowerCase().trim();
+    clearBtn.classList.toggle('hidden', !query);
+    filterFeatures(query);
+  });
+
+  clearBtn?.addEventListener('click', () => {
+    searchInput.value = '';
+    clearBtn.classList.add('hidden');
+    filterFeatures('');
+    searchInput.focus();
+  });
+}
+
+function filterFeatures(query) {
+  const sections = document.querySelectorAll('#tab-features .section-collapsible');
+  const quickTogglesSection = document.getElementById('quick-toggles-section');
+  const emptyState = document.getElementById('feature-search-empty');
+  let anyVisible = false;
+
+  // Hide quick toggles and what's new during search
+  if (quickTogglesSection) {
+    quickTogglesSection.style.display = query ? 'none' : '';
+  }
+  const whatsNewBanner = document.getElementById('whats-new-banner');
+  if (whatsNewBanner && !whatsNewBanner.classList.contains('hidden')) {
+    whatsNewBanner.style.display = query ? 'none' : '';
+  }
+
+  sections.forEach(section => {
+    const cards = section.querySelectorAll('.feature-card');
+    let sectionHasMatch = false;
+
+    cards.forEach(card => {
+      const title = (card.querySelector('.feature-title')?.textContent || '').toLowerCase();
+      const desc = (card.querySelector('.feature-desc')?.textContent || '').toLowerCase();
+      const matches = !query || title.includes(query) || desc.includes(query);
+
+      card.classList.toggle('search-hidden', !matches);
+      card.classList.toggle('search-match', matches && !!query);
+      if (matches) sectionHasMatch = true;
+    });
+
+    section.classList.toggle('search-hidden', !sectionHasMatch && !!query);
+    if (sectionHasMatch) anyVisible = true;
+
+    // Auto-expand sections with matches during search
+    if (query && sectionHasMatch) {
+      const header = section.querySelector('.section-header-collapsible');
+      const body = section.querySelector('.section-body');
+      if (header && body) {
+        header.setAttribute('aria-expanded', 'true');
+        body.classList.remove('collapsed');
+      }
     }
   });
 
-  // Dismiss handler — saves the current header version so the banner
-  // automatically reappears whenever the extension ships an update
-  dismissBtn?.addEventListener('click', () => {
-    banner.classList.add('hidden');
-    chrome.storage.sync.set({ [STORAGE_KEYS.whatsNewDismissed]: currentVersion });
+  // Show/hide empty state
+  if (emptyState) {
+    emptyState.classList.toggle('hidden', !query || anyVisible);
+  }
+
+  // If search is cleared, restore saved collapse states
+  if (!query) {
+    chrome.storage.sync.get('bd_collapsed_sections', (result) => {
+      const collapsed = (result || {})['bd_collapsed_sections'] || [];
+      sections.forEach(section => {
+        section.classList.remove('search-hidden');
+        section.querySelectorAll('.feature-card').forEach(card => {
+          card.classList.remove('search-hidden', 'search-match');
+        });
+      });
+      collapsed.forEach(id => {
+        const header = document.querySelector(`[data-collapse="${id}"]`);
+        const body = document.getElementById(`collapse-${id}`);
+        if (header && body) {
+          header.setAttribute('aria-expanded', 'false');
+          body.classList.add('collapsed');
+        }
+      });
+    });
+  }
+}
+
+// ============================================
+// QUICK TOGGLES
+// ============================================
+
+function initQuickToggles() {
+  const quickToggles = document.querySelectorAll('[data-quick-toggle]');
+
+  // Sync quick toggles with main feature toggles on load
+  quickToggles.forEach(qt => {
+    const featureId = qt.dataset.quickToggle;
+    const mainToggle = document.getElementById(`feature-${featureId}`);
+    if (mainToggle) {
+      qt.checked = mainToggle.checked;
+    }
+  });
+
+  // Quick toggle → main toggle sync
+  quickToggles.forEach(qt => {
+    qt.addEventListener('change', () => {
+      const featureId = qt.dataset.quickToggle;
+      const mainToggle = document.getElementById(`feature-${featureId}`);
+      if (mainToggle) {
+        mainToggle.checked = qt.checked;
+        mainToggle.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+  });
+
+  // Main toggle → quick toggle sync (observe changes)
+  document.querySelectorAll('.feature-card [id^="feature-"]').forEach(mainToggle => {
+    mainToggle.addEventListener('change', () => {
+      const featureId = mainToggle.id.replace('feature-', '');
+      const qt = document.querySelector(`[data-quick-toggle="${featureId}"]`);
+      if (qt) qt.checked = mainToggle.checked;
+      updateSectionCounts();
+    });
+  });
+}
+
+// ============================================
+// SECTION FEATURE COUNTS
+// ============================================
+
+function updateSectionCounts() {
+  const sectionMap = {
+    'input-modes': ['command', 'try'],
+    'controls': ['hotkey', 'inputHistory', 'inputModeColor'],
+    'writing': ['markdown', 'notes'],
+    'scenario': ['triggerHighlight', 'storyCardModalDock'],
+    'automations': ['autoSee']
+  };
+
+  Object.entries(sectionMap).forEach(([sectionId, featureIds]) => {
+    const countEl = document.getElementById(`count-${sectionId}`);
+    if (!countEl) return;
+
+    const enabled = featureIds.filter(id => {
+      const toggle = document.getElementById(`feature-${id}`);
+      return toggle && toggle.checked;
+    }).length;
+
+    countEl.textContent = `${enabled}/${featureIds.length}`;
   });
 }
 

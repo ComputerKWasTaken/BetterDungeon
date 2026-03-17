@@ -71,6 +71,12 @@ Each feature implements:
 
 ### Changelog
 
+### v1.2.0
+
+- **OOC Brackets Toggle** for Command Mode: optionally wrap commands in `[brackets]` for subtler AI guidance
+- **Markdown Options**: toggle individual formatting types (bold, italic, underline, etc.) in AI instructions
+- **Popup UI Overhaul**: searchable features, collapsible sections, quick toggles grid, and reorganized layout
+
 ### v1.1.2
 
 - Fixed the Story Card Scanner to work with the Story Card Modal Dock feature

@@ -165,7 +165,10 @@ class InputModeColorFeature {
     if (modeButton) {
       const modeText = modeButton.querySelector('.font_body');
       if (modeText) {
-        return modeText.textContent.toLowerCase().trim();
+        const raw = modeText.textContent.toLowerCase().trim();
+        // Normalize Command sub-mode labels (e.g. "command [subtle]", "command [ooc]") to "command"
+        if (raw.startsWith('command')) return 'command';
+        return raw;
       }
     }
     return null;

@@ -63,6 +63,16 @@
   font-family: inherit;
 }
 
+/* Highlighted text - magical glow, critical clues, supernatural emphasis */
+.bd-markdown .bd-highlight,
+[data-bd-processed="true"] .bd-highlight {
+  background: rgba(255, 149, 0, 0.15);
+  color: inherit;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: inherit;
+}
+
 /* Small/faint text - whispers, quiet speech, ethereal voices */
 .bd-markdown .bd-small-text,
 [data-bd-processed="true"] .bd-small-text {

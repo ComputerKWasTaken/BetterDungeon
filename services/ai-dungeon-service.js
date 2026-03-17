@@ -105,25 +105,140 @@ class AIDungeonService {
   // CDN base for theme sprite sheets
   static THEME_SPRITE_BASE = 'https://latitude-standard-pull-zone-1.b-cdn.net/site_assets/aidungeon/client/themes/';
 
-  // Inline markdown formatting instructions (previously loaded from markdown_ai_instruction.txt)
-  static MARKDOWN_INSTRUCTIONS = `[FORMATTING]
-ALWAYS use Markdown in your responses to enhance the narrative. Use formatting purposefully to enrich the reading experience, not on every line. Let unformatted prose carry the story; formatting highlights what matters.
+  // ==================== MARKDOWN FORMAT OPTIONS ====================
+  // Each option defines a toggleable formatting type with its syntax,
+  // instruction text for the AI, and whether it's enabled by default.
+  // The instruction text follows BetterRepository's one-line dash standard.
 
-Syntax & Usage:
-++Bold++: Emphasis, important names, key objects, locations on first mention, or impactful moments. Example: The ++ancient sword++ gleamed in the torchlight.
-//Italic//: Internal thoughts, foreign words, distant sounds, written titles, or whispered speech. Example: //This can't be happening//, she thought.
-++//Bold Italic//++: Intense outbursts, shouting, or moments of extreme emotion. Use sparingly for maximum impact. Example: ++//Never!//++ he roared, slamming his fist on the table.
-==Underline==: Written or inscribed text, signs, letters, book passages, or any in-world readable text. Example: The crumbling note read: ==Meet me at the docks. Tell no one.==
-~Small Text~: Barely audible whispers, fading speech, or distant/muffled sounds. Very rare. Example: ~"...please... don't leave..."~
----: Scene breaks, significant time skips, or perspective shifts. Place on its own line between scenes.
-- item: Unordered lists for inventory, choices, or organized information.
+  static MARKDOWN_FORMAT_OPTIONS = [
+    {
+      id: 'bold',
+      label: 'Bold',
+      syntax: '++text++',
+      preview: '<strong>bold</strong>',
+      default: true,
+      instruction: '- ++Bold++ for emphasis, important names, key objects, or impactful moments',
+      example: 'The ++ancient sword++ gleamed in the torchlight.'
+    },
+    {
+      id: 'italic',
+      label: 'Italic',
+      syntax: '//text//',
+      preview: '<em>italic</em>',
+      default: true,
+      instruction: '- //Italic// for internal thoughts, foreign words, distant sounds, or whispered speech',
+      example: '//This can\'t be happening//, she thought.'
+    },
+    {
+      id: 'boldItalic',
+      label: 'Bold Italic',
+      syntax: '++//text//++',
+      preview: '<strong><em>bold italic</em></strong>',
+      default: true,
+      instruction: '- ++//Bold Italic//++ for intense outbursts, shouting, or extreme emotion; use sparingly',
+      example: '++//Never!//++ he roared, slamming his fist on the table.'
+    },
+    {
+      id: 'underline',
+      label: 'Underline',
+      syntax: '==text==',
+      preview: '<u>underline</u>',
+      default: true,
+      instruction: '- ==Underline== for written or inscribed text, signs, letters, or in-world readable text',
+      example: 'The note read: ==Meet me at the docks. Tell no one.=='
+    },
+    {
+      id: 'strikethrough',
+      label: 'Strikethrough',
+      syntax: '~~text~~',
+      preview: '<s>strikethrough</s>',
+      default: true,
+      instruction: '- ~~Strikethrough~~ for redacted text, crossed-out words, or corrected information',
+      example: 'The ledger entry read: ~~500 gold~~ 200 gold.'
+    },
+    {
+      id: 'highlight',
+      label: 'Highlight',
+      syntax: '::text::',
+      preview: '<mark>highlight</mark>',
+      default: true,
+      instruction: '- ::Highlight:: for magically glowing text, critical clues, or supernaturally emphasized words',
+      example: 'The rune pulsed with light: ::Speak thy name::'
+    },
+    {
+      id: 'smallText',
+      label: 'Small Text',
+      syntax: '~text~',
+      preview: '<span class="bd-small-text">whisper</span>',
+      default: true,
+      instruction: '- ~Small Text~ for barely audible whispers, fading speech, or distant sounds; very rare',
+      example: '~"...please... don\'t leave..."~'
+    },
+    {
+      id: 'horizontalRule',
+      label: 'Scene Break',
+      syntax: '---',
+      preview: 'scene break',
+      default: true,
+      instruction: '- --- for scene breaks, significant time skips, or perspective shifts; place on its own line',
+      example: null
+    },
+    {
+      id: 'blockquote',
+      label: 'Blockquote',
+      syntax: '>> text',
+      preview: '<span style="border-left:2px solid;padding-left:6px;opacity:0.85;font-style:italic;">quoted</span>',
+      default: true,
+      instruction: '- >> Blockquote for letters, excerpts, proclamations, or recalled speech; place >> at the start of the line',
+      example: '>> "In the beginning, there was only silence."'
+    },
+    {
+      id: 'list',
+      label: 'List',
+      syntax: '- item',
+      preview: '&bull; list item',
+      default: true,
+      instruction: '- Unordered lists using "- item" for inventory, choices, or organized information',
+      example: null
+    }
+  ];
 
-Rules:
-- Never use asterisks (*), standard markdown, or any formatting syntax other than what is listed above
-- Prefer fewer formatted words over many; a sentence with one ++bold++ phrase has more impact than a sentence where everything is formatted
-- Do not format common actions, ordinary dialogue, or mundane descriptions
-- Formatting should feel invisible and natural, never calling attention to itself or disrupting the flow of reading
-- Internal thoughts use //italic// without quotation marks; spoken dialogue uses quotation marks without formatting unless emphasis is needed`;
+  // Default config: all options enabled
+  static DEFAULT_MARKDOWN_CONFIG = Object.fromEntries(
+    AIDungeonService.MARKDOWN_FORMAT_OPTIONS.map(opt => [opt.id, opt.default])
+  );
+
+  // Build markdown instructions dynamically based on user config.
+  // Follows BetterRepository's instruction structure:
+  // - ## Category header
+  // - One-line dash standard
+  // - Directive + components
+  static buildMarkdownInstructions(config) {
+    const enabledOptions = AIDungeonService.MARKDOWN_FORMAT_OPTIONS.filter(opt => config[opt.id]);
+
+    if (enabledOptions.length === 0) {
+      return '';
+    }
+
+    const lines = [];
+
+    // Header
+    lines.push('## Formatting');
+    lines.push('Use the following custom Markdown syntax to enrich the narrative:');
+    lines.push('');
+
+    // Syntax section — one-line dash standard per enabled option
+    for (const opt of enabledOptions) {
+      lines.push(opt.instruction);
+    }
+
+    return lines.join('\n');
+  }
+
+  // Legacy static property for backward compatibility
+  static get MARKDOWN_INSTRUCTIONS() {
+    return AIDungeonService.buildMarkdownInstructions(AIDungeonService.DEFAULT_MARKDOWN_CONFIG);
+  }
 
   // ==================== CONSTRUCTOR & DEBUG ====================
 
@@ -756,19 +871,19 @@ Rules:
     if (!textarea) return false;
     const val = textarea.value || '';
 
-    // Check for unique markers from the instruction file
+    // Check for unique markers from the instruction text (both old and new format)
     const markers = [
+      '## Formatting',
+      'custom Markdown syntax',
       '[FORMATTING]',
-      'ALWAYS use Markdown in your responses',
       '++Bold++',
       '//Italic//',
-      '~Small Text~',
     ];
 
     return markers.some(m => val.includes(m));
   }
 
-  // Main method to apply instructions to textareas
+  // Main method to apply instructions to AI Instructions textarea only
   async applyInstructionsToTextareas(instructionsText, options = {}) {
     const { forceApply = false, onCreatingComponents = null, onStepUpdate = null } = options;
 
@@ -797,13 +912,12 @@ Rules:
 
     if (!textareas.success) return textareas;
 
-    const { aiInstructionsTextarea, authorsNoteTextarea } = textareas;
+    const { aiInstructionsTextarea } = textareas;
 
-    // Check if instructions already exist
-    const aiHas   = this.containsInstructions(aiInstructionsTextarea);
-    const noteHas = this.containsInstructions(authorsNoteTextarea);
+    // Only apply to AI Instructions textarea
+    const aiHas = this.containsInstructions(aiInstructionsTextarea);
 
-    if (aiHas && noteHas && !forceApply) {
+    if (aiHas && !forceApply) {
       return { success: true, alreadyApplied: true };
     }
 
@@ -811,10 +925,6 @@ Rules:
 
     if (!aiHas || forceApply) {
       this.domUtils.appendToTextarea(aiInstructionsTextarea, instructionsText);
-      appliedCount++;
-    }
-    if (!noteHas || forceApply) {
-      this.domUtils.appendToTextarea(authorsNoteTextarea, instructionsText);
       appliedCount++;
     }
 
@@ -886,9 +996,21 @@ Rules:
 
   // ==================== INSTRUCTION DATA ====================
 
-  // Returns the inline markdown formatting instructions (no file fetch needed)
+  // Builds and returns markdown formatting instructions based on user config
   async fetchInstructionsFile() {
-    return { success: true, data: AIDungeonService.MARKDOWN_INSTRUCTIONS };
+    try {
+      const result = await new Promise(resolve => {
+        chrome.storage.sync.get('betterDungeon_markdownOptions', (data) => {
+          resolve((data || {}).betterDungeon_markdownOptions || null);
+        });
+      });
+      const config = result || AIDungeonService.DEFAULT_MARKDOWN_CONFIG;
+      const instructions = AIDungeonService.buildMarkdownInstructions(config);
+      return { success: true, data: instructions };
+    } catch (e) {
+      // Fallback to default config if storage fails
+      return { success: true, data: AIDungeonService.MARKDOWN_INSTRUCTIONS };
+    }
   }
 
   // ==================== UTILITIES ====================
