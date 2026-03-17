@@ -46,6 +46,8 @@ class CommandFeature {
     if (typeof chrome !== 'undefined' && chrome.storage) {
       chrome.storage.sync.get('betterDungeon_commandOocBrackets', (result) => {
         this.oocBracketsEnabled = (result || {}).betterDungeon_commandOocBrackets ?? false;
+        // If already in command mode, refresh the display to reflect the setting
+        if (this.isCommandMode) this.updateModeDisplay();
       });
     }
   }
@@ -56,9 +58,10 @@ class CommandFeature {
         if (message.type === 'SET_COMMAND_AUTO_DELETE') {
           this.autoDeleteEnabled = message.enabled;
           sendResponse({ success: true });
-        }
-        if (message.type === 'SET_COMMAND_OOC_BRACKETS') {
+        } else if (message.type === 'SET_COMMAND_OOC_BRACKETS') {
           this.oocBracketsEnabled = message.enabled;
+          // Refresh display immediately if already in command mode
+          if (this.isCommandMode) this.updateModeDisplay();
           sendResponse({ success: true });
         }
         return false;
@@ -452,16 +455,22 @@ class CommandFeature {
     const modeButton = document.querySelector('[aria-label="Change input mode"]');
     if (modeButton) {
       const modeText = modeButton.querySelector('.font_body');
-      if (modeText && modeText.textContent.toLowerCase() === 'story') {
-        modeText.textContent = 'command';
+      if (modeText) {
+        const lower = modeText.textContent.toLowerCase();
+        if (lower === 'story' || lower === 'command' || lower === 'command [ooc]') {
+          modeText.textContent = this.oocBracketsEnabled ? 'command [OOC]' : 'command';
+        }
       }
     }
 
     // Update the placeholder text
     const textarea = document.querySelector('#game-text-input');
     if (textarea) {
-      textarea.placeholder = 'Give an instruction to the AI.';
-      textarea.setAttribute('data-placeholder', 'Give an instruction to the AI.');
+      const placeholder = this.oocBracketsEnabled
+        ? 'Give a subtle instruction to the AI.'
+        : 'Give an instruction to the AI.';
+      textarea.placeholder = placeholder;
+      textarea.setAttribute('data-placeholder', placeholder);
     }
 
     // Update the send button icon from paper plane to AI icon
@@ -479,8 +488,11 @@ class CommandFeature {
     const modeButton = document.querySelector('[aria-label="Change input mode"]');
     if (modeButton) {
       const modeText = modeButton.querySelector('.font_body');
-      if (modeText && modeText.textContent.toLowerCase() === 'command') {
-        modeText.textContent = 'story';
+      if (modeText) {
+        const lower = modeText.textContent.toLowerCase();
+        if (lower === 'command' || lower === 'command [ooc]') {
+          modeText.textContent = 'story';
+        }
       }
     }
 
@@ -635,7 +647,8 @@ class CommandFeature {
   }
 
   formatAsCommand(content) {
-    // Format: ## User Input:
+    // Default format: ## User Input:
+    // OOC format:     [## User Input:]
     const cleanedContent = content
       .replace(/^[\s#]+/, '')  // Remove leading whitespace and # characters
       .replace(/[\s.?!:]+$/, ''); // Remove trailing punctuation and whitespace
