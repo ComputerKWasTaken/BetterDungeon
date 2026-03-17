@@ -1,8 +1,22 @@
 // BetterDungeon - Command Input Feature
 // Adds a "Command" input mode that formats input as story headers
+// Supports three sub-modes: Standard, Subtle, and OOC
 
 class CommandFeature {
   static id = 'command';
+
+  // Sub-mode definitions
+  static SUB_MODES = ['standard', 'subtle', 'ooc'];
+  static SUB_MODE_LABELS = {
+    standard: 'command',
+    subtle:   'command [subtle]',
+    ooc:      'command [OOC]'
+  };
+  static SUB_MODE_PLACEHOLDERS = {
+    standard: 'Give an instruction to the AI.',
+    subtle:   'Give a subtle instruction to the AI.',
+    ooc:      'Ask the AI a direct question.'
+  };
 
   constructor() {
     this.observer = null;
@@ -12,7 +26,9 @@ class CommandFeature {
     this.submitClickHandler = null;
     this.modeChangeHandler = null;
     this.autoDeleteEnabled = false;
-    this.oocBracketsEnabled = false;
+    this.subMode = 'standard'; // 'standard' | 'subtle' | 'ooc'
+    this.subModeKeyHandler = null;
+    this.subModeBar = null;
     this.pendingCommandDelete = null;
     this.responseObserver = null;
     this._lastSpriteState = null; // track sprite/dynamic theme for reactive re-injection
@@ -30,7 +46,7 @@ class CommandFeature {
     this.setupObserver();
     this.injectCommandButton();
     this.loadAutoDeleteSetting();
-    this.loadOocBracketsSetting();
+    this.loadSubModeSetting();
     this.setupMessageListener();
   }
 
@@ -42,13 +58,21 @@ class CommandFeature {
     }
   }
 
-  loadOocBracketsSetting() {
+  loadSubModeSetting() {
     if (typeof chrome !== 'undefined' && chrome.storage) {
-      chrome.storage.sync.get('betterDungeon_commandOocBrackets', (result) => {
-        this.oocBracketsEnabled = (result || {}).betterDungeon_commandOocBrackets ?? false;
-        // If already in command mode, refresh the display to reflect the setting
+      chrome.storage.sync.get('betterDungeon_commandSubMode', (result) => {
+        const saved = (result || {}).betterDungeon_commandSubMode;
+        if (saved && CommandFeature.SUB_MODES.includes(saved)) {
+          this.subMode = saved;
+        }
         if (this.isCommandMode) this.updateModeDisplay();
       });
+    }
+  }
+
+  saveSubModeSetting() {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.sync.set({ betterDungeon_commandSubMode: this.subMode });
     }
   }
 
@@ -58,10 +82,11 @@ class CommandFeature {
         if (message.type === 'SET_COMMAND_AUTO_DELETE') {
           this.autoDeleteEnabled = message.enabled;
           sendResponse({ success: true });
-        } else if (message.type === 'SET_COMMAND_OOC_BRACKETS') {
-          this.oocBracketsEnabled = message.enabled;
-          // Refresh display immediately if already in command mode
-          if (this.isCommandMode) this.updateModeDisplay();
+        } else if (message.type === 'SET_COMMAND_SUB_MODE') {
+          if (message.subMode && CommandFeature.SUB_MODES.includes(message.subMode)) {
+            this.subMode = message.subMode;
+            if (this.isCommandMode) this.updateModeDisplay();
+          }
           sendResponse({ success: true });
         }
         return false;
@@ -90,6 +115,11 @@ class CommandFeature {
       document.removeEventListener('click', this.submitClickHandler, true);
       this.submitClickHandler = null;
     }
+    if (this.subModeKeyHandler) {
+      document.removeEventListener('keydown', this.subModeKeyHandler, true);
+      this.subModeKeyHandler = null;
+    }
+    this.removeSubModeBar();
     this.removeCommandButton();
     this.restoreModeDisplay();
     this.isCommandMode = false;
@@ -405,6 +435,7 @@ class CommandFeature {
       // After menu closes, update the UI to show "Command" mode
       setTimeout(() => {
         this.updateModeDisplay();
+        this.injectSubModeBar();
         
         // Show first-use hint
         this.showFirstUseHint();
@@ -413,6 +444,9 @@ class CommandFeature {
 
     // Setup interception for the next submission
     this.setupSubmitInterception();
+
+    // Setup sub-mode arrow key handler
+    this.setupSubModeKeyHandler();
     
     // Watch for mode changes (user clicking on input mode button)
     this.watchForModeChanges();
@@ -451,14 +485,14 @@ class CommandFeature {
   }
 
   updateModeDisplay() {
-    // Update the current input mode button text from "story" to "command"
+    // Update the current input mode button text
     const modeButton = document.querySelector('[aria-label="Change input mode"]');
     if (modeButton) {
       const modeText = modeButton.querySelector('.font_body');
       if (modeText) {
         const lower = modeText.textContent.toLowerCase();
-        if (lower === 'story' || lower === 'command' || lower === 'command [ooc]') {
-          modeText.textContent = this.oocBracketsEnabled ? 'command [OOC]' : 'command';
+        if (lower === 'story' || lower.startsWith('command')) {
+          modeText.textContent = CommandFeature.SUB_MODE_LABELS[this.subMode];
         }
       }
     }
@@ -466,9 +500,7 @@ class CommandFeature {
     // Update the placeholder text
     const textarea = document.querySelector('#game-text-input');
     if (textarea) {
-      const placeholder = this.oocBracketsEnabled
-        ? 'Give a subtle instruction to the AI.'
-        : 'Give an instruction to the AI.';
+      const placeholder = CommandFeature.SUB_MODE_PLACEHOLDERS[this.subMode];
       textarea.placeholder = placeholder;
       textarea.setAttribute('data-placeholder', placeholder);
     }
@@ -481,6 +513,9 @@ class CommandFeature {
         iconElement.textContent = 'w_ai';
       }
     }
+
+    // Update the sub-mode bar if visible
+    this.updateSubModeBar();
   }
 
   restoreModeDisplay() {
@@ -490,7 +525,7 @@ class CommandFeature {
       const modeText = modeButton.querySelector('.font_body');
       if (modeText) {
         const lower = modeText.textContent.toLowerCase();
-        if (lower === 'command' || lower === 'command [ooc]') {
+        if (lower.startsWith('command')) {
           modeText.textContent = 'story';
         }
       }
@@ -624,6 +659,7 @@ class CommandFeature {
   deactivateCommandMode() {
     this.isCommandMode = false;
     this.restoreModeDisplay();
+    this.removeSubModeBar();
     
     // Clean up auto-cleanup timer
     if (this.autoCleanupTimer) {
@@ -644,21 +680,153 @@ class CommandFeature {
       document.removeEventListener('click', this.modeChangeHandler, true);
       this.modeChangeHandler = null;
     }
+    if (this.subModeKeyHandler) {
+      document.removeEventListener('keydown', this.subModeKeyHandler, true);
+      this.subModeKeyHandler = null;
+    }
+  }
+
+  // ==================== SUB-MODE ARROW KEY CYCLING ====================
+
+  setupSubModeKeyHandler() {
+    if (this.subModeKeyHandler) {
+      document.removeEventListener('keydown', this.subModeKeyHandler, true);
+    }
+
+    const handleSubModeKey = (e) => {
+      if (!this.isCommandMode) return;
+
+      const textarea = document.querySelector('#game-text-input');
+      if (!textarea || document.activeElement !== textarea) return;
+
+      // Ignore arrow keys when Ctrl or Cmd is held (Input History)
+      if (e.ctrlKey || e.metaKey) return;
+
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        this.cycleSubMode(e.key === 'ArrowUp' ? -1 : 1);
+      }
+    };
+
+    this.subModeKeyHandler = handleSubModeKey;
+    document.addEventListener('keydown', handleSubModeKey, true);
+  }
+
+  cycleSubMode(direction) {
+    const modes = CommandFeature.SUB_MODES;
+    const currentIndex = modes.indexOf(this.subMode);
+    let newIndex = currentIndex + direction;
+    if (newIndex < 0) newIndex = modes.length - 1;
+    if (newIndex >= modes.length) newIndex = 0;
+    this.subMode = modes[newIndex];
+    this.saveSubModeSetting();
+    this.updateModeDisplay();
+  }
+
+  // ==================== SUB-MODE INDICATOR BAR ====================
+
+  injectSubModeBar() {
+    this.removeSubModeBar();
+
+    const textarea = document.querySelector('#game-text-input');
+    if (!textarea) return;
+
+    const inputRow = textarea.parentElement;
+    if (!inputRow) return;
+
+    const bar = document.createElement('div');
+    bar.id = 'bd-command-submode-bar';
+    bar.style.cssText = `
+      position: absolute;
+      bottom: 6px;
+      left: 32px;
+      right: 32px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 14px;
+      background: rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      font-family: var(--bd-font-family-primary, 'IBM Plex Sans', sans-serif);
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.45);
+      z-index: 2;
+      pointer-events: none;
+    `;
+
+    bar.innerHTML = `
+      <span style="white-space:nowrap; font-weight:600; font-size:10px; letter-spacing:0.4px; text-transform:uppercase;">Mode</span>
+      <div style="flex:1; display:flex; gap:4px;" id="bd-submode-pills"></div>
+      <span style="opacity:0.3; font-size:9px;">\u2191\u2193</span>
+    `;
+
+    inputRow.appendChild(bar);
+    this.subModeBar = bar;
+    this.updateSubModeBar();
+  }
+
+  updateSubModeBar() {
+    const container = document.querySelector('#bd-submode-pills');
+    if (!container) return;
+
+    container.innerHTML = '';
+    const modeLabels = { standard: 'Standard', subtle: 'Subtle', ooc: 'OOC' };
+    const modeColors = {
+      standard: '#f97316',
+      subtle:   '#a855f7',
+      ooc:      '#3b82f6'
+    };
+
+    for (const mode of CommandFeature.SUB_MODES) {
+      const pill = document.createElement('span');
+      const isActive = mode === this.subMode;
+      const color = modeColors[mode];
+      pill.textContent = modeLabels[mode];
+      pill.style.cssText = `
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: ${isActive ? '700' : '500'};
+        letter-spacing: 0.3px;
+        transition: all .2s;
+        background: ${isActive ? color : 'transparent'};
+        color: ${isActive ? '#fff' : 'rgba(255,255,255,0.35)'};
+        border: 1px solid ${isActive ? color : 'rgba(255,255,255,0.1)'};
+      `;
+      container.appendChild(pill);
+    }
+  }
+
+  removeSubModeBar() {
+    const bar = document.querySelector('#bd-command-submode-bar');
+    if (bar) bar.remove();
+    this.subModeBar = null;
   }
 
   formatAsCommand(content) {
-    // Default format: ## User Input:
-    // OOC format:     [## User Input:]
     const cleanedContent = content
       .replace(/^[\s#]+/, '')  // Remove leading whitespace and # characters
       .replace(/[\s.?!:]+$/, ''); // Remove trailing punctuation and whitespace
-    
-    const command = `## ${cleanedContent}:`;
-    
-    if (this.oocBracketsEnabled) {
-      return `\n\n[${command}]\n\n`;
+
+    switch (this.subMode) {
+      case 'subtle': {
+        // Subtle mode: wrap in brackets for indirect AI guidance
+        const command = `## ${cleanedContent}:`;
+        return `\n\n[${command}]\n\n`;
+      }
+      case 'ooc': {
+        // OOC mode: direct question to the AI model
+        return `\n\n[OOC: ${cleanedContent}]\n\n`;
+      }
+      default: {
+        // Standard mode: direct story instruction
+        const command = `## ${cleanedContent}:`;
+        return `\n\n${command}\n\n`;
+      }
     }
-    return `\n\n${command}\n\n`;
   }
 
   scheduleCommandDeletion(commandText) {

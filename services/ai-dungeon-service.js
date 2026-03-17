@@ -222,27 +222,14 @@ class AIDungeonService {
 
     const lines = [];
 
-    // Header — follows BetterRepository's ## Category Name convention
+    // Header
     lines.push('## Formatting');
-    lines.push('Use the following custom Markdown syntax to enrich the narrative. Format purposefully; let unformatted prose carry the story.');
+    lines.push('Use the following custom Markdown syntax to enrich the narrative:');
     lines.push('');
 
     // Syntax section — one-line dash standard per enabled option
     for (const opt of enabledOptions) {
       lines.push(opt.instruction);
-    }
-
-    // Rules section
-    lines.push('');
-    lines.push('Rules:');
-    lines.push('- Never use asterisks (*), standard markdown, or any formatting syntax other than what is listed above');
-    lines.push('- Prefer fewer formatted words over many; one formatted phrase per sentence has more impact than formatting everything');
-    lines.push('- Do not format common actions, ordinary dialogue, or mundane descriptions');
-    lines.push('- Formatting should feel invisible and natural, never calling attention to itself');
-
-    // Contextual rules based on enabled options
-    if (config.italic) {
-      lines.push('- Internal thoughts use //italic// without quotation marks; spoken dialogue uses quotation marks without formatting unless emphasis is needed');
     }
 
     return lines.join('\n');
@@ -896,7 +883,7 @@ class AIDungeonService {
     return markers.some(m => val.includes(m));
   }
 
-  // Main method to apply instructions to textareas
+  // Main method to apply instructions to AI Instructions textarea only
   async applyInstructionsToTextareas(instructionsText, options = {}) {
     const { forceApply = false, onCreatingComponents = null, onStepUpdate = null } = options;
 
@@ -925,13 +912,12 @@ class AIDungeonService {
 
     if (!textareas.success) return textareas;
 
-    const { aiInstructionsTextarea, authorsNoteTextarea } = textareas;
+    const { aiInstructionsTextarea } = textareas;
 
-    // Check if instructions already exist
-    const aiHas   = this.containsInstructions(aiInstructionsTextarea);
-    const noteHas = this.containsInstructions(authorsNoteTextarea);
+    // Only apply to AI Instructions textarea
+    const aiHas = this.containsInstructions(aiInstructionsTextarea);
 
-    if (aiHas && noteHas && !forceApply) {
+    if (aiHas && !forceApply) {
       return { success: true, alreadyApplied: true };
     }
 
@@ -939,10 +925,6 @@ class AIDungeonService {
 
     if (!aiHas || forceApply) {
       this.domUtils.appendToTextarea(aiInstructionsTextarea, instructionsText);
-      appliedCount++;
-    }
-    if (!noteHas || forceApply) {
-      this.domUtils.appendToTextarea(authorsNoteTextarea, instructionsText);
       appliedCount++;
     }
 

@@ -184,11 +184,9 @@ class MarkdownFeature {
 
       loadingScreen.updateTitle('Instructions Applied!');
       if (applyResult.componentsCreated) {
-        loadingScreen.updateSubtitle('Created plot components & added instructions');
-      } else if (applyResult.appliedCount === 2) {
-        loadingScreen.updateSubtitle('Added to AI Instructions & Author\'s Note');
+        loadingScreen.updateSubtitle('Created plot components & added instructions to AI Instructions');
       } else {
-        loadingScreen.updateSubtitle('Markdown formatting guidelines are now active');
+        loadingScreen.updateSubtitle('Markdown formatting guidelines added to AI Instructions');
       }
       
       await this.wait(1500);

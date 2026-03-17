@@ -56,9 +56,6 @@
             <button class="whats-new-toggle" id="whats-new-toggle" aria-label="Expand">
               <span class="icon-chevron-down"></span>
             </button>
-            <button class="whats-new-dismiss" id="whats-new-dismiss" aria-label="Dismiss">
-              <span class="icon-x"></span>
-            </button>
           </div>
         </div>
         <div class="whats-new-expandable" id="whats-new-expandable">
@@ -84,12 +81,8 @@
               <div><strong>Plot Presets Revised</strong> &mdash; Fixed detection &amp; styling bugs</div>
             </div>
             <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-wrench" style="color: #6b7280;"></span>
-              <div><strong>Bug Fixes</strong> &mdash; Various stability improvements for v1.1.2</div>
-            </div>
-            <div class="whats-new-item">
               <span class="whats-new-item-icon icon-terminal" style="color: var(--bd-mode-command);"></span>
-              <div><strong>OOC Brackets</strong> &mdash; Optional bracket wrapping for Command mode</div>
+              <div><strong>Command Modes</strong> &mdash; Standard, Subtle &amp; OOC sub-modes with arrow key switching</div>
             </div>
             <div class="whats-new-item">
               <span class="whats-new-item-icon icon-pilcrow" style="color: var(--bd-icon-markdown);"></span>
@@ -98,6 +91,10 @@
             <div class="whats-new-item">
               <span class="whats-new-item-icon icon-sparkles" style="color: var(--accent);"></span>
               <div><strong>Popup Overhaul</strong> &mdash; Searchable features, collapsible sections, and quick toggles</div>
+            </div>
+            <div class="whats-new-item">
+              <span class="whats-new-item-icon icon-wrench" style="color: #6b7280;"></span>
+              <div><strong>Bug Fixes</strong> &mdash; Various stability improvements</div>
             </div>
           </div>
         </div>
@@ -237,18 +234,12 @@
               <p class="feature-hint"><span class="icon-lightbulb"></span> Great for time skips, scene changes, and guiding story direction.</p>
 
               <div class="syntax-box">
-                <div class="syntax-row"><span>Default</span><code>## Your Command:</code></div>
-                <div class="syntax-row"><span>OOC</span><code>[## Your Command:]</code></div>
+                <div class="syntax-row"><span>Standard</span><code>## Your Command:</code></div>
+                <div class="syntax-row"><span>Subtle</span><code>[## Your Command:]</code></div>
+                <div class="syntax-row"><span>OOC</span><code>[OOC: Your Question]</code></div>
               </div>
-
-              <div class="feature-option">
-                <span class="option-label">OOC Brackets</span>
-                <label class="toggle sm">
-                  <input type="checkbox" id="command-ooc-brackets">
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-              <p class="feature-hint"><span class="icon-lightbulb"></span> OOC wraps commands in <code>[brackets]</code> for subtler guidance the AI follows without directly referencing.</p>
+              <p class="feature-hint"><span class="icon-lightbulb"></span> Use <strong>&#x2191;&#x2193; arrow keys</strong> while in Command mode to switch between Standard, Subtle, and OOC sub-modes.</p>
+              <p class="feature-hint"><span class="icon-terminal"></span> <strong>Standard</strong> &mdash; direct story instructions. <strong>Subtle</strong> &mdash; indirect guidance via brackets. <strong>OOC</strong> &mdash; ask the AI a direct question.</p>
             </div>
           </article>
 
@@ -472,7 +463,7 @@
                 <p class="feature-desc">Write and save notes for each adventure</p>
               </div>
               <label class="toggle">
-                <input type="checkbox" id="feature-notes">
+                <input type="checkbox" id="feature-notes" checked>
                 <span class="toggle-slider"></span>
               </label>
             </div>

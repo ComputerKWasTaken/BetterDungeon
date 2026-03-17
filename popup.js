@@ -17,8 +17,7 @@ const STORAGE_KEYS = {
   betterScriptsDebug: 'betterDungeon_betterScriptsDebug',
   customHotkeys: 'betterDungeon_customHotkeys',
   customModeColors: 'betterDungeon_customModeColors',
-  whatsNewDismissed: 'betterDungeon_whatsNewDismissed',
-  commandOocBrackets: 'betterDungeon_commandOocBrackets',
+  commandSubMode: 'betterDungeon_commandSubMode',
   markdownOptions: 'betterDungeon_markdownOptions',
 };
 
@@ -236,16 +235,6 @@ function initToggles() {
     notifyContentScript('SET_BETTERSCRIPTS_DEBUG', { enabled: e.target.checked });
   });
 
-  // Command OOC Brackets toggle
-  chrome.storage.sync.get(STORAGE_KEYS.commandOocBrackets, (result) => {
-    const toggle = document.getElementById('command-ooc-brackets');
-    if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.commandOocBrackets] ?? false;
-  });
-
-  document.getElementById('command-ooc-brackets')?.addEventListener('change', (e) => {
-    chrome.storage.sync.set({ [STORAGE_KEYS.commandOocBrackets]: e.target.checked });
-    notifyContentScript('SET_COMMAND_OOC_BRACKETS', { enabled: e.target.checked });
-  });
 }
 
 function saveFeatureState(featureId, enabled) {
@@ -1715,7 +1704,6 @@ function showDialog(options = {}) {
 
 function initWhatsNew() {
   const banner = document.getElementById('whats-new-banner');
-  const dismissBtn = document.getElementById('whats-new-dismiss');
   if (!banner) return;
 
   // Read the live version string from the header so there's one source of truth
@@ -1726,21 +1714,6 @@ function initWhatsNew() {
   if (titleEl && currentVersion) {
     titleEl.textContent = `What's New in ${currentVersion}`;
   }
-
-  // Hide if the user already dismissed the current (or a newer) version
-  chrome.storage.sync.get(STORAGE_KEYS.whatsNewDismissed, (result) => {
-    const dismissed = (result || {})[STORAGE_KEYS.whatsNewDismissed];
-    if (dismissed && dismissed === currentVersion) {
-      banner.classList.add('hidden');
-    }
-  });
-
-  // Dismiss handler — saves the current header version so the banner
-  // automatically reappears whenever the extension ships an update
-  dismissBtn?.addEventListener('click', () => {
-    banner.classList.add('hidden');
-    chrome.storage.sync.set({ [STORAGE_KEYS.whatsNewDismissed]: currentVersion });
-  });
 
   // Expand/collapse toggle for compact What's New
   const toggleBtn = document.getElementById('whats-new-toggle');
