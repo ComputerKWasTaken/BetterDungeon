@@ -18,6 +18,7 @@ const STORAGE_KEYS = {
   customHotkeys: 'betterDungeon_customHotkeys',
   customModeColors: 'betterDungeon_customModeColors',
   whatsNewDismissed: 'betterDungeon_whatsNewDismissed',
+  commandOocBrackets: 'betterDungeon_commandOocBrackets',
 };
 
 // Default mode colors (hex format)
@@ -227,6 +228,17 @@ function initToggles() {
   document.getElementById('betterscripts-debug')?.addEventListener('change', (e) => {
     chrome.storage.sync.set({ [STORAGE_KEYS.betterScriptsDebug]: e.target.checked });
     notifyContentScript('SET_BETTERSCRIPTS_DEBUG', { enabled: e.target.checked });
+  });
+
+  // Command OOC Brackets toggle
+  chrome.storage.sync.get(STORAGE_KEYS.commandOocBrackets, (result) => {
+    const toggle = document.getElementById('command-ooc-brackets');
+    if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.commandOocBrackets] ?? false;
+  });
+
+  document.getElementById('command-ooc-brackets')?.addEventListener('change', (e) => {
+    chrome.storage.sync.set({ [STORAGE_KEYS.commandOocBrackets]: e.target.checked });
+    notifyContentScript('SET_COMMAND_OOC_BRACKETS', { enabled: e.target.checked });
   });
 }
 

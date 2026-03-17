@@ -12,6 +12,7 @@ class CommandFeature {
     this.submitClickHandler = null;
     this.modeChangeHandler = null;
     this.autoDeleteEnabled = false;
+    this.oocBracketsEnabled = false;
     this.pendingCommandDelete = null;
     this.responseObserver = null;
     this._lastSpriteState = null; // track sprite/dynamic theme for reactive re-injection
@@ -29,6 +30,7 @@ class CommandFeature {
     this.setupObserver();
     this.injectCommandButton();
     this.loadAutoDeleteSetting();
+    this.loadOocBracketsSetting();
     this.setupMessageListener();
   }
 
@@ -40,11 +42,23 @@ class CommandFeature {
     }
   }
 
+  loadOocBracketsSetting() {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.sync.get('betterDungeon_commandOocBrackets', (result) => {
+        this.oocBracketsEnabled = (result || {}).betterDungeon_commandOocBrackets ?? false;
+      });
+    }
+  }
+
   setupMessageListener() {
     if (typeof chrome !== 'undefined' && chrome.runtime) {
       chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (message.type === 'SET_COMMAND_AUTO_DELETE') {
           this.autoDeleteEnabled = message.enabled;
+          sendResponse({ success: true });
+        }
+        if (message.type === 'SET_COMMAND_OOC_BRACKETS') {
+          this.oocBracketsEnabled = message.enabled;
           sendResponse({ success: true });
         }
         return false;
@@ -626,7 +640,12 @@ class CommandFeature {
       .replace(/^[\s#]+/, '')  // Remove leading whitespace and # characters
       .replace(/[\s.?!:]+$/, ''); // Remove trailing punctuation and whitespace
     
-    return `\n\n## ${cleanedContent}:\n\n`;
+    const command = `## ${cleanedContent}:`;
+    
+    if (this.oocBracketsEnabled) {
+      return `\n\n[${command}]\n\n`;
+    }
+    return `\n\n${command}\n\n`;
   }
 
   scheduleCommandDeletion(commandText) {
