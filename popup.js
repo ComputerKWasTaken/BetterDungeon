@@ -113,6 +113,10 @@ document.addEventListener('DOMContentLoaded', () => {
   initHotkeys();
   initModeColors();
   initWhatsNew();
+  initCollapsibleSections();
+  initFeatureSearch();
+  initQuickToggles();
+  updateSectionCounts();
   initTutorial();
 });
 
@@ -1655,6 +1659,220 @@ function initWhatsNew() {
   dismissBtn?.addEventListener('click', () => {
     banner.classList.add('hidden');
     chrome.storage.sync.set({ [STORAGE_KEYS.whatsNewDismissed]: currentVersion });
+  });
+
+  // Expand/collapse toggle for compact What's New
+  const toggleBtn = document.getElementById('whats-new-toggle');
+  const expandable = document.getElementById('whats-new-expandable');
+  toggleBtn?.addEventListener('click', () => {
+    const isExpanded = expandable.classList.toggle('expanded');
+    toggleBtn.classList.toggle('expanded', isExpanded);
+    toggleBtn.setAttribute('aria-label', isExpanded ? 'Collapse' : 'Expand');
+  });
+}
+
+// ============================================
+// COLLAPSIBLE SECTIONS
+// ============================================
+
+function initCollapsibleSections() {
+  const headers = document.querySelectorAll('.section-header-collapsible');
+
+  // Load saved collapse states
+  chrome.storage.sync.get('bd_collapsed_sections', (result) => {
+    const collapsed = (result || {})['bd_collapsed_sections'] || [];
+    collapsed.forEach(id => {
+      const header = document.querySelector(`[data-collapse="${id}"]`);
+      const body = document.getElementById(`collapse-${id}`);
+      if (header && body) {
+        header.setAttribute('aria-expanded', 'false');
+        body.classList.add('collapsed');
+      }
+    });
+  });
+
+  headers.forEach(header => {
+    header.addEventListener('click', () => {
+      const targetId = header.dataset.collapse;
+      const body = document.getElementById(`collapse-${targetId}`);
+      if (!body) return;
+
+      const isExpanded = header.getAttribute('aria-expanded') === 'true';
+      header.setAttribute('aria-expanded', String(!isExpanded));
+      body.classList.toggle('collapsed', isExpanded);
+
+      // Persist collapse state
+      saveSectionCollapseState();
+    });
+  });
+}
+
+function saveSectionCollapseState() {
+  const collapsed = [];
+  document.querySelectorAll('.section-header-collapsible').forEach(header => {
+    if (header.getAttribute('aria-expanded') === 'false') {
+      collapsed.push(header.dataset.collapse);
+    }
+  });
+  chrome.storage.sync.set({ 'bd_collapsed_sections': collapsed });
+}
+
+// ============================================
+// FEATURE SEARCH
+// ============================================
+
+function initFeatureSearch() {
+  const searchInput = document.getElementById('feature-search');
+  const clearBtn = document.getElementById('feature-search-clear');
+  const emptyState = document.getElementById('feature-search-empty');
+  if (!searchInput) return;
+
+  searchInput.addEventListener('input', () => {
+    const query = searchInput.value.toLowerCase().trim();
+    clearBtn.classList.toggle('hidden', !query);
+    filterFeatures(query);
+  });
+
+  clearBtn?.addEventListener('click', () => {
+    searchInput.value = '';
+    clearBtn.classList.add('hidden');
+    filterFeatures('');
+    searchInput.focus();
+  });
+}
+
+function filterFeatures(query) {
+  const sections = document.querySelectorAll('#tab-features .section-collapsible');
+  const quickTogglesSection = document.getElementById('quick-toggles-section');
+  const emptyState = document.getElementById('feature-search-empty');
+  let anyVisible = false;
+
+  // Hide quick toggles and what's new during search
+  if (quickTogglesSection) {
+    quickTogglesSection.style.display = query ? 'none' : '';
+  }
+  const whatsNewBanner = document.getElementById('whats-new-banner');
+  if (whatsNewBanner && !whatsNewBanner.classList.contains('hidden')) {
+    whatsNewBanner.style.display = query ? 'none' : '';
+  }
+
+  sections.forEach(section => {
+    const cards = section.querySelectorAll('.feature-card');
+    let sectionHasMatch = false;
+
+    cards.forEach(card => {
+      const title = (card.querySelector('.feature-title')?.textContent || '').toLowerCase();
+      const desc = (card.querySelector('.feature-desc')?.textContent || '').toLowerCase();
+      const matches = !query || title.includes(query) || desc.includes(query);
+
+      card.classList.toggle('search-hidden', !matches);
+      card.classList.toggle('search-match', matches && !!query);
+      if (matches) sectionHasMatch = true;
+    });
+
+    section.classList.toggle('search-hidden', !sectionHasMatch && !!query);
+    if (sectionHasMatch) anyVisible = true;
+
+    // Auto-expand sections with matches during search
+    if (query && sectionHasMatch) {
+      const header = section.querySelector('.section-header-collapsible');
+      const body = section.querySelector('.section-body');
+      if (header && body) {
+        header.setAttribute('aria-expanded', 'true');
+        body.classList.remove('collapsed');
+      }
+    }
+  });
+
+  // Show/hide empty state
+  if (emptyState) {
+    emptyState.classList.toggle('hidden', !query || anyVisible);
+  }
+
+  // If search is cleared, restore saved collapse states
+  if (!query) {
+    chrome.storage.sync.get('bd_collapsed_sections', (result) => {
+      const collapsed = (result || {})['bd_collapsed_sections'] || [];
+      sections.forEach(section => {
+        section.classList.remove('search-hidden');
+        section.querySelectorAll('.feature-card').forEach(card => {
+          card.classList.remove('search-hidden', 'search-match');
+        });
+      });
+      collapsed.forEach(id => {
+        const header = document.querySelector(`[data-collapse="${id}"]`);
+        const body = document.getElementById(`collapse-${id}`);
+        if (header && body) {
+          header.setAttribute('aria-expanded', 'false');
+          body.classList.add('collapsed');
+        }
+      });
+    });
+  }
+}
+
+// ============================================
+// QUICK TOGGLES
+// ============================================
+
+function initQuickToggles() {
+  const quickToggles = document.querySelectorAll('[data-quick-toggle]');
+
+  // Sync quick toggles with main feature toggles on load
+  quickToggles.forEach(qt => {
+    const featureId = qt.dataset.quickToggle;
+    const mainToggle = document.getElementById(`feature-${featureId}`);
+    if (mainToggle) {
+      qt.checked = mainToggle.checked;
+    }
+  });
+
+  // Quick toggle → main toggle sync
+  quickToggles.forEach(qt => {
+    qt.addEventListener('change', () => {
+      const featureId = qt.dataset.quickToggle;
+      const mainToggle = document.getElementById(`feature-${featureId}`);
+      if (mainToggle) {
+        mainToggle.checked = qt.checked;
+        mainToggle.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+  });
+
+  // Main toggle → quick toggle sync (observe changes)
+  document.querySelectorAll('.feature-card [id^="feature-"]').forEach(mainToggle => {
+    mainToggle.addEventListener('change', () => {
+      const featureId = mainToggle.id.replace('feature-', '');
+      const qt = document.querySelector(`[data-quick-toggle="${featureId}"]`);
+      if (qt) qt.checked = mainToggle.checked;
+      updateSectionCounts();
+    });
+  });
+}
+
+// ============================================
+// SECTION FEATURE COUNTS
+// ============================================
+
+function updateSectionCounts() {
+  const sectionMap = {
+    'input-modes': ['command', 'try'],
+    'controls': ['hotkey', 'inputHistory', 'inputModeColor'],
+    'writing': ['markdown', 'notes'],
+    'scenario': ['triggerHighlight', 'storyCardModalDock'],
+    'automations': ['autoSee']
+  };
+
+  Object.entries(sectionMap).forEach(([sectionId, featureIds]) => {
+    const countEl = document.getElementById(`count-${sectionId}`);
+    if (!countEl) return;
+
+    const enabled = featureIds.filter(id => {
+      const toggle = document.getElementById(`feature-${id}`);
+      return toggle && toggle.checked;
+    }).length;
+
+    countEl.textContent = `${enabled}/${featureIds.length}`;
   });
 }
 
