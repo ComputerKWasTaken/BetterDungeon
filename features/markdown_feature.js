@@ -388,8 +388,11 @@ class MarkdownFeature {
       /(?:^|[^+])\+\+[^+]+?\+\+(?:[^+]|$)/, // Bold ++text++
       /(?:^|[^\/])\/\/[^\/]+?\/\/(?:[^\/]|$)/, // Italic //text//
       /==.+?==/,           // Underline ==text==
+      /~~.+?~~/,           // Strikethrough ~~text~~
+      /::.+?::/,           // Highlight ::text::
       /(?:^|[^~])~[^~]+?~(?:[^~]|$)/, // Small text ~text~
       /^\s*[-]{3,}\s*$/m,  // Horizontal rules ---
+      /^\s*>>\s/m,         // Blockquotes >> text
       /^\s*[-]\s/m,        // Unordered lists
     ];
 
@@ -478,11 +481,20 @@ class MarkdownFeature {
     // Underline: ==text==
     html = html.replace(/==(.+?)==/g, '<u>$1</u>');
 
-    // Small/faint text: ~text~
+    // Strikethrough: ~~text~~
+    html = html.replace(/~~(.+?)~~/g, '<s>$1</s>');
+
+    // Highlight: ::text::
+    html = html.replace(/::(.+?)::/g, '<mark class="bd-highlight">$1</mark>');
+
+    // Small/faint text: ~text~ (must come after strikethrough to avoid conflicts)
     html = html.replace(/(?<![~])~([^~]+?)~(?![~])/g, '<span class="bd-small-text">$1</span>');
 
     // Horizontal rules (--- only)
     html = html.replace(/^(\s*)[-]{3,}\s*$/gm, '$1<hr class="bd-hr">');
+
+    // Blockquotes: >> text (uses &gt;&gt; after HTML escaping)
+    html = html.replace(/^(\s*)&gt;&gt;\s+(.+)$/gm, '$1<span class="bd-blockquote">$2</span>');
 
     // Unordered lists
     html = this.processLists(html);
