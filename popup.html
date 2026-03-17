@@ -361,14 +361,13 @@
           </div>
           <div class="feature-details">
             <p>Renders <strong>bold</strong>, <em>italic</em>, <u>underline</u>, and more using a custom asterisk-free markdown syntax.</p>
-            
-            <div class="syntax-box">
-              <div class="syntax-row"><code>++text++</code><span><strong>bold</strong></span></div>
-              <div class="syntax-row"><code>//text//</code><span><em>italic</em></span></div>
-              <div class="syntax-row"><code>==text==</code><span><u>underline</u></span></div>
-              <div class="syntax-row"><code>~text~</code><span class="whisper">whisper</span></div>
-              <div class="syntax-row"><code>---</code><span>scene break</span></div>
-              <div class="syntax-row"><code>- item</code><span>• list item</span></div>
+
+            <div class="md-options-header">
+              <span class="md-options-title">AI Instructions</span>
+              <span class="md-options-hint">Toggle which formatting the AI is told to use</span>
+            </div>
+            <div class="md-options-grid" id="markdown-options-grid">
+              <!-- Populated dynamically by popup.js -->
             </div>
 
             <div class="feature-option">
