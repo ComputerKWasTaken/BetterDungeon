@@ -392,7 +392,7 @@ class MarkdownFeature {
       /::.+?::/,           // Highlight ::text::
       /(?:^|[^~])~[^~]+?~(?:[^~]|$)/, // Small text ~text~
       /^\s*[-]{3,}\s*$/m,  // Horizontal rules ---
-      /^\s*&gt;&gt;\s/m,   // Blockquotes >> text (after HTML escaping)
+      /^\s*>>\s/m,         // Blockquotes >> text
       /^\s*[-]\s/m,        // Unordered lists
     ];
 
