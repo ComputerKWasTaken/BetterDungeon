@@ -738,30 +738,25 @@ class CommandFeature {
     bar.id = 'bd-command-submode-bar';
     bar.style.cssText = `
       position: absolute;
-      bottom: 6px;
-      left: 32px;
-      right: 32px;
-      display: flex;
+      bottom: 8px;
+      left: 12px;
+      display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 5px 14px;
-      background: rgba(0, 0, 0, 0.3);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      border-radius: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.06);
+      gap: 4px;
+      padding: 2px 8px;
+      background: rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      border-radius: 10px;
       font-family: var(--bd-font-family-primary, 'IBM Plex Sans', sans-serif);
-      font-size: 11px;
-      color: rgba(255, 255, 255, 0.45);
+      font-size: 9px;
+      color: rgba(255, 255, 255, 0.5);
       z-index: 2;
       pointer-events: none;
+      user-select: none;
     `;
 
-    bar.innerHTML = `
-      <span style="white-space:nowrap; font-weight:600; font-size:10px; letter-spacing:0.4px; text-transform:uppercase;">Mode</span>
-      <div style="flex:1; display:flex; gap:4px;" id="bd-submode-pills"></div>
-      <span style="opacity:0.3; font-size:9px;">\u2191\u2193</span>
-    `;
+    bar.innerHTML = `<span id="bd-submode-pill"></span><span style="opacity:0.3; font-size:8px;">\u2191\u2193</span>`;
 
     inputRow.appendChild(bar);
     this.subModeBar = bar;
@@ -769,10 +764,9 @@ class CommandFeature {
   }
 
   updateSubModeBar() {
-    const container = document.querySelector('#bd-submode-pills');
-    if (!container) return;
+    const pill = document.querySelector('#bd-submode-pill');
+    if (!pill) return;
 
-    container.innerHTML = '';
     const modeLabels = { standard: 'Standard', subtle: 'Subtle', ooc: 'OOC' };
     const modeColors = {
       standard: '#f97316',
@@ -780,24 +774,17 @@ class CommandFeature {
       ooc:      '#3b82f6'
     };
 
-    for (const mode of CommandFeature.SUB_MODES) {
-      const pill = document.createElement('span');
-      const isActive = mode === this.subMode;
-      const color = modeColors[mode];
-      pill.textContent = modeLabels[mode];
-      pill.style.cssText = `
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 10px;
-        font-weight: ${isActive ? '700' : '500'};
-        letter-spacing: 0.3px;
-        transition: all .2s;
-        background: ${isActive ? color : 'transparent'};
-        color: ${isActive ? '#fff' : 'rgba(255,255,255,0.35)'};
-        border: 1px solid ${isActive ? color : 'rgba(255,255,255,0.1)'};
-      `;
-      container.appendChild(pill);
-    }
+    const color = modeColors[this.subMode];
+    pill.textContent = modeLabels[this.subMode];
+    pill.style.cssText = `
+      padding: 1px 6px;
+      border-radius: 6px;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      background: ${color};
+      color: #fff;
+    `;
   }
 
   removeSubModeBar() {
@@ -818,8 +805,8 @@ class CommandFeature {
         return `\n\n[${command}]\n\n`;
       }
       case 'ooc': {
-        // OOC mode: direct question to the AI model
-        return `\n\n[OOC: ${cleanedContent}]\n\n`;
+        // OOC mode: direct question to the AI model with strong instruction prefix
+        return `\n\n((DIRECTLY RESPOND TO THIS OOC. RESPOND AS "AI:" | User: ${cleanedContent}?))\n\n`;
       }
       default: {
         // Standard mode: direct story instruction
