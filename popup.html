@@ -41,575 +41,662 @@
     <!-- Features Tab -->
     <section class="tab-panel active" id="tab-features">
 
-      <!-- What's New Section -->
+      <!-- What's New Section (Compact) -->
       <div class="section whats-new-section" id="whats-new-banner">
-        <div class="section-header">
-          <span class="section-icon icon-sparkles" style="color: var(--accent);"></span>
-          <h2 class="section-title" id="whats-new-title">What's New</h2>
-          <div class="whats-new-actions">
+        <div class="whats-new-compact" id="whats-new-compact">
+          <div class="whats-new-compact-left">
+            <span class="whats-new-compact-icon icon-sparkles"></span>
+            <div class="whats-new-compact-text">
+              <strong id="whats-new-title">What's New</strong>
+              <span class="whats-new-compact-summary">Firefox support, Input History, bug fixes &amp; more</span>
+            </div>
+          </div>
+          <div class="whats-new-compact-right">
             <span class="whats-new-badge">Latest</span>
+            <button class="whats-new-toggle" id="whats-new-toggle" aria-label="Expand">
+              <span class="icon-chevron-down"></span>
+            </button>
             <button class="whats-new-dismiss" id="whats-new-dismiss" aria-label="Dismiss">
               <span class="icon-x"></span>
             </button>
           </div>
         </div>
-
-        <article class="feature-card static-card">
-          <div class="feature-row">
-            <div class="feature-info">
-              <div class="feature-title-row">
-                <span class="feature-icon" style="color: #22c55e;">
-                  <span class="icon-sparkles"></span>
-                </span>
-                <h3 class="feature-title">What's New Banner</h3>
-              </div>
-              <p class="feature-desc">This dismissable banner now shows recent updates after each version</p>
+        <div class="whats-new-expandable" id="whats-new-expandable">
+          <div class="whats-new-list">
+            <div class="whats-new-item">
+              <span class="whats-new-item-icon icon-sparkles" style="color: #22c55e;"></span>
+              <div><strong>What's New Banner</strong> &mdash; Dismissable banner shows recent updates</div>
+            </div>
+            <div class="whats-new-item">
+              <span class="whats-new-item-icon" style="font-size: 12px;">&#x1F98A;</span>
+              <div><strong>Firefox Support</strong> &mdash; Native support via polyfill system</div>
+            </div>
+            <div class="whats-new-item">
+              <span class="whats-new-item-icon icon-history" style="color: var(--accent);"></span>
+              <div><strong>Input History</strong> &mdash; Terminal-style history with Up/Down arrows</div>
+            </div>
+            <div class="whats-new-item">
+              <span class="whats-new-item-icon icon-user" style="color: #a855f7;"></span>
+              <div><strong>Character Presets Revised</strong> &mdash; Works with new Placeholders</div>
+            </div>
+            <div class="whats-new-item">
+              <span class="whats-new-item-icon icon-star" style="color: #f59e0b;"></span>
+              <div><strong>Plot Presets Revised</strong> &mdash; Fixed detection &amp; styling bugs</div>
+            </div>
+            <div class="whats-new-item">
+              <span class="whats-new-item-icon icon-wrench" style="color: #6b7280;"></span>
+              <div><strong>Bug Fixes</strong> &mdash; Various stability improvements for v1.1.2</div>
             </div>
           </div>
-        </article>
-
-        <article class="feature-card static-card">
-          <div class="feature-row">
-            <div class="feature-info">
-              <div class="feature-title-row">
-                <span class="feature-icon" style="font-size: 13px;">🦊</span>
-                <h3 class="feature-title">Firefox Support</h3>
-              </div>
-              <p class="feature-desc">BetterDungeon now works natively on Firefox via a new polyfill system</p>
-            </div>
-          </div>
-        </article>
-
-        <article class="feature-card static-card">
-          <div class="feature-row">
-            <div class="feature-info">
-              <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--accent);">
-                  <span class="icon-history"></span>
-                </span>
-                <h3 class="feature-title">Input History</h3>
-              </div>
-              <p class="feature-desc">Terminal-style history navigation (Up/Down arrows) that saves across adventures</p>
-            </div>
-          </div>
-        </article>
-
-        <article class="feature-card static-card">
-          <div class="feature-row">
-            <div class="feature-info">
-              <div class="feature-title-row">
-                <span class="feature-icon" style="color: #a855f7;">
-                  <span class="icon-user"></span>
-                </span>
-                <h3 class="feature-title">Character Presets Revised</h3>
-              </div>
-              <p class="feature-desc">Updated to work with the new Placeholders system &amp; improved UI</p>
-            </div>
-          </div>
-        </article>
-
-        <article class="feature-card static-card">
-          <div class="feature-row">
-            <div class="feature-info">
-              <div class="feature-title-row">
-                <span class="feature-icon" style="color: #f59e0b;">
-                  <span class="icon-star"></span>
-                </span>
-                <h3 class="feature-title">Plot Presets Revised</h3>
-              </div>
-              <p class="feature-desc">Fixed crucial bugs with detection, menu positioning &amp; styling</p>
-            </div>
-          </div>
-        </article>
-
-        <article class="feature-card static-card">
-          <div class="feature-row">
-            <div class="feature-info">
-              <div class="feature-title-row">
-                <span class="feature-icon" style="color: #6b7280;">
-                  <span class="icon-wrench"></span>
-                </span>
-                <h3 class="feature-title">Bug Fixes</h3>
-              </div>
-              <p class="feature-desc">Fixed various bugs and improved stability for v1.1.2</p>
-            </div>
-          </div>
-        </article>
+        </div>
       </div>
-      
+
+      <!-- Feature Search -->
+      <div class="feature-search-wrapper" id="feature-search-wrapper">
+        <span class="icon-search feature-search-icon"></span>
+        <input type="text" class="feature-search-input" id="feature-search" placeholder="Search features..." autocomplete="off">
+        <button class="feature-search-clear hidden" id="feature-search-clear" aria-label="Clear search">
+          <span class="icon-x"></span>
+        </button>
+      </div>
+
+      <!-- Quick Toggles -->
+      <div class="section quick-toggles-section" id="quick-toggles-section">
+        <button class="section-header section-header-collapsible" data-collapse="quick-toggles" aria-expanded="false">
+          <span class="section-icon icon-toggle-right" style="color: var(--accent);"></span>
+          <h2 class="section-title">Quick Toggles</h2>
+          <span class="section-chevron icon-chevron-down"></span>
+        </button>
+        <div class="section-body collapsed" id="collapse-quick-toggles">
+          <div class="quick-toggles-grid" id="quick-toggles-grid">
+            <div class="quick-toggle-item" data-quick-feature="command">
+              <span class="quick-toggle-dot" style="background: var(--bd-mode-command);"></span>
+              <span class="quick-toggle-name">Command</span>
+              <label class="toggle sm">
+                <input type="checkbox" data-quick-toggle="command">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="quick-toggle-item" data-quick-feature="try">
+              <span class="quick-toggle-dot" style="background: var(--bd-mode-try);"></span>
+              <span class="quick-toggle-name">Try</span>
+              <label class="toggle sm">
+                <input type="checkbox" data-quick-toggle="try">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="quick-toggle-item" data-quick-feature="hotkey">
+              <span class="quick-toggle-dot" style="background: var(--bd-icon-hotkeys);"></span>
+              <span class="quick-toggle-name">Hotkeys</span>
+              <label class="toggle sm">
+                <input type="checkbox" data-quick-toggle="hotkey">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="quick-toggle-item" data-quick-feature="inputHistory">
+              <span class="quick-toggle-dot" style="background: var(--accent);"></span>
+              <span class="quick-toggle-name">Input History</span>
+              <label class="toggle sm">
+                <input type="checkbox" data-quick-toggle="inputHistory">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="quick-toggle-item" data-quick-feature="inputModeColor">
+              <span class="quick-toggle-dot" style="background: var(--bd-icon-palette);"></span>
+              <span class="quick-toggle-name">Mode Colors</span>
+              <label class="toggle sm">
+                <input type="checkbox" data-quick-toggle="inputModeColor">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="quick-toggle-item" data-quick-feature="markdown">
+              <span class="quick-toggle-dot" style="background: var(--bd-icon-markdown);"></span>
+              <span class="quick-toggle-name">Markdown</span>
+              <label class="toggle sm">
+                <input type="checkbox" data-quick-toggle="markdown">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="quick-toggle-item" data-quick-feature="notes">
+              <span class="quick-toggle-dot" style="background: var(--bd-icon-notes);"></span>
+              <span class="quick-toggle-name">Notes</span>
+              <label class="toggle sm">
+                <input type="checkbox" data-quick-toggle="notes">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="quick-toggle-item" data-quick-feature="triggerHighlight">
+              <span class="quick-toggle-dot" style="background: var(--bd-icon-trigger);"></span>
+              <span class="quick-toggle-name">Triggers</span>
+              <label class="toggle sm">
+                <input type="checkbox" data-quick-toggle="triggerHighlight">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="quick-toggle-item" data-quick-feature="storyCardModalDock">
+              <span class="quick-toggle-dot" style="background: var(--bd-icon-modal-dock);"></span>
+              <span class="quick-toggle-name">Modal Dock</span>
+              <label class="toggle sm">
+                <input type="checkbox" data-quick-toggle="storyCardModalDock">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="quick-toggle-item" data-quick-feature="autoSee">
+              <span class="quick-toggle-dot" style="background: var(--bd-mode-see);"></span>
+              <span class="quick-toggle-name">Auto See</span>
+              <label class="toggle sm">
+                <input type="checkbox" data-quick-toggle="autoSee">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Input Modes -->
-      <div class="section">
-        <div class="section-header">
+      <div class="section section-collapsible" data-section="input-modes">
+        <button class="section-header section-header-collapsible" data-collapse="input-modes" aria-expanded="true">
           <span class="section-icon icon-message-square" style="color: var(--bd-section-input-modes);"></span>
           <h2 class="section-title">Input Modes</h2>
-        </div>
-        
-        <!-- Command Mode -->
-        <article class="feature-card" data-feature="command">
-          <div class="feature-row">
-            <div class="feature-info">
-              <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--bd-mode-command);">
-                  <span class="icon-terminal"></span>
-                </span>
-                <h3 class="feature-title">Command Mode</h3>
+          <span class="section-count" id="count-input-modes"></span>
+          <span class="section-chevron icon-chevron-down"></span>
+        </button>
+        <div class="section-body" id="collapse-input-modes">
+
+          <!-- Command Mode -->
+          <article class="feature-card" data-feature="command">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-mode-command);">
+                    <span class="icon-terminal"></span>
+                  </span>
+                  <h3 class="feature-title">Command Mode</h3>
+                </div>
+                <p class="feature-desc">Send narrative commands to the AI</p>
               </div>
-              <p class="feature-desc">Send narrative commands to the AI</p>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="feature-command" checked>
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="feature-details">
-            <p>Adds a <strong>Command</strong> button to the input menu for direct AI instructions.</p>
-            <p class="feature-hint"><span class="icon-lightbulb"></span> Great for time skips, scene changes, and guiding story direction.</p>
-
-            <div class="syntax-box">
-              <div class="syntax-row"><span>Default</span><code>## Your Command:</code></div>
-              <div class="syntax-row"><span>OOC</span><code>[## Your Command:]</code></div>
-            </div>
-
-            <div class="feature-option">
-              <span class="option-label">OOC Brackets</span>
-              <label class="toggle sm">
-                <input type="checkbox" id="command-ooc-brackets">
+              <label class="toggle">
+                <input type="checkbox" id="feature-command" checked>
                 <span class="toggle-slider"></span>
               </label>
             </div>
-            <p class="feature-hint"><span class="icon-lightbulb"></span> OOC wraps commands in <code>[brackets]</code> for subtler guidance the AI follows without directly referencing.</p>
-          </div>
-        </article>
+            <div class="feature-details">
+              <p>Adds a <strong>Command</strong> button to the input menu. Text is formatted as <code>## Your Command:</code> for direct AI instructions.</p>
+              <p class="feature-hint"><span class="icon-lightbulb"></span> Great for time skips, scene changes, and guiding story direction.</p>
 
-        <!-- Try Mode -->
-        <article class="feature-card" data-feature="try">
-          <div class="feature-row">
-            <div class="feature-info">
-              <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--bd-mode-try);">
-                  <span class="icon-dice-5"></span>
-                </span>
-                <h3 class="feature-title">Try Mode</h3>
+              <div class="syntax-box">
+                <div class="syntax-row"><span>Default</span><code>## Your Command:</code></div>
+                <div class="syntax-row"><span>OOC</span><code>[## Your Command:]</code></div>
               </div>
-              <p class="feature-desc">RNG-based action outcomes</p>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="feature-try" checked>
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="feature-details">
-            <p>RNG determines if actions succeed or fail. Formats as: <code>You try to [action], you [result].</code></p>
-            <p class="feature-hint"><span class="icon-dice-5"></span> Outcomes: critically fail, fail, succeed, critically succeed.</p>
-            <div class="feature-option">
-              <div class="option-label">
-                <span>Critical Chance</span>
-                <span class="option-value" id="critical-chance-value">5%</span>
+
+              <div class="feature-option">
+                <span class="option-label">OOC Brackets</span>
+                <label class="toggle sm">
+                  <input type="checkbox" id="command-ooc-brackets">
+                  <span class="toggle-slider"></span>
+                </label>
               </div>
-              <input type="range" class="slider" id="critical-chance" min="0" max="20" value="5">
+              <p class="feature-hint"><span class="icon-lightbulb"></span> OOC wraps commands in <code>[brackets]</code> for subtler guidance the AI follows without directly referencing.</p>
             </div>
-          </div>
-        </article>
+          </article>
+
+          <!-- Try Mode -->
+          <article class="feature-card" data-feature="try">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-mode-try);">
+                    <span class="icon-dice-5"></span>
+                  </span>
+                  <h3 class="feature-title">Try Mode</h3>
+                </div>
+                <p class="feature-desc">RNG-based action outcomes</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-try" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feature-details">
+              <p>RNG determines if actions succeed or fail. Formats as: <code>You try to [action], you [result].</code></p>
+              <p class="feature-hint"><span class="icon-dice-5"></span> Outcomes: critically fail, fail, succeed, critically succeed.</p>
+              <div class="feature-option">
+                <div class="option-label">
+                  <span>Critical Chance</span>
+                  <span class="option-value" id="critical-chance-value">5%</span>
+                </div>
+                <input type="range" class="slider" id="critical-chance" min="0" max="20" value="5">
+              </div>
+            </div>
+          </article>
+
+        </div>
       </div>
 
-      <!-- Gameplay -->
-      <div class="section">
-        <div class="section-header">
+      <!-- Controls & Navigation -->
+      <div class="section section-collapsible" data-section="controls">
+        <button class="section-header section-header-collapsible" data-collapse="controls" aria-expanded="true">
           <span class="section-icon icon-gamepad-2" style="color: var(--bd-section-tools);"></span>
-          <h2 class="section-title">Gameplay</h2>
-        </div>
+          <h2 class="section-title">Controls &amp; Navigation</h2>
+          <span class="section-count" id="count-controls"></span>
+          <span class="section-chevron icon-chevron-down"></span>
+        </button>
+        <div class="section-body" id="collapse-controls">
 
-        <!-- Hotkeys -->
-        <article class="feature-card" data-feature="hotkey">
-          <div class="feature-row">
-            <div class="feature-info">
-              <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--bd-icon-hotkeys);">
-                  <span class="icon-keyboard"></span>
-                </span>
-                <h3 class="feature-title">Hotkeys</h3>
+          <!-- Hotkeys -->
+          <article class="feature-card" data-feature="hotkey">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-icon-hotkeys);">
+                    <span class="icon-keyboard"></span>
+                  </span>
+                  <h3 class="feature-title">Hotkeys</h3>
+                </div>
+                <p class="feature-desc">Keyboard shortcuts for quick actions</p>
               </div>
-              <p class="feature-desc">Keyboard shortcuts for quick actions</p>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="feature-hotkey" checked>
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="feature-details">
-            <div class="hotkey-grid" id="hotkey-display-grid">
-              <div class="hotkey-group">
-                <h4>Actions</h4>
-                <div class="hotkey" data-action="takeATurn"><kbd>T</kbd> Take a Turn</div>
-                <div class="hotkey" data-action="continue"><kbd>C</kbd> Continue</div>
-                <div class="hotkey" data-action="retry"><kbd>R</kbd> Retry</div>
-                <div class="hotkey" data-action="erase"><kbd>E</kbd> Erase</div>
-                <div class="hotkey" data-action="exitInput"><kbd>Esc</kbd> Exit Input</div>
-              </div>
-              <div class="hotkey-group">
-                <h4>History</h4>
-                <div class="hotkey" data-action="undo"><kbd>Z</kbd> Undo</div>
-                <div class="hotkey" data-action="redo"><kbd>Y</kbd> Redo</div>
-              </div>
-              <div class="hotkey-group">
-                <h4>Input Modes</h4>
-                <div class="hotkey" data-action="modeDo"><kbd>1</kbd> Do</div>
-                <div class="hotkey" data-action="modeTry"><kbd>2</kbd> Try*</div>
-                <div class="hotkey" data-action="modeSay"><kbd>3</kbd> Say</div>
-                <div class="hotkey" data-action="modeStory"><kbd>4</kbd> Story</div>
-                <div class="hotkey" data-action="modeSee"><kbd>5</kbd> See</div>
-                <div class="hotkey" data-action="modeCommand"><kbd>6</kbd> Command*</div>
-              </div>
-            </div>
-            <p class="feature-footnote">*Requires feature to be enabled</p>
-            <button class="btn btn-action" id="customize-hotkeys-btn">
-              <span class="icon-settings"></span>
-              Customize Hotkeys
-            </button>
-          </div>
-        </article>
-
-        <!-- Input History -->
-        <article class="feature-card" data-feature="inputHistory">
-          <div class="feature-row">
-            <div class="feature-info">
-              <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--accent);">
-                  <span class="icon-history"></span>
-                </span>
-                <h3 class="feature-title">Input History</h3>
-              </div>
-              <p class="feature-desc">Terminal-style input history with arrow keys</p>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="feature-inputHistory" checked>
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="feature-details">
-            <p>Press <strong>Ctrl</strong> + <strong>Up/Down</strong> arrow keys while the input box is focused to cycle through your previously sent inputs.</p>
-            <p class="feature-hint"><span class="icon-history"></span> Remembers up to 50 of your recent actions and their respective input modes.</p>
-          </div>
-        </article>
-
-        <!-- Input Mode Colors -->
-        <article class="feature-card" data-feature="inputModeColor">
-          <div class="feature-row">
-            <div class="feature-info">
-              <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--bd-icon-palette);">
-                  <span class="icon-palette"></span>
-                </span>
-                <h3 class="feature-title">Input Mode Colors</h3>
-              </div>
-              <p class="feature-desc">Color-coded input box border</p>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="feature-inputModeColor" checked>
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="feature-details">
-            <div class="color-grid" id="mode-color-display">
-              <div class="color-chip" data-mode="do" style="--chip-color: #3b82f6"><span>Do</span></div>
-              <div class="color-chip" data-mode="try" style="--chip-color: #a855f7"><span>Try</span></div>
-              <div class="color-chip" data-mode="say" style="--chip-color: #22c55e"><span>Say</span></div>
-              <div class="color-chip" data-mode="story" style="--chip-color: #fbbf24"><span>Story</span></div>
-              <div class="color-chip" data-mode="see" style="--chip-color: #06b6d4"><span>See</span></div>
-              <div class="color-chip" data-mode="command" style="--chip-color: #f97316"><span>Command</span></div>
-            </div>
-            <button class="btn btn-action" id="customize-colors-btn">
-              <span class="icon-palette"></span>
-              Customize Colors
-            </button>
-          </div>
-        </article>
-
-        <!-- Adventure Notes -->
-        <article class="feature-card" data-feature="notes">
-          <div class="feature-row">
-            <div class="feature-info">
-              <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--bd-icon-notes);">
-                  <span class="icon-notebook-pen"></span>
-                </span>
-                <h3 class="feature-title">Adventure Notes</h3>
-              </div>
-              <p class="feature-desc">Write and save notes for each adventure</p>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="feature-notes">
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="feature-details">
-            <p>An embedded Plot Components notes card that saves per adventure. Notes are <strong>saved per adventure</strong>.</p>
-            <p class="feature-hint"><span class="icon-lightbulb"></span> Notes appear at the bottom of the Plot Components section when enabled.</p>
-          </div>
-        </article>
-      </div>
-
-      <!-- Formatting -->
-      <div class="section">
-        <div class="section-header">
-          <span class="section-icon icon-type" style="color: var(--bd-section-formatting);"></span>
-          <h2 class="section-title">Formatting</h2>
-        </div>
-
-        <!-- Markdown -->
-        <article class="feature-card" data-feature="markdown">
-          <div class="feature-row">
-            <div class="feature-info">
-              <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--bd-icon-markdown);">
-                  <span class="icon-pilcrow"></span>
-                </span>
-                <h3 class="feature-title">Markdown Formatting</h3>
-              </div>
-              <p class="feature-desc">Rich text in AI responses</p>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="feature-markdown" checked>
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="feature-details">
-            <p>Renders <strong>bold</strong>, <em>italic</em>, <u>underline</u>, and more using a custom asterisk-free markdown syntax.</p>
-
-            <div class="md-options-header">
-              <span class="md-options-title">AI Instructions</span>
-              <span class="md-options-hint">Toggle which formatting the AI is told to use</span>
-            </div>
-            <div class="md-options-grid" id="markdown-options-grid">
-              <!-- Populated dynamically by popup.js -->
-            </div>
-
-            <div class="feature-option">
-              <span class="option-label">Auto-apply on adventure</span>
-              <label class="toggle sm">
-                <input type="checkbox" id="auto-apply-instructions">
+              <label class="toggle">
+                <input type="checkbox" id="feature-hotkey" checked>
                 <span class="toggle-slider"></span>
               </label>
             </div>
+            <div class="feature-details">
+              <div class="hotkey-grid" id="hotkey-display-grid">
+                <div class="hotkey-group">
+                  <h4>Actions</h4>
+                  <div class="hotkey" data-action="takeATurn"><kbd>T</kbd> Take a Turn</div>
+                  <div class="hotkey" data-action="continue"><kbd>C</kbd> Continue</div>
+                  <div class="hotkey" data-action="retry"><kbd>R</kbd> Retry</div>
+                  <div class="hotkey" data-action="erase"><kbd>E</kbd> Erase</div>
+                  <div class="hotkey" data-action="exitInput"><kbd>Esc</kbd> Exit Input</div>
+                </div>
+                <div class="hotkey-group">
+                  <h4>History</h4>
+                  <div class="hotkey" data-action="undo"><kbd>Z</kbd> Undo</div>
+                  <div class="hotkey" data-action="redo"><kbd>Y</kbd> Redo</div>
+                </div>
+                <div class="hotkey-group">
+                  <h4>Input Modes</h4>
+                  <div class="hotkey" data-action="modeDo"><kbd>1</kbd> Do</div>
+                  <div class="hotkey" data-action="modeTry"><kbd>2</kbd> Try*</div>
+                  <div class="hotkey" data-action="modeSay"><kbd>3</kbd> Say</div>
+                  <div class="hotkey" data-action="modeStory"><kbd>4</kbd> Story</div>
+                  <div class="hotkey" data-action="modeSee"><kbd>5</kbd> See</div>
+                  <div class="hotkey" data-action="modeCommand"><kbd>6</kbd> Command*</div>
+                </div>
+              </div>
+              <p class="feature-footnote">*Requires feature to be enabled</p>
+              <button class="btn btn-action" id="customize-hotkeys-btn">
+                <span class="icon-settings"></span>
+                Customize Hotkeys
+              </button>
+            </div>
+          </article>
 
-            <button class="btn btn-action" id="apply-instructions-btn">
-              <span class="icon-wand"></span>
-              Apply Instructions
-            </button>
+          <!-- Input History -->
+          <article class="feature-card" data-feature="inputHistory">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--accent);">
+                    <span class="icon-history"></span>
+                  </span>
+                  <h3 class="feature-title">Input History</h3>
+                </div>
+                <p class="feature-desc">Terminal-style input history with arrow keys</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-inputHistory" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feature-details">
+              <p>Press <strong>Ctrl</strong> + <strong>Up/Down</strong> arrow keys while the input box is focused to cycle through your previously sent inputs.</p>
+              <p class="feature-hint"><span class="icon-history"></span> Remembers up to 50 of your recent actions and their respective input modes.</p>
+            </div>
+          </article>
 
-            <p class="feature-credit">Thanks to <a href="https://play.aidungeon.com/profile/OffMetaGamer">OffMetaGamer</a> & <a href="https://play.aidungeon.com/profile/effortlyss">Shiny</a></p>
-          </div>
-        </article>
+          <!-- Input Mode Colors -->
+          <article class="feature-card" data-feature="inputModeColor">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-icon-palette);">
+                    <span class="icon-palette"></span>
+                  </span>
+                  <h3 class="feature-title">Input Mode Colors</h3>
+                </div>
+                <p class="feature-desc">Color-coded input box border</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-inputModeColor" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feature-details">
+              <div class="color-grid" id="mode-color-display">
+                <div class="color-chip" data-mode="do" style="--chip-color: #3b82f6"><span>Do</span></div>
+                <div class="color-chip" data-mode="try" style="--chip-color: #a855f7"><span>Try</span></div>
+                <div class="color-chip" data-mode="say" style="--chip-color: #22c55e"><span>Say</span></div>
+                <div class="color-chip" data-mode="story" style="--chip-color: #fbbf24"><span>Story</span></div>
+                <div class="color-chip" data-mode="see" style="--chip-color: #06b6d4"><span>See</span></div>
+                <div class="color-chip" data-mode="command" style="--chip-color: #f97316"><span>Command</span></div>
+              </div>
+              <button class="btn btn-action" id="customize-colors-btn">
+                <span class="icon-palette"></span>
+                Customize Colors
+              </button>
+            </div>
+          </article>
+
+        </div>
+      </div>
+
+      <!-- Writing & Formatting -->
+      <div class="section section-collapsible" data-section="writing">
+        <button class="section-header section-header-collapsible" data-collapse="writing" aria-expanded="true">
+          <span class="section-icon icon-type" style="color: var(--bd-section-formatting);"></span>
+          <h2 class="section-title">Writing &amp; Formatting</h2>
+          <span class="section-count" id="count-writing"></span>
+          <span class="section-chevron icon-chevron-down"></span>
+        </button>
+        <div class="section-body" id="collapse-writing">
+
+          <!-- Markdown -->
+          <article class="feature-card" data-feature="markdown">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-icon-markdown);">
+                    <span class="icon-pilcrow"></span>
+                  </span>
+                  <h3 class="feature-title">Markdown Formatting</h3>
+                </div>
+                <p class="feature-desc">Rich text in AI responses</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-markdown" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feature-details">
+              <p>Renders <strong>bold</strong>, <em>italic</em>, <u>underline</u>, and more using a custom asterisk-free markdown syntax.</p>
+
+              <div class="md-options-header">
+                <span class="md-options-title">AI Instructions</span>
+                <span class="md-options-hint">Toggle which formatting the AI is told to use</span>
+              </div>
+              <div class="md-options-grid" id="markdown-options-grid">
+                <!-- Populated dynamically by popup.js -->
+              </div>
+
+              <div class="feature-option">
+                <span class="option-label">Auto-apply on adventure</span>
+                <label class="toggle sm">
+                  <input type="checkbox" id="auto-apply-instructions">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <button class="btn btn-action" id="apply-instructions-btn">
+                <span class="icon-wand"></span>
+                Apply Instructions
+              </button>
+
+              <p class="feature-credit">Thanks to <a href="https://play.aidungeon.com/profile/OffMetaGamer">OffMetaGamer</a> & <a href="https://play.aidungeon.com/profile/effortlyss">Shiny</a></p>
+            </div>
+          </article>
+
+          <!-- Adventure Notes -->
+          <article class="feature-card" data-feature="notes">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-icon-notes);">
+                    <span class="icon-notebook-pen"></span>
+                  </span>
+                  <h3 class="feature-title">Adventure Notes</h3>
+                </div>
+                <p class="feature-desc">Write and save notes for each adventure</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-notes">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feature-details">
+              <p>An embedded Plot Components notes card that saves per adventure. Notes are <strong>saved per adventure</strong>.</p>
+              <p class="feature-hint"><span class="icon-lightbulb"></span> Notes appear at the bottom of the Plot Components section when enabled.</p>
+            </div>
+          </article>
+
+        </div>
       </div>
 
       <!-- Scenario Building -->
-      <div class="section">
-        <div class="section-header">
+      <div class="section section-collapsible" data-section="scenario">
+        <button class="section-header section-header-collapsible" data-collapse="scenario" aria-expanded="true">
           <span class="section-icon icon-wrench" style="color: var(--bd-section-tools);"></span>
           <h2 class="section-title">Scenario Building</h2>
+          <span class="section-count" id="count-scenario"></span>
+          <span class="section-chevron icon-chevron-down"></span>
+        </button>
+        <div class="section-body" id="collapse-scenario">
+
+          <!-- Trigger Highlighting -->
+          <article class="feature-card" data-feature="triggerHighlight">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-icon-trigger);">
+                    <span class="icon-sparkle"></span>
+                  </span>
+                  <h3 class="feature-title">Trigger Highlighting</h3>
+                </div>
+                <p class="feature-desc">Visualize story card triggers</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-triggerHighlight" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feature-details">
+              <p>Highlights story card triggers in the context viewer. Hover for card name tooltips.</p>
+              <p class="feature-hint"><span class="icon-sparkle"></span> Suggested triggers appear in cyan with dashed underlines.</p>
+              
+              <div class="feature-option">
+                <span class="option-label">Auto-scan on adventure</span>
+                <label class="toggle sm">
+                  <input type="checkbox" id="auto-scan-triggers">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <div class="alert alert-warning">
+                <span class="icon-triangle-alert"></span>
+                Auto-scan increases load times with many story cards.
+              </div>
+
+              <button class="btn btn-action" id="scan-triggers-btn">
+                <span class="icon-scan"></span>
+                Scan Story Cards
+              </button>
+            </div>
+          </article>
+
+          <!-- Story Card Analytics -->
+          <article class="feature-card" data-feature="storyCardAnalytics">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-icon-analytics);">
+                    <span class="icon-chart-bar"></span>
+                  </span>
+                  <h3 class="feature-title">Story Card Analytics</h3>
+                </div>
+                <p class="feature-desc">Analyze your story cards for scenario building</p>
+              </div>
+            </div>
+            <div class="feature-details">
+              <p>Dashboard for scenario creators showing card statistics, trigger overlaps, coverage analysis, and potential issues.</p>
+              <p class="feature-hint"><span class="icon-lightbulb"></span> Helps identify missing triggers, empty cards, and optimization opportunities.</p>
+              
+              <button class="btn btn-action" id="open-analytics-btn">
+                <span class="icon-chart-bar"></span>
+                Open Analytics Dashboard
+              </button>
+            </div>
+          </article>
+
+          <!-- Story Card Modal Dock -->
+          <article class="feature-card" data-feature="storyCardModalDock">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-icon-modal-dock);">
+                    <span class="icon-panel-right"></span>
+                  </span>
+                  <h3 class="feature-title">Story Card Modal Dock</h3>
+                </div>
+                <p class="feature-desc">Docks story card editor to the side</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-storyCardModalDock" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feature-details">
+              <p>Docks the story card modal to the <strong>right side of the screen</strong>, allowing you to scroll through your story while editing Story Cards.</p>
+              <p class="feature-hint"><span class="icon-lightbulb"></span> Great for checking context without closing the editor.</p>
+            </div>
+          </article>
+
+          <!-- BetterScripts -->
+          <article class="feature-card" data-feature="betterScripts">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-icon-scripts);">
+                    <span class="icon-code"></span>
+                  </span>
+                  <h3 class="feature-title">BetterScripts</h3>
+                </div>
+                <p class="feature-desc">Script-to-extension widget communication</p>
+              </div>
+            </div>
+            <div class="feature-details">
+              <p>Enables AI Dungeon scripts to create <strong>dynamic UI widgets</strong> displaying HP bars, stats, and game state.</p>
+              <p class="feature-hint"><span class="icon-lightbulb"></span> Scripts send commands via <code>[[BD:...:BD]]</code> protocol messages.</p>
+              
+              <div class="syntax-box">
+                <div class="syntax-row"><code>stat</code><span>Label + value</span></div>
+                <div class="syntax-row"><code>bar</code><span>Progress bar</span></div>
+                <div class="syntax-row"><code>panel</code><span>Multi-stat container</span></div>
+                <div class="syntax-row"><code>text</code><span>Simple text display</span></div>
+                <div class="syntax-row"><code>custom</code><span>Custom HTML widgets</span></div>
+              </div>
+
+              <div class="feature-option">
+                <span class="option-label">Debug Mode</span>
+                <label class="toggle sm">
+                  <input type="checkbox" id="betterscripts-debug">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <p class="feature-hint"><span class="icon-bug"></span> Shows protocol messages in the story and enables verbose console logging.</p>
+
+              <a href="https://better-repository.netlify.app/scripts" target="_blank" rel="noopener noreferrer" class="btn btn-action">
+                <span class="icon-external-link"></span>
+                View Example Scripts
+              </a>
+            </div>
+          </article>
+
         </div>
-
-        <!-- Trigger Highlighting -->
-        <article class="feature-card" data-feature="triggerHighlight">
-          <div class="feature-row">
-            <div class="feature-info">
-              <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--bd-icon-trigger);">
-                  <span class="icon-sparkle"></span>
-                </span>
-                <h3 class="feature-title">Trigger Highlighting</h3>
-              </div>
-              <p class="feature-desc">Visualize story card triggers</p>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="feature-triggerHighlight" checked>
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="feature-details">
-            <p>Highlights story card triggers in the context viewer. Hover for card name tooltips.</p>
-            <p class="feature-hint"><span class="icon-sparkle"></span> Suggested triggers appear in cyan with dashed underlines.</p>
-            
-            <div class="feature-option">
-              <span class="option-label">Auto-scan on adventure</span>
-              <label class="toggle sm">
-                <input type="checkbox" id="auto-scan-triggers">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-
-            <div class="alert alert-warning">
-              <span class="icon-triangle-alert"></span>
-              Auto-scan increases load times with many story cards.
-            </div>
-
-            <button class="btn btn-action" id="scan-triggers-btn">
-              <span class="icon-scan"></span>
-              Scan Story Cards
-            </button>
-          </div>
-        </article>
-
-        <!-- Story Card Analytics -->
-        <article class="feature-card" data-feature="storyCardAnalytics">
-          <div class="feature-row">
-            <div class="feature-info">
-              <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--bd-icon-analytics);">
-                  <span class="icon-chart-bar"></span>
-                </span>
-                <h3 class="feature-title">Story Card Analytics</h3>
-              </div>
-              <p class="feature-desc">Analyze your story cards for scenario building</p>
-            </div>
-          </div>
-          <div class="feature-details">
-            <p>Dashboard for scenario creators showing card statistics, trigger overlaps, coverage analysis, and potential issues.</p>
-            <p class="feature-hint"><span class="icon-lightbulb"></span> Helps identify missing triggers, empty cards, and optimization opportunities.</p>
-            
-            <button class="btn btn-action" id="open-analytics-btn">
-              <span class="icon-chart-bar"></span>
-              Open Analytics Dashboard
-            </button>
-          </div>
-        </article>
-
-        <!-- Story Card Modal Dock -->
-        <article class="feature-card" data-feature="storyCardModalDock">
-          <div class="feature-row">
-            <div class="feature-info">
-              <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--bd-icon-modal-dock);">
-                  <span class="icon-panel-right"></span>
-                </span>
-                <h3 class="feature-title">Story Card Modal Dock</h3>
-              </div>
-              <p class="feature-desc">Docks story card editor to the side</p>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="feature-storyCardModalDock" checked>
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="feature-details">
-            <p>Docks the story card modal to the <strong>right side of the screen</strong>, allowing you to scroll through your story while editing Story Cards.</p>
-            <p class="feature-hint"><span class="icon-lightbulb"></span> Great for checking context without closing the editor.</p>
-          </div>
-        </article>
-
-        <!-- BetterScripts -->
-        <article class="feature-card" data-feature="betterScripts">
-          <div class="feature-row">
-            <div class="feature-info">
-              <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--bd-icon-scripts);">
-                  <span class="icon-code"></span>
-                </span>
-                <h3 class="feature-title">BetterScripts</h3>
-              </div>
-              <p class="feature-desc">Script-to-extension widget communication</p>
-            </div>
-          </div>
-          <div class="feature-details">
-            <p>Enables AI Dungeon scripts to create <strong>dynamic UI widgets</strong> displaying HP bars, stats, and game state.</p>
-            <p class="feature-hint"><span class="icon-lightbulb"></span> Scripts send commands via <code>[[BD:...:BD]]</code> protocol messages.</p>
-            
-            <div class="syntax-box">
-              <div class="syntax-row"><code>stat</code><span>Label + value</span></div>
-              <div class="syntax-row"><code>bar</code><span>Progress bar</span></div>
-              <div class="syntax-row"><code>panel</code><span>Multi-stat container</span></div>
-              <div class="syntax-row"><code>text</code><span>Simple text display</span></div>
-              <div class="syntax-row"><code>custom</code><span>Custom HTML widgets</span></div>
-            </div>
-
-            <div class="feature-option">
-              <span class="option-label">Debug Mode</span>
-              <label class="toggle sm">
-                <input type="checkbox" id="betterscripts-debug">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <p class="feature-hint"><span class="icon-bug"></span> Shows protocol messages in the story and enables verbose console logging.</p>
-
-            <a href="https://better-repository.netlify.app/scripts" target="_blank" rel="noopener noreferrer" class="btn btn-action">
-              <span class="icon-external-link"></span>
-              View Example Scripts
-            </a>
-          </div>
-        </article>
       </div>
 
       <!-- Automations -->
-      <div class="section">
-        <div class="section-header">
+      <div class="section section-collapsible" data-section="automations">
+        <button class="section-header section-header-collapsible" data-collapse="automations" aria-expanded="true">
           <span class="section-icon icon-zap" style="color: var(--bd-section-automations);"></span>
           <h2 class="section-title">Automations</h2>
+          <span class="section-count" id="count-automations"></span>
+          <span class="section-chevron icon-chevron-down"></span>
+        </button>
+        <div class="section-body" id="collapse-automations">
+
+          <!-- Auto See -->
+          <article class="feature-card" data-feature="autoSee">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-mode-see);">
+                    <span class="icon-eye"></span>
+                  </span>
+                  <h3 class="feature-title">Auto See</h3>
+                </div>
+                <p class="feature-desc">Automatically generate scene images after AI responses</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-autoSee">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feature-details">
+              <div class="automation-info">
+                <p>Triggers a <strong>See</strong> action after each AI output to visualize the current scene.</p>
+              </div>
+
+              <div class="feature-option-inline">
+                <span class="option-label-inline">Frequency</span>
+                <select class="form-select form-select-sm" id="auto-see-trigger-mode">
+                  <option value="everyTurn">Every turn</option>
+                  <option value="afterNTurns">Every N turns</option>
+                </select>
+              </div>
+
+              <div class="feature-option-inline" id="auto-see-interval-option" style="display: none;">
+                <span class="option-label-inline">Interval</span>
+                <div class="interval-control">
+                  <input type="range" class="slider slider-sm" id="auto-see-interval" min="2" max="10" value="2">
+                  <span class="interval-value" id="auto-see-interval-value">2</span>
+                </div>
+              </div>
+
+              <div class="alert alert-warning alert-compact">
+                <span class="icon-triangle-alert"></span>
+                <span>Uses Credits per trigger if using a premium image model</span>
+              </div>
+            </div>
+          </article>
+
+          <!-- Auto Enable Scripts -->
+          <article class="feature-card" data-feature="autoEnableScripts">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-icon-auto-scripts);">
+                    <span class="icon-terminal"></span>
+                  </span>
+                  <h3 class="feature-title">Auto Enable Scripts</h3>
+                </div>
+                <p class="feature-desc">Automatically re-enables scripts in scenario editor</p>
+              </div>
+            </div>
+            <div class="feature-details">
+              <p>Automatically retoggles the "Enable Scripts" option in the <strong>Scenario Creation page</strong> when it gets disabled.</p>
+              <p class="feature-hint"><span class="icon-lightbulb"></span> Saves you from manually re-enabling scripts every time.</p>
+            </div>
+          </article>
+
         </div>
+      </div>
 
-        <!-- Auto See -->
-        <article class="feature-card" data-feature="autoSee">
-          <div class="feature-row">
-            <div class="feature-info">
-              <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--bd-mode-see);">
-                  <span class="icon-eye"></span>
-                </span>
-                <h3 class="feature-title">Auto See</h3>
-              </div>
-              <p class="feature-desc">Automatically generate scene images after AI responses</p>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="feature-autoSee">
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="feature-details">
-            <div class="automation-info">
-              <p>Triggers a <strong>See</strong> action after each AI output to visualize the current scene.</p>
-            </div>
-
-            <div class="feature-option-inline">
-              <span class="option-label-inline">Frequency</span>
-              <select class="form-select form-select-sm" id="auto-see-trigger-mode">
-                <option value="everyTurn">Every turn</option>
-                <option value="afterNTurns">Every N turns</option>
-              </select>
-            </div>
-
-            <div class="feature-option-inline" id="auto-see-interval-option" style="display: none;">
-              <span class="option-label-inline">Interval</span>
-              <div class="interval-control">
-                <input type="range" class="slider slider-sm" id="auto-see-interval" min="2" max="10" value="2">
-                <span class="interval-value" id="auto-see-interval-value">2</span>
-              </div>
-            </div>
-
-            <div class="alert alert-warning alert-compact">
-              <span class="icon-triangle-alert"></span>
-              <span>Uses Credits per trigger if using a premium image model</span>
-            </div>
-          </div>
-        </article>
-
-        <!-- Auto Enable Scripts -->
-        <article class="feature-card" data-feature="autoEnableScripts">
-          <div class="feature-row">
-            <div class="feature-info">
-              <div class="feature-title-row">
-                <span class="feature-icon" style="color: var(--bd-icon-auto-scripts);">
-                  <span class="icon-terminal"></span>
-                </span>
-                <h3 class="feature-title">Auto Enable Scripts</h3>
-              </div>
-              <p class="feature-desc">Automatically re-enables scripts in scenario editor</p>
-            </div>
-          </div>
-          <div class="feature-details">
-            <p>Automatically retoggles the "Enable Scripts" option in the <strong>Scenario Creation page</strong> when it gets disabled.</p>
-            <p class="feature-hint"><span class="icon-lightbulb"></span> Saves you from manually re-enabling scripts every time.</p>
-          </div>
-        </article>
-
+      <!-- No Results Message -->
+      <div class="feature-search-empty hidden" id="feature-search-empty">
+        <span class="empty-icon icon-search"></span>
+        <p class="empty-title">No features found</p>
+        <p class="empty-desc">Try a different search term</p>
       </div>
 
     </section>
