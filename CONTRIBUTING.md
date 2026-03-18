@@ -73,9 +73,22 @@ Each feature implements:
 
 ### v1.2.0
 
-- **OOC Brackets Toggle** for Command Mode: optionally wrap commands in `[brackets]` for subtler AI guidance
-- **Markdown Options**: toggle individual formatting types (bold, italic, underline, etc.) in AI instructions
-- **Popup UI Overhaul**: searchable features, collapsible sections, quick toggles grid, and reorganized layout
+- **Command Mode Submodes:**
+  - Added new submodes to the Command input mode feature
+    - Added a "Subtle" submode that wraps commands in `[brackets]` for subtler AI guidance
+    - Added an "OOC" submode that allows you to directly query the AI without continuing the story
+- **Markdown Formatting Improvements**:
+  - Added the ability to toggle individual formatting types (bold, italic, underline, etc.) in AI instructions
+  - Added 3 new Markdown formatting options (quoted, highlight, and list)
+- **Popup UI Overhaul**: 
+  - Added the ability to search through features
+  - Added the ability to collapse feature sections for better organization
+  - Added quick toggles grid for easy access to enable/disable features
+  - Revised the "What's New" section
+  - Reorganized layout for better usability
+- **Bugfixes**:
+  - Ported over the bugfixes done in v1.1.2 and v1.1.1
+  - This fixes several issues with BetterDungeon that were lingering, like the Try mode being broken, and other notable issues listed in previous update logs.
 
 ### v1.1.2
 
