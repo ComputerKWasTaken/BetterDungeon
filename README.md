@@ -32,6 +32,49 @@ For developers or if you prefer manual installation:
 4. Click "Load unpacked" → select the `BetterDungeon` folder
 5. You're in
 
+## Features
+
+### 🎮 Input Modes
+
+- **Command Mode** — Send narrative commands like "Skip time forward to the next day" or "Change the scene" as story commands. The easiest way to steer your story without awkward workarounds.
+  - 2 submodes for even more control: Subtle and OOC!
+- **Try Mode** — RNG-based action outcomes with dice rolling mechanics. Type what you want to try, roll the dice, and see what happens!
+  - Configurable critical hit/fail chance (0-20%)
+  - Adjust success chance from 5% to 95% with arrow keys
+  - Visual success bar shows your current odds
+  - Critical successes and failures for dramatic moments
+
+### 🧭 Control & Navigation
+
+- **Hotkeys** — Keyboard shortcuts to easily and seamlessly navigate and play AI Dungeon. All keys can be remapped to your preference!
+- **Input History** — Terminal-style input history with arrow keys. Press Ctrl + Up/Down to cycle through your previous inputs. Remembers up to 50 recent actions and their respective input modes.
+- **Input Mode Colors** — Color-coded input box so you always know what mode you're in. Fully customizable colors for each mode.
+
+### ✨ Writing & Formatting
+
+- **Markdown Support** — Custom Markdown-like formatting system that works with AI models:
+  - Bold, italic, underline, whisper text, scene breaks, lists and more!
+  - One-click AI instruction application
+  - Auto-apply on adventure option
+- **Adventure Notes** — Embedded Plot Components notes card that saves per adventure. Track plot points, character details, or session notes without AI interference.
+
+### 🔧 Scenario Building
+
+- **Trigger Highlighting** — Story card triggers get highlighted in the context viewer. Hover to jump to the card. Also suggests proper nouns that might deserve their own story cards.
+- **Story Card Analytics Dashboard** — For scenario creators showing card statistics, trigger overlaps, coverage analysis, and potential issues. Helps identify missing triggers, empty cards, and optimization opportunities.
+- **Story Card Modal Dock** — Docks the story card modal to the right side, allowing you to scroll through your story while editing Story Cards.
+- **BetterScripts** — A communication layer between the extension and AI Dungeon scripts for dynamic UI widgets. Enables scripts to create HP bars, stats, and game state displays.
+
+### ⚡ Automations
+
+- **Auto See** — Automatically triggers a See input command after every AI response or after a set number of turns. Configurable frequency with credit usage warnings.
+- **Auto Enable Scripts** — Automatically retoggles "Enable Scripts" in Scenario Creation. Saves you from manually re-enabling scripts every time.
+
+### 📋 Presets
+
+- **Plot Presets** — Save custom Plot Components for reuse across scenarios. Works best with BetterRepository!
+- **Character Presets** — Save character profiles and auto-fill scenario entry questions. Never type your character's details repeatedly again!
+
 ## Usage
 
 1. Head to [AI Dungeon](https://aidungeon.com)
@@ -39,76 +82,6 @@ For developers or if you prefer manual installation:
 3. Play your adventure with all the new goodies
 
 Settings sync across Chromium and Firefox browsers.
-
----
-
-The ALL-IN-ONE Browser Extension for AI DUNGEON 🔥
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🎮 INPUT MODES
-• Command Mode: Send narrative commands like "Skip time forward to the next day" or "Change the scene" as story commands. The easiest way to steer your story without awkward workarounds.
-◦ 2 submodes for even more control: Subtle and OOC!
-
-• Try Mode: RNG-based action outcomes with dice rolling mechanics. Type what you want to try, roll the dice, and see what happens!
-◦  Configurable critical hit/fail chance (0-20%)
-◦  Adjust success chance from 5% to 95% with arrow keys
-◦  Visual success bar shows your current odds
-◦  Critical successes and failures for dramatic moments
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🧭 CONTROL & NAVIGATION
-• Hotkeys: Keyboard shortcuts to easily and seamlessly navigate and play AI Dungeon
-◦  All keys can be remapped to your preference!
-
-• Input History: Terminal-style input history with arrow keys. Press Ctrl + Up/Down to cycle through your previous inputs. Remembers up to 50 recent actions and their respective input modes.
-
-• Input Mode Colors: Color-coded input box so you always know what mode you're in. Fully customizable colors for each mode.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-✨ WRITING & FORMATTING
-• Markdown Support: Custom Markdown-like formatting system that works with AI models:
-◦  Bold, italic, underline, whisper text, scene breaks, lists and more!
-◦  One-click AI instruction application
-◦  Auto-apply on adventure option
-
-• Adventure Notes: Embedded Plot Components notes card that saves per adventure. Track plot points, character details, or session notes without AI interference.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🔧 SCENARIO BUILDING
-• Trigger Highlighting: Story card triggers get highlighted in the context viewer. Hover to jump to the card. Also suggests proper nouns that might deserve their own story cards.
-
-• Story Card Analytics Dashboard: for scenario creators showing card statistics, trigger overlaps, coverage analysis, and potential issues. Helps identify missing triggers, empty cards, and optimization opportunities.
-
-• Story Card Modal Dock: Docks the story card modal to the right side, allowing you to scroll through your story while editing Story Cards.
-
-• BetterScripts: A communication layer between the extension and AI Dungeon scripts for dynamic UI widgets. Enables scripts to create HP bars, stats, and game state displays.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-⚡ AUTOMATIONS
-• Auto See: Automatically triggers a See input command after every AI response or after a set number of turns. Configurable frequency with credit usage warnings.
-
-• Auto Enable Scripts: Automatically retoggles "Enable Scripts" in Scenario Creation. Saves you from manually re-enabling scripts every time.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📋 PRESETS
-• Plot Presets: Save custom Plot Components for reuse across scenarios. Works best with BetterRepository!
-
-• Character Presets: Save character profiles and auto-fill scenario entry questions. Never type your character's details repeatedly again!
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-⚙️ HOW TO USE
-• Install BetterDungeon
-• Visit AI Dungeon (aidungeon.com)
-• Click the BetterDungeon icon to toggle features and access settings
-• Play your adventure with all the new enhancements!
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ## Support
 
