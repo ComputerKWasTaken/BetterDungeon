@@ -74,111 +74,46 @@ Each feature implements:
 ### Changelog
 
 ### v1.2.0
-
-- **Command Mode Submodes:**
-  - Added new submodes to the Command input mode feature
-    - Added a "Subtle" submode that wraps commands in `[brackets]` for subtler AI guidance
-    - Added an "OOC" submode that allows you to directly query the AI without continuing the story
-- **Markdown Formatting Improvements**:
-  - Added the ability to toggle individual formatting types (bold, italic, underline, etc.) in AI instructions
-  - Added 3 new Markdown formatting options (quoted, highlight, and list)
-- **Popup UI Overhaul**: 
-  - Added the ability to search through features
-  - Added the ability to collapse feature sections for better organization
-  - Added quick toggles grid for easy access to enable/disable features
-  - Revised the "What's New" section
-  - Reorganized layout for better usability
-- **Bugfixes**:
-  - Ported over the bugfixes done in v1.1.2 and v1.1.1
-  - This fixes several issues with BetterDungeon that were lingering, like the Try mode being broken, and other notable issues listed in previous update logs.
+- **Command Mode Submodes:** Added "Subtle" (brackets) and "OOC" (direct AI query) submodes
+- **Markdown Formatting:** Toggle individual formatting types; added quoted, highlight, and list options
+- **Popup UI Overhaul:** Feature search, collapsible sections, quick toggles grid, revised layout
+- **Bugfixes:** Ported fixes from v1.1.2 and v1.1.1 (Try mode, Story Card Scanner, etc.)
 
 ### v1.1.2
-
-- Fixed the Story Card Scanner to work with the Story Card Modal Dock feature
-- Fixed an issue with the Story Card Scanner where it would incorrectly associate old Triggers onto differing story cards
-- Fixed Plot Presets autonomous DOM navigation system to both have better state management, but to also use our loading screen service
-- Fixed Plot and Character Presets storage to use local storage instead of sync storage due to size limitations
-  - Developer's Note: I was running into issues where the Plot Presets weren't saving properly due to the 8KB limit of sync storage. This change means your saved Plot and Character Presets don't sync across devices, but they will save properly and no longer run into size issues.
-- Added migration logic to move existing presets from sync storage to local storage
+- Fixed Story Card Scanner compatibility with Story Card Modal Dock
+- Fixed Plot Presets DOM navigation and state management
+- Migrated Plot/Character Presets from sync to local storage (fixes 8KB limit issues)
 
 ### v1.1.1
-
 - Major DOM compatibility fixes for AI Dungeon's framework overhaul
-- Fixed Story Card Scanner, data extraction, and added Dashboard button to toolbar
-- Fixed Markdown auto-apply system and inlined formatting instructions
-- Fixed Try Mode layout bug blocking input; added Input History hotkey conflict handling
-- Fixed sprite theme compatibility for custom buttons (Try, Command, See) with proper hover states and theme detection
+- Fixed Story Card Scanner, Markdown auto-apply, Try Mode layout, and sprite theme compatibility
 
 ### v1.1.0
-
-- Firefox support:
-  - Added support for Firefox browser using a polyfill system
-- What's New section:
-  - Added a What's New banner to the top of the Features tab in the BetterDungeon popup that lists out what's new with BetterDungeon
-- Input History feature:
-  - A new feature that allows users to navigate through their previous inputs using CTRL/Cmd + Up/Down arrow keys, across adventures
-- Character Preset improvements and fixes:
-  - Updated the Character Preset feature to work with the updates to the Placeholder system
-  - Updated the UI of the Character Preset feature
-  - Fixed lingering CSS issues, UI should be less fragile
-- Plot Presets improvements and fixes:
-  - Fixed an issue where the Plot Presets feature would only detect plot components if the Adventure page was refreshed
-  - Fixed an issue with the triple dot menu where it would have no proper position due to not having an anchor (regression)
-  - Fixed an issue where the button colors in the Presets section of the popup didn't have proper CSS color attachments which would cause the buttons to appear white
-  - Renamed the file associated with the Plot Presets feature from `favorite_instructions_feature.js` to `plot_presets_feature.js`
+- **Firefox Support:** Added browser polyfill system
+- **Input History:** Navigate previous inputs with CTRL/Cmd + Up/Down arrows
+- **What's New Banner:** Added to popup Features tab
+- **Character/Plot Presets:** UI updates, placeholder system compatibility, various fixes
 
 ### v1.0.1
-- Drastically revamped and improved the **BetterScripts** feature
-  - Added a proper debug mode and system
-  - Reworked sidebar system to instead function as an alignment system
-  - Added a more dynamic resizing system that takes into account the widget quantities
-  - Reworked all example scripts
-  - Drastically reduced systemic complexity
-    - Replaced the sidebar widget system with an alignment system that allows for better visual organization on larger screens
-    - Removed unnecessary features and functions like the bdUpdate helper and widget condenser system
-  - Fully documented BetterScripts with BetterRepository
-- Revamped and drastically improved the **Character Presets** feature
-  - Now features and autofill approval UI, better editing mechanism, more intelligent features, and more.
+- **BetterScripts:** Debug mode, alignment system, dynamic resizing, reworked examples, full documentation
+- **Character Presets:** Autofill approval UI, improved editing and intelligence
 
 ### v1.0.0
-- Added **BetterScripts**, a brand new communication layer between the extension and AI Dungeon scripts to allow for the creation of dynamic UI widgets
-- Ported over and improved the **Attempt** feature to be the **Try** feature
-- Improved **Try** feature formatting with **dynamic templates** and **varied outcome phrases** to reduce monotony
-- Embedded **Adventure Notes** directly in Plot Components (no floating panel or resizer)
-- **Improved the roll system** within the Try feature for more consistent odds and logic
-- Fixed and improved the **Input Mode Color** feature
-- Added **Story Card Modal Dock** feature, which docks the story card modal to the right side of the screen and allows you to scroll through your story
-- Improved **Character Preset** feature to be more consistent
-- Fixed color bleed issue on the buttons with the Input Mode color feature in custom themes
-- Fixed an issue with the Markdown rendering system where italic wrapping bold formatting and unordered formatting wouldn't work properly
+- **BetterScripts:** New extension-to-script communication layer for dynamic UI widgets
+- **Try Feature:** Dynamic templates, varied outcome phrases, improved roll system
+- **Story Card Modal Dock:** Docks modal to right side with scrolling
+- **Adventure Notes:** Embedded directly in Plot Components
+- Various fixes for Input Mode Color, Markdown rendering, Character Presets
 
 ### v0.9.5
-- Added **"Auto See"** feature, which automatically triggers a See input command after every AI response or after a certain amount of turns
-- Added **Story Card Analytics** feature, which provides intelligent feedback and information about your story card setup to find weakpoints and address them
-- Added **Adventure Notes** feature, which allows you write down anything and everything you want to remember about your current adventure
-- Added **"Auto Enable Scripts"** feature, which automatically retoggles the "Enable Scripts" option in the Scenario Creation page
-- **Improved the design of the Popup UI** to include icons for each feature
-- Added the ability to **customize your hotkeys** via the popup
-- Added the ability to **customize input mode colors** via the popup
-- **Improved Story Card Scanner** to be much faster and be able to handle more cards at once
-- **Reorganized the Popup UI's feature content** to be more organized and easier to navigate
-- Updated the Tutorial to include information about the new features
-- Improved debug logs system for better troubleshooting
-- Bugfixes
+- **New Features:** Auto See, Story Card Analytics, Adventure Notes, Auto Enable Scripts
+- **Improvements:** Popup UI redesign with icons, customizable hotkeys and input mode colors
+- Improved Story Card Scanner performance
 
 ### v0.9.1
-- Improved **Command** mode formatting to include brackets [] for better AI adherence
-- Added an option to automatically delete the command text after being sent
-- Improved the **Markdown** formatting instructions and system to use an alternative system that avoids asterisks AND underscores (new)
-- **Improved the popup UI** to be more compact, organized, and easier to navigate
-- **Improved the Tutorial** to be more adaptive and handle edge cases better
-- **Removed the Tip popup/tooltip system** as it was too intrusive
-- Added **"Exit Input" hotkey (Esc)** to exit input mode
-- Bugfixes
-
-### v0.9.0.2
-- Fixed an issue with the Apply button, should fix Markdown instruction application
-- Improved MD file flow
+- Improved Command mode formatting with brackets
+- Alternative Markdown formatting system (avoids asterisks and underscores)
+- Compact popup UI, improved tutorial, Exit Input hotkey (Esc)
 
 ### v0.9.0
 - Early Access release
@@ -244,119 +179,19 @@ if (typeof window !== 'undefined') {
 
 ---
 
-## Design System
+## Support & Resources
 
-### Stylization Standard
+### Getting Help
+- **Issues:** Report bugs or request features via [GitHub Issues](https://github.com/ComputerKWasTaken/BetterDungeon/issues)
 
-BetterDungeon follows a dark mode design system for consistency. All variables are defined in `core/theme-variables.css`.
+### Useful Links
+- [AI Dungeon](https://aidungeon.com) - The game BetterDungeon enhances
+- [Chrome Extension Documentation](https://developer.chrome.com/docs/extensions/)
+- [Firefox Extension Documentation](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions)
 
-### Color Palette
-
-#### Backgrounds
-| Token | Value | Usage |
-|-------|-------|-------|
-| Primary | `#0d0d0f` | Deepest background |
-| Secondary | `#16161a` | Cards, panels |
-| Tertiary | `#1e1e24` | Nested cards, hover states |
-| Elevated | `#252530` | Inputs, raised elements |
-
-#### Text
-| Token | Value | Usage |
-|-------|-------|-------|
-| Primary | `#e8e8ec` | Main content |
-| Secondary | `#a0a0a8` | Descriptions |
-| Muted | `#6b6b75` | Hints, disabled |
-
-#### Brand
-| Token | Value | Usage |
-|-------|-------|-------|
-| Primary | `#ff9500` | Accents, primary actions |
-| Secondary | `#e07800` | Hover states |
-| Light | `#ffb84d` | Highlights |
-
-#### Input Modes
-| Mode | Color | Hex |
-|------|-------|-----|
-| Do | Blue | `#3b82f6` |
-| Try | Purple | `#a855f7` |
-| Say | Green | `#22c55e` |
-| Story | Amber | `#fbbf24` |
-| See | Pink | `#ec4899` |
-| Command | Cyan | `#06b6d4` |
-
-#### Status
-| Status | Hex |
-|--------|-----|
-| Success | `#22c55e` |
-| Error | `#ef4444` |
-| Warning | `#f59e0b` |
-| Info | `#3b82f6` |
-
-### Typography
-
-**Font Stack:**
-- Primary: `'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
-- Monospace: `'Roboto Mono', 'Consolas', 'Monaco', 'Courier New', monospace`
-
-**Sizes:** 10px (XS) → 12px (Base) → 14px (LG) → 18px (2XL) → 22px (3XL)
-
-### Spacing
-
-4px increments: `4px` (1) → `8px` (2) → `12px` (3) → `16px` (4) → `24px` (6) → `32px` (8)
-
-### Border Radius
-
-`4px` (SM) → `6px` (MD) → `8px` (LG) → `12px` (2XL) → `16px` (3XL)
-
-### Shadows
-
-| Size | Value |
-|------|-------|
-| SM | `0 1px 2px rgba(0,0,0,0.2)` |
-| MD | `0 2px 8px rgba(0,0,0,0.3)` |
-| LG | `0 4px 16px rgba(0,0,0,0.4)` |
-| XL | `0 8px 32px rgba(0,0,0,0.5)` |
-
-### Transitions
-
-- Fast: `0.15s` for hover states
-- Normal: `0.2s` as default
-- Slow: `0.3s` for complex animations
-
-### Usage Example
-
-```css
-.my-component {
-  background: var(--bd-card-bg);
-  border: 1px solid var(--bd-card-border);
-  border-radius: var(--bd-radius-lg);
-  padding: var(--bd-space-4);
-  transition: all var(--bd-transition-fast);
-}
-```
+### License
+This project is open source. See the LICENSE file for details.
 
 ---
 
-## Resources
-
-### Icons
-
-- **AI Dungeon Icons (w_icons)** - Use for features that integrate with AI Dungeon's UI
-- **Lucide Icons** - Use for BetterDungeon-specific UI (popup, overlays)
-
-The Lucide icon font is in `fonts/lucide/`. Browse icons at [lucide.dev/icons](https://lucide.dev/icons).
-
-```html
-<span class="icon-star"></span>
-<span class="icon-user"></span>
-<span class="icon-keyboard"></span>
-```
-
----
-
-### Accessibility Guidelines
-
-- All interactive elements have visible focus states
-- Text contrast meets WCAG AA
-- Supports `prefers-reduced-motion`
-- Semantic HTML for screen readers
+Thank you for contributing to BetterDungeon! Your efforts help make AI Dungeon a better experience for everyone.
