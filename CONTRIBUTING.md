@@ -40,10 +40,12 @@ BetterDungeon/
 ├── services/               # External service integrations
 │   ├── ai-dungeon-service.js   # AI Dungeon specific operations
 │   ├── loading-screen.js       # Loading screen management
-│   └── story-card-scanner.js   # Story card scanning
+│   ├── story-card-scanner.js   # Story card scanning
+│   └── tutorial-service.js     # Tutorial management
 ├── utils/                  # Utility functions
-│   ├── dom.js              # DOM manipulation helpers
-│   └── storage.js          # Chrome storage abstraction
+│   ├── browser-polyfill.js     # Browser API polyfill for Firefox compatibility
+│   ├── dom.js                  # DOM manipulation helpers
+│   └── storage.js              # Chrome storage abstraction
 ├── features/               # Self-contained feature modules
 ├── styles.css              # CSS for all features
 ├── popup.html/js/css       # Extension popup interface
