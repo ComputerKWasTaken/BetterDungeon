@@ -179,19 +179,13 @@ if (typeof window !== 'undefined') {
 
 ---
 
-## Support & Resources
+## Support
 
-### Getting Help
-- **Issues:** Report bugs or request features via [GitHub Issues](https://github.com/ComputerKWasTaken/BetterDungeon/issues)
-
-### Useful Links
-- [AI Dungeon](https://aidungeon.com) - The game BetterDungeon enhances
-- [Chrome Extension Documentation](https://developer.chrome.com/docs/extensions/)
-- [Firefox Extension Documentation](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions)
-
-### License
-This project is open source. See the LICENSE file for details.
+- [Found a bug?](../../issues) Report it on GitHub
+- [Feature idea?](../../issues/new?template=feature_request.md) I'd love to hear it
+- Need help? Check the [Contributing Guide](CONTRIBUTING.md) for technical details
+- Contact me on Discord: `@computerK`
 
 ---
 
-Thank you for contributing to BetterDungeon! Your efforts help make AI Dungeon a better experience for everyone.
+**Made with ❤️ for the AI Dungeon community**
