@@ -623,14 +623,43 @@ class AIDungeonService {
 
   // ==================== PLOT COMPONENT DETECTION ====================
 
+  // Fallback textarea finder: locates a textarea by its plot component heading text.
+  // This handles cases where placeholder-based CSS selectors fail due to
+  // unicode apostrophe mismatches (e.g. U+2019 vs U+0027) or placeholder text changes.
+  _findTextareaByComponentHeading(headingText) {
+    const normalize = (s) => s.replace(/[\u2018\u2019\u2032\u02BC]/g, "'");
+    const target = normalize(headingText).toLowerCase();
+
+    for (const heading of document.querySelectorAll('[role="heading"]')) {
+      const text = normalize(heading.textContent?.trim() || '').toLowerCase();
+      if (text === target) {
+        // Plot component DOM structure:
+        //   container (.is_Column) > header row (.is_Row) > heading
+        //   container (.is_Column) > content area (.is_Column) > textarea
+        const container = heading.closest('.is_Column') || heading.parentElement?.parentElement;
+        if (container) {
+          const textarea = container.querySelector('textarea');
+          if (textarea) return textarea;
+        }
+      }
+    }
+    return null;
+  }
+
   // Find the AI Instructions textarea if it exists
   findAIInstructionsTextarea() {
-    return document.querySelector(AIDungeonService.SEL.AI_INSTRUCTIONS);
+    const byPlaceholder = document.querySelector(AIDungeonService.SEL.AI_INSTRUCTIONS);
+    if (byPlaceholder) return byPlaceholder;
+    // Fallback: locate by component heading (handles unicode apostrophe mismatches)
+    return this._findTextareaByComponentHeading('AI Instructions');
   }
 
   // Find the Author's Note textarea if it exists
   findAuthorsNoteTextarea() {
-    return document.querySelector(AIDungeonService.SEL.AUTHORS_NOTE);
+    const byPlaceholder = document.querySelector(AIDungeonService.SEL.AUTHORS_NOTE);
+    if (byPlaceholder) return byPlaceholder;
+    // Fallback: locate by component heading (handles unicode apostrophe mismatches)
+    return this._findTextareaByComponentHeading("Author's Note");
   }
 
   // Find the Plot Essentials textarea if it exists
@@ -683,11 +712,13 @@ class AIDungeonService {
       'div[role="button"]',
       'button',
     ];
-    const target = optionName.toLowerCase();
+    // Normalize apostrophes — AI Dungeon may use typographic quotes (U+2019)
+    const normalize = (s) => s.replace(/[\u2018\u2019\u2032\u02BC]/g, "'");
+    const target = normalize(optionName.toLowerCase());
 
     for (const sel of selectors) {
       for (const el of document.querySelectorAll(sel)) {
-        if (el.textContent?.trim().toLowerCase().includes(target)) return el;
+        if (normalize(el.textContent?.trim().toLowerCase() || '').includes(target)) return el;
       }
     }
     return null;
@@ -708,7 +739,19 @@ class AIDungeonService {
       const option = this.findPlotComponentOption(componentName);
       if (option) {
         option.click();
-        await this.wait(500);
+
+        // Verify the component rendered by polling for its textarea
+        // instead of a flat wait — returns early once detected
+        for (let v = 0; v < 8; v++) {
+          await this.wait(250);
+          if (this._findTextareaByComponentHeading(componentName)) {
+            return { success: true };
+          }
+        }
+
+        // Click registered but textarea not yet detected — still report success
+        // as the component may finish rendering during the broader wait cycle
+        console.warn(`AIDungeonService: ${componentName} selected but textarea not yet detected`);
         return { success: true };
       }
       await this.wait(100);
@@ -910,7 +953,21 @@ class AIDungeonService {
       }
     }
 
-    if (!textareas.success) return textareas;
+    // If full detection failed, try to locate AI Instructions alone since
+    // that is the only textarea we actually write to. Author's Note being
+    // undetectable should not block instruction application.
+    if (!textareas.success) {
+      const aiTextarea = this.findAIInstructionsTextarea();
+      if (aiTextarea) {
+        textareas = {
+          success: true,
+          aiInstructionsTextarea: aiTextarea,
+          authorsNoteTextarea: this.findAuthorsNoteTextarea(),
+        };
+      } else {
+        return textareas;
+      }
+    }
 
     const { aiInstructionsTextarea } = textareas;
 
