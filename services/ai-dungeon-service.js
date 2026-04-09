@@ -235,6 +235,20 @@ class AIDungeonService {
     return lines.join('\n');
   }
 
+  // Build condensed Author's Note instructions based on user config.
+  // Author's Note is for short-form writing style directives, so we
+  // condense the enabled formatting options into a single-line reminder.
+  static buildAuthorsNoteInstructions(config) {
+    const enabledOptions = AIDungeonService.MARKDOWN_FORMAT_OPTIONS.filter(opt => config[opt.id]);
+
+    if (enabledOptions.length === 0) {
+      return '';
+    }
+
+    const syntaxList = enabledOptions.map(opt => opt.syntax).join(', ');
+    return `Apply custom Markdown formatting throughout: ${syntaxList}.`;
+  }
+
   // Legacy static property for backward compatibility
   static get MARKDOWN_INSTRUCTIONS() {
     return AIDungeonService.buildMarkdownInstructions(AIDungeonService.DEFAULT_MARKDOWN_CONFIG);
@@ -909,15 +923,19 @@ class AIDungeonService {
 
   // ==================== INSTRUCTION APPLICATION ====================
 
-  // Check if markdown instructions are already present in a textarea
+  // Check if markdown instructions are already present in a textarea.
+  // Checks markers from both the full AI Instructions format and the
+  // condensed Author's Note format.
   containsInstructions(textarea) {
     if (!textarea) return false;
     const val = textarea.value || '';
 
-    // Check for unique markers from the instruction text (both old and new format)
+    // Markers from full instructions (AI Instructions textarea)
+    // and condensed format (Author's Note textarea)
     const markers = [
       '## Formatting',
       'custom Markdown syntax',
+      'custom Markdown formatting',
       '[FORMATTING]',
       '++Bold++',
       '//Italic//',
@@ -926,9 +944,9 @@ class AIDungeonService {
     return markers.some(m => val.includes(m));
   }
 
-  // Main method to apply instructions to AI Instructions textarea only
+  // Main method to apply instructions to both AI Instructions and Author's Note textareas
   async applyInstructionsToTextareas(instructionsText, options = {}) {
-    const { forceApply = false, onCreatingComponents = null, onStepUpdate = null } = options;
+    const { forceApply = false, onCreatingComponents = null, onStepUpdate = null, authorsNoteText = null } = options;
 
     // Navigate to Plot settings with step callbacks
     const navResult = await this.navigateToPlotSettings({ onStepUpdate });
@@ -953,9 +971,8 @@ class AIDungeonService {
       }
     }
 
-    // If full detection failed, try to locate AI Instructions alone since
-    // that is the only textarea we actually write to. Author's Note being
-    // undetectable should not block instruction application.
+    // If full detection failed, try to locate AI Instructions alone.
+    // Author's Note being undetectable should not block AI Instructions application.
     if (!textareas.success) {
       const aiTextarea = this.findAIInstructionsTextarea();
       if (aiTextarea) {
@@ -969,19 +986,28 @@ class AIDungeonService {
       }
     }
 
-    const { aiInstructionsTextarea } = textareas;
+    const { aiInstructionsTextarea, authorsNoteTextarea } = textareas;
 
-    // Only apply to AI Instructions textarea
+    // Check each textarea independently
     const aiHas = this.containsInstructions(aiInstructionsTextarea);
+    const noteHas = authorsNoteTextarea ? this.containsInstructions(authorsNoteTextarea) : true;
 
-    if (aiHas && !forceApply) {
+    // Only report "already applied" when ALL available textareas have instructions
+    if (aiHas && noteHas && !forceApply) {
       return { success: true, alreadyApplied: true };
     }
 
     let appliedCount = 0;
 
+    // Apply to AI Instructions if needed
     if (!aiHas || forceApply) {
       this.domUtils.appendToTextarea(aiInstructionsTextarea, instructionsText);
+      appliedCount++;
+    }
+
+    // Apply to Author's Note if needed
+    if (authorsNoteTextarea && authorsNoteText && (!noteHas || forceApply)) {
+      this.domUtils.appendToTextarea(authorsNoteTextarea, authorsNoteText);
       appliedCount++;
     }
 
@@ -1053,7 +1079,8 @@ class AIDungeonService {
 
   // ==================== INSTRUCTION DATA ====================
 
-  // Builds and returns markdown formatting instructions based on user config
+  // Builds and returns markdown formatting instructions based on user config.
+  // Returns both the full AI Instructions text and the condensed Author's Note text.
   async fetchInstructionsFile() {
     try {
       const result = await new Promise(resolve => {
@@ -1063,10 +1090,16 @@ class AIDungeonService {
       });
       const config = result || AIDungeonService.DEFAULT_MARKDOWN_CONFIG;
       const instructions = AIDungeonService.buildMarkdownInstructions(config);
-      return { success: true, data: instructions };
+      const authorsNote = AIDungeonService.buildAuthorsNoteInstructions(config);
+      return { success: true, data: instructions, authorsNoteData: authorsNote };
     } catch (e) {
       // Fallback to default config if storage fails
-      return { success: true, data: AIDungeonService.MARKDOWN_INSTRUCTIONS };
+      const defaultConfig = AIDungeonService.DEFAULT_MARKDOWN_CONFIG;
+      return {
+        success: true,
+        data: AIDungeonService.MARKDOWN_INSTRUCTIONS,
+        authorsNoteData: AIDungeonService.buildAuthorsNoteInstructions(defaultConfig),
+      };
     }
   }
 

@@ -151,6 +151,7 @@ class MarkdownFeature {
       
       // Pass callbacks to update loading screen during the process
       const applyResult = await service.applyInstructionsToTextareas(instructionsResult.data, {
+        authorsNoteText: instructionsResult.authorsNoteData || null,
         onStepUpdate: (message) => {
           loadingScreen.updateSubtitle(message);
         },
@@ -184,9 +185,9 @@ class MarkdownFeature {
 
       loadingScreen.updateTitle('Instructions Applied!');
       if (applyResult.componentsCreated) {
-        loadingScreen.updateSubtitle('Created plot components & added instructions to AI Instructions');
+        loadingScreen.updateSubtitle('Created plot components & added formatting instructions');
       } else {
-        loadingScreen.updateSubtitle('Markdown formatting guidelines added to AI Instructions');
+        loadingScreen.updateSubtitle('Markdown formatting guidelines applied');
       }
       
       await this.wait(1500);
