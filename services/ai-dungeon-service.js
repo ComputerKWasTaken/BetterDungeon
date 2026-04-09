@@ -235,6 +235,20 @@ class AIDungeonService {
     return lines.join('\n');
   }
 
+  // Build condensed Author's Note instructions based on user config.
+  // Author's Note is for short-form writing style directives, so we
+  // condense the enabled formatting options into a single-line reminder.
+  static buildAuthorsNoteInstructions(config) {
+    const enabledOptions = AIDungeonService.MARKDOWN_FORMAT_OPTIONS.filter(opt => config[opt.id]);
+
+    if (enabledOptions.length === 0) {
+      return '';
+    }
+
+    const syntaxList = enabledOptions.map(opt => opt.syntax).join(', ');
+    return `Apply custom Markdown formatting throughout: ${syntaxList}.`;
+  }
+
   // Legacy static property for backward compatibility
   static get MARKDOWN_INSTRUCTIONS() {
     return AIDungeonService.buildMarkdownInstructions(AIDungeonService.DEFAULT_MARKDOWN_CONFIG);
@@ -623,14 +637,43 @@ class AIDungeonService {
 
   // ==================== PLOT COMPONENT DETECTION ====================
 
+  // Fallback textarea finder: locates a textarea by its plot component heading text.
+  // This handles cases where placeholder-based CSS selectors fail due to
+  // unicode apostrophe mismatches (e.g. U+2019 vs U+0027) or placeholder text changes.
+  _findTextareaByComponentHeading(headingText) {
+    const normalize = (s) => s.replace(/[\u2018\u2019\u2032\u02BC]/g, "'");
+    const target = normalize(headingText).toLowerCase();
+
+    for (const heading of document.querySelectorAll('[role="heading"]')) {
+      const text = normalize(heading.textContent?.trim() || '').toLowerCase();
+      if (text === target) {
+        // Plot component DOM structure:
+        //   container (.is_Column) > header row (.is_Row) > heading
+        //   container (.is_Column) > content area (.is_Column) > textarea
+        const container = heading.closest('.is_Column') || heading.parentElement?.parentElement;
+        if (container) {
+          const textarea = container.querySelector('textarea');
+          if (textarea) return textarea;
+        }
+      }
+    }
+    return null;
+  }
+
   // Find the AI Instructions textarea if it exists
   findAIInstructionsTextarea() {
-    return document.querySelector(AIDungeonService.SEL.AI_INSTRUCTIONS);
+    const byPlaceholder = document.querySelector(AIDungeonService.SEL.AI_INSTRUCTIONS);
+    if (byPlaceholder) return byPlaceholder;
+    // Fallback: locate by component heading (handles unicode apostrophe mismatches)
+    return this._findTextareaByComponentHeading('AI Instructions');
   }
 
   // Find the Author's Note textarea if it exists
   findAuthorsNoteTextarea() {
-    return document.querySelector(AIDungeonService.SEL.AUTHORS_NOTE);
+    const byPlaceholder = document.querySelector(AIDungeonService.SEL.AUTHORS_NOTE);
+    if (byPlaceholder) return byPlaceholder;
+    // Fallback: locate by component heading (handles unicode apostrophe mismatches)
+    return this._findTextareaByComponentHeading("Author's Note");
   }
 
   // Find the Plot Essentials textarea if it exists
@@ -683,11 +726,13 @@ class AIDungeonService {
       'div[role="button"]',
       'button',
     ];
-    const target = optionName.toLowerCase();
+    // Normalize apostrophes — AI Dungeon may use typographic quotes (U+2019)
+    const normalize = (s) => s.replace(/[\u2018\u2019\u2032\u02BC]/g, "'");
+    const target = normalize(optionName.toLowerCase());
 
     for (const sel of selectors) {
       for (const el of document.querySelectorAll(sel)) {
-        if (el.textContent?.trim().toLowerCase().includes(target)) return el;
+        if (normalize(el.textContent?.trim().toLowerCase() || '').includes(target)) return el;
       }
     }
     return null;
@@ -708,7 +753,19 @@ class AIDungeonService {
       const option = this.findPlotComponentOption(componentName);
       if (option) {
         option.click();
-        await this.wait(500);
+
+        // Verify the component rendered by polling for its textarea
+        // instead of a flat wait — returns early once detected
+        for (let v = 0; v < 8; v++) {
+          await this.wait(250);
+          if (this._findTextareaByComponentHeading(componentName)) {
+            return { success: true };
+          }
+        }
+
+        // Click registered but textarea not yet detected — still report success
+        // as the component may finish rendering during the broader wait cycle
+        console.warn(`AIDungeonService: ${componentName} selected but textarea not yet detected`);
         return { success: true };
       }
       await this.wait(100);
@@ -866,15 +923,19 @@ class AIDungeonService {
 
   // ==================== INSTRUCTION APPLICATION ====================
 
-  // Check if markdown instructions are already present in a textarea
+  // Check if markdown instructions are already present in a textarea.
+  // Checks markers from both the full AI Instructions format and the
+  // condensed Author's Note format.
   containsInstructions(textarea) {
     if (!textarea) return false;
     const val = textarea.value || '';
 
-    // Check for unique markers from the instruction text (both old and new format)
+    // Markers from full instructions (AI Instructions textarea)
+    // and condensed format (Author's Note textarea)
     const markers = [
       '## Formatting',
       'custom Markdown syntax',
+      'custom Markdown formatting',
       '[FORMATTING]',
       '++Bold++',
       '//Italic//',
@@ -883,9 +944,9 @@ class AIDungeonService {
     return markers.some(m => val.includes(m));
   }
 
-  // Main method to apply instructions to AI Instructions textarea only
+  // Main method to apply instructions to both AI Instructions and Author's Note textareas
   async applyInstructionsToTextareas(instructionsText, options = {}) {
-    const { forceApply = false, onCreatingComponents = null, onStepUpdate = null } = options;
+    const { forceApply = false, onCreatingComponents = null, onStepUpdate = null, authorsNoteText = null } = options;
 
     // Navigate to Plot settings with step callbacks
     const navResult = await this.navigateToPlotSettings({ onStepUpdate });
@@ -910,21 +971,43 @@ class AIDungeonService {
       }
     }
 
-    if (!textareas.success) return textareas;
+    // If full detection failed, try to locate AI Instructions alone.
+    // Author's Note being undetectable should not block AI Instructions application.
+    if (!textareas.success) {
+      const aiTextarea = this.findAIInstructionsTextarea();
+      if (aiTextarea) {
+        textareas = {
+          success: true,
+          aiInstructionsTextarea: aiTextarea,
+          authorsNoteTextarea: this.findAuthorsNoteTextarea(),
+        };
+      } else {
+        return textareas;
+      }
+    }
 
-    const { aiInstructionsTextarea } = textareas;
+    const { aiInstructionsTextarea, authorsNoteTextarea } = textareas;
 
-    // Only apply to AI Instructions textarea
+    // Check each textarea independently
     const aiHas = this.containsInstructions(aiInstructionsTextarea);
+    const noteHas = authorsNoteTextarea ? this.containsInstructions(authorsNoteTextarea) : true;
 
-    if (aiHas && !forceApply) {
+    // Only report "already applied" when ALL available textareas have instructions
+    if (aiHas && noteHas && !forceApply) {
       return { success: true, alreadyApplied: true };
     }
 
     let appliedCount = 0;
 
+    // Apply to AI Instructions if needed
     if (!aiHas || forceApply) {
       this.domUtils.appendToTextarea(aiInstructionsTextarea, instructionsText);
+      appliedCount++;
+    }
+
+    // Apply to Author's Note if needed
+    if (authorsNoteTextarea && authorsNoteText && (!noteHas || forceApply)) {
+      this.domUtils.appendToTextarea(authorsNoteTextarea, authorsNoteText);
       appliedCount++;
     }
 
@@ -996,7 +1079,8 @@ class AIDungeonService {
 
   // ==================== INSTRUCTION DATA ====================
 
-  // Builds and returns markdown formatting instructions based on user config
+  // Builds and returns markdown formatting instructions based on user config.
+  // Returns both the full AI Instructions text and the condensed Author's Note text.
   async fetchInstructionsFile() {
     try {
       const result = await new Promise(resolve => {
@@ -1006,10 +1090,16 @@ class AIDungeonService {
       });
       const config = result || AIDungeonService.DEFAULT_MARKDOWN_CONFIG;
       const instructions = AIDungeonService.buildMarkdownInstructions(config);
-      return { success: true, data: instructions };
+      const authorsNote = AIDungeonService.buildAuthorsNoteInstructions(config);
+      return { success: true, data: instructions, authorsNoteData: authorsNote };
     } catch (e) {
       // Fallback to default config if storage fails
-      return { success: true, data: AIDungeonService.MARKDOWN_INSTRUCTIONS };
+      const defaultConfig = AIDungeonService.DEFAULT_MARKDOWN_CONFIG;
+      return {
+        success: true,
+        data: AIDungeonService.MARKDOWN_INSTRUCTIONS,
+        authorsNoteData: AIDungeonService.buildAuthorsNoteInstructions(defaultConfig),
+      };
     }
   }
 
