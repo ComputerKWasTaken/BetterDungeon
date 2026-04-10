@@ -289,16 +289,23 @@ class TriggerHighlightFeature {
   // Scan the entire page for trigger values
   scanForTriggers() {
     const previousCount = this.cachedTriggers.size;
-    
-    // Look for TRIGGERS label and associated inputs
-    document.querySelectorAll('p.is_Paragraph').forEach(p => {
-      const text = p.textContent?.trim().toUpperCase() || '';
+
+    // Method 1 (Primary): Use stable aria-labelledby selector for the triggers input.
+    // This matches the approach used by the story card scanner's extractFullCardData().
+    const triggersInput = document.querySelector('input[aria-labelledby="scTriggersLabel"]');
+    if (triggersInput?.value) {
+      const cardName = this.findCardName(triggersInput);
+      this.parseTriggers(triggersInput.value, cardName);
+    }
+
+    // Method 2 (Fallback): Scan span.font_body labels for "TRIGGERS" text.
+    // AI Dungeon labels are uppercase span.font_body elements, not p.is_Paragraph.
+    document.querySelectorAll('span.font_body').forEach(span => {
+      const text = span.textContent?.trim().toUpperCase() || '';
       if (text === 'TRIGGERS' || text === 'TRIGGER') {
-        const container = p.closest('.is_Column') || p.parentElement;
+        const container = span.closest('.is_Column') || span.parentElement;
         if (container) {
-          // Try to find the card name from the modal/editor
           const cardName = this.findCardName(container);
-          
           container.querySelectorAll('input, textarea').forEach(input => {
             if (input.value) {
               this.parseTriggers(input.value, cardName);
@@ -308,75 +315,70 @@ class TriggerHighlightFeature {
       }
     });
 
-    // Also scan all inputs on the page for ones that look like trigger fields
-    document.querySelectorAll('input, textarea').forEach(input => {
-      const value = input.value || '';
-      if (!value) return;
-      
-      // Check if this input is in a container with a TRIGGERS label
-      const container = input.closest('.is_Column');
-      if (container) {
-        const labels = container.querySelectorAll('p.is_Paragraph');
-        for (const label of labels) {
-          if (label.textContent?.trim().toUpperCase() === 'TRIGGERS') {
-            const cardName = this.findCardName(container);
-            this.parseTriggers(value, cardName);
-            break;
-          }
+    // Method 3 (Legacy fallback): Also check p.is_Paragraph labels in case
+    // some DOM contexts still use them.
+    document.querySelectorAll('p.is_Paragraph').forEach(p => {
+      const text = p.textContent?.trim().toUpperCase() || '';
+      if (text === 'TRIGGERS' || text === 'TRIGGER') {
+        const container = p.closest('.is_Column') || p.parentElement;
+        if (container) {
+          const cardName = this.findCardName(container);
+          container.querySelectorAll('input, textarea').forEach(input => {
+            if (input.value) {
+              this.parseTriggers(input.value, cardName);
+            }
+          });
         }
       }
     });
-
   }
 
   // Find the story card name from the current editor/modal context
   findCardName(triggerContainer) {
-    // Look for the card name in the modal header or nearby elements
-    // The card name is typically in an h1 or prominent text element
-    
-    // Method 1: Look for a modal/dialog ancestor and find its header
+    // Method 1 (Primary): Use the stable aria-labelledby title input.
+    // The card editor uses input[aria-labelledby="scTitleLabel"] for the card name.
+    const titleInput = document.querySelector('input[aria-labelledby="scTitleLabel"]');
+    if (titleInput?.value) {
+      return titleInput.value.trim();
+    }
+
+    // Method 2: Look for a modal/dialog ancestor and find its header
     const modal = triggerContainer.closest('[role="dialog"], [role="alertdialog"], [aria-modal="true"]');
     if (modal) {
-      // Look for the card name - usually in header area
       const header = modal.querySelector('h1, [role="heading"]');
       if (header) {
         const name = header.textContent?.trim();
-        // Skip generic headers like "Adventure", "Story Cards", etc.
-        if (name && !['Adventure', 'Story Cards', 'Settings'].includes(name)) {
+        if (name && !['Adventure', 'Complete Text', 'Story Cards', 'Settings'].includes(name)) {
           return name;
         }
       }
       
       // Also check for input fields that might contain the card name
-      // Card name is often the first prominent text or in a specific input
       const nameInput = modal.querySelector('input[placeholder*="name"], input[placeholder*="Name"]');
       if (nameInput?.value) {
         return nameInput.value.trim();
       }
     }
     
-    // Method 2: Look for nearby heading elements
+    // Method 3: Look for nearby heading elements
     let parent = triggerContainer.parentElement;
     for (let i = 0; i < 10 && parent; i++) {
       const heading = parent.querySelector('h1, h2, [role="heading"]');
       if (heading) {
         const name = heading.textContent?.trim();
-        if (name && name.length < 100 && !['Adventure', 'Story Cards', 'Settings', 'TRIGGERS', 'DETAILS'].includes(name)) {
+        if (name && name.length < 100 && !['Adventure', 'Complete Text', 'Story Cards', 'Settings', 'TRIGGERS', 'DETAILS'].includes(name)) {
           return name;
         }
       }
       parent = parent.parentElement;
     }
     
-    // Method 3: Look for the card title in the page structure
-    // Story card editors often have the name displayed prominently
+    // Method 4: Look for the card title in the page structure
     const allHeadings = document.querySelectorAll('h1, [role="heading"]');
     for (const h of allHeadings) {
       const text = h.textContent?.trim();
-      // Check if this looks like a card name (not a section header)
       if (text && text.length > 0 && text.length < 50 && 
-          !['Adventure', 'Story Cards', 'Settings', 'TRIGGERS', 'DETAILS', 'GENERATOR SETTINGS', 'NOTES'].includes(text.toUpperCase())) {
-        // Check if this heading is in a visible modal context
+          !['Adventure', 'Complete Text', 'Story Cards', 'Settings', 'TRIGGERS', 'DETAILS', 'GENERATOR SETTINGS', 'NOTES'].includes(text.toUpperCase())) {
         const headingModal = h.closest('[role="dialog"], [role="alertdialog"]');
         if (headingModal && headingModal.contains(triggerContainer)) {
           return text;
@@ -425,9 +427,20 @@ class TriggerHighlightFeature {
   }
 
   isAdventureModal(element) {
-    // Check if this modal has "Adventure" as its header
+    // The adventure context viewer is a modal/alertdialog that contains the
+    // story text. AI Dungeon changed the heading from "Adventure" to
+    // "Complete Text", so match both and also look for characteristic
+    // tab structure ("Text" / "Tokens" tabs) as a fallback.
     const header = element.querySelector('h1[role="heading"]');
-    return header && header.textContent.trim() === 'Adventure';
+    const headerText = header?.textContent?.trim() || '';
+    if (headerText === 'Adventure' || headerText === 'Complete Text') return true;
+
+    // Fallback: check for Text/Tokens tab pair that identifies the context viewer
+    const tabs = element.querySelectorAll('[role="tab"]');
+    const tabTexts = Array.from(tabs).map(t => t.textContent?.trim().toLowerCase());
+    if (tabTexts.includes('text') && tabTexts.includes('tokens')) return true;
+
+    return false;
   }
 
   handleAdventureModal(modal) {
@@ -613,20 +626,37 @@ class TriggerHighlightFeature {
       return;
     }
 
-    // Find the story text content within the Adventure modal
-    // The story text is in a scrollable area with font_mono class
-    const storyTextElements = modal.querySelectorAll('.font_mono.is_Paragraph');
+    // Find the story text content within the Adventure modal.
+    // Try multiple selectors for robustness against AI Dungeon DOM changes:
+    // 1. .font_mono.is_Paragraph (original Tamagui structure)
+    // 2. .font_mono.is_Text (alternate Tamagui text component)
+    // 3. .font_mono (broadest - any monospace text element in the modal)
+    let storyTextElements = modal.querySelectorAll('.font_mono.is_Paragraph');
+    if (storyTextElements.length === 0) {
+      storyTextElements = modal.querySelectorAll('.font_mono.is_Text');
+    }
+    if (storyTextElements.length === 0) {
+      // Broadest fallback: any .font_mono elements that contain substantial text
+      const allMono = modal.querySelectorAll('.font_mono');
+      const filtered = Array.from(allMono).filter(el => {
+        const text = el.textContent?.trim() || '';
+        // Only include elements with meaningful text content (not labels/buttons)
+        return text.length > 20 && !el.closest('button, [role="button"], [role="tab"]');
+      });
+      storyTextElements = filtered;
+    }
     
     // Collect all text for noun frequency analysis
     let allText = '';
-    storyTextElements.forEach(element => {
+    const elements = Array.from(storyTextElements);
+    elements.forEach(element => {
       allText += element.textContent + ' ';
     });
     
     // Get suggested triggers from the combined text
     const suggestedTriggers = this.getSuggestedTriggers(allText);
     
-    storyTextElements.forEach(element => {
+    elements.forEach(element => {
       if (!this.processedElements.has(element)) {
         this.highlightElement(element, suggestedTriggers);
         this.processedElements.add(element);
