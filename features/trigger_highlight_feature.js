@@ -8,7 +8,7 @@ class TriggerHighlightFeature {
     this.observer = null;
     this.contextObserver = null;
     this.triggerScanObserver = null;
-    // Map of trigger -> card name (session-only, not persisted)
+    // Map of trigger -> card name (persisted to chrome.storage.local per adventure)
     this.cachedTriggers = new Map();
     this.processedElements = new WeakSet();
     this.scanDebounceTimer = null;
@@ -28,11 +28,70 @@ class TriggerHighlightFeature {
     }
   }
 
+  // ── Storage helpers ────────────────────────────────────────────────
+  // Wrap chrome.storage in Promises so they work on both the Chrome
+  // extension (MV3 Promise API) and the mobile WebView polyfill
+  // (callback-only API).
+
+  _storageGet(storageArea, keys) {
+    return new Promise((resolve) => {
+      try {
+        storageArea.get(keys, (data) => resolve(data || {}));
+      } catch (e) {
+        resolve({});
+      }
+    });
+  }
+
+  _storageSet(storageArea, items) {
+    return new Promise((resolve) => {
+      try {
+        storageArea.set(items, () => resolve());
+      } catch (e) {
+        resolve();
+      }
+    });
+  }
+
+  // ── Trigger cache persistence ─────────────────────────────────────
+  // Keyed by adventure ID so triggers survive across modal opens,
+  // tab switches, and page state changes within the same adventure.
+
+  async saveTriggerCache() {
+    if (!this.currentAdventureId || this.cachedTriggers.size === 0) return;
+    const key = `bd_triggers_${this.currentAdventureId}`;
+    const data = Object.fromEntries(this.cachedTriggers);
+    await this._storageSet(chrome.storage.local, { [key]: data });
+    console.log(`[TriggerHighlight] Saved ${this.cachedTriggers.size} triggers to storage for adventure ${this.currentAdventureId}`);
+  }
+
+  async loadTriggerCache() {
+    if (!this.currentAdventureId) return;
+    const key = `bd_triggers_${this.currentAdventureId}`;
+    const result = await this._storageGet(chrome.storage.local, [key]);
+    const data = result[key];
+    if (data && typeof data === 'object') {
+      let loaded = 0;
+      for (const [trigger, cardName] of Object.entries(data)) {
+        if (!this.cachedTriggers.has(trigger)) {
+          this.cachedTriggers.set(trigger, cardName);
+          loaded++;
+        }
+      }
+      if (loaded > 0) {
+        console.log(`[TriggerHighlight] Loaded ${loaded} triggers from storage (total: ${this.cachedTriggers.size})`);
+      }
+    }
+  }
+
   async init() {
     console.log('[TriggerHighlight] Initializing Trigger Highlight feature...');
     // Load auto-scan setting FIRST before detecting adventure
     await this.loadAutoScanSetting();
     this.detectCurrentAdventure();
+    // Load any previously-saved triggers for this adventure
+    await this.loadTriggerCache();
+    console.log(`[TriggerHighlight] Initialized — ${this.cachedTriggers.size} cached triggers for adventure ${this.currentAdventureId || '(none)'}`);
     this.startObserving();
     this.startTriggerScanning();
     this.startAdventureChangeDetection();
@@ -42,14 +101,14 @@ class TriggerHighlightFeature {
 
   async loadAutoScanSetting() {
     try {
-      const result = await chrome.storage.sync.get([
+      const result = await this._storageGet(chrome.storage.sync, [
         'betterDungeon_autoScanTriggers',
         'betterDungeon_suggestedTriggers',
         'betterDungeon_suggestedTriggerThreshold'
       ]);
-      this.autoScanEnabled = (result || {}).betterDungeon_autoScanTriggers ?? false;
-      this.suggestedTriggersEnabled = (result || {}).betterDungeon_suggestedTriggers ?? true;
-      this.suggestedTriggerThreshold = (result || {}).betterDungeon_suggestedTriggerThreshold ?? 3;
+      this.autoScanEnabled = result.betterDungeon_autoScanTriggers ?? false;
+      this.suggestedTriggersEnabled = result.betterDungeon_suggestedTriggers ?? true;
+      this.suggestedTriggerThreshold = result.betterDungeon_suggestedTriggerThreshold ?? 3;
     } catch (e) {
       this.autoScanEnabled = false;
       this.suggestedTriggersEnabled = true;
@@ -96,6 +155,11 @@ class TriggerHighlightFeature {
     }
     
     this.currentAdventureId = newAdventureId;
+
+    // Load any previously-saved triggers for the new adventure
+    if (newAdventureId && adventureChanged) {
+      this.loadTriggerCache();
+    }
   }
 
   // Scan all story cards automatically using the loading screen
@@ -185,6 +249,9 @@ class TriggerHighlightFeature {
       );
 
       if (result.success) {
+        console.log(`[TriggerHighlight] Scan complete — ${this.cachedTriggers.size} triggers in cache`);
+        // Persist triggers so they survive page state changes
+        await this.saveTriggerCache();
         loadingScreen.updateTitle('Scan Complete!');
         loadingScreen.updateSubtitle(`Found ${this.cachedTriggers.size} unique triggers`);
         loadingScreen.updateStatus('Ready to highlight', 'success');
@@ -289,6 +356,7 @@ class TriggerHighlightFeature {
   // Scan the entire page for trigger values
   scanForTriggers() {
     const previousCount = this.cachedTriggers.size;
+    this.log('[TriggerHighlight] Passive scan running...');
 
     // Method 1 (Primary): Use stable aria-labelledby selector for the triggers input.
     // This matches the approach used by the story card scanner's extractFullCardData().
@@ -331,6 +399,12 @@ class TriggerHighlightFeature {
         }
       }
     });
+
+    // Log and persist when new triggers are found
+    if (this.cachedTriggers.size > previousCount) {
+      console.log(`[TriggerHighlight] Passive scan found ${this.cachedTriggers.size - previousCount} new triggers (total: ${this.cachedTriggers.size})`);
+      this.saveTriggerCache();
+    }
   }
 
   // Find the story card name from the current editor/modal context
@@ -443,9 +517,12 @@ class TriggerHighlightFeature {
     return false;
   }
 
-  handleAdventureModal(modal) {
-    // Do a fresh scan in case triggers changed
+  async handleAdventureModal(modal) {
+    // Ensure we have any previously-saved triggers for this adventure
+    await this.loadTriggerCache();
+    // Also check for any currently-visible trigger inputs (e.g. open card editor)
     this.scanForTriggers();
+    console.log(`[TriggerHighlight] Adventure modal opened — ${this.cachedTriggers.size} identified triggers in cache`);
     
     // Highlight triggers in the adventure text
     this.highlightTriggersInModal(modal);
@@ -623,6 +700,7 @@ class TriggerHighlightFeature {
     const suggestedEnabled = this.suggestedTriggersEnabled;
     
     if (!hasTriggers && !suggestedEnabled) {
+      console.log('[TriggerHighlight] No cached triggers and suggested triggers disabled — skipping highlight');
       return;
     }
 
@@ -656,6 +734,8 @@ class TriggerHighlightFeature {
     // Get suggested triggers from the combined text
     const suggestedTriggers = this.getSuggestedTriggers(allText);
     
+    console.log(`[TriggerHighlight] Highlighting: ${elements.length} text elements, ${this.cachedTriggers.size} identified triggers, ${suggestedTriggers.size} suggested triggers`);
+    
     elements.forEach(element => {
       if (!this.processedElements.has(element)) {
         this.highlightElement(element, suggestedTriggers);
@@ -674,19 +754,25 @@ class TriggerHighlightFeature {
     const sortedTriggers = Array.from(this.cachedTriggers.keys())
       .sort((a, b) => b.length - a.length);
     
-    // Highlight existing triggers (yellow)
+    // ── Phase 1: Identified triggers (yellow) — these take priority ──
+    let identifiedMatches = 0;
     sortedTriggers.forEach(trigger => {
       const cardName = this.cachedTriggers.get(trigger) || 'Unknown Card';
-      // Escape the card name for use in HTML attribute
       const escapedCardName = this.escapeHtml(cardName);
-      
-      // Case-insensitive word boundary match
       const escapedTrigger = this.escapeRegExp(trigger);
       const regex = new RegExp(`\\b(${escapedTrigger})\\b`, 'gi');
+      const before = html;
       html = html.replace(regex, `<span class="bd-trigger-highlight" data-card-name="${escapedCardName}">$1</span>`);
+      if (html !== before) identifiedMatches++;
     });
     
-    // Highlight suggested triggers (cyan) - only if not already highlighted
+    // Snapshot the HTML after all identified triggers are placed.
+    // Suggested triggers must NOT replace text that is already inside
+    // an identified-trigger <span>.
+    const htmlAfterIdentified = html;
+    
+    // ── Phase 2: Suggested triggers (cyan) — skip already-highlighted text ──
+    let suggestedMatches = 0;
     if (suggestedTriggers.size > 0) {
       const sortedSuggested = Array.from(suggestedTriggers.keys())
         .sort((a, b) => b.length - a.length);
@@ -696,25 +782,28 @@ class TriggerHighlightFeature {
         const escapedNoun = this.escapeRegExp(noun);
         const regex = new RegExp(`\\b(${escapedNoun})\\b`, 'gi');
         
-        // Capture current html state before this replacement
+        // Capture current html state before this noun's replacement pass
         const htmlBeforeReplace = html;
+        const before = html;
         
         html = html.replace(regex, (match, p1, offset) => {
-          // Check if this match is inside an existing highlight span using the pre-replace state
+          // Check if this match is inside an existing highlight span.
+          // Walk backwards from offset to see if we're between <span...> and </span>.
           const beforeMatch = htmlBeforeReplace.substring(0, offset);
           const lastOpenSpan = beforeMatch.lastIndexOf('<span');
           const lastCloseSpan = beforeMatch.lastIndexOf('</span>');
-          // If there's an open span tag after the last close span, we're inside a span
           if (lastOpenSpan > lastCloseSpan) {
-            return match; // Don't highlight, already inside a span
+            return match; // Inside an identified or earlier suggested span — don't override
           }
           return `<span class="bd-suggested-trigger" data-occurrences="${count}">${p1}</span>`;
         });
+        if (html !== before) suggestedMatches++;
       });
     }
     
     // Only update if we made changes
     if (html !== this.escapeHtml(originalText)) {
+      this.log(`[TriggerHighlight] Element: ${identifiedMatches} identified matches, ${suggestedMatches} suggested matches`);
       element.innerHTML = html;
       
       // Show first-use hint for trigger highlights
