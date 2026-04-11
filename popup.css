@@ -103,6 +103,11 @@ body {
   border-radius: var(--radius-sm);
 }
 
+.header-badge.pc {
+  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.12);
+}
+
 .header-help {
   width: 28px;
   height: 28px;
