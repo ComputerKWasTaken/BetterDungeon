@@ -78,6 +78,12 @@ class StoryCardScanner {
     this.cardCount = 0;
     this.averageCardTime = null;
     this.lastScannedAdventureId = null;
+
+    // Clear the shared trigger cache so stale data from a previous
+    // adventure does not bleed into the new one.
+    if (typeof storyCardCache !== 'undefined') {
+      storyCardCache.clear();
+    }
   }
 
   // Reset if adventure has changed since last scan
@@ -323,7 +329,7 @@ class StoryCardScanner {
         // Store in card database
         this.cardDatabase.set(cardName, fullCardData);
 
-        // Backward compatibility: populate triggers map
+        // Populate triggers map and shared cache
         if (fullCardData.triggers.length > 0) {
           for (const trigger of fullCardData.triggers) {
             const existingCard = results.get(trigger);
@@ -331,6 +337,13 @@ class StoryCardScanner {
               results.set(trigger, `${existingCard}, ${cardName}`);
             } else {
               results.set(trigger, cardName);
+            }
+
+            // Write to the shared story-card cache so every feature
+            // (Trigger Highlight, Analytics, etc.) sees the same data
+            // regardless of which feature initiated the scan.
+            if (typeof storyCardCache !== 'undefined') {
+              storyCardCache.setTrigger(trigger, cardName);
             }
 
             if (onTriggerFound) {

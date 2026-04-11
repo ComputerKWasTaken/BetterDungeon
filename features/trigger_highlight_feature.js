@@ -8,8 +8,6 @@ class TriggerHighlightFeature {
     this.observer = null;
     this.contextObserver = null;
     this.triggerScanObserver = null;
-    // Map of trigger -> card name (session-only, not persisted)
-    this.cachedTriggers = new Map();
     this.processedElements = new WeakSet();
     this.scanDebounceTimer = null;
     // Track current adventure to clear triggers on adventure change
@@ -80,7 +78,7 @@ class TriggerHighlightFeature {
     
     // If adventure changed, clear triggers and reset scanner
     if (adventureChanged && this.currentAdventureId !== null) {
-      this.cachedTriggers.clear();
+      if (typeof storyCardCache !== 'undefined') storyCardCache.clear();
       this.processedElements = new WeakSet();
       
       // Also reset the scanner state for the new adventure
@@ -156,16 +154,9 @@ class TriggerHighlightFeature {
 
       loadingScreen.updateSubtitle('Starting scan...');
       const result = await storyCardScanner.scanAllCards(
-        // onTriggerFound callback
-        (trigger, cardName) => {
-          // Add to our cached triggers
-          const existingCard = this.cachedTriggers.get(trigger);
-          if (existingCard && existingCard !== cardName && !existingCard.includes(cardName)) {
-            this.cachedTriggers.set(trigger, `${existingCard}, ${cardName}`);
-          } else if (!existingCard) {
-            this.cachedTriggers.set(trigger, cardName);
-          }
-        },
+        // onTriggerFound callback — the scanner also writes to storyCardCache
+        // directly, so this callback is kept for any additional per-feature logic.
+        null,
         // onProgress callback
         (current, total, status, estimatedTimeRemaining) => {
           let progressText = status;
@@ -186,7 +177,7 @@ class TriggerHighlightFeature {
 
       if (result.success) {
         loadingScreen.updateTitle('Scan Complete!');
-        loadingScreen.updateSubtitle(`Found ${this.cachedTriggers.size} unique triggers`);
+        loadingScreen.updateSubtitle(`Found ${typeof storyCardCache !== 'undefined' ? storyCardCache.size : 0} unique triggers`);
         loadingScreen.updateStatus('Ready to highlight', 'success');
         
         
@@ -257,7 +248,7 @@ class TriggerHighlightFeature {
     if (this.scanDebounceTimer) {
       clearTimeout(this.scanDebounceTimer);
     }
-    this.cachedTriggers.clear();
+    if (typeof storyCardCache !== 'undefined') storyCardCache.clear();
     this.removeHighlights();
   }
 
@@ -288,7 +279,7 @@ class TriggerHighlightFeature {
 
   // Scan the entire page for trigger values
   scanForTriggers() {
-    const previousCount = this.cachedTriggers.size;
+    const previousCount = typeof storyCardCache !== 'undefined' ? storyCardCache.size : 0;
     
     // Look for TRIGGERS label and associated inputs
     document.querySelectorAll('p.is_Paragraph').forEach(p => {
@@ -454,6 +445,7 @@ class TriggerHighlightFeature {
 
   parseTriggers(value, cardName = 'Unknown Card') {
     if (!value || typeof value !== 'string') return;
+    if (typeof storyCardCache === 'undefined') return;
     
     // Split by comma and clean up each trigger
     const triggers = value.split(',')
@@ -462,14 +454,7 @@ class TriggerHighlightFeature {
     
     triggers.forEach(trigger => {
       if (trigger && !this.isCommonWord(trigger)) {
-        // Store trigger with its card name
-        // If trigger already exists, append card name if different
-        const existingCard = this.cachedTriggers.get(trigger);
-        if (existingCard && existingCard !== cardName && !existingCard.includes(cardName)) {
-          this.cachedTriggers.set(trigger, `${existingCard}, ${cardName}`);
-        } else if (!existingCard) {
-          this.cachedTriggers.set(trigger, cardName);
-        }
+        storyCardCache.setTrigger(trigger, cardName);
       }
     });
   }
@@ -605,7 +590,7 @@ class TriggerHighlightFeature {
     
     nounFrequencies.forEach((count, noun) => {
       // Skip if this noun already has a story card
-      if (this.cachedTriggers.has(noun)) return;
+      if (typeof storyCardCache !== 'undefined' && storyCardCache.hasTrigger(noun)) return;
       
       // Skip if below threshold
       if (count < this.suggestedTriggerThreshold) return;
@@ -617,7 +602,7 @@ class TriggerHighlightFeature {
   }
 
   highlightTriggersInModal(modal) {
-    const hasTriggers = this.cachedTriggers.size > 0;
+    const hasTriggers = typeof storyCardCache !== 'undefined' && storyCardCache.size > 0;
     const suggestedEnabled = this.suggestedTriggersEnabled;
     
     if (!hasTriggers && !suggestedEnabled) {
@@ -653,12 +638,13 @@ class TriggerHighlightFeature {
     let html = this.escapeHtml(originalText);
     
     // Sort triggers by length (longest first) to avoid partial replacements
-    const sortedTriggers = Array.from(this.cachedTriggers.keys())
+    const triggers = typeof storyCardCache !== 'undefined' ? storyCardCache.getTriggers() : new Map();
+    const sortedTriggers = Array.from(triggers.keys())
       .sort((a, b) => b.length - a.length);
     
     // Highlight existing triggers (yellow)
     sortedTriggers.forEach(trigger => {
-      const cardName = this.cachedTriggers.get(trigger) || 'Unknown Card';
+      const cardName = triggers.get(trigger) || 'Unknown Card';
       // Escape the card name for use in HTML attribute
       const escapedCardName = this.escapeHtml(cardName);
       
