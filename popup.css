@@ -78,7 +78,7 @@ body {
 .header-name {
   font-size: 15px;
   font-weight: 600;
-  background: linear-gradient(135deg, var(--accent) 0%, #e68600 100%);
+  background: var(--bd-gradient-brand);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -104,7 +104,7 @@ body {
 }
 
 .header-badge.pc {
-  color: #3b82f6;
+  color: var(--bd-blue);
   background: rgba(59, 130, 246, 0.12);
 }
 
@@ -811,14 +811,14 @@ body {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent) 0%, #e68600 100%);
-  color: white;
+  background: var(--bd-gradient-brand);
+  color: var(--bd-text-on-accent);
 }
 
 .btn-primary:hover {
   background: linear-gradient(135deg, var(--accent-hover) 0%, var(--accent) 100%);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(255, 149, 0, 0.3);
+  box-shadow: var(--bd-btn-primary-shadow);
 }
 
 .btn-ghost {
@@ -2191,9 +2191,9 @@ kbd.hotkey-unbound {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--accent) 0%, #e68600 100%);
+  background: var(--bd-gradient-brand);
   border-radius: var(--radius-md);
-  color: white;
+  color: var(--bd-text-on-accent);
   font-size: 16px;
   flex-shrink: 0;
 }
@@ -2411,7 +2411,7 @@ kbd.hotkey-unbound {
 
 .ecosystem-together-header [class^="icon-"] {
   font-size: 16px;
-  color: #a855f7;
+  color: var(--bd-purple);
 }
 
 .ecosystem-together-list {
