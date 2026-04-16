@@ -1746,9 +1746,13 @@ class BetterScriptsFeature {
       element.removeAttribute(attrName);
     }
     
-    // Force rel="noopener noreferrer" on links with target
+    // Ensure rel="noopener noreferrer" on links with target, preserving existing values
     if (tagName === 'a' && element.hasAttribute('target')) {
-      element.setAttribute('rel', 'noopener noreferrer');
+      let rel = element.getAttribute('rel') || '';
+      const relValues = rel.toLowerCase().split(/\s+/).filter(v => v);
+      if (!relValues.includes('noopener')) relValues.push('noopener');
+      if (!relValues.includes('noreferrer')) relValues.push('noreferrer');
+      element.setAttribute('rel', relValues.join(' '));
     }
   }
   
