@@ -2,29 +2,33 @@
  * BetterDungeon - BetterScripts Feature
  * 
  * Enables communication between AI Dungeon scripts and BetterDungeon.
- * Scripts embed protocol messages in their output, which BetterDungeon
- * detects, processes, and strips from the visible DOM.
+ * Scripts encode protocol messages as invisible zero-width Unicode characters
+ * embedded directly in the story output text.
  * 
  * Communication Flow:
- * 1. AI Dungeon script appends [[BD:{json}:BD]] to output text
- * 2. BetterDungeon's MutationObserver detects the message
- * 3. Message is parsed and processed (e.g., widget created)
- * 4. Protocol text is stripped from DOM before user sees it
+ * 1. AI Dungeon script encodes JSON as zero-width chars and appends to output
+ * 2. BetterDungeon's MutationObserver detects zero-width frames in text nodes
+ * 3. Frames are decoded (ZWNJ/ZWJ binary → JSON) and processed
+ * 4. No DOM stripping needed — zero-width characters are inherently invisible
  * 
- * Protocol Format: [[BD:{"type":"...", "v":"1.0", ...}:BD]]
+ * Dual encoding:
+ *   TagCipher (ASCII) — FEFF frame, \uDB40+\uDC00..7F surrogate pairs, 2 chars/byte
+ *   ZW Binary (non-ASCII) — ZWSP frame, ZWNJ = bit 0, ZWJ = bit 1, 8 bits/byte (UTF-8)
  */
 
 class BetterScriptsFeature {
   static id = 'betterScripts';
   
-  // Protocol version for compatibility checking
-  // Format: major.minor - major changes break compatibility
-  static PROTOCOL_VERSION = '1.0';
-  static PROTOCOL_VERSION_MAJOR = 1;
+  // --- TagCipher encoding (ASCII fast-path, 4x more compact) ---
+  // Uses Unicode Tags Block surrogates, framed by BOM (FEFF)
+  static TAG_FRAME = '\uFEFF';  // BOM — frame delimiter for TagCipher
+  static TAG_HIGH  = 0xDB40;    // High surrogate for Tags Block
   
-  // Message delimiters for protocol messages
-  static MESSAGE_PREFIX = '[[BD:';
-  static MESSAGE_SUFFIX = ':BD]]';
+  // --- ZW Binary encoding (non-ASCII fallback) ---
+  // ZWSP frames the message, ZWNJ/ZWJ encode binary 0/1
+  static ZW_FRAME = '\u200B';   // Zero-Width Space — frame delimiter
+  static ZW_ZERO  = '\u200C';   // Zero-Width Non-Joiner — binary 0
+  static ZW_ONE   = '\u200D';   // Zero-Width Joiner — binary 1
   
   // Maximum message size (16KB) to prevent DoS
   static MAX_MESSAGE_SIZE = 16384;
@@ -38,6 +42,13 @@ class BetterScriptsFeature {
     'table', 'thead', 'tbody', 'tr', 'th', 'td',
     'img', 'a',
     'pre', 'code', 'blockquote'
+  ]);
+  
+  // Tags removed outright (never unwrapped) — they carry executable content
+  // or can break out of the sandbox via SVG/foreign content / raw text parsing.
+  static BLOCKED_TAGS = new Set([
+    'script', 'style', 'iframe', 'object', 'embed',
+    'svg', 'math', 'link', 'meta', 'base'
   ]);
   
   // Allowed HTML attributes (per-tag or global)
@@ -73,9 +84,15 @@ class BetterScriptsFeature {
   // Preset color names that map to CSS [data-color] gradient styles
   static PRESET_COLORS = new Set(['red', 'green', 'blue', 'yellow', 'purple', 'cyan', 'orange']);
   
-  // Returns a fresh protocol regex each call — avoids lastIndex pitfalls of a shared /g regex
-  static protocolRegex() {
-    return /\[\[BD:([\s\S]*?):BD\]\]/g;
+  // Fresh regex each call — avoids lastIndex pitfalls of a shared /g regex
+  // TagCipher: FEFF + (1+ surrogate pairs from Tags Block) + FEFF
+  static tagCipherRegex() {
+    return /\uFEFF((?:\uDB40[\uDC00-\uDC7F])+)\uFEFF/g;
+  }
+  
+  // ZW Binary: ZWSP + (8+ binary ZWNJ/ZWJ chars) + ZWSP
+  static zwBinaryRegex() {
+    return /\u200B([\u200C\u200D]{8,})\u200B/g;
   }
 
   constructor() {
@@ -115,9 +132,6 @@ class BetterScriptsFeature {
     // Density recalculation rAF handle (for debounce cancellation)
     this._densityRafId = null;
     
-    // Re-entry guard for stripProtocolMessagesFromGameplay
-    this.isStrippingMessages = false;
-    
     // Debug logging (controlled only by this property)
     this.debug = false;
   }
@@ -135,7 +149,7 @@ class BetterScriptsFeature {
   
   /**
    * Set debug mode on/off
-   * When enabled: verbose console logging + protocol messages remain visible in the DOM
+   * When enabled: verbose console logging + decoded protocol messages logged to console
    */
   setDebugMode(enabled) {
     this.debug = enabled;
@@ -207,6 +221,67 @@ class BetterScriptsFeature {
     }, 250);
   }
 
+  /**
+   * Decode a TagCipher encoded string (surrogate pairs from Unicode Tags Block)
+   * Each pair: high surrogate DB40 + low surrogate (DC00 + ASCII code)
+   */
+  decodeTagCipher(encoded) {
+    // Each surrogate pair is exactly 2 UTF-16 code units; odd length = malformed input
+    if (encoded.length % 2 !== 0) {
+      this.warn(`TagCipher frame length (${encoded.length}) is not a multiple of 2`);
+      return null;
+    }
+    
+    let result = '';
+    for (let i = 0; i + 1 < encoded.length; i += 2) {
+      const high = encoded.charCodeAt(i);
+      const low = encoded.charCodeAt(i + 1);
+      
+      // Validate: high must be Tags Block high surrogate, low must be in ASCII tag range
+      if (high !== BetterScriptsFeature.TAG_HIGH || low < 0xDC00 || low > 0xDC7F) {
+        this.warn(`Invalid TagCipher surrogate pair at offset ${i}: U+${high.toString(16).toUpperCase()} U+${low.toString(16).toUpperCase()}`);
+        return null;
+      }
+      
+      result += String.fromCharCode(low - 0xDC00);
+    }
+    return result;
+  }
+  
+  /**
+   * Decode a zero-width encoded binary string back to the original text
+   * Encoding: ZWNJ (\u200C) = 0, ZWJ (\u200D) = 1, 8 bits per byte (UTF-8)
+   */
+  decodeZeroWidth(encoded) {
+    if (encoded.length % 8 !== 0) {
+      this.warn(`Zero-width frame length (${encoded.length}) is not a multiple of 8`);
+      return null;
+    }
+    
+    // Extract raw bytes from zero-width binary (validates each char is ZWNJ or ZWJ)
+    const bytes = new Uint8Array(encoded.length / 8);
+    for (let i = 0; i < encoded.length; i += 8) {
+      let byte = 0;
+      for (let bit = 0; bit < 8; bit++) {
+        const code = encoded.charCodeAt(i + bit);
+        if (code !== 0x200C && code !== 0x200D) {
+          this.warn(`Invalid ZW binary char at offset ${i + bit}: U+${code.toString(16).toUpperCase()}`);
+          return null;
+        }
+        byte = (byte << 1) | (code === 0x200D ? 1 : 0);
+      }
+      bytes[i / 8] = byte;
+    }
+    
+    // Reassemble UTF-8 bytes into a Unicode string
+    try {
+      return new TextDecoder().decode(bytes);
+    } catch (e) {
+      this.warn('Failed to decode UTF-8 from zero-width frame:', e.message);
+      return null;
+    }
+  }
+
   // ==================== LIFECYCLE ====================
 
   init() {
@@ -254,37 +329,33 @@ class BetterScriptsFeature {
     return match ? match[1] : null;
   }
 
-  isAdventureUIPresent() {
-    const gameplayOutput = document.querySelector('#gameplay-output');
-    const settingsButton = document.querySelector(
-      '[aria-label="Game settings"], [aria-label="Game Settings"], [aria-label="Game Menu"], [aria-label="Game menu"]'
-    );
-    return !!(gameplayOutput && settingsButton);
-  }
-
+  /**
+   * React to real URL-level adventure changes only.
+   *
+   * Previously this also cleared widgets whenever the adventure UI briefly
+   * disappeared (e.g. during React re-renders or transient modals), which
+   * combined with the processed-hash wipe to produce the "widgets appear then
+   * vanish on load" flicker. We now key off the URL alone: the hashes survive
+   * transient DOM churn.
+   */
   detectCurrentAdventure() {
     const newAdventureId = this.getAdventureIdFromUrl();
-    const adventureUIPresent = this.isAdventureUIPresent();
-    const isOnAdventure = newAdventureId && adventureUIPresent;
-    
-    if (isOnAdventure) {
-      if (newAdventureId !== this.currentAdventureId) {
-        this.log('Adventure changed:', newAdventureId);
-        
-        // Clear widgets from previous adventure
-        this.clearAllWidgets();
-        this.currentAdventureId = newAdventureId;
-      }
-      
-      // Don't create container here - only create when first widget is added
-    } else {
-      if (this.currentAdventureId) {
-        this.log('Left adventure');
-        this.clearAllWidgets();
-        this.removeWidgetContainer();
-      }
-      this.currentAdventureId = null;
+
+    // No change → nothing to do (covers both "still in same adventure" and
+    // "still not in any adventure").
+    if (newAdventureId === this.currentAdventureId) return;
+
+    // Leaving an adventure (or moving to a different one): tear down state
+    // tied to the previous adventure. Hashes are cleared here — and only
+    // here — so that fresh frames on the next adventure aren't suppressed.
+    if (this.currentAdventureId) {
+      this.log('Adventure changed:', this.currentAdventureId, '→', newAdventureId);
+      this.clearAllWidgets();
+      this.removeWidgetContainer();
+      this.processedMessageHashes.clear();
     }
+
+    this.currentAdventureId = newAdventureId;
   }
 
   // ==================== OBSERVATION ====================
@@ -309,8 +380,8 @@ class BetterScriptsFeature {
     };
     
     // DOM observer for general changes (debounced)
-    this.observer = new MutationObserver((mutations) => {
-      this.debouncedProcessMutations(mutations);
+    this.observer = new MutationObserver(() => {
+      this.debouncedProcessMutations();
     });
     
     this.observer.observe(document.body, {
@@ -319,14 +390,14 @@ class BetterScriptsFeature {
       characterData: true
     });
     
-    // Immediate observer for gameplay output - strips protocol messages instantly
+    // Immediate observer for gameplay output - scans for zero-width protocol messages
     this.setupGameplayOutputObserver();
   }
   
   /**
    * Sets up an immediate observer for #gameplay-output
-   * Strips [[BD:...:BD]] protocol messages from text nodes as soon as they appear
-   * This prevents the user from ever seeing the protocol text
+   * Scans text nodes for zero-width encoded protocol messages as they appear
+   * Zero-width chars are invisible — no DOM stripping required
    */
   setupGameplayOutputObserver() {
     const observeGameplayOutput = () => {
@@ -345,8 +416,8 @@ class BetterScriptsFeature {
       }
       
       this.gameplayObserver = new MutationObserver((mutations) => {
-        // Strip protocol messages IMMEDIATELY - no debounce
-        this.stripProtocolMessagesFromGameplay();
+        // Scan for zero-width protocol messages IMMEDIATELY - no debounce
+        this.scanForProtocolMessages();
       });
       
       this.gameplayObserver.observe(gameplayOutput, {
@@ -355,8 +426,8 @@ class BetterScriptsFeature {
         characterData: true
       });
       
-      // Also strip any existing messages
-      this.stripProtocolMessagesFromGameplay();
+      // Also scan any existing messages
+      this.scanForProtocolMessages();
     };
     
     // Try to find existing gameplay output
@@ -377,45 +448,14 @@ class BetterScriptsFeature {
   }
   
   /**
-   * Immediately strips all [[BD:...:BD]] protocol messages from gameplay output
-   * Called synchronously on every mutation to prevent flash of protocol text
+   * Scan gameplay output for invisible protocol messages
+   * Detects both TagCipher (FEFF-framed surrogates) and ZW Binary (ZWSP-framed) frames
    */
-  stripProtocolMessagesFromGameplay() {
-    // Re-entry guard - prevent recursive calls from MutationObserver
-    if (this.isStrippingMessages) {
-      return;
-    }
-    this.isStrippingMessages = true;
-    
-    // Disconnect observer to prevent infinite loop from our own DOM changes
-    const gameplayOutput = document.querySelector('#gameplay-output');
-    if (this.gameplayObserver && gameplayOutput) {
-      this.gameplayObserver.disconnect();
-    }
-    
-    try {
-      this.stripProtocolMessagesFromGameplayInternal();
-    } finally {
-      // Reconnect observer after our changes are done
-      if (this.gameplayObserver && gameplayOutput) {
-        this.gameplayObserver.observe(gameplayOutput, {
-          childList: true,
-          subtree: true,
-          characterData: true
-        });
-      }
-      this.isStrippingMessages = false;
-    }
-  }
-  
-  /**
-   * Internal implementation of protocol message stripping
-   */
-  stripProtocolMessagesFromGameplayInternal() {
+  scanForProtocolMessages() {
     const gameplayOutput = document.querySelector('#gameplay-output');
     if (!gameplayOutput) return;
     
-    // Walk through all text nodes and strip protocol messages
+    // Walk through all text nodes looking for either frame delimiter
     const walker = document.createTreeWalker(
       gameplayOutput,
       NodeFilter.SHOW_TEXT,
@@ -426,50 +466,66 @@ class BetterScriptsFeature {
     const nodesToProcess = [];
     let node;
     while ((node = walker.nextNode())) {
-      if (node.textContent && node.textContent.includes(BetterScriptsFeature.MESSAGE_PREFIX)) {
+      if (node.textContent && (
+        node.textContent.includes(BetterScriptsFeature.TAG_FRAME) ||
+        node.textContent.includes(BetterScriptsFeature.ZW_FRAME)
+      )) {
         nodesToProcess.push(node);
       }
     }
     
     // Process nodes (separate loop to avoid walker invalidation)
     for (const textNode of nodesToProcess) {
-      const originalText = textNode.textContent;
+      const text = textNode.textContent;
       
-      const regex = BetterScriptsFeature.protocolRegex();
+      // Try both encoding patterns on each text node
+      this.extractFrames(text, BetterScriptsFeature.tagCipherRegex(), 'tag');
+      this.extractFrames(text, BetterScriptsFeature.zwBinaryRegex(), 'zw');
+    }
+  }
+  
+  /**
+   * Extract and process protocol frames from text using the given regex and decoder type
+   * @param {string} text - text content to scan
+   * @param {RegExp} regex - frame-matching regex (must have capture group 1 = payload)
+   * @param {'tag'|'zw'} encoding - which decoder to use
+   */
+  extractFrames(text, regex, encoding) {
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      const encodedPayload = match[1];
       
-      let match;
-      // First, extract and process any messages we haven't seen recently
-      while ((match = regex.exec(originalText)) !== null) {
-        const rawMessage = match[1];
-        
-        // Check message size limit
-        if (rawMessage.length > BetterScriptsFeature.MAX_MESSAGE_SIZE) {
-          this.warn(`Message exceeds size limit (${rawMessage.length} > ${BetterScriptsFeature.MAX_MESSAGE_SIZE}), skipping`);
-          continue;
-        }
-        
-        const messageHash = this.hashMessage(rawMessage);
-        
-        // Skip if we've processed this exact message very recently
-        // (prevents duplicates from mutation observer firing multiple times)
-        if (!this.processedMessageHashes.has(messageHash)) {
-          this.processedMessageHashes.set(messageHash, Date.now());
-          
-          // Schedule cleanup of old hashes
-          this.scheduleHashCleanup();
-          
-          // Parse and validate the message
-          const message = this.parseAndValidateMessage(rawMessage);
-          if (message) {
-            this.log('Processing message:', message.type);
-            this.processMessage(message);
-          }
-        }
+      // Size limit check (TagCipher: 2 chars/byte, ZW Binary: 8 chars/byte)
+      const estimatedBytes = encoding === 'tag'
+        ? encodedPayload.length / 2
+        : encodedPayload.length / 8;
+      if (estimatedBytes > BetterScriptsFeature.MAX_MESSAGE_SIZE) {
+        this.warn(`Encoded message exceeds size limit (~${estimatedBytes} bytes), skipping`);
+        continue;
       }
       
-      // Strip protocol text from the node (skip when debug mode is on)
-      if (!this.debug) {
-        textNode.textContent = originalText.replace(BetterScriptsFeature.protocolRegex(), '');
+      const messageHash = this.hashMessage(encodedPayload);
+      
+      // Skip if we've processed this exact message very recently
+      // (prevents duplicates from mutation observer firing multiple times)
+      if (!this.processedMessageHashes.has(messageHash)) {
+        this.processedMessageHashes.set(messageHash, Date.now());
+        this.scheduleHashCleanup();
+        
+        // Decode using the appropriate strategy
+        const decoded = encoding === 'tag'
+          ? this.decodeTagCipher(encodedPayload)
+          : this.decodeZeroWidth(encodedPayload);
+        if (!decoded) continue;
+        
+        this.log(`Decoded ${encoding === 'tag' ? 'TagCipher' : 'ZW Binary'} frame:`, decoded);
+        
+        // Parse and validate the JSON message
+        const message = this.parseAndValidateMessage(decoded);
+        if (message) {
+          this.log('Processing message:', message.type);
+          this.processMessage(message);
+        }
       }
     }
   }
@@ -504,17 +560,6 @@ class BetterScriptsFeature {
     if (!BetterScriptsFeature.MESSAGE_TYPES.has(message.type)) {
       this.warn(`Unknown message type: "${message.type}"`);
       return null;
-    }
-    
-    // Validate protocol version if provided
-    if (message.v !== undefined) {
-      const versionParts = String(message.v).split('.');
-      const majorVersion = parseInt(versionParts[0], 10);
-      
-      if (isNaN(majorVersion) || majorVersion !== BetterScriptsFeature.PROTOCOL_VERSION_MAJOR) {
-        this.warn(`Protocol version mismatch: message v${message.v}, expected v${BetterScriptsFeature.PROTOCOL_VERSION}`);
-        // Continue anyway - we'll try to process it
-      }
     }
     
     return message;
@@ -1305,6 +1350,11 @@ class BetterScriptsFeature {
     
     widget.textContent = config.text || '';
     
+    // Apply color at create time to match updateWidget's behavior for 'text'.
+    if (config.color) {
+      widget.style.color = config.color;
+    }
+    
     if (config.style) {
       const sanitizedStyles = this.sanitizeStyleObject(config.style);
       Object.assign(widget.style, sanitizedStyles);
@@ -1387,6 +1437,11 @@ class BetterScriptsFeature {
     if (config.html) {
       const sanitized = this.sanitizeHTML(config.html);
       widget.innerHTML = sanitized;
+    }
+    
+    // Apply color at create time to match updateWidget's behavior for 'custom'.
+    if (config.color) {
+      widget.style.color = config.color;
     }
     
     // Apply custom styles if provided (sanitized)
@@ -1585,54 +1640,52 @@ class BetterScriptsFeature {
   }
   
   /**
-   * Recursively sanitize a DOM node and its children
+   * Recursively sanitize the children of a DOM node.
+   * Snapshots the child list so in-place removals/insertions don't skip siblings.
    */
   sanitizeNode(node) {
-    // Process child nodes in reverse order (so removal doesn't skip nodes)
     const children = Array.from(node.childNodes);
-    
     for (const child of children) {
-      if (child.nodeType === Node.ELEMENT_NODE) {
-        const tagName = child.tagName.toLowerCase();
-        
-        // Remove disallowed elements entirely
-        if (!BetterScriptsFeature.ALLOWED_TAGS.has(tagName)) {
-          // For script/style tags, remove completely
-          if (tagName === 'script' || tagName === 'style' || tagName === 'iframe' || tagName === 'object' || tagName === 'embed') {
-            child.remove();
-            continue;
-          }
-          
-          // For other disallowed tags, unwrap (keep safe content only)
-          // Process each grandchild - remove dangerous ones, sanitize and keep safe ones
-          const childrenToUnwrap = Array.from(child.childNodes);
-          for (const grandchild of childrenToUnwrap) {
-            if (grandchild.nodeType === Node.ELEMENT_NODE) {
-              const grandchildTag = grandchild.tagName.toLowerCase();
-              // Remove dangerous tags entirely - don't let them escape via unwrapping
-              if (grandchildTag === 'script' || grandchildTag === 'style' || 
-                  grandchildTag === 'iframe' || grandchildTag === 'object' || grandchildTag === 'embed') {
-                grandchild.remove();
-                continue;
-              }
-              // Recursively sanitize safe grandchildren
-              this.sanitizeNode(grandchild);
-            }
-            // Move safe content to parent
-            child.parentNode.insertBefore(grandchild, child);
-          }
-          child.remove();
-          continue;
-        }
-        
-        // Sanitize attributes
-        this.sanitizeAttributes(child, tagName);
-        
-        // Recursively sanitize children
-        this.sanitizeNode(child);
-      }
-      // Text nodes and comments are safe, leave them as-is
+      this.sanitizeElement(child);
     }
+  }
+
+  /**
+   * Sanitize a single node: drop blocked tags, unwrap disallowed tags (after
+   * recursively sanitizing their contents), and validate attributes on allowed
+   * tags. Text/comment nodes are left alone.
+   *
+   * Critical: unwrapped children are re-processed through this same function
+   * in their new parent, so their own tag name and attributes get validated.
+   */
+  sanitizeElement(el) {
+    if (!el || el.nodeType !== Node.ELEMENT_NODE) return;
+    const tagName = el.tagName.toLowerCase();
+
+    // Hard-blocked: delete subtree entirely.
+    if (BetterScriptsFeature.BLOCKED_TAGS.has(tagName)) {
+      el.remove();
+      return;
+    }
+
+    // Disallowed but not dangerous: unwrap children into el's parent.
+    if (!BetterScriptsFeature.ALLOWED_TAGS.has(tagName)) {
+      const parent = el.parentNode;
+      if (!parent) { el.remove(); return; }
+      const toHoist = Array.from(el.childNodes);
+      for (const gc of toHoist) {
+        parent.insertBefore(gc, el);
+        // Re-run full sanitization on the hoisted node — this is what closes
+        // the XSS hole where <img onerror=...> inside <unknown> used to escape.
+        this.sanitizeElement(gc);
+      }
+      el.remove();
+      return;
+    }
+
+    // Allowed tag: scrub attributes, then recurse.
+    this.sanitizeAttributes(el, tagName);
+    this.sanitizeNode(el);
   }
   
   /**
@@ -1643,10 +1696,12 @@ class BetterScriptsFeature {
     const allowedForTag = BetterScriptsFeature.ALLOWED_ATTRS[tagName] || [];
     const allAllowed = new Set([...allowedGlobal, ...allowedForTag]);
     
-    // Get list of attributes to remove (can't modify while iterating)
+    // Snapshot attributes — `element.attributes` is a live NamedNodeMap and
+    // we call setAttribute('style', ...) mid-loop below, which mutates it.
+    const attrsSnapshot = Array.from(element.attributes);
     const attrsToRemove = [];
     
-    for (const attr of element.attributes) {
+    for (const attr of attrsSnapshot) {
       const attrName = attr.name.toLowerCase();
       
       // Remove event handlers (onclick, onload, etc.)
@@ -1691,9 +1746,13 @@ class BetterScriptsFeature {
       element.removeAttribute(attrName);
     }
     
-    // Force rel="noopener noreferrer" on links with target
+    // Ensure rel="noopener noreferrer" on links with target, preserving existing values
     if (tagName === 'a' && element.hasAttribute('target')) {
-      element.setAttribute('rel', 'noopener noreferrer');
+      let rel = element.getAttribute('rel') || '';
+      const relValues = rel.toLowerCase().split(/\s+/).filter(v => v);
+      if (!relValues.includes('noopener')) relValues.push('noopener');
+      if (!relValues.includes('noreferrer')) relValues.push('noreferrer');
+      element.setAttribute('rel', relValues.join(' '));
     }
   }
   
@@ -2093,14 +2152,19 @@ class BetterScriptsFeature {
   }
 
   /**
-   * Clear all widgets
+   * Clear all widgets.
+   *
+   * Intentionally does NOT clear `processedMessageHashes`. Historical widget
+   * frames remain in the gameplay DOM, so if we purged the dedup cache the
+   * next MutationObserver tick would re-decode and re-create every widget
+   * we just cleared. Hash lifecycle is owned exclusively by the scheduled
+   * TTL cleanup and `detectCurrentAdventure` on adventure transitions.
    */
   clearAllWidgets() {
     this.registeredWidgets.forEach((data) => {
       data.element.remove();
     });
     this.registeredWidgets.clear();
-    this.processedMessageHashes.clear();
     
     // Remove container when all widgets are cleared
     this.removeWidgetContainer();
