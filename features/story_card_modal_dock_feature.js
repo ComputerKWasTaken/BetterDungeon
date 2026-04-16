@@ -327,6 +327,17 @@ class StoryCardModalDockFeature {
       return;
     }
 
+    // AID renders popover menus and select dropdowns as portals outside the
+    // modal DOM tree (at higher z-indices). Allow clicks on those through so
+    // buttons like "Finish and Start New Card" and "Delete" remain functional.
+    if (e.target?.closest?.('[data-floating-ui-focusable]') ||
+        e.target?.closest?.('[role="menu"]') ||
+        e.target?.closest?.('[role="menuitem"]') ||
+        e.target?.closest?.('[role="listbox"]') ||
+        e.target?.closest?.('[role="option"]')) {
+      return;
+    }
+
     // Prevent click-through to the underlying page.
     e.preventDefault();
     e.stopPropagation();
