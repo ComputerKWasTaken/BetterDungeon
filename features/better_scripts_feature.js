@@ -224,9 +224,23 @@ class BetterScriptsFeature {
    * Each pair: high surrogate DB40 + low surrogate (DC00 + ASCII code)
    */
   decodeTagCipher(encoded) {
+    // Each surrogate pair is exactly 2 UTF-16 code units; odd length = malformed input
+    if (encoded.length % 2 !== 0) {
+      this.warn(`TagCipher frame length (${encoded.length}) is not a multiple of 2`);
+      return null;
+    }
+    
     let result = '';
-    for (let i = 0; i < encoded.length; i += 2) {
+    for (let i = 0; i + 1 < encoded.length; i += 2) {
+      const high = encoded.charCodeAt(i);
       const low = encoded.charCodeAt(i + 1);
+      
+      // Validate: high must be Tags Block high surrogate, low must be in ASCII tag range
+      if (high !== BetterScriptsFeature.TAG_HIGH || low < 0xDC00 || low > 0xDC7F) {
+        this.warn(`Invalid TagCipher surrogate pair at offset ${i}: U+${high.toString(16).toUpperCase()} U+${low.toString(16).toUpperCase()}`);
+        return null;
+      }
+      
       result += String.fromCharCode(low - 0xDC00);
     }
     return result;
@@ -242,12 +256,17 @@ class BetterScriptsFeature {
       return null;
     }
     
-    // Extract raw bytes from zero-width binary
+    // Extract raw bytes from zero-width binary (validates each char is ZWNJ or ZWJ)
     const bytes = new Uint8Array(encoded.length / 8);
     for (let i = 0; i < encoded.length; i += 8) {
       let byte = 0;
       for (let bit = 0; bit < 8; bit++) {
-        byte = (byte << 1) | (encoded.charCodeAt(i + bit) === 0x200D ? 1 : 0);
+        const code = encoded.charCodeAt(i + bit);
+        if (code !== 0x200C && code !== 0x200D) {
+          this.warn(`Invalid ZW binary char at offset ${i + bit}: U+${code.toString(16).toUpperCase()}`);
+          return null;
+        }
+        byte = (byte << 1) | (code === 0x200D ? 1 : 0);
       }
       bytes[i / 8] = byte;
     }
