@@ -2,16 +2,18 @@
  * BetterDungeon - BetterScripts Feature
  * 
  * Enables communication between AI Dungeon scripts and BetterDungeon.
- * Scripts embed protocol messages in their output, which BetterDungeon
- * detects, processes, and strips from the visible DOM.
+ * Scripts encode protocol messages as invisible zero-width Unicode characters
+ * embedded directly in the story output text.
  * 
  * Communication Flow:
- * 1. AI Dungeon script appends [[BD:{json}:BD]] to output text
- * 2. BetterDungeon's MutationObserver detects the message
- * 3. Message is parsed and processed (e.g., widget created)
- * 4. Protocol text is stripped from DOM before user sees it
+ * 1. AI Dungeon script encodes JSON as zero-width chars and appends to output
+ * 2. BetterDungeon's MutationObserver detects zero-width frames in text nodes
+ * 3. Frames are decoded (ZWNJ/ZWJ binary → JSON) and processed
+ * 4. No DOM stripping needed — zero-width characters are inherently invisible
  * 
- * Protocol Format: [[BD:{"type":"...", "v":"1.0", ...}:BD]]
+ * Dual encoding:
+ *   TagCipher (ASCII) — FEFF frame, \uDB40+\uDC00..7F surrogate pairs, 2 chars/byte
+ *   ZW Binary (non-ASCII) — ZWSP frame, ZWNJ = bit 0, ZWJ = bit 1, 8 bits/byte (UTF-8)
  */
 
 class BetterScriptsFeature {
@@ -22,9 +24,16 @@ class BetterScriptsFeature {
   static PROTOCOL_VERSION = '1.0';
   static PROTOCOL_VERSION_MAJOR = 1;
   
-  // Message delimiters for protocol messages
-  static MESSAGE_PREFIX = '[[BD:';
-  static MESSAGE_SUFFIX = ':BD]]';
+  // --- TagCipher encoding (ASCII fast-path, 4x more compact) ---
+  // Uses Unicode Tags Block surrogates, framed by BOM (FEFF)
+  static TAG_FRAME = '\uFEFF';  // BOM — frame delimiter for TagCipher
+  static TAG_HIGH  = 0xDB40;    // High surrogate for Tags Block
+  
+  // --- ZW Binary encoding (non-ASCII fallback) ---
+  // ZWSP frames the message, ZWNJ/ZWJ encode binary 0/1
+  static ZW_FRAME = '\u200B';   // Zero-Width Space — frame delimiter
+  static ZW_ZERO  = '\u200C';   // Zero-Width Non-Joiner — binary 0
+  static ZW_ONE   = '\u200D';   // Zero-Width Joiner — binary 1
   
   // Maximum message size (16KB) to prevent DoS
   static MAX_MESSAGE_SIZE = 16384;
@@ -73,9 +82,15 @@ class BetterScriptsFeature {
   // Preset color names that map to CSS [data-color] gradient styles
   static PRESET_COLORS = new Set(['red', 'green', 'blue', 'yellow', 'purple', 'cyan', 'orange']);
   
-  // Returns a fresh protocol regex each call — avoids lastIndex pitfalls of a shared /g regex
-  static protocolRegex() {
-    return /\[\[BD:([\s\S]*?):BD\]\]/g;
+  // Fresh regex each call — avoids lastIndex pitfalls of a shared /g regex
+  // TagCipher: FEFF + (1+ surrogate pairs from Tags Block) + FEFF
+  static tagCipherRegex() {
+    return /\uFEFF((?:\uDB40[\uDC00-\uDC7F])+)\uFEFF/g;
+  }
+  
+  // ZW Binary: ZWSP + (8+ binary ZWNJ/ZWJ chars) + ZWSP
+  static zwBinaryRegex() {
+    return /\u200B([\u200C\u200D]{8,})\u200B/g;
   }
 
   constructor() {
@@ -115,9 +130,6 @@ class BetterScriptsFeature {
     // Density recalculation rAF handle (for debounce cancellation)
     this._densityRafId = null;
     
-    // Re-entry guard for stripProtocolMessagesFromGameplay
-    this.isStrippingMessages = false;
-    
     // Debug logging (controlled only by this property)
     this.debug = false;
   }
@@ -135,7 +147,7 @@ class BetterScriptsFeature {
   
   /**
    * Set debug mode on/off
-   * When enabled: verbose console logging + protocol messages remain visible in the DOM
+   * When enabled: verbose console logging + decoded protocol messages logged to console
    */
   setDebugMode(enabled) {
     this.debug = enabled;
@@ -205,6 +217,48 @@ class BetterScriptsFeature {
         this.scheduleHashCleanup();
       }
     }, 250);
+  }
+
+  /**
+   * Decode a TagCipher encoded string (surrogate pairs from Unicode Tags Block)
+   * Each pair: high surrogate DB40 + low surrogate (DC00 + ASCII code)
+   */
+  decodeTagCipher(encoded) {
+    let result = '';
+    for (let i = 0; i < encoded.length; i += 2) {
+      const low = encoded.charCodeAt(i + 1);
+      result += String.fromCharCode(low - 0xDC00);
+    }
+    return result;
+  }
+  
+  /**
+   * Decode a zero-width encoded binary string back to the original text
+   * Encoding: ZWNJ (\u200C) = 0, ZWJ (\u200D) = 1, 8 bits per byte (UTF-8)
+   */
+  decodeZeroWidth(encoded) {
+    if (encoded.length % 8 !== 0) {
+      this.warn(`Zero-width frame length (${encoded.length}) is not a multiple of 8`);
+      return null;
+    }
+    
+    // Extract raw bytes from zero-width binary
+    const bytes = new Uint8Array(encoded.length / 8);
+    for (let i = 0; i < encoded.length; i += 8) {
+      let byte = 0;
+      for (let bit = 0; bit < 8; bit++) {
+        byte = (byte << 1) | (encoded.charCodeAt(i + bit) === 0x200D ? 1 : 0);
+      }
+      bytes[i / 8] = byte;
+    }
+    
+    // Reassemble UTF-8 bytes into a Unicode string
+    try {
+      return new TextDecoder().decode(bytes);
+    } catch (e) {
+      this.warn('Failed to decode UTF-8 from zero-width frame:', e.message);
+      return null;
+    }
   }
 
   // ==================== LIFECYCLE ====================
@@ -319,14 +373,14 @@ class BetterScriptsFeature {
       characterData: true
     });
     
-    // Immediate observer for gameplay output - strips protocol messages instantly
+    // Immediate observer for gameplay output - scans for zero-width protocol messages
     this.setupGameplayOutputObserver();
   }
   
   /**
    * Sets up an immediate observer for #gameplay-output
-   * Strips [[BD:...:BD]] protocol messages from text nodes as soon as they appear
-   * This prevents the user from ever seeing the protocol text
+   * Scans text nodes for zero-width encoded protocol messages as they appear
+   * Zero-width chars are invisible — no DOM stripping required
    */
   setupGameplayOutputObserver() {
     const observeGameplayOutput = () => {
@@ -345,8 +399,8 @@ class BetterScriptsFeature {
       }
       
       this.gameplayObserver = new MutationObserver((mutations) => {
-        // Strip protocol messages IMMEDIATELY - no debounce
-        this.stripProtocolMessagesFromGameplay();
+        // Scan for zero-width protocol messages IMMEDIATELY - no debounce
+        this.scanForProtocolMessages();
       });
       
       this.gameplayObserver.observe(gameplayOutput, {
@@ -355,8 +409,8 @@ class BetterScriptsFeature {
         characterData: true
       });
       
-      // Also strip any existing messages
-      this.stripProtocolMessagesFromGameplay();
+      // Also scan any existing messages
+      this.scanForProtocolMessages();
     };
     
     // Try to find existing gameplay output
@@ -377,45 +431,14 @@ class BetterScriptsFeature {
   }
   
   /**
-   * Immediately strips all [[BD:...:BD]] protocol messages from gameplay output
-   * Called synchronously on every mutation to prevent flash of protocol text
+   * Scan gameplay output for invisible protocol messages
+   * Detects both TagCipher (FEFF-framed surrogates) and ZW Binary (ZWSP-framed) frames
    */
-  stripProtocolMessagesFromGameplay() {
-    // Re-entry guard - prevent recursive calls from MutationObserver
-    if (this.isStrippingMessages) {
-      return;
-    }
-    this.isStrippingMessages = true;
-    
-    // Disconnect observer to prevent infinite loop from our own DOM changes
-    const gameplayOutput = document.querySelector('#gameplay-output');
-    if (this.gameplayObserver && gameplayOutput) {
-      this.gameplayObserver.disconnect();
-    }
-    
-    try {
-      this.stripProtocolMessagesFromGameplayInternal();
-    } finally {
-      // Reconnect observer after our changes are done
-      if (this.gameplayObserver && gameplayOutput) {
-        this.gameplayObserver.observe(gameplayOutput, {
-          childList: true,
-          subtree: true,
-          characterData: true
-        });
-      }
-      this.isStrippingMessages = false;
-    }
-  }
-  
-  /**
-   * Internal implementation of protocol message stripping
-   */
-  stripProtocolMessagesFromGameplayInternal() {
+  scanForProtocolMessages() {
     const gameplayOutput = document.querySelector('#gameplay-output');
     if (!gameplayOutput) return;
     
-    // Walk through all text nodes and strip protocol messages
+    // Walk through all text nodes looking for either frame delimiter
     const walker = document.createTreeWalker(
       gameplayOutput,
       NodeFilter.SHOW_TEXT,
@@ -426,50 +449,66 @@ class BetterScriptsFeature {
     const nodesToProcess = [];
     let node;
     while ((node = walker.nextNode())) {
-      if (node.textContent && node.textContent.includes(BetterScriptsFeature.MESSAGE_PREFIX)) {
+      if (node.textContent && (
+        node.textContent.includes(BetterScriptsFeature.TAG_FRAME) ||
+        node.textContent.includes(BetterScriptsFeature.ZW_FRAME)
+      )) {
         nodesToProcess.push(node);
       }
     }
     
     // Process nodes (separate loop to avoid walker invalidation)
     for (const textNode of nodesToProcess) {
-      const originalText = textNode.textContent;
+      const text = textNode.textContent;
       
-      const regex = BetterScriptsFeature.protocolRegex();
+      // Try both encoding patterns on each text node
+      this.extractFrames(text, BetterScriptsFeature.tagCipherRegex(), 'tag');
+      this.extractFrames(text, BetterScriptsFeature.zwBinaryRegex(), 'zw');
+    }
+  }
+  
+  /**
+   * Extract and process protocol frames from text using the given regex and decoder type
+   * @param {string} text - text content to scan
+   * @param {RegExp} regex - frame-matching regex (must have capture group 1 = payload)
+   * @param {'tag'|'zw'} encoding - which decoder to use
+   */
+  extractFrames(text, regex, encoding) {
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      const encodedPayload = match[1];
       
-      let match;
-      // First, extract and process any messages we haven't seen recently
-      while ((match = regex.exec(originalText)) !== null) {
-        const rawMessage = match[1];
-        
-        // Check message size limit
-        if (rawMessage.length > BetterScriptsFeature.MAX_MESSAGE_SIZE) {
-          this.warn(`Message exceeds size limit (${rawMessage.length} > ${BetterScriptsFeature.MAX_MESSAGE_SIZE}), skipping`);
-          continue;
-        }
-        
-        const messageHash = this.hashMessage(rawMessage);
-        
-        // Skip if we've processed this exact message very recently
-        // (prevents duplicates from mutation observer firing multiple times)
-        if (!this.processedMessageHashes.has(messageHash)) {
-          this.processedMessageHashes.set(messageHash, Date.now());
-          
-          // Schedule cleanup of old hashes
-          this.scheduleHashCleanup();
-          
-          // Parse and validate the message
-          const message = this.parseAndValidateMessage(rawMessage);
-          if (message) {
-            this.log('Processing message:', message.type);
-            this.processMessage(message);
-          }
-        }
+      // Size limit check (TagCipher: 2 chars/byte, ZW Binary: 8 chars/byte)
+      const estimatedBytes = encoding === 'tag'
+        ? encodedPayload.length / 2
+        : encodedPayload.length / 8;
+      if (estimatedBytes > BetterScriptsFeature.MAX_MESSAGE_SIZE) {
+        this.warn(`Encoded message exceeds size limit (~${estimatedBytes} bytes), skipping`);
+        continue;
       }
       
-      // Strip protocol text from the node (skip when debug mode is on)
-      if (!this.debug) {
-        textNode.textContent = originalText.replace(BetterScriptsFeature.protocolRegex(), '');
+      const messageHash = this.hashMessage(encodedPayload);
+      
+      // Skip if we've processed this exact message very recently
+      // (prevents duplicates from mutation observer firing multiple times)
+      if (!this.processedMessageHashes.has(messageHash)) {
+        this.processedMessageHashes.set(messageHash, Date.now());
+        this.scheduleHashCleanup();
+        
+        // Decode using the appropriate strategy
+        const decoded = encoding === 'tag'
+          ? this.decodeTagCipher(encodedPayload)
+          : this.decodeZeroWidth(encodedPayload);
+        if (!decoded) continue;
+        
+        this.log(`Decoded ${encoding === 'tag' ? 'TagCipher' : 'ZW Binary'} frame:`, decoded);
+        
+        // Parse and validate the JSON message
+        const message = this.parseAndValidateMessage(decoded);
+        if (message) {
+          this.log('Processing message:', message.type);
+          this.processMessage(message);
+        }
       }
     }
   }
