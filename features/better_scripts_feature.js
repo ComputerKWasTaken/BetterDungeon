@@ -19,11 +19,6 @@
 class BetterScriptsFeature {
   static id = 'betterScripts';
   
-  // Protocol version for compatibility checking
-  // Format: major.minor - major changes break compatibility
-  static PROTOCOL_VERSION = '1.0';
-  static PROTOCOL_VERSION_MAJOR = 1;
-  
   // --- TagCipher encoding (ASCII fast-path, 4x more compact) ---
   // Uses Unicode Tags Block surrogates, framed by BOM (FEFF)
   static TAG_FRAME = '\uFEFF';  // BOM — frame delimiter for TagCipher
@@ -47,6 +42,13 @@ class BetterScriptsFeature {
     'table', 'thead', 'tbody', 'tr', 'th', 'td',
     'img', 'a',
     'pre', 'code', 'blockquote'
+  ]);
+  
+  // Tags removed outright (never unwrapped) — they carry executable content
+  // or can break out of the sandbox via SVG/foreign content / raw text parsing.
+  static BLOCKED_TAGS = new Set([
+    'script', 'style', 'iframe', 'object', 'embed',
+    'svg', 'math', 'link', 'meta', 'base'
   ]);
   
   // Allowed HTML attributes (per-tag or global)
@@ -327,37 +329,33 @@ class BetterScriptsFeature {
     return match ? match[1] : null;
   }
 
-  isAdventureUIPresent() {
-    const gameplayOutput = document.querySelector('#gameplay-output');
-    const settingsButton = document.querySelector(
-      '[aria-label="Game settings"], [aria-label="Game Settings"], [aria-label="Game Menu"], [aria-label="Game menu"]'
-    );
-    return !!(gameplayOutput && settingsButton);
-  }
-
+  /**
+   * React to real URL-level adventure changes only.
+   *
+   * Previously this also cleared widgets whenever the adventure UI briefly
+   * disappeared (e.g. during React re-renders or transient modals), which
+   * combined with the processed-hash wipe to produce the "widgets appear then
+   * vanish on load" flicker. We now key off the URL alone: the hashes survive
+   * transient DOM churn.
+   */
   detectCurrentAdventure() {
     const newAdventureId = this.getAdventureIdFromUrl();
-    const adventureUIPresent = this.isAdventureUIPresent();
-    const isOnAdventure = newAdventureId && adventureUIPresent;
-    
-    if (isOnAdventure) {
-      if (newAdventureId !== this.currentAdventureId) {
-        this.log('Adventure changed:', newAdventureId);
-        
-        // Clear widgets from previous adventure
-        this.clearAllWidgets();
-        this.currentAdventureId = newAdventureId;
-      }
-      
-      // Don't create container here - only create when first widget is added
-    } else {
-      if (this.currentAdventureId) {
-        this.log('Left adventure');
-        this.clearAllWidgets();
-        this.removeWidgetContainer();
-      }
-      this.currentAdventureId = null;
+
+    // No change → nothing to do (covers both "still in same adventure" and
+    // "still not in any adventure").
+    if (newAdventureId === this.currentAdventureId) return;
+
+    // Leaving an adventure (or moving to a different one): tear down state
+    // tied to the previous adventure. Hashes are cleared here — and only
+    // here — so that fresh frames on the next adventure aren't suppressed.
+    if (this.currentAdventureId) {
+      this.log('Adventure changed:', this.currentAdventureId, '→', newAdventureId);
+      this.clearAllWidgets();
+      this.removeWidgetContainer();
+      this.processedMessageHashes.clear();
     }
+
+    this.currentAdventureId = newAdventureId;
   }
 
   // ==================== OBSERVATION ====================
@@ -382,8 +380,8 @@ class BetterScriptsFeature {
     };
     
     // DOM observer for general changes (debounced)
-    this.observer = new MutationObserver((mutations) => {
-      this.debouncedProcessMutations(mutations);
+    this.observer = new MutationObserver(() => {
+      this.debouncedProcessMutations();
     });
     
     this.observer.observe(document.body, {
@@ -562,17 +560,6 @@ class BetterScriptsFeature {
     if (!BetterScriptsFeature.MESSAGE_TYPES.has(message.type)) {
       this.warn(`Unknown message type: "${message.type}"`);
       return null;
-    }
-    
-    // Validate protocol version if provided
-    if (message.v !== undefined) {
-      const versionParts = String(message.v).split('.');
-      const majorVersion = parseInt(versionParts[0], 10);
-      
-      if (isNaN(majorVersion) || majorVersion !== BetterScriptsFeature.PROTOCOL_VERSION_MAJOR) {
-        this.warn(`Protocol version mismatch: message v${message.v}, expected v${BetterScriptsFeature.PROTOCOL_VERSION}`);
-        // Continue anyway - we'll try to process it
-      }
     }
     
     return message;
@@ -1363,6 +1350,11 @@ class BetterScriptsFeature {
     
     widget.textContent = config.text || '';
     
+    // Apply color at create time to match updateWidget's behavior for 'text'.
+    if (config.color) {
+      widget.style.color = config.color;
+    }
+    
     if (config.style) {
       const sanitizedStyles = this.sanitizeStyleObject(config.style);
       Object.assign(widget.style, sanitizedStyles);
@@ -1445,6 +1437,11 @@ class BetterScriptsFeature {
     if (config.html) {
       const sanitized = this.sanitizeHTML(config.html);
       widget.innerHTML = sanitized;
+    }
+    
+    // Apply color at create time to match updateWidget's behavior for 'custom'.
+    if (config.color) {
+      widget.style.color = config.color;
     }
     
     // Apply custom styles if provided (sanitized)
@@ -1643,54 +1640,52 @@ class BetterScriptsFeature {
   }
   
   /**
-   * Recursively sanitize a DOM node and its children
+   * Recursively sanitize the children of a DOM node.
+   * Snapshots the child list so in-place removals/insertions don't skip siblings.
    */
   sanitizeNode(node) {
-    // Process child nodes in reverse order (so removal doesn't skip nodes)
     const children = Array.from(node.childNodes);
-    
     for (const child of children) {
-      if (child.nodeType === Node.ELEMENT_NODE) {
-        const tagName = child.tagName.toLowerCase();
-        
-        // Remove disallowed elements entirely
-        if (!BetterScriptsFeature.ALLOWED_TAGS.has(tagName)) {
-          // For script/style tags, remove completely
-          if (tagName === 'script' || tagName === 'style' || tagName === 'iframe' || tagName === 'object' || tagName === 'embed') {
-            child.remove();
-            continue;
-          }
-          
-          // For other disallowed tags, unwrap (keep safe content only)
-          // Process each grandchild - remove dangerous ones, sanitize and keep safe ones
-          const childrenToUnwrap = Array.from(child.childNodes);
-          for (const grandchild of childrenToUnwrap) {
-            if (grandchild.nodeType === Node.ELEMENT_NODE) {
-              const grandchildTag = grandchild.tagName.toLowerCase();
-              // Remove dangerous tags entirely - don't let them escape via unwrapping
-              if (grandchildTag === 'script' || grandchildTag === 'style' || 
-                  grandchildTag === 'iframe' || grandchildTag === 'object' || grandchildTag === 'embed') {
-                grandchild.remove();
-                continue;
-              }
-              // Recursively sanitize safe grandchildren
-              this.sanitizeNode(grandchild);
-            }
-            // Move safe content to parent
-            child.parentNode.insertBefore(grandchild, child);
-          }
-          child.remove();
-          continue;
-        }
-        
-        // Sanitize attributes
-        this.sanitizeAttributes(child, tagName);
-        
-        // Recursively sanitize children
-        this.sanitizeNode(child);
-      }
-      // Text nodes and comments are safe, leave them as-is
+      this.sanitizeElement(child);
     }
+  }
+
+  /**
+   * Sanitize a single node: drop blocked tags, unwrap disallowed tags (after
+   * recursively sanitizing their contents), and validate attributes on allowed
+   * tags. Text/comment nodes are left alone.
+   *
+   * Critical: unwrapped children are re-processed through this same function
+   * in their new parent, so their own tag name and attributes get validated.
+   */
+  sanitizeElement(el) {
+    if (!el || el.nodeType !== Node.ELEMENT_NODE) return;
+    const tagName = el.tagName.toLowerCase();
+
+    // Hard-blocked: delete subtree entirely.
+    if (BetterScriptsFeature.BLOCKED_TAGS.has(tagName)) {
+      el.remove();
+      return;
+    }
+
+    // Disallowed but not dangerous: unwrap children into el's parent.
+    if (!BetterScriptsFeature.ALLOWED_TAGS.has(tagName)) {
+      const parent = el.parentNode;
+      if (!parent) { el.remove(); return; }
+      const toHoist = Array.from(el.childNodes);
+      for (const gc of toHoist) {
+        parent.insertBefore(gc, el);
+        // Re-run full sanitization on the hoisted node — this is what closes
+        // the XSS hole where <img onerror=...> inside <unknown> used to escape.
+        this.sanitizeElement(gc);
+      }
+      el.remove();
+      return;
+    }
+
+    // Allowed tag: scrub attributes, then recurse.
+    this.sanitizeAttributes(el, tagName);
+    this.sanitizeNode(el);
   }
   
   /**
@@ -1701,10 +1696,12 @@ class BetterScriptsFeature {
     const allowedForTag = BetterScriptsFeature.ALLOWED_ATTRS[tagName] || [];
     const allAllowed = new Set([...allowedGlobal, ...allowedForTag]);
     
-    // Get list of attributes to remove (can't modify while iterating)
+    // Snapshot attributes — `element.attributes` is a live NamedNodeMap and
+    // we call setAttribute('style', ...) mid-loop below, which mutates it.
+    const attrsSnapshot = Array.from(element.attributes);
     const attrsToRemove = [];
     
-    for (const attr of element.attributes) {
+    for (const attr of attrsSnapshot) {
       const attrName = attr.name.toLowerCase();
       
       // Remove event handlers (onclick, onload, etc.)
@@ -2151,14 +2148,19 @@ class BetterScriptsFeature {
   }
 
   /**
-   * Clear all widgets
+   * Clear all widgets.
+   *
+   * Intentionally does NOT clear `processedMessageHashes`. Historical widget
+   * frames remain in the gameplay DOM, so if we purged the dedup cache the
+   * next MutationObserver tick would re-decode and re-create every widget
+   * we just cleared. Hash lifecycle is owned exclusively by the scheduled
+   * TTL cleanup and `detectCurrentAdventure` on adventure transitions.
    */
   clearAllWidgets() {
     this.registeredWidgets.forEach((data) => {
       data.element.remove();
     });
     this.registeredWidgets.clear();
-    this.processedMessageHashes.clear();
     
     // Remove container when all widgets are cleared
     this.removeWidgetContainer();
