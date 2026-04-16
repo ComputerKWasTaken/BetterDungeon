@@ -1,54 +1,71 @@
-/* ============================================
+/* ================================================================
    BetterDungeon — Theme Variables (Local Copy)
-   ============================================
-   Canonical source: Project Management/design/theme-variables.css
+   ================================================================
+   Canonical source: BetterEcosystemProjectManagement/design/theme-variables.css
    Keep in sync when the canonical file is updated.
-   ============================================ */
 
-/* Import the full unified token set */
-/* NOTE: In extension context this file is loaded directly,
+   NOTE: In extension context this file is loaded directly,
    so we duplicate the tokens here rather than @import
-   to avoid cross-origin / CSP issues. */
+   to avoid cross-origin / CSP issues.
+   ================================================================ */
 
 :root {
-  /* === Backgrounds === */
+
+  /* =============================================================
+     1. COLORS — BACKGROUNDS
+     ============================================================= */
   --bd-bg-primary:    #0d0d0f;
   --bd-bg-secondary:  #16161a;
   --bd-bg-tertiary:   #1e1e24;
   --bd-bg-elevated:   #252530;
+  --bd-bg-active:     #2c2c36;
   --bd-bg-overlay:    rgba(0, 0, 0, 0.85);
 
-  /* === Text === */
+  /* =============================================================
+     2. COLORS — TEXT
+     ============================================================= */
   --bd-text-primary:   #e8e8ec;
   --bd-text-secondary: #a0a0a8;
   --bd-text-muted:     #6b6b75;
   --bd-text-inverse:   #0d0d0f;
+  --bd-text-on-accent: #ffffff;
 
-  /* === Brand / Accent === */
+  /* =============================================================
+     3. COLORS — BRAND / ACCENT
+     ============================================================= */
   --bd-accent-primary:   #ff9500;
   --bd-accent-secondary: #e07800;
   --bd-accent-light:     #ffb84d;
   --bd-accent-glow:      rgba(255, 149, 0, 0.12);
   --bd-accent-muted:     rgba(255, 149, 0, 0.15);
+  --bd-accent-strong:    rgba(255, 149, 0, 0.25);
 
-  /* === Status === */
-  --bd-success:        #22c55e;
-  --bd-success-bg:     rgba(34, 197, 94, 0.15);
-  --bd-success-border: rgba(34, 197, 94, 0.3);
+  /* =============================================================
+     4. COLORS — STATUS
+     ============================================================= */
+  --bd-success:          #22c55e;
+  --bd-success-light:    #4ade80;
+  --bd-success-bg:       rgba(34, 197, 94, 0.15);
+  --bd-success-border:   rgba(34, 197, 94, 0.3);
 
-  --bd-error:          #ef4444;
-  --bd-error-bg:       rgba(239, 68, 68, 0.15);
-  --bd-error-border:   rgba(239, 68, 68, 0.3);
+  --bd-error:            #ef4444;
+  --bd-error-light:      #f87171;
+  --bd-error-bg:         rgba(239, 68, 68, 0.15);
+  --bd-error-border:     rgba(239, 68, 68, 0.3);
 
-  --bd-warning:        #f59e0b;
-  --bd-warning-bg:     rgba(245, 158, 11, 0.15);
-  --bd-warning-border: rgba(245, 158, 11, 0.3);
+  --bd-warning:          #f59e0b;
+  --bd-warning-light:    #fbbf24;
+  --bd-warning-bg:       rgba(245, 158, 11, 0.15);
+  --bd-warning-border:   rgba(245, 158, 11, 0.3);
 
-  --bd-info:           #3b82f6;
-  --bd-info-bg:        rgba(59, 130, 246, 0.15);
-  --bd-info-border:    rgba(59, 130, 246, 0.3);
+  --bd-info:             #3b82f6;
+  --bd-info-light:       #60a5fa;
+  --bd-info-bg:          rgba(59, 130, 246, 0.15);
+  --bd-info-border:      rgba(59, 130, 246, 0.3);
 
-  /* === Category Colors === */
+  /* =============================================================
+     5. COLORS — CATEGORY PALETTE
+     ============================================================= */
   --bd-blue:    #3b82f6;
   --bd-purple:  #a855f7;
   --bd-green:   #22c55e;
@@ -64,39 +81,62 @@
   --bd-slate:   #94a3b8;
   --bd-gray:    #6b7280;
 
-  /* === Borders === */
+  --bd-blue-light:    #60a5fa;
+  --bd-purple-light:  #c084fc;
+  --bd-green-light:   #4ade80;
+  --bd-amber-light:   #fcd34d;
+  --bd-cyan-light:    #22d3ee;
+  --bd-orange-light:  #fb923c;
+
+  /* =============================================================
+     6. COLORS — BORDERS
+     ============================================================= */
   --bd-border-subtle:  rgba(255, 255, 255, 0.06);
   --bd-border-default: rgba(255, 255, 255, 0.10);
   --bd-border-strong:  rgba(255, 255, 255, 0.15);
   --bd-border-accent:  rgba(255, 149, 0, 0.25);
   --bd-border-focus:   var(--bd-accent-primary);
 
-  /* === Tag === */
-  --bd-tag-bg: rgba(255, 255, 255, 0.08);
+  /* =============================================================
+     7. COLORS — INTERACTIVE SURFACES
+     ============================================================= */
+  --bd-tag-bg:       rgba(255, 255, 255, 0.08);
+  --bd-tag-hover-bg: rgba(255, 255, 255, 0.12);
 
-  /* === Typography === */
-  --bd-font-family-primary: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --bd-font-family-mono:    'Roboto Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
+  /* =============================================================
+     8. TYPOGRAPHY
+     ============================================================= */
+  --bd-font-family-primary: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont,
+                            'Segoe UI', Roboto, sans-serif;
+  --bd-font-family-mono:    'Roboto Mono', 'Consolas', 'Monaco',
+                            'Courier New', monospace;
 
-  --bd-font-size-xs:  10px;
-  --bd-font-size-sm:  11px;
+  --bd-font-size-xs:   10px;
+  --bd-font-size-sm:   11px;
   --bd-font-size-base: 12px;
-  --bd-font-size-md:  13px;
-  --bd-font-size-lg:  14px;
-  --bd-font-size-xl:  16px;
-  --bd-font-size-2xl: 18px;
-  --bd-font-size-3xl: 22px;
+  --bd-font-size-md:   13px;
+  --bd-font-size-lg:   14px;
+  --bd-font-size-xl:   16px;
+  --bd-font-size-2xl:  18px;
+  --bd-font-size-3xl:  22px;
 
   --bd-font-weight-normal:   400;
   --bd-font-weight-medium:   500;
   --bd-font-weight-semibold: 600;
   --bd-font-weight-bold:     700;
 
-  --bd-line-height-tight:   1.4;
-  --bd-line-height-normal:  1.5;
-  --bd-line-height-relaxed: 1.6;
+  --bd-line-height-tight:    1.4;
+  --bd-line-height-normal:   1.5;
+  --bd-line-height-relaxed:  1.6;
 
-  /* === Spacing === */
+  --bd-tracking-tight:  -0.3px;
+  --bd-tracking-normal:  0;
+  --bd-tracking-wide:    0.5px;
+
+  /* =============================================================
+     9. SPACING
+     ============================================================= */
+  --bd-space-0:  0;
   --bd-space-1:  4px;
   --bd-space-2:  8px;
   --bd-space-3:  12px;
@@ -106,8 +146,11 @@
   --bd-space-8:  32px;
   --bd-space-10: 40px;
   --bd-space-12: 48px;
+  --bd-space-16: 64px;
 
-  /* === Border Radius === */
+  /* =============================================================
+     10. BORDER RADIUS
+     ============================================================= */
   --bd-radius-sm:   4px;
   --bd-radius-md:   6px;
   --bd-radius-lg:   8px;
@@ -116,20 +159,30 @@
   --bd-radius-3xl:  16px;
   --bd-radius-full: 9999px;
 
-  /* === Shadows === */
+  /* =============================================================
+     11. SHADOWS & ELEVATION
+     ============================================================= */
   --bd-shadow-sm:       0 1px 2px rgba(0, 0, 0, 0.2);
   --bd-shadow-md:       0 2px 8px rgba(0, 0, 0, 0.3);
   --bd-shadow-lg:       0 4px 16px rgba(0, 0, 0, 0.4);
   --bd-shadow-xl:       0 8px 32px rgba(0, 0, 0, 0.5);
+  --bd-shadow-2xl:      0 24px 80px rgba(0, 0, 0, 0.6);
   --bd-shadow-glow:     0 0 20px rgba(255, 149, 0, 0.12);
   --bd-shadow-glow-lg:  0 0 30px rgba(255, 149, 0, 0.20);
+  --bd-shadow-glow-xl:  0 4px 12px rgba(255, 149, 0, 0.30);
 
-  /* === Transitions === */
+  /* =============================================================
+     12. TRANSITIONS & MOTION
+     ============================================================= */
   --bd-transition-fast:   0.15s ease;
   --bd-transition-normal: 0.2s ease;
   --bd-transition-slow:   0.3s ease;
 
-  /* === Z-Index === */
+  --bd-ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* =============================================================
+     13. Z-INDEX SCALE
+     ============================================================= */
   --bd-z-base:            0;
   --bd-z-elevated:        1;
   --bd-z-sticky:          100;
@@ -137,89 +190,151 @@
   --bd-z-dropdown:        1000;
   --bd-z-modal-backdrop:  9000;
   --bd-z-modal:           10000;
+  --bd-z-tutorial:        30000;
   --bd-z-toast:           99999;
   --bd-z-loading:         999999;
 
-  /* === Component Tokens === */
-  --bd-btn-primary-bg:      linear-gradient(135deg, var(--bd-accent-primary) 0%, var(--bd-accent-secondary) 100%);
-  --bd-btn-primary-hover:   linear-gradient(135deg, var(--bd-accent-light) 0%, var(--bd-accent-primary) 100%);
-  --bd-btn-secondary-bg:    rgba(255, 255, 255, 0.08);
-  --bd-btn-secondary-hover: rgba(255, 255, 255, 0.12);
+  /* =============================================================
+     14. COMPONENT — BUTTONS
+     ============================================================= */
+  --bd-btn-primary-bg:       linear-gradient(135deg,
+                              var(--bd-accent-primary) 0%,
+                              var(--bd-accent-secondary) 100%);
+  --bd-btn-primary-hover:    linear-gradient(135deg,
+                              var(--bd-accent-light) 0%,
+                              var(--bd-accent-primary) 100%);
+  --bd-btn-primary-shadow:   var(--bd-shadow-glow-xl);
+  --bd-btn-secondary-bg:     rgba(255, 255, 255, 0.08);
+  --bd-btn-secondary-hover:  rgba(255, 255, 255, 0.12);
+  --bd-btn-danger-bg:        var(--bd-error-bg);
+  --bd-btn-danger-border:    var(--bd-error-border);
 
-  --bd-input-bg:           var(--bd-bg-elevated);
-  --bd-input-border:       var(--bd-border-default);
-  --bd-input-focus-border: var(--bd-border-focus);
-  --bd-input-focus-ring:   0 0 0 3px var(--bd-accent-glow);
+  /* =============================================================
+     15. COMPONENT — INPUTS
+     ============================================================= */
+  --bd-input-bg:             var(--bd-bg-elevated);
+  --bd-input-border:         var(--bd-border-default);
+  --bd-input-focus-border:   var(--bd-border-focus);
+  --bd-input-focus-ring:     0 0 0 3px var(--bd-accent-glow);
 
-  --bd-card-bg:           var(--bd-bg-secondary);
-  --bd-card-border:       var(--bd-border-subtle);
-  --bd-card-hover-bg:     var(--bd-bg-tertiary);
-  --bd-card-hover-border: var(--bd-border-default);
-  --bd-card-radius:       var(--bd-radius-xl);
+  /* =============================================================
+     16. COMPONENT — CARDS
+     ============================================================= */
+  --bd-card-bg:              var(--bd-bg-secondary);
+  --bd-card-border:          var(--bd-border-subtle);
+  --bd-card-hover-bg:        var(--bd-bg-tertiary);
+  --bd-card-hover-border:    var(--bd-border-default);
+  --bd-card-radius:          var(--bd-radius-xl);
 
-  --bd-loading-bg:      linear-gradient(180deg, rgba(30, 30, 40, 0.95) 0%, rgba(20, 20, 28, 0.98) 100%);
-  --bd-loading-spinner: var(--bd-accent-primary);
+  /* =============================================================
+     17. COMPONENT — TOASTS
+     ============================================================= */
+  --bd-toast-success-bg:   linear-gradient(135deg,
+                            rgba(74, 222, 128, 0.95) 0%,
+                            rgba(34, 197, 94, 0.95) 100%);
+  --bd-toast-error-bg:     linear-gradient(135deg,
+                            rgba(248, 113, 113, 0.95) 0%,
+                            rgba(239, 68, 68, 0.95) 100%);
+  --bd-toast-info-bg:      linear-gradient(135deg,
+                            rgba(59, 130, 246, 0.95) 0%,
+                            rgba(37, 99, 235, 0.95) 100%);
 
-  /* === Popup-Specific Aliases ===
-     Maps the unified --bd- tokens to the short variable names
-     used throughout popup.css, avoiding a massive refactor. */
-  --bg-base:      var(--bd-bg-primary);
-  --bg-surface:   var(--bd-bg-secondary);
-  --bg-elevated:  var(--bd-bg-tertiary);
-  --bg-hover:     var(--bd-bg-elevated);
-  --bg-active:    #2c2c36;
+  /* =============================================================
+     18. COMPONENT — LOADING
+     ============================================================= */
+  --bd-loading-bg:         linear-gradient(180deg,
+                            rgba(30, 30, 40, 0.95) 0%,
+                            rgba(20, 20, 28, 0.98) 100%);
+  --bd-loading-spinner:    var(--bd-accent-primary);
+  --bd-loading-overlay-bg: rgba(10, 10, 15, 0.9);
 
-  --text-primary:   var(--bd-text-primary);
-  --text-secondary: var(--bd-text-secondary);
-  --text-muted:     var(--bd-text-muted);
-  --text-inverse:   var(--bd-text-inverse);
+  /* =============================================================
+     19. COMPONENT — SCROLLBAR
+     ============================================================= */
+  --bd-scrollbar-width:    8px;
+  --bd-scrollbar-track:    var(--bd-bg-secondary);
+  --bd-scrollbar-thumb:    var(--bd-bg-elevated);
+  --bd-scrollbar-hover:    var(--bd-border-strong);
 
-  --accent:       var(--bd-accent-primary);
-  --accent-hover: var(--bd-accent-light);
-  --accent-muted: var(--bd-accent-muted);
-  --accent-glow:  rgba(255, 149, 0, 0.25);
+  /* =============================================================
+     20. GRADIENTS
+     ============================================================= */
+  --bd-gradient-brand:       linear-gradient(135deg,
+                              var(--bd-accent-primary) 0%,
+                              var(--bd-accent-secondary) 100%);
+  --bd-gradient-brand-hover: linear-gradient(135deg,
+                              var(--bd-accent-light) 0%,
+                              var(--bd-accent-primary) 100%);
+  --bd-gradient-accent-bar:  linear-gradient(to right,
+                              var(--bd-accent-primary),
+                              var(--bd-purple),
+                              var(--bd-cyan));
+  --bd-gradient-shimmer:     linear-gradient(90deg,
+                              var(--bd-accent-primary) 0%,
+                              var(--bd-accent-light) 50%,
+                              var(--bd-accent-primary) 100%);
 
-  --success:       var(--bd-success);
-  --success-muted: var(--bd-success-bg);
-  --error:         var(--bd-error);
-  --error-muted:   var(--bd-error-bg);
-  --warning:       var(--bd-warning);
-  --warning-muted: var(--bd-warning-bg);
-  --info:          var(--bd-info);
+  /* =============================================================
+     21. POPUP SHORT ALIASES
+     ============================================================= */
+  --bg-base:           var(--bd-bg-primary);
+  --bg-surface:        var(--bd-bg-secondary);
+  --bg-elevated:       var(--bd-bg-tertiary);
+  --bg-hover:          var(--bd-bg-elevated);
+  --bg-active:         var(--bd-bg-active);
 
-  --border:        var(--bd-border-default);
-  --border-hover:  var(--bd-border-strong);
-  --border-accent: var(--bd-border-accent);
+  --text-primary:      var(--bd-text-primary);
+  --text-secondary:    var(--bd-text-secondary);
+  --text-muted:        var(--bd-text-muted);
+  --text-inverse:      var(--bd-text-inverse);
 
-  --font-sans: var(--bd-font-family-primary);
-  --font-mono: var(--bd-font-family-mono);
+  --accent:            var(--bd-accent-primary);
+  --accent-hover:      var(--bd-accent-light);
+  --accent-muted:      var(--bd-accent-muted);
+  --accent-glow:       var(--bd-accent-strong);
 
-  --radius-sm:   var(--bd-radius-sm);
-  --radius-md:   var(--bd-radius-md);
-  --radius-lg:   var(--bd-radius-xl);
-  --radius-xl:   var(--bd-radius-2xl);
-  --radius-full: var(--bd-radius-full);
+  --success:           var(--bd-success);
+  --success-muted:     var(--bd-success-bg);
+  --error:             var(--bd-error);
+  --error-muted:       var(--bd-error-bg);
+  --warning:           var(--bd-warning);
+  --warning-muted:     var(--bd-warning-bg);
+  --info:              var(--bd-info);
+  --info-bg:           var(--bd-info-bg);
 
-  --info-bg: var(--bd-info-bg);
+  --border:            var(--bd-border-default);
+  --border-hover:      var(--bd-border-strong);
+  --border-accent:     var(--bd-border-accent);
 
-  --shadow-sm: var(--bd-shadow-sm);
-  --shadow-md: var(--bd-shadow-md);
-  --shadow-lg: var(--bd-shadow-lg);
+  --font-sans:         var(--bd-font-family-primary);
+  --font-mono:         var(--bd-font-family-mono);
+
+  --radius-sm:         var(--bd-radius-sm);
+  --radius-md:         var(--bd-radius-md);
+  --radius-lg:         var(--bd-radius-xl);
+  --radius-xl:         var(--bd-radius-2xl);
+  --radius-full:       var(--bd-radius-full);
+
+  --shadow-sm:         var(--bd-shadow-sm);
+  --shadow-md:         var(--bd-shadow-md);
+  --shadow-lg:         var(--bd-shadow-lg);
 
   --transition-fast:   var(--bd-transition-fast);
   --transition-normal: var(--bd-transition-normal);
   --transition-slow:   var(--bd-transition-slow);
 
-  --z-dropdown: var(--bd-z-dropdown);
-  --z-modal:    var(--bd-z-modal);
-  --z-toast:    var(--bd-z-toast);
-  --z-tutorial: 30000;
+  --z-dropdown:        var(--bd-z-dropdown);
+  --z-modal:           var(--bd-z-modal);
+  --z-toast:           var(--bd-z-toast);
+  --z-tutorial:        var(--bd-z-tutorial);
 
-  /* === Section Icon Colors (popup-specific) === */
-  --bd-section-input-modes:  var(--bd-blue);
-  --bd-section-tools:        var(--bd-cyan);
-  --bd-section-formatting:   var(--bd-purple);
-  --bd-section-automations:  var(--bd-amber);
+  /* =============================================================
+     22. POPUP SECTION ICON COLORS
+     ============================================================= */
+  --bd-section-input-modes: var(--bd-blue);
+  --bd-section-tools:       var(--bd-cyan);
+  --bd-section-formatting:  var(--bd-purple);
+  --bd-section-automations: var(--bd-amber);
 
   --bd-icon-hotkeys:      var(--bd-amber);
   --bd-icon-palette:      var(--bd-pink);
@@ -231,42 +346,66 @@
   --bd-icon-scripts:      var(--bd-emerald);
   --bd-icon-auto-scripts: var(--bd-orange);
 
-  /* === Input Mode Colors (BetterDungeon game-specific) === */
-  --bd-mode-do:      var(--bd-blue);
-  --bd-mode-do-light: #60a5fa;
-  --bd-mode-do-glow: rgba(59, 130, 246, 0.15);
-  --bd-mode-do-rgb:  59, 130, 246;
+  /* =============================================================
+     23. INPUT MODE COLORS
+     ============================================================= */
+  --bd-mode-do:            var(--bd-blue);
+  --bd-mode-do-light:      var(--bd-blue-light);
+  --bd-mode-do-glow:       rgba(59, 130, 246, 0.15);
+  --bd-mode-do-rgb:        59, 130, 246;
 
-  --bd-mode-try:      var(--bd-purple);
-  --bd-mode-try-light: #c084fc;
-  --bd-mode-try-glow: rgba(168, 85, 247, 0.15);
-  --bd-mode-try-rgb:  168, 85, 247;
+  --bd-mode-try:           var(--bd-purple);
+  --bd-mode-try-light:     var(--bd-purple-light);
+  --bd-mode-try-glow:      rgba(168, 85, 247, 0.15);
+  --bd-mode-try-rgb:       168, 85, 247;
 
-  --bd-mode-say:      var(--bd-green);
-  --bd-mode-say-light: #4ade80;
-  --bd-mode-say-glow: rgba(34, 197, 94, 0.15);
-  --bd-mode-say-rgb:  34, 197, 94;
+  --bd-mode-say:           var(--bd-green);
+  --bd-mode-say-light:     var(--bd-green-light);
+  --bd-mode-say-glow:      rgba(34, 197, 94, 0.15);
+  --bd-mode-say-rgb:       34, 197, 94;
 
-  --bd-mode-story:      var(--bd-amber);
-  --bd-mode-story-light: #fcd34d;
-  --bd-mode-story-glow: rgba(251, 191, 36, 0.15);
-  --bd-mode-story-rgb:  251, 191, 36;
+  --bd-mode-story:         var(--bd-amber);
+  --bd-mode-story-light:   var(--bd-amber-light);
+  --bd-mode-story-glow:    rgba(251, 191, 36, 0.15);
+  --bd-mode-story-rgb:     251, 191, 36;
 
-  --bd-mode-see:      var(--bd-cyan);
-  --bd-mode-see-light: #22d3ee;
-  --bd-mode-see-glow: rgba(6, 182, 212, 0.15);
-  --bd-mode-see-rgb:  6, 182, 212;
+  --bd-mode-see:           var(--bd-cyan);
+  --bd-mode-see-light:     var(--bd-cyan-light);
+  --bd-mode-see-glow:      rgba(6, 182, 212, 0.15);
+  --bd-mode-see-rgb:       6, 182, 212;
 
-  --bd-mode-command:      var(--bd-orange);
-  --bd-mode-command-light: #fb923c;
-  --bd-mode-command-glow: rgba(249, 115, 22, 0.15);
-  --bd-mode-command-rgb:  249, 115, 22;
+  --bd-mode-command:       var(--bd-orange);
+  --bd-mode-command-light: var(--bd-orange-light);
+  --bd-mode-command-glow:  rgba(249, 115, 22, 0.15);
+  --bd-mode-command-rgb:   249, 115, 22;
 
-  /* Story Card Highlights */
-  --bd-trigger-bg:                rgba(251, 191, 36, 0.25);
-  --bd-trigger-color:             #ffd54f;
-  --bd-trigger-border:            rgba(251, 191, 36, 0.6);
-  --bd-suggested-trigger-bg:      rgba(6, 182, 212, 0.2);
-  --bd-suggested-trigger-color:   #22d3ee;
-  --bd-suggested-trigger-border:  rgba(6, 182, 212, 0.5);
+  /* =============================================================
+     24. STORY CARD TRIGGER HIGHLIGHTS
+     ============================================================= */
+  --bd-trigger-bg:                  rgba(251, 191, 36, 0.25);
+  --bd-trigger-color:               #ffd54f;
+  --bd-trigger-border:              rgba(251, 191, 36, 0.6);
+
+  --bd-suggested-trigger-bg:        rgba(6, 182, 212, 0.2);
+  --bd-suggested-trigger-color:     var(--bd-cyan-light);
+  --bd-suggested-trigger-border:    rgba(6, 182, 212, 0.5);
+
+  /* =============================================================
+     25. MARKDOWN & CODE CONTENT
+     ============================================================= */
+  --bd-code-inline-bg:       var(--bd-tag-bg);
+  --bd-code-inline-border:   var(--bd-border-default);
+  --bd-code-inline-color:    #e8b4b4;
+  --bd-code-block-bg:        rgba(0, 0, 0, 0.3);
+  --bd-code-block-color:     #d4d4d4;
+
+  --bd-link-color:           var(--bd-blue-light);
+  --bd-link-hover-color:     #a8cbff;
+
+  --bd-highlight-bg:         var(--bd-accent-muted);
+
+  /* =============================================================
+     26. THIRD-PARTY BRAND COLORS
+     ============================================================= */
+  --bd-discord:  #5865F2;
 }
