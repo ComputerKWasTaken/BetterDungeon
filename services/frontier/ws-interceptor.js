@@ -270,17 +270,24 @@
   //      responses, forwarded as a one-element delta.
   function scanAndForwardCards(root, maxDepth = 6) {
     if (!root || typeof root !== 'object') return;
-    const stack = [{ node: root, depth: 0 }];
+    // inCardScope: true once the walk has descended through a `storyCard` or
+    // `storyCards` field. Enrichment harvesting is gated on this because AID
+    // response trees contain many OTHER entities that share the
+    // {id, shortId, contentType} shape (Scenario, Adventure, content index
+    // items on the home/explore pages, etc.). Without scope-gating, we polluted
+    // the enrichment index with hundreds of scenario ids — see the 437-entry
+    // bug where every harvested `contentType` was `'scenario'`.
+    const stack = [{ node: root, depth: 0, inCardScope: false }];
     const seen = new WeakSet();
     while (stack.length) {
-      const { node, depth } = stack.pop();
+      const { node, depth, inCardScope } = stack.pop();
       if (!node || typeof node !== 'object' || seen.has(node)) continue;
       seen.add(node);
       if (depth > maxDepth) continue;
 
       if (Array.isArray(node)) {
         for (const v of node) {
-          if (v && typeof v === 'object') stack.push({ node: v, depth: depth + 1 });
+          if (v && typeof v === 'object') stack.push({ node: v, depth: depth + 1, inCardScope });
         }
         continue;
       }
@@ -298,19 +305,28 @@
         post('cards:upsert', { storyCards: [node.storyCard] });
       }
 
-      // Enrichment harvest. Any object with both `id` and `shortId` is almost
-      // certainly a card reference. Store the mapping so we can learn shortIds
-      // for cards that GetAdventure didn't include. Also capture contentType
-      // when present — those two fields together are the gatekeepers for
-      // SaveQueueStoryCard replays.
-      if (typeof node.id === 'string' &&
+      // Enrichment harvest. Only when we're already under a story-card subtree
+      // — otherwise any entity with a shortId (Scenario, Adventure, etc.)
+      // would pollute the index. See the comment on inCardScope above.
+      // Accept both string and numeric ids (parallel to the coerceId logic
+      // in storeTemplate) so any future AID serialization variant that emits
+      // numeric ids in response bodies still gets indexed under a string key.
+      if (inCardScope && (typeof node.id === 'string' || typeof node.id === 'number') &&
           (typeof node.shortId === 'string' || typeof node.contentType === 'string')) {
-        harvestEnrichment(node);
+        const normId = typeof node.id === 'string' ? node.id : String(node.id);
+        harvestEnrichment({ ...node, id: normId });
       }
 
       for (const k of Object.keys(node)) {
         const v = node[k];
-        if (v && typeof v === 'object') stack.push({ node: v, depth: depth + 1 });
+        if (!v || typeof v !== 'object') continue;
+        // Enter card scope when descending through a storyCard(s) field.
+        // Scope is sticky: once inside, children inherit it so nested
+        // per-card metadata (e.g. `__typename`, `createdAt` wrappers) still
+        // qualify. Top-level scope is only entered via these two field names
+        // because those are AID's canonical paths for card payloads.
+        const childScope = inCardScope || k === 'storyCard' || k === 'storyCards';
+        stack.push({ node: v, depth: depth + 1, inCardScope: childScope });
       }
     }
   }
@@ -350,16 +366,22 @@
       const parsed = typeof template.body === 'string' ? JSON.parse(template.body) : template.body;
       const op = Array.isArray(parsed) ? parsed[0] : parsed;
       const input = op?.variables?.input;
+      // Coerce numeric card ids to strings for consistent indexing. AID's
+      // current traffic is uniformly string, but some client code paths
+      // (internal or future) may send numbers — a mismatch here would
+      // silently skip per-card indexing for those mutations.
+      const coerceId = (v) => (typeof v === 'string' ? v : (typeof v === 'number' ? String(v) : null));
       if (input && typeof input === 'object') {
-        if (typeof input.id === 'string') cardId = input.id;
+        cardId = coerceId(input.id);
         // Harvest enrichment directly from the mutation input — same code
         // path the response scanner uses, so downstream behavior is uniform.
-        if (typeof input.id === 'string' &&
-            (typeof input.shortId === 'string' || typeof input.contentType === 'string')) {
-          harvestEnrichment(input);
+        if (cardId && (typeof input.shortId === 'string' || typeof input.contentType === 'string')) {
+          // Pass a normalized copy so the enrichment index always stores
+          // string ids (matches the rest of our state).
+          harvestEnrichment({ ...input, id: cardId });
         }
-      } else if (typeof op?.variables?.id === 'string') {
-        cardId = op.variables.id;
+      } else {
+        cardId = coerceId(op?.variables?.id);
       }
     } catch { /* swallow — template just lacks card id (e.g. create op) */ }
 
