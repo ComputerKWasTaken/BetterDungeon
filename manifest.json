@@ -16,6 +16,17 @@
   "content_scripts": [
     {
       "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"],
+      "js": ["services/frontier/ws-interceptor.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"],
+      "js": ["services/frontier/ws-stream.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"],
       "js": [
         "utils/browser-polyfill.js",
         "utils/dom.js",
@@ -55,7 +66,8 @@
         "fonts/lucide/lucide.css",
         "fonts/lucide/lucide.ttf",
         "fonts/lucide/lucide.woff",
-        "fonts/lucide/lucide.woff2"
+        "fonts/lucide/lucide.woff2",
+        "services/frontier/ws-interceptor.js"
       ],
       "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"]
     }
