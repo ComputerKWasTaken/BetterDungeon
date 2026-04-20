@@ -1103,6 +1103,348 @@ class AIDungeonService {
     }
   }
 
+  // ==================== GRAPHQL MUTATIONS (FRONTIER) ====================
+  //
+  // Frontier's programmatic write path for story cards. Rather than guess at
+  // AID's GraphQL schema and auth scheme (both of which drift), we replay
+  // templates captured by the Frontier WS interceptor. The interceptor snoops
+  // on AID's own outbound mutations (ws-interceptor.js fetch shim) and stashes
+  // the most recent specimen of each op name under
+  // window.Frontier.ws.getMutationTemplate(opName).
+  //
+  // Priming: a template must be captured for a given op before it can be
+  // replayed. Any AID-initiated card edit primes updateStoryCard; any create
+  // primes createStoryCard; any deletion primes removeStoryCard. Until that
+  // happens, the mutation helpers throw with a clear actionable error.
+
+  _getMutationTemplate(opName) {
+    const ws = (typeof window !== 'undefined') ? window.Frontier?.ws : null;
+    return ws?.getMutationTemplate ? ws.getMutationTemplate(opName) : null;
+  }
+
+  // Deep-walk an object, replacing any property whose key matches an override
+  // with the override value. Non-matching properties are preserved intact.
+  // Used to overlay our new variables onto a captured template without having
+  // to know whether AID wraps the input under { input: {} } or passes it flat.
+  _deepOverride(value, overrides) {
+    if (value === null || typeof value !== 'object') return value;
+    if (Array.isArray(value)) return value.map(v => this._deepOverride(v, overrides));
+    const out = {};
+    for (const k of Object.keys(value)) {
+      if (Object.prototype.hasOwnProperty.call(overrides, k)) {
+        out[k] = overrides[k];
+      } else {
+        out[k] = this._deepOverride(value[k], overrides);
+      }
+    }
+    return out;
+  }
+
+  // Headers that the browser (or fetch itself) sets for us and that we must
+  // not pass through from the captured template. Supplying these explicitly
+  // makes the browser silently drop them or, worse, reject the request.
+  static FORBIDDEN_REPLAY_HEADERS = new Set([
+    'host', 'origin', 'referer', 'user-agent', 'connection',
+    'accept-encoding', 'content-length', 'cookie',
+  ]);
+
+  _restoreReplayHeaders(capturedHeaders) {
+    const out = {};
+    if (!capturedHeaders || typeof capturedHeaders !== 'object') {
+      return { 'Content-Type': 'application/json' };
+    }
+    for (const k of Object.keys(capturedHeaders)) {
+      if (AIDungeonService.FORBIDDEN_REPLAY_HEADERS.has(k.toLowerCase())) continue;
+      out[k] = capturedHeaders[k];
+    }
+    // Guarantee a content-type is set even if the captured template didn't
+    // have one (defensive; Apollo always sets it, but fetch with no body
+    // content-type can behave unexpectedly).
+    const hasContentType = Object.keys(out).some(k => k.toLowerCase() === 'content-type');
+    if (!hasContentType) out['Content-Type'] = 'application/json';
+    return out;
+  }
+
+  async _replayMutation(opName, overrides) {
+    const template = this._getMutationTemplate(opName);
+    if (!template) {
+      throw new Error(
+        `[AIDungeonService] Frontier mutation template for '${opName}' not yet ` +
+        `captured. Prime it by editing or creating any story card once via the ` +
+        `AI Dungeon UI, then retry.`
+      );
+    }
+
+    let parsedBody;
+    try { parsedBody = JSON.parse(template.body); }
+    catch { throw new Error(`[AIDungeonService] captured '${opName}' template body is not JSON`); }
+
+    const wasArray = Array.isArray(parsedBody);
+    const op = wasArray ? parsedBody[0] : parsedBody;
+    if (!op || typeof op !== 'object') {
+      throw new Error(`[AIDungeonService] captured '${opName}' template has unexpected shape`);
+    }
+
+    // Deep-overlay our values onto the captured variables. Preserves any
+    // fields AID required but we didn't set (e.g. useForCharacterCreation).
+    op.variables = this._deepOverride(op.variables || {}, overrides);
+    const body = JSON.stringify(wasArray ? [op] : op);
+
+    // Diagnostic hook. Set AIDungeonService.DEBUG_REPLAY = true (or pass
+    // { debug: true } to writeCard in the future) to log the exact outgoing
+    // body and captured template side-by-side — useful for catching field-
+    // shape mismatches without opening the Network tab.
+    if (AIDungeonService.DEBUG_REPLAY) {
+      console.log(`[AIDungeonService] replaying ${opName}:`);
+      console.log('  template body:', template.body);
+      console.log('  replay body  :', body);
+      console.log('  overrides    :', overrides);
+    }
+
+    const response = await fetch(template.url, {
+      method: template.method || 'POST',
+      credentials: 'include',
+      headers: this._restoreReplayHeaders(template.headers),
+      body,
+    });
+
+    if (!response.ok) {
+      const txt = await response.text().catch(() => '<no body>');
+      throw new Error(
+        `[AIDungeonService] ${opName} HTTP ${response.status}: ${txt.slice(0, 200)}`
+      );
+    }
+
+    const parsed = await response.json();
+    const first = Array.isArray(parsed) ? parsed[0] : parsed;
+    const data = first?.data;
+    if (!data || typeof data !== 'object') {
+      const errs = first?.errors ? ` errors=${JSON.stringify(first.errors).slice(0, 300)}` : '';
+      throw new Error(`[AIDungeonService] ${opName} response missing data.${errs}`);
+    }
+
+    // Resolve the response field name. In GraphQL the selection-set field
+    // name is independent of `operationName`, so `data[opName]` often misses.
+    // Strategy:
+    //   1. Prefer the field used by the captured template's own successful
+    //      response — that's the ground truth for this op's field name.
+    //   2. Fall back to a case-insensitive exact match on opName.
+    //   3. If `data` has exactly one key, use it.
+    //   4. Otherwise fail loudly with the actual keys for debugging.
+    const resolvedKey = this._resolveResponseFieldName(template.response, data, opName);
+    if (!resolvedKey) {
+      throw new Error(
+        `[AIDungeonService] ${opName} response has unexpected shape; data keys = ` +
+        `${Object.keys(data).join(', ')}`
+      );
+    }
+    const result = data[resolvedKey];
+    // AID's mutation responses conventionally include `success: bool` + `message`.
+    // Not all ops follow this, so only treat an explicit `false` as failure.
+    if (result && result.success === false) {
+      throw new Error(`[AIDungeonService] ${opName} failed: ${result.message || 'unknown error'}`);
+    }
+    return result;
+  }
+
+  _resolveResponseFieldName(templateResponse, replyData, opName) {
+    // Try the captured-template ground truth first.
+    const tpl = templateResponse;
+    const tplData = tpl && (Array.isArray(tpl) ? tpl[0]?.data : tpl.data);
+    if (tplData && typeof tplData === 'object') {
+      const keys = Object.keys(tplData);
+      for (const k of keys) {
+        if (k in replyData) return k;
+      }
+    }
+    // Exact match.
+    if (opName in replyData) return opName;
+    // Case-insensitive match.
+    const lower = opName.toLowerCase();
+    for (const k of Object.keys(replyData)) {
+      if (k.toLowerCase() === lower) return k;
+    }
+    // Single-key fallback: if there's only one field in `data`, assume it's ours.
+    const replyKeys = Object.keys(replyData);
+    if (replyKeys.length === 1) return replyKeys[0];
+    return null;
+  }
+
+  // AID card-mutation op names (empirically confirmed 2026-04-20).
+  //
+  // Only ONE mutation handles both create and update of story cards:
+  //
+  //   SaveQueueStoryCard — variable shape:
+  //     variables.input = {
+  //       id,                  // card id; client-generated for creates, reused for updates
+  //       type, title, description, keys, value,
+  //       shortId,             // *** adventure shortId, NOT per-card ***
+  //       contentType,         // "adventure"
+  //       useForCharacterCreation,
+  //     }
+  //
+  //   Create vs update is distinguished purely by whether the `id` already
+  //   exists on the server. First-time id triggers a create; known id updates.
+  //   Client-generated ids are 8-9 digit random numbers in observed samples.
+  //
+  //   The `shortId` field is the ADVENTURE's URL slug (e.g. "nGgG3mHvbLrp"
+  //   for aidungeon.com/adventure/nGgG3mHvbLrp). Every card in one adventure
+  //   shares the same shortId — we resolve it via Frontier.ws.getAdventureShortId.
+  //
+  // UseAutoSaveStoryCard also ends in "StoryCard" and is captured by our wide
+  // filter, but it's a toggle op and not suitable for content writes, so it's
+  // not a candidate here.
+  static SAVE_OP_CANDIDATES = ['SaveQueueStoryCard'];
+
+  // Generate a card id for the create path. AID uses 8-9 digit random numbers
+  // for newly-minted cards (confirmed from captured traffic). We match that
+  // format. Collision probability within a single adventure is negligible
+  // (each adventure has dozens of cards at most, birthday collision at 1e9 is
+  // vanishingly small until you approach sqrt(1e9) ~ 31k cards).
+  _mintCardId() {
+    // Range [100000000, 999999999] — 9 digits, consistent with observed ids.
+    const n = Math.floor(Math.random() * 900000000) + 100000000;
+    return String(n);
+  }
+
+  // Returns { shortId, contentType } for the write — shortId comes from
+  // Frontier.ws (per-adventure, shared across all cards in the adventure),
+  // contentType is constant ("adventure") for all story-card mutations.
+  _getAdventureEnrichment() {
+    if (typeof window === 'undefined' || !window.Frontier?.ws) return null;
+    const shortId = window.Frontier.ws.getAdventureShortId?.();
+    if (!shortId) return null;
+    return { shortId, contentType: 'adventure' };
+  }
+
+  _findExistingCardByTitle(title) {
+    if (typeof window === 'undefined' || !window.Frontier?.ws?.getCards) return null;
+    for (const card of window.Frontier.ws.getCards().values()) {
+      if (card?.title === title) return card;
+    }
+    return null;
+  }
+
+  _findTemplate(candidateOpNames) {
+    for (const op of candidateOpNames) {
+      const t = this._getMutationTemplate(op);
+      if (t) return { opName: op, template: t };
+    }
+    return null;
+  }
+
+  // Per-card template lookup. Walks the op-name candidates and returns the
+  // first captured template specifically for the given card id. Preferred
+  // over _findTemplate when the caller knows which card it's writing to —
+  // guarantees shortId/contentType alignment without needing the safety check.
+  _findTemplateForCard(cardId, candidateOpNames) {
+    const ws = (typeof window !== 'undefined') ? window.Frontier?.ws : null;
+    if (!ws?.getMutationTemplateForCard) return null;
+    for (const op of candidateOpNames) {
+      const t = ws.getMutationTemplateForCard(cardId, op);
+      if (t) return { opName: op, template: t };
+    }
+    return null;
+  }
+
+  // Pull out the `id` field from a captured template's variables, searching
+  // both `variables.input.id` (the common shape) and `variables.id` (flat).
+  // Returns null if the template didn't carry an id (e.g. create-style ops).
+  _extractTemplateInputId(template) {
+    if (!template?.body) return null;
+    let parsed;
+    try { parsed = JSON.parse(template.body); } catch { return null; }
+    const op = Array.isArray(parsed) ? parsed[0] : parsed;
+    const vars = op?.variables;
+    if (!vars || typeof vars !== 'object') return null;
+    if (vars.input && typeof vars.input === 'object' && typeof vars.input.id === 'string') {
+      return vars.input.id;
+    }
+    if (typeof vars.id === 'string') return vars.id;
+    return null;
+  }
+
+  // Upsert a story card by title. If a card with this title exists in the
+  // current Frontier snapshot, updates it in place; otherwise creates a new
+  // card. Returns the AID mutation response's `storyCard` object.
+  //
+  // Prerequisites (both usually satisfied automatically by a live AID session):
+  //   1. A SaveQueueStoryCard template has been captured — any edit in any
+  //      adventure works, because the mutation shape is identical. AID flushes
+  //      its save queue on page load, so this is typically true immediately.
+  //   2. The adventure's shortId is known — either from a captured mutation
+  //      in THIS adventure, or parsed from the URL path.
+  //
+  // Options:
+  //   type        - card type ('character', 'location', 'class', 'test', ...)
+  //   keys        - comma-separated trigger keys
+  //   description - optional description
+  //   id          - force-update a specific card id, skipping title lookup.
+  //                 Pass an arbitrary string to create with a fixed id (useful
+  //                 for idempotent writes from modules, e.g. 'frontier:state').
+  //   useForCharacterCreation - defaults to false
+  async upsertStoryCard(title, value, opts = {}) {
+    const {
+      type = '',
+      keys = '',
+      description = '',
+      id: forceId = null,
+      useForCharacterCreation = false,
+    } = opts;
+
+    // Any SaveQueueStoryCard template works as a structural template — the
+    // GraphQL query body and operationName are constant; we override the
+    // entire variables.input. The template just supplies the boilerplate.
+    const found = this._findTemplate(AIDungeonService.SAVE_OP_CANDIDATES);
+    if (!found) {
+      throw new Error(
+        `[AIDungeonService] No SaveQueueStoryCard template captured yet. ` +
+        `Open the AI Dungeon story-cards tab or edit any card once to prime ` +
+        `the template. AID also auto-flushes pending saves on page load, so ` +
+        `a fresh reload typically primes it automatically.`
+      );
+    }
+
+    const adventure = this._getAdventureEnrichment();
+    if (!adventure?.shortId) {
+      throw new Error(
+        `[AIDungeonService] Adventure shortId is unknown. Ensure you're on an ` +
+        `adventure URL (aidungeon.com/adventure/<shortId>) and at least one ` +
+        `story card has been observed or the URL contains the slug.`
+      );
+    }
+
+    const existing = forceId
+      ? (this._findExistingCardByTitle(title) || { id: forceId })
+      : this._findExistingCardByTitle(title);
+
+    // If existing is present, update in place. Otherwise mint a new id and
+    // rely on the server to create the card on first save with that id.
+    const targetId = existing?.id || forceId || this._mintCardId();
+    const isCreate = !existing;
+
+    const overrides = {
+      id: targetId,
+      title,
+      value,
+      type: type || existing?.type || '',
+      keys: keys || existing?.keys || '',
+      description: description || existing?.description || '',
+      shortId: adventure.shortId,
+      contentType: adventure.contentType,
+      useForCharacterCreation: typeof useForCharacterCreation === 'boolean'
+        ? useForCharacterCreation
+        : !!existing?.useForCharacterCreation,
+    };
+
+    const result = await this._replayMutation(found.opName, overrides);
+    const card = result.storyCard || result;
+    // Annotate the returned object so callers can distinguish create vs update
+    // without re-checking the snapshot themselves.
+    if (card && typeof card === 'object') card.__frontierCreated = isCreate;
+    return card;
+  }
+
   // ==================== UTILITIES ====================
 
   // Simple delay promise

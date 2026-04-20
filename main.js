@@ -19,7 +19,26 @@ class BetterDungeon {
     console.log('[BetterDungeon] Initializing...');
     this.injectStyles();
     this.setupMessageListener();
+    this.initFrontier();
     this.featureManager.initialize();
+  }
+
+  // Wire the Frontier transport + core + registry. ws-interceptor.js and
+  // ws-stream.js install themselves at document_start (see manifest.json);
+  // this method connects the isolated-world Core to our AIDungeonService
+  // instance (so Frontier modules can write cards) and starts the module
+  // registry. Safe to call even when Frontier is not available (e.g. on
+  // pages where the content script fails to inject).
+  initFrontier() {
+    const core = window.Frontier?.core;
+    const registry = window.Frontier?.registry;
+    if (!core || !registry) {
+      console.warn('[BetterDungeon] Frontier Core/Registry not loaded; Frontier features disabled.');
+      return;
+    }
+    core.setAIService(this.aiDungeonService);
+    registry.start();
+    console.log('[BetterDungeon] Frontier online.');
   }
 
   // Setup listener for messages from popup

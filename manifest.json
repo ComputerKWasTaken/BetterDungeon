@@ -32,6 +32,8 @@
         "utils/dom.js",
         "utils/storage.js",
         "services/ai-dungeon-service.js",
+        "services/frontier/core.js",
+        "services/frontier/module-registry.js",
         "services/loading-screen.js",
         "services/story-card-cache.js",
         "services/story-card-scanner.js",
