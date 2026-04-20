@@ -18,9 +18,20 @@ All three travel on a single GraphQL-over-WebSocket connection to `wss://api.aid
 
 | Name | Cadence | Shape highlights |
 |------|---------|------------------|
-| `adventureStoryCardsUpdate` | Every turn, unconditional | `{ storyCards: Card[] }`. Full list every time; BD diffs. |
+| `adventureStoryCardsUpdate` | **Only for server-originated card writes** (see below) | `{ storyCards: Card[] }`. Full list; BD diffs. |
 | `contextUpdate` | Every turn at prompt-build time | `{ actionId, key, ... }`. Tail id + correlation UUID. |
 | `actionUpdates` | Every action mutation | `{ type, key, retriedActionId, actions: Action[] }`. Full recent `actions` window with every field. |
+
+### `adventureStoryCardsUpdate` firing rules (important)
+
+Empirically verified Phase 1 smoke test (commit 1). The subscription fires **only for card writes the server originated** — that is, writes that came from AI Dungeon's server-side script sandbox via `storyCards[i].value = ...` or `addStoryCard(...)` inside an Input/Output Modifier. It does **not** fire for:
+
+- **Client-initiated card edits via the AID UI** — these travel as an HTTP `updateStoryCard` mutation, and the initiating client learns the result from the mutation response, not from the subscription. Other clients on the same adventure presumably receive the subscription push, but this hasn't been verified.
+- **BD's own `updateStoryCard` calls** — same HTTP path; BD already knows what it wrote, so no echo is needed.
+
+Phase 0's "every turn, unconditional" claim was correct only for the scenario used there, which had a server-side script writing cards on every turn. Absent any server-side script write, a cards-only turn produces zero subscription frames.
+
+**Implication for Scripture:** this is the desired behavior. Scripture's state cards are written exclusively by its AID output-modifier script (server side), so every state change naturally produces an `adventureStoryCardsUpdate` push that BD can consume. Scripture's **manifest** card, written by BD from the popup UI, takes the HTTP path — BD updates its cache locally and doesn't need an echo.
 
 `actionUpdates.type` values observed: `create`, `update`.
 
