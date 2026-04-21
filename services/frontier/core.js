@@ -6,9 +6,11 @@
 //   * Bridge DOM CustomEvents from ws-stream.js into a clean on/off listener API.
 //   * Maintain lightweight derived state (adventureId, tail, liveCount) for
 //     module consumption, with adventure-boundary events.
+//   * Dispatch state-card changes to modules via onStateChange (Phase 2).
 //   * Provide card lookup helpers (getCard, getState) that parse typed Frontier
 //     state cards.
-//   * Provide a write helper (writeCard) that delegates to AIDungeonService.
+//   * Provide a write helper (writeCard) that delegates to the write queue.
+//   * Emit the frontier:heartbeat card on adventure enter.
 //   * Host the module registry and run the heartbeat on adventure enter.
 //
 // Exposure (per the Hybrid API decision):
@@ -25,10 +27,9 @@
   if (window.Frontier?.core) return;
 
   const TAG = '[Frontier/core]';
-  const HEARTBEAT_DELAY_MS = 750; // debounce heartbeat after adventure:enter
+  const HEARTBEAT_DELAY_MS = 750;
   const STATE_CARD_PREFIX = 'frontier:state:';
-  const MANIFEST_CARD_TITLE = 'frontier:manifest';
-  const MODULES_CARD_TITLE = 'frontier:modules';
+  const HEARTBEAT_CARD_TITLE = 'frontier:heartbeat';
   const PROTOCOL_VERSION = 1;
 
   // ---------- internal state ----------
@@ -40,13 +41,37 @@
     liveCount: 0,
     started: false,
     heartbeatTimer: null,
-    aiService: null,  // AIDungeonService instance, injected by main.js
+    aiService: null,       // AIDungeonService instance, injected by main.js
+    debugEnabled: false,   // gated by frontier_debug in chrome.storage.sync
+    stateCache: new Map(), // name -> parsed JSON from frontier:state:<name>
   };
 
-  // Module registry lookup is lazy so load-order between core.js and
-  // module-registry.js doesn't matter. The registry attaches itself to
-  // window.Frontier.registry when it loads.
   const getRegistry = () => window.Frontier?.registry || null;
+  const getWs = () => window.Frontier?.ws || null;
+
+  // ---------- debug mode (Phase 2) ----------
+
+  function loadDebugSetting() {
+    try {
+      const api = typeof browser !== 'undefined' ? browser : chrome;
+      api?.storage?.sync?.get?.('frontier_debug', (result) => {
+        state.debugEnabled = !!result?.frontier_debug;
+      });
+      api?.storage?.onChanged?.addListener?.((changes, area) => {
+        if (area === 'sync' && changes.frontier_debug) {
+          state.debugEnabled = !!changes.frontier_debug.newValue;
+        }
+      });
+    } catch { /* storage unavailable */ }
+  }
+
+  function setDebug(enabled) {
+    state.debugEnabled = !!enabled;
+    try {
+      const api = typeof browser !== 'undefined' ? browser : chrome;
+      api?.storage?.sync?.set?.({ frontier_debug: state.debugEnabled });
+    } catch { /* storage unavailable */ }
+  }
 
   // ---------- event bus ----------
 
@@ -77,7 +102,7 @@
   // ---------- card lookup helpers ----------
 
   function getCardByTitle(title) {
-    const ws = window.Frontier?.ws;
+    const ws = getWs();
     if (!ws?.getCards) return null;
     for (const card of ws.getCards().values()) {
       if (card?.title === title) return card;
@@ -98,13 +123,86 @@
     }
   }
 
+  // ---------- state-card dispatch (Phase 2) ----------
+  //
+  // Scans card arrays for frontier:state:* titles, parses their values,
+  // caches the parsed result, and dispatches onStateChange to modules whose
+  // stateNames include the extracted name.
+
+  function processStateCards(cards) {
+    if (!Array.isArray(cards)) return;
+    for (const card of cards) {
+      if (!card?.title?.startsWith(STATE_CARD_PREFIX)) continue;
+      const name = card.title.slice(STATE_CARD_PREFIX.length);
+      if (!name) continue;
+      let parsed = null;
+      if (typeof card.value === 'string' && card.value.length > 0) {
+        try { parsed = JSON.parse(card.value); }
+        catch { continue; } // unparseable — skip
+      }
+      state.stateCache.set(name, parsed);
+      dispatchStateChange(name, parsed);
+    }
+  }
+
+  function dispatchStateChange(name, parsed) {
+    const registry = getRegistry();
+    if (!registry?._forEachMounted) return;
+    registry._forEachMounted((def, ctx) => {
+      if (Array.isArray(def.stateNames) && def.stateNames.includes(name)) {
+        try {
+          def.onStateChange?.(name, parsed, ctx);
+        } catch (err) {
+          console.warn(TAG, `onStateChange('${name}') threw in '${def.id}'`, err);
+        }
+      }
+    });
+  }
+
+  // Called on livecount:change. Re-dispatches cached state to modules that
+  // declared tracksLiveCount: true so they re-read history[liveCount].
+  function dispatchLiveCountRefresh() {
+    const registry = getRegistry();
+    if (!registry?._forEachMounted) return;
+    registry._forEachMounted((def, ctx) => {
+      if (!def.tracksLiveCount) return;
+      if (!Array.isArray(def.stateNames)) return;
+      for (const name of def.stateNames) {
+        const cached = state.stateCache.get(name);
+        if (cached !== undefined) {
+          try {
+            def.onStateChange?.(name, cached, ctx);
+          } catch (err) {
+            console.warn(TAG, `onStateChange('${name}') [liveCount] threw in '${def.id}'`, err);
+          }
+        }
+      }
+    });
+  }
+
+  // Replays cached state to a specific module (e.g. on enable). Called by
+  // module-registry.js when a module is freshly enabled so it doesn't have
+  // to wait for the next card change.
+  function replayStateToModule(def, ctx) {
+    if (!Array.isArray(def.stateNames)) return;
+    for (const name of def.stateNames) {
+      const cached = state.stateCache.get(name);
+      if (cached !== undefined) {
+        try {
+          def.onStateChange?.(name, cached, ctx);
+        } catch (err) {
+          console.warn(TAG, `state replay for '${name}' threw in '${def.id}'`, err);
+        }
+      }
+    }
+  }
+
   // ---------- adventure-boundary detection ----------
   //
-  // Phase 1: ws-stream.js now handles adventure-boundary detection via HTTP
-  // hydration (GetAdventure responses) and SPA URL polling, emitting a
-  // `frontier:adventure:change` CustomEvent. Core subscribes to that event
-  // rather than trying to extract adventureId from individual subscription
-  // payloads (which was fragile — action payloads don't always carry it).
+  // Phase 1: ws-stream.js handles boundary detection via HTTP hydration and
+  // URL polling, emitting frontier:adventure:change. Core subscribes here.
+  // Phase 2: also notifies mounted modules via onAdventureChange and clears
+  // the stateCache so new adventure cards hydrate cleanly.
 
   function onAdventureChange(detail) {
     const id = detail?.adventureId ?? null;
@@ -112,26 +210,28 @@
     if (id === prevId) return;
 
     state.adventureId = id;
+    state.stateCache.clear();
 
     if (prevId) emit('adventure:leave', { adventureId: prevId });
     if (id) {
       emit('adventure:enter', { adventureId: id, prevId, shortId: detail?.shortId });
       scheduleHeartbeat();
     }
+
+    // Notify mounted modules of the adventure boundary.
+    const registry = getRegistry();
+    const shortId = detail?.shortId ?? null;
+    registry?._forEachMounted?.((def, ctx) => {
+      try { def.onAdventureChange?.(shortId, ctx); }
+      catch (err) { console.warn(TAG, `onAdventureChange threw in '${def.id}'`, err); }
+    });
   }
 
-  // ---------- heartbeat ----------
+  // ---------- heartbeat (Phase 2 — single frontier:heartbeat card) ----------
   //
-  // When a new adventure is entered, BD writes two protocol-level metadata
-  // cards so any AID-side Frontier script can discover BD's presence and
-  // version:
-  //   frontier:manifest  — BD identification + protocol version
-  //   frontier:modules   — the list of currently enabled modules with their
-  //                        declared stateNames
-  //
-  // This is best-effort: mutation templates may not be primed yet, in which
-  // case the heartbeat silently defers. It will retry on the next adventure
-  // enter or via a `frontier:mutation:template` event.
+  // Writes a single frontier:heartbeat card matching the protocol spec from
+  // 02-protocol.md. Contains frontier identity, turn counter for staleness
+  // detection, and the list of currently mounted modules with their ops.
 
   function scheduleHeartbeat() {
     if (state.heartbeatTimer) clearTimeout(state.heartbeatTimer);
@@ -141,46 +241,38 @@
   async function runHeartbeat() {
     state.heartbeatTimer = null;
     const instance = state.aiService;
-    if (!instance || typeof instance.upsertStoryCard !== 'function') {
-      // AIDungeonService not injected yet. main.js wires this via setAIService().
-      return;
-    }
+    if (!instance || typeof instance.upsertStoryCard !== 'function') return;
 
-    // Defer if no usable template captured — the write would throw.
-    // SaveQueueStoryCard is AID's update op (confirmed); create op name
-    // unconfirmed, so we also defer if all our candidates are unprimed.
-    const ws = window.Frontier?.ws;
+    const ws = getWs();
     const anyTemplate = ws?.getMutationTemplates ? Object.keys(ws.getMutationTemplates()) : [];
     if (anyTemplate.length === 0) return;
 
-    const manifest = {
-      protocol: PROTOCOL_VERSION,
-      client: 'BetterDungeon',
-      clientVersion: (chrome?.runtime?.getManifest?.() || {}).version || 'unknown',
-      writtenAt: new Date().toISOString(),
-      adventureId: state.adventureId,
-    };
     const registry = getRegistry();
     const modulesList = registry ? registry.list() : [];
-    const modulesPayload = {
-      protocol: PROTOCOL_VERSION,
-      modules: modulesList.map(m => ({
-        id: m.id,
-        version: m.version || null,
-        stateNames: m.stateNames || [],
-      })),
+
+    const heartbeat = {
+      frontier: {
+        protocol: PROTOCOL_VERSION,
+        profile: 'full',
+        client: 'BetterDungeon',
+        clientVersion: (chrome?.runtime?.getManifest?.() || {}).version || 'unknown',
+      },
+      turn: state.liveCount,
+      modules: modulesList
+        .filter(m => m.mounted)
+        .map(m => ({
+          id: m.id,
+          version: m.version || null,
+          stateNames: m.stateNames || [],
+          ops: m.ops || [],
+        })),
       writtenAt: new Date().toISOString(),
     };
 
     try {
-      await writeCard(MANIFEST_CARD_TITLE, JSON.stringify(manifest), { type: 'frontier' });
+      await writeCard(HEARTBEAT_CARD_TITLE, JSON.stringify(heartbeat), { type: 'frontier' });
     } catch (err) {
-      console.warn(TAG, 'heartbeat manifest write failed', err?.message || err);
-    }
-    try {
-      await writeCard(MODULES_CARD_TITLE, JSON.stringify(modulesPayload), { type: 'frontier' });
-    } catch (err) {
-      console.warn(TAG, 'heartbeat modules write failed', err?.message || err);
+      console.warn(TAG, 'heartbeat write failed', err?.message || err);
     }
   }
 
@@ -190,11 +282,27 @@
     if (state.started) return;
     state.started = true;
 
+    loadDebugSetting();
+
+    // --- Card events ---
+
     document.addEventListener('frontier:cards:full', (e) => {
       emit('cards:full', e.detail);
+      // Scan initial card snapshot for state cards.
+      processStateCards(e.detail?.cards);
     });
 
-    document.addEventListener('frontier:cards:diff', (e) => emit('cards:diff', e.detail));
+    document.addEventListener('frontier:cards:diff', (e) => {
+      emit('cards:diff', e.detail);
+      // Scan changed cards (added + updated) for state card changes.
+      const changed = [
+        ...(e.detail?.added || []),
+        ...(e.detail?.updated || []),
+      ];
+      if (changed.length) processStateCards(changed);
+    });
+
+    // --- Action events ---
 
     document.addEventListener('frontier:actions:change', (e) => {
       emit('actions:change', e.detail);
@@ -208,15 +316,19 @@
     document.addEventListener('frontier:livecount:change', (e) => {
       state.liveCount = e.detail?.liveCount ?? 0;
       emit('livecount:change', e.detail);
+      // Re-dispatch cached state to tracksLiveCount modules.
+      dispatchLiveCountRefresh();
     });
+
+    // --- Template events ---
 
     document.addEventListener('frontier:mutation:template', (e) => {
       emit('mutation:template', e.detail);
-      // A fresh template may enable a previously-deferred heartbeat.
       if (state.adventureId) scheduleHeartbeat();
     });
 
-    // Phase 1: authoritative adventure-boundary signal from ws-stream.
+    // --- Adventure boundary ---
+
     document.addEventListener('frontier:adventure:change', (e) => {
       onAdventureChange(e.detail);
     });
@@ -226,63 +338,108 @@
 
   // ---------- write helper ----------
 
-  // All card writes go through the write queue (Phase 1). The queue provides
-  // per-card serialization, last-write-wins coalescing, exponential-backoff
-  // retry, and optimistic local echo.
   function getWriteQueue() {
     return window.Frontier?.writeQueue || null;
   }
 
   async function writeCard(title, value, opts = {}) {
     const wq = getWriteQueue();
-    if (wq) {
-      return wq.enqueue(title, value, opts);
-    }
-    // Fallback: if write-queue.js didn't load, write directly.
+    if (wq) return wq.enqueue(title, value, opts);
     const instance = state.aiService;
     if (!instance?.upsertStoryCard) {
-      throw new Error(`${TAG} writeCard: AIDungeonService not injected. Call Frontier.core.setAIService(service) first.`);
+      throw new Error(`${TAG} writeCard: AIDungeonService not injected.`);
     }
     return instance.upsertStoryCard(title, value, opts);
   }
 
   function setAIService(service) {
     state.aiService = service;
-    // Wire the write queue's underlying write function.
     const wq = getWriteQueue();
     if (wq && service && typeof service.upsertStoryCard === 'function') {
       wq.setWriteFn((title, value, opts) => service.upsertStoryCard(title, value, opts));
     }
   }
 
-  // ---------- module context factory ----------
+  // ---------- module context factory (Phase 2 — expanded) ----------
+  //
+  // Each module's mount(ctx) receives one of these. The context is scoped
+  // per-module so Core can scope logs and auto-clean listeners on unmount.
+  // Full interface per 03-modules.md FrontierContext.
 
-  // Each module's mount(ctx) receives one of these. Keeping the context
-  // scoped per-module (with the module's `id` baked in) lets Core scope
-  // logs and auto-clean listeners on unmount.
   function makeModuleCtx(moduleDef) {
     const moduleListeners = [];
+    const moduleId = moduleDef.id;
+
     function ctxOn(eventName, handler) {
       const offFn = on(eventName, handler);
       moduleListeners.push(offFn);
       return offFn;
     }
+
     function ctxTearDown() {
       while (moduleListeners.length) {
         try { moduleListeners.pop()(); } catch { /* noop */ }
       }
     }
+
+    // Per-module storage backed by chrome.storage.sync. Keys are namespaced
+    // as `frontier_mod_<id>_<key>` to prevent collisions.
+    const storagePrefix = `frontier_mod_${moduleId}_`;
+    const api = typeof browser !== 'undefined' ? browser : chrome;
+
+    const storage = {
+      async get(key, fallback) {
+        const fullKey = storagePrefix + key;
+        try {
+          const result = await api.storage.sync.get(fullKey);
+          return fullKey in result ? result[fullKey] : (fallback !== undefined ? fallback : undefined);
+        } catch { return fallback !== undefined ? fallback : undefined; }
+      },
+      async set(key, value) {
+        try { await api.storage.sync.set({ [storagePrefix + key]: value }); }
+        catch (err) { console.warn(TAG, `storage.set failed for '${moduleId}'`, err); }
+      },
+      async remove(key) {
+        try { await api.storage.sync.remove(storagePrefix + key); }
+        catch (err) { console.warn(TAG, `storage.remove failed for '${moduleId}'`, err); }
+      },
+    };
+
     return {
-      id: moduleDef.id,
+      id: moduleId,
       on: ctxOn,
       getState,
       getCardByTitle,
+
+      // Adventure state.
+      get adventureShortId() { return getWs()?.getAdventureShortId?.() ?? null; },
       getAdventureId: () => state.adventureId,
+      getActions: () => {
+        const ws = getWs();
+        return ws?.getActions ? [...ws.getActions().values()] : [];
+      },
+      getCurrentActionId: () => state.tail,
       getTail: () => state.tail,
       getLiveCount: () => state.liveCount,
+
+      // Write (delegates to write queue).
       writeCard,
-      log: (...args) => console.log(`[${moduleDef.id}]`, ...args),
-      _tearDown: ctxTearDown, // called by registry on unmount
+
+      // Ops stubs — no-op in Phase 2, wired in Phase 4.
+      respond(_requestId, _data) { /* no-op until Phase 4 */ },
+      respondError(_requestId, _err) { /* no-op until Phase 4 */ },
+
+      // Structured logging. 'debug' level gated by frontier_debug toggle.
+      log(level, ...args) {
+        if (level === 'debug' && !state.debugEnabled) return;
+        const method = level === 'debug' ? 'log' : (level === 'error' ? 'error' : (level === 'warn' ? 'warn' : 'log'));
+        console[method](`[${moduleId}]`, ...args);
+      },
+
+      // Per-module persistent storage.
+      storage,
+
+      _tearDown: ctxTearDown,
     };
   }
 
@@ -297,9 +454,10 @@
     getLiveCount: () => state.liveCount,
     writeCard,
     setAIService,
-    // Internal hooks used by module-registry.js; not part of the stable
-    // module API.
+    setDebug,
+    // Internal hooks used by module-registry.js.
     _makeModuleCtx: makeModuleCtx,
+    _replayStateToModule: replayStateToModule,
     _emit: emit,
     // Read-only inspection.
     inspect: () => ({
@@ -307,6 +465,8 @@
       adventureId: state.adventureId,
       tail: state.tail,
       liveCount: state.liveCount,
+      debugEnabled: state.debugEnabled,
+      stateCacheKeys: [...state.stateCache.keys()],
       listeners: [...listeners.keys()].map(k => ({ event: k, count: listeners.get(k).size })),
       writeQueue: getWriteQueue()?.inspect?.() || null,
     }),

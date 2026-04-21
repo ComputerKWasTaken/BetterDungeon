@@ -104,6 +104,16 @@ class BetterDungeon {
         return true;
       } else if (message.type === 'SET_BETTERSCRIPTS_DEBUG') {
         this.handleSetBetterScriptsDebug(message.enabled);
+      } else if (message.type === 'SET_FRONTIER_DEBUG') {
+        window.Frontier?.core?.setDebug?.(message.enabled);
+      } else if (message.type === 'SET_FRONTIER_MODULE_ENABLED') {
+        window.Frontier?.registry?.setModuleEnabled?.(message.moduleId, message.enabled);
+      } else if (message.type === 'GET_FRONTIER_STATE') {
+        sendResponse({
+          core: window.Frontier?.core?.inspect?.() || null,
+          registry: window.Frontier?.registry?.inspect?.() || null,
+        });
+        return true;
       }
     });
   }

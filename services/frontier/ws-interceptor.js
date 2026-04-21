@@ -318,10 +318,16 @@
       }
 
       // --- Action-stream HTTP hydration (Phase 1) ---
-      // GetAdventure and similar responses carry the full actions[] array.
-      // Forward them so ws-stream can populate tail/liveCount on page load
-      // without waiting for the first WS actionUpdates frame.
-      // AID may use `actions` or `actionWindow` depending on the query.
+      // Empirically confirmed 2026-04-21: AID's GetAdventure HTTP response
+      // does NOT include an actions array. Actions are loaded exclusively via
+      // the WS `ActionUpdates` subscription, which only fires on deltas (not
+      // initial state). This means tail/liveCount start at null/0 and only
+      // populate after the first action event (user turn, undo, etc.).
+      //
+      // The scanner code below is retained as a safety net — if AID ever
+      // changes to include actions in HTTP responses (under `actions` or
+      // `actionWindow`), this will automatically hydrate tail/liveCount on
+      // page load. For now, it's a no-op.
       const actionArr = Array.isArray(node.actions) ? node.actions
                       : Array.isArray(node.actionWindow) ? node.actionWindow
                       : null;
