@@ -173,12 +173,12 @@
     };
 
     try {
-      await instance.upsertStoryCard(MANIFEST_CARD_TITLE, JSON.stringify(manifest), { type: 'frontier' });
+      await writeCard(MANIFEST_CARD_TITLE, JSON.stringify(manifest), { type: 'frontier' });
     } catch (err) {
       console.warn(TAG, 'heartbeat manifest write failed', err?.message || err);
     }
     try {
-      await instance.upsertStoryCard(MODULES_CARD_TITLE, JSON.stringify(modulesPayload), { type: 'frontier' });
+      await writeCard(MODULES_CARD_TITLE, JSON.stringify(modulesPayload), { type: 'frontier' });
     } catch (err) {
       console.warn(TAG, 'heartbeat modules write failed', err?.message || err);
     }
