@@ -36,7 +36,7 @@
     installed: true,
     installedAt: Date.now(),
     nativeWebSocketName: NativeWebSocket.name || 'WebSocket',
-    frames: { open: 0, cards: 0, 'cards:hydrate': 0, 'cards:upsert': 0, 'cards:enrich': 0, context: 0, actions: 0, hello: 0, mutation: 0 },
+    frames: { open: 0, cards: 0, 'cards:hydrate': 0, 'cards:upsert': 0, 'cards:enrich': 0, context: 0, actions: 0, 'actions:hydrate': 0, 'adventure:change': 0, hello: 0, mutation: 0 },
     // Diagnostic surface. Populated lazily as frames arrive — useful for
     // confirming channel names and URLs during Phase 1 smoke tests. Safe to
     // leave enabled; memory footprint is bounded (urls deduped, opKeys is a
@@ -264,10 +264,14 @@
   // on HTTP responses (GetAdventure on load, SaveQueueStoryCard echoes on
   // edit, etc.) to seed and maintain state.
   //
-  // Recognizes two shapes:
+  // Recognizes these shapes:
   //   1. { storyCards: [Card, ...], adventureId?: "..." }  — top-level hit
   //   2. A single storyCard object under `.storyCard` — used by mutation
   //      responses, forwarded as a one-element delta.
+  //   3. { actions: [Action, ...] } — action array (e.g. GetAdventure),
+  //      forwarded as `actions:hydrate` so ws-stream populates tail/liveCount.
+  //   4. Adventure-level metadata (adventureId + shortId) — forwarded as
+  //      `adventure:change` for boundary detection.
   function scanAndForwardCards(root, maxDepth = 6) {
     if (!root || typeof root !== 'object') return;
     // inCardScope: true once the walk has descended through a `storyCard` or
@@ -277,6 +281,10 @@
     // items on the home/explore pages, etc.). Without scope-gating, we polluted
     // the enrichment index with hundreds of scenario ids — see the 437-entry
     // bug where every harvested `contentType` was `'scenario'`.
+    //
+    // adventureEmitted: prevents emitting duplicate adventure:change events
+    // when multiple subtrees of the same HTTP response carry adventureId.
+    let adventureEmitted = false;
     const stack = [{ node: root, depth: 0, inCardScope: false }];
     const seen = new WeakSet();
     while (stack.length) {
@@ -303,6 +311,27 @@
       // must NOT remove other cards.
       if (node.storyCard && typeof node.storyCard === 'object' && looksLikeCard(node.storyCard)) {
         post('cards:upsert', { storyCards: [node.storyCard] });
+      }
+
+      // --- Action-stream HTTP hydration (Phase 1) ---
+      // GetAdventure and similar responses carry the full actions[] array.
+      // Forward them so ws-stream can populate tail/liveCount on page load
+      // without waiting for the first WS actionUpdates frame.
+      if (Array.isArray(node.actions) && looksLikeActionArray(node.actions)) {
+        post('actions:hydrate', { actions: node.actions });
+      }
+
+      // --- Adventure-boundary detection (Phase 1) ---
+      // Emit a dedicated adventure:change event when we discover adventure
+      // identity from HTTP responses (e.g. GetAdventure). This lets ws-stream
+      // reset stale state decisively. We look for adventureId + shortId at
+      // nodes that also carry storyCards or actions (scoping prevents false
+      // positives from scenario/explore page objects).
+      if (!adventureEmitted && typeof node.adventureId === 'string' &&
+          (Array.isArray(node.storyCards) || Array.isArray(node.actions))) {
+        const shortId = typeof node.shortId === 'string' ? node.shortId : null;
+        post('adventure:change', { adventureId: node.adventureId, shortId });
+        adventureEmitted = true;
       }
 
       // Enrichment harvest. Only when we're already under a story-card subtree
@@ -401,6 +430,18 @@
   function looksLikeCardArray(arr) {
     if (arr.length === 0) return true; // empty array is harmless to forward
     return looksLikeCard(arr[0]);
+  }
+
+  // Action-array recognition for HTTP hydration (Phase 1). An action object
+  // has at minimum { id, text }. We check the first element only for speed.
+  function looksLikeAction(x) {
+    return x && typeof x === 'object' &&
+           (typeof x.id === 'string' || typeof x.id === 'number') &&
+           typeof x.text === 'string';
+  }
+  function looksLikeActionArray(arr) {
+    if (arr.length === 0) return false; // empty actions[] is not useful
+    return looksLikeAction(arr[0]);
   }
 
   function snapshotHeaders(headersInit) {

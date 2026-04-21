@@ -46,6 +46,11 @@
     liveCount: 0,           // number
     firstCards: true,       // tracks whether we've emitted cards:full yet
     helloReceived: false,   // MAIN-world interceptor handshake
+    // Adventure-boundary tracking (Phase 1).
+    adventureId: null,      // string | null — the current adventure's id
+    adventureShortId: null, // string | null — the current adventure's URL slug
+    urlPollTimer: null,     // interval id for SPA navigation detection
+    lastUrlPath: null,      // tracks pathname for change detection
     // Template cache keyed by op name (latest wins; use mutationsByCard for
     // per-card precision). This mirrors the MAIN-world debug.mutations.
     mutations: Object.create(null),
@@ -78,6 +83,93 @@
       console.warn(TAG, 'emit failed for', name, err);
     }
   }
+
+  // ---------- adventure-boundary management (Phase 1) ----------
+
+  // Resolve the adventure's shortId from a URL pathname. Expanded regex
+  // covers /adventure/<slug>, /adventures/<slug>, /play/<slug>, and
+  // /scenario(s)/<slug>.
+  const ADVENTURE_URL_RE = /\/(?:adventures?|play|scenarios?)\/([A-Za-z0-9_-]{8,20})/;
+
+  function parseShortIdFromUrl() {
+    try {
+      const m = window.location.pathname.match(ADVENTURE_URL_RE);
+      if (m) return m[1];
+    } catch { /* location access denied or path malformed */ }
+    return null;
+  }
+
+  // Called when we detect a new adventure (from HTTP hydration, WS payload,
+  // or URL change). Resets all per-adventure state so downstream consumers
+  // never see stale data from the previous adventure.
+  function onAdventureBoundary(adventureId, shortId) {
+    if (!adventureId || adventureId === state.adventureId) return;
+
+    const prevId = state.adventureId;
+    state.adventureId = adventureId;
+    state.adventureShortId = shortId || parseShortIdFromUrl();
+
+    // Clear per-adventure state.
+    state.cards = new Map();
+    state.actions = new Map();
+    state.tail = null;
+    state.liveCount = 0;
+    state.firstCards = true;
+    state.enrichment = Object.create(null);
+    // NOTE: state.mutations and state.mutationsByCard are intentionally
+    // preserved. Templates are per-op, not per-adventure; a fresh adventure
+    // will refresh them as AID's autosave runs.
+
+    emit('frontier:adventure:change', {
+      adventureId,
+      prevAdventureId: prevId,
+      shortId: state.adventureShortId,
+    });
+    console.log(TAG, 'adventure boundary:', prevId, '→', adventureId);
+  }
+
+  // SPA URL poll. AI Dungeon is a single-page app; URL changes happen via
+  // history.pushState without triggering popstate. A lightweight interval
+  // poll catches navigations that don't produce an immediate HTTP response
+  // with adventureId (e.g. navigating back to the homepage).
+  function startUrlPoll() {
+    if (state.urlPollTimer) return;
+    state.lastUrlPath = window.location.pathname;
+    state.urlPollTimer = setInterval(() => {
+      const current = window.location.pathname;
+      if (current === state.lastUrlPath) return;
+      state.lastUrlPath = current;
+
+      const newShortId = parseShortIdFromUrl();
+      if (newShortId && newShortId !== state.adventureShortId) {
+        // We detected a URL change to a different adventure. The full
+        // boundary reset will happen when the GetAdventure HTTP response
+        // arrives (with the real adventureId). But if we left a non-adventure
+        // page, we should note that we're no longer in an adventure.
+      }
+      if (!newShortId && state.adventureId) {
+        // Left an adventure page (went to homepage, explore, etc.).
+        // Clear adventure context so modules don't act on stale data.
+        const prevId = state.adventureId;
+        state.adventureId = null;
+        state.adventureShortId = null;
+        state.cards = new Map();
+        state.actions = new Map();
+        state.tail = null;
+        state.liveCount = 0;
+        state.firstCards = true;
+        state.enrichment = Object.create(null);
+        emit('frontier:adventure:change', {
+          adventureId: null,
+          prevAdventureId: prevId,
+          shortId: null,
+        });
+        console.log(TAG, 'left adventure (URL poll):', prevId);
+      }
+    }, 1000);
+  }
+
+  startUrlPoll();
 
   // ---------- handlers ----------
 
@@ -278,6 +370,18 @@
         case 'actions':
           onActions(msg.payload);
           break;
+        case 'actions:hydrate':
+          // HTTP-delivered actions (Phase 1). Same handler as WS-pushed
+          // actions — populates tail/liveCount on initial page load.
+          onActions(msg.payload);
+          break;
+        case 'adventure:change':
+          // Adventure-boundary signal from HTTP hydration (Phase 1).
+          // Resets all per-adventure state and emits frontier:adventure:change.
+          if (msg.payload?.adventureId) {
+            onAdventureBoundary(msg.payload.adventureId, msg.payload.shortId);
+          }
+          break;
         case 'mutation':
           onMutation(msg.payload);
           break;
@@ -362,22 +466,28 @@
     // Returns the adventure's shortId — the URL slug identifying the current
     // adventure. All writes need this as the `shortId` field in their
     // SaveQueueStoryCard input. Resolution order:
-    //   1. Any card currently in the snapshot that has harvested enrichment
+    //   1. Explicitly tracked adventureShortId (set from HTTP hydration or
+    //      adventure:change events — most reliable).
+    //   2. Any card currently in the snapshot that has harvested enrichment
     //      (captured from a prior SaveQueueStoryCard mutation).
-    //   2. URL path parsing (/adventure/<shortId> or /play/<shortId>).
-    // Returns null only when both fail — typically means no mutation has
+    //   3. URL path parsing (expanded regex: /adventure(s)?/, /play/,
+    //      /scenario(s)?/).
+    // Returns null only when all three fail — typically means no mutation has
     // been captured yet AND we're not on an adventure URL.
     getAdventureShortId: () => {
+      // 1. Explicitly set from boundary detection.
+      if (state.adventureShortId) return state.adventureShortId;
+      // 2. Enrichment fallback.
       for (const card of state.cards.values()) {
         const e = state.enrichment[card.id];
         if (e?.shortId) return e.shortId;
       }
-      try {
-        const m = window.location.pathname.match(/\/(?:adventure|play)\/([A-Za-z0-9_-]{8,20})/);
-        if (m) return m[1];
-      } catch { /* no-op: location access denied or path malformed */ }
-      return null;
+      // 3. URL parse fallback (hardened regex).
+      return parseShortIdFromUrl();
     },
+
+    // Returns the current adventure id (the database id, not the URL slug).
+    getAdventureId: () => state.adventureId,
 
     // Pretty-printed diagnostic dumps for devtools inspection.
     dumpTemplates: () => {
@@ -404,23 +514,31 @@
     },
 
     getState: () => {
-      // Re-derive adventureShortId inline to avoid closure recursion.
-      let advShortId = null;
-      for (const card of state.cards.values()) {
-        const e = state.enrichment[card.id];
-        if (e?.shortId) { advShortId = e.shortId; break; }
-      }
       return {
         cards: state.cards.size,
         actions: state.actions.size,
         tail: state.tail,
         liveCount: state.liveCount,
         helloReceived: state.helloReceived,
+        adventureId: state.adventureId,
+        adventureShortId: state.adventureShortId || parseShortIdFromUrl(),
         mutationTemplates: Object.keys(state.mutations),
         cardsWithTemplates: Object.keys(state.mutationsByCard).length,
         enrichedCards: Object.keys(state.enrichment).length,
-        adventureShortId: advShortId,
       };
     },
+
+    // --- Write queue support (Phase 1) ---
+    // Optimistic echo: merge a write into the card map immediately so
+    // downstream consumers see the update before the server round-trips.
+    // Called by write-queue.js; not intended for direct module use.
+    _optimisticCardSet: (id, card) => {
+      state.cards.set(id, card);
+    },
+    _optimisticCardRollback: (id, prev) => {
+      if (prev) state.cards.set(id, prev);
+      else state.cards.delete(id);
+    },
+    _getCardById: (id) => state.cards.get(id) || null,
   };
 })();

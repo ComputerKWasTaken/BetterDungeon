@@ -100,23 +100,24 @@
 
   // ---------- adventure-boundary detection ----------
   //
-  // Every subscription payload from AID carries `adventureId`. Watching any
-  // one of them for changes gives us a reliable enter/leave signal without
-  // needing URL observation. We use cards (fires on any server-side card
-  // write) and actions (fires on any action mutation); either catches a
-  // navigation quickly.
+  // Phase 1: ws-stream.js now handles adventure-boundary detection via HTTP
+  // hydration (GetAdventure responses) and SPA URL polling, emitting a
+  // `frontier:adventure:change` CustomEvent. Core subscribes to that event
+  // rather than trying to extract adventureId from individual subscription
+  // payloads (which was fragile — action payloads don't always carry it).
 
-  function observeAdventureBoundaryFromPayload(payload) {
-    const id = payload?.adventureId;
-    if (!id || typeof id !== 'string') return;
-    if (id === state.adventureId) return;
-
+  function onAdventureChange(detail) {
+    const id = detail?.adventureId ?? null;
     const prevId = state.adventureId;
+    if (id === prevId) return;
+
     state.adventureId = id;
 
     if (prevId) emit('adventure:leave', { adventureId: prevId });
-    emit('adventure:enter', { adventureId: id, prevId });
-    scheduleHeartbeat();
+    if (id) {
+      emit('adventure:enter', { adventureId: id, prevId, shortId: detail?.shortId });
+      scheduleHeartbeat();
+    }
   }
 
   // ---------- heartbeat ----------
@@ -190,20 +191,12 @@
     state.started = true;
 
     document.addEventListener('frontier:cards:full', (e) => {
-      const first = e.detail?.cards?.[0];
-      if (first?.id != null) {
-        // Cards don't carry adventureId directly; rely on actions/context
-        // updates for the boundary signal. Just forward to modules.
-      }
       emit('cards:full', e.detail);
     });
 
     document.addEventListener('frontier:cards:diff', (e) => emit('cards:diff', e.detail));
 
     document.addEventListener('frontier:actions:change', (e) => {
-      // actions payload wrapper includes adventureId on each incoming push.
-      const incoming = e.detail?.actions?.[0];
-      if (incoming) observeAdventureBoundaryFromPayload({ adventureId: incoming.adventureId });
       emit('actions:change', e.detail);
     });
 
@@ -223,12 +216,29 @@
       if (state.adventureId) scheduleHeartbeat();
     });
 
+    // Phase 1: authoritative adventure-boundary signal from ws-stream.
+    document.addEventListener('frontier:adventure:change', (e) => {
+      onAdventureChange(e.detail);
+    });
+
     console.log(TAG, 'started');
   }
 
   // ---------- write helper ----------
 
+  // All card writes go through the write queue (Phase 1). The queue provides
+  // per-card serialization, last-write-wins coalescing, exponential-backoff
+  // retry, and optimistic local echo.
+  function getWriteQueue() {
+    return window.Frontier?.writeQueue || null;
+  }
+
   async function writeCard(title, value, opts = {}) {
+    const wq = getWriteQueue();
+    if (wq) {
+      return wq.enqueue(title, value, opts);
+    }
+    // Fallback: if write-queue.js didn't load, write directly.
     const instance = state.aiService;
     if (!instance?.upsertStoryCard) {
       throw new Error(`${TAG} writeCard: AIDungeonService not injected. Call Frontier.core.setAIService(service) first.`);
@@ -238,6 +248,11 @@
 
   function setAIService(service) {
     state.aiService = service;
+    // Wire the write queue's underlying write function.
+    const wq = getWriteQueue();
+    if (wq && service && typeof service.upsertStoryCard === 'function') {
+      wq.setWriteFn((title, value, opts) => service.upsertStoryCard(title, value, opts));
+    }
   }
 
   // ---------- module context factory ----------
@@ -293,6 +308,7 @@
       tail: state.tail,
       liveCount: state.liveCount,
       listeners: [...listeners.keys()].map(k => ({ event: k, count: listeners.get(k).size })),
+      writeQueue: getWriteQueue()?.inspect?.() || null,
     }),
   };
 
