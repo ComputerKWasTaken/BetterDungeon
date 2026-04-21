@@ -432,12 +432,18 @@
     return looksLikeCard(arr[0]);
   }
 
-  // Action-array recognition for HTTP hydration (Phase 1). An action object
-  // has at minimum { id, text }. We check the first element only for speed.
+  // Action-array recognition for HTTP hydration (Phase 1). AID action objects
+  // always have { id } and typically include { type, text, undoneAt }. However,
+  // when actionStorage is "s3" (common), GetAdventure responses carry action
+  // stubs WITHOUT text — just { id, type, undoneAt, ... }. We accept any
+  // object with id + at least one action-like field. First element only.
   function looksLikeAction(x) {
-    return x && typeof x === 'object' &&
-           (typeof x.id === 'string' || typeof x.id === 'number') &&
-           typeof x.text === 'string';
+    if (!x || typeof x !== 'object') return false;
+    if (typeof x.id !== 'string' && typeof x.id !== 'number') return false;
+    // Accept if it has text, type, or undoneAt (any action-like field).
+    return typeof x.text === 'string' ||
+           typeof x.type === 'string' ||
+           'undoneAt' in x;
   }
   function looksLikeActionArray(arr) {
     if (arr.length === 0) return false; // empty actions[] is not useful
@@ -512,7 +518,11 @@
           storeTemplate(template);
         }
       } catch (err) {
-        console.warn('[Frontier/ws-interceptor] fetch post-processing failed', err);
+        // AbortError is expected during SPA navigation — AID cancels in-flight
+        // fetches when the user navigates away. Silence it.
+        if (err?.name !== 'AbortError') {
+          console.warn('[Frontier/ws-interceptor] fetch post-processing failed', err);
+        }
       }
       return response;
     }).catch((err) => {
