@@ -47,6 +47,10 @@
   };
   window.__Frontier = window.__Frontier || {};
   window.__Frontier.shim = debug;
+  // Phase 1 diagnostic: captures the key set of any response node that
+  // contains adventureId. Lets us discover the exact field names AID uses
+  // for actions in HTTP responses (e.g. `actionWindow` vs `actions`).
+  debug.adventureNodeKeys = null;
 
   function post(kind, payload) {
     try {
@@ -317,8 +321,12 @@
       // GetAdventure and similar responses carry the full actions[] array.
       // Forward them so ws-stream can populate tail/liveCount on page load
       // without waiting for the first WS actionUpdates frame.
-      if (Array.isArray(node.actions) && looksLikeActionArray(node.actions)) {
-        post('actions:hydrate', { actions: node.actions });
+      // AID may use `actions` or `actionWindow` depending on the query.
+      const actionArr = Array.isArray(node.actions) ? node.actions
+                      : Array.isArray(node.actionWindow) ? node.actionWindow
+                      : null;
+      if (actionArr && looksLikeActionArray(actionArr)) {
+        post('actions:hydrate', { actions: actionArr });
       }
 
       // --- Adventure-boundary detection (Phase 1) ---
@@ -328,10 +336,15 @@
       // nodes that also carry storyCards or actions (scoping prevents false
       // positives from scenario/explore page objects).
       if (!adventureEmitted && typeof node.adventureId === 'string' &&
-          (Array.isArray(node.storyCards) || Array.isArray(node.actions))) {
+          (Array.isArray(node.storyCards) || actionArr)) {
         const shortId = typeof node.shortId === 'string' ? node.shortId : null;
         post('adventure:change', { adventureId: node.adventureId, shortId });
         adventureEmitted = true;
+        // Diagnostic: capture the key set of this adventure node so we can
+        // see exactly what fields AID includes (e.g. actions vs actionWindow).
+        if (!debug.adventureNodeKeys) {
+          debug.adventureNodeKeys = Object.keys(node);
+        }
       }
 
       // Enrichment harvest. Only when we're already under a story-card subtree
