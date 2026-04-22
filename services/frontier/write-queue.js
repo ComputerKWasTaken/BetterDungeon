@@ -110,6 +110,31 @@
     return null;
   }
 
+  function optimisticSetFromResult(title, value, opts, result) {
+    const ws = wsStream();
+    if (!ws?._optimisticCardSet || !result || typeof result !== 'object') return;
+
+    const card = result.storyCard && typeof result.storyCard === 'object'
+      ? result.storyCard
+      : result;
+    if (card.id == null) return;
+
+    // Writes from the isolated-world content script are not seen by the
+    // page-world HTTP interceptor, so successful creates need to teach
+    // ws-stream about the returned card immediately. Otherwise the next
+    // same-title write can mint a duplicate card instead of updating it.
+    const updated = {
+      ...card,
+      id: card.id,
+      title: typeof card.title === 'string' ? card.title : title,
+      value: typeof card.value === 'string' ? card.value : value,
+      type: typeof card.type === 'string' ? card.type : (opts.type || ''),
+      keys: typeof card.keys === 'string' ? card.keys : (opts.keys || ''),
+      description: typeof card.description === 'string' ? card.description : (opts.description || ''),
+    };
+    ws._optimisticCardSet(card.id, updated);
+  }
+
   function optimisticRollback(title, prev) {
     const ws = wsStream();
     if (!ws?._optimisticCardRollback || !prev) return;
@@ -167,6 +192,7 @@
     // Mark in-flight.
     q.inflight = dispatchWrite(title, value, opts)
       .then((result) => {
+        optimisticSetFromResult(title, value, opts, result);
         resolve(result);
         return result;
       })
@@ -174,7 +200,6 @@
         // Roll back optimistic echo on hard failure.
         optimisticRollback(title, prev);
         reject(err);
-        throw err;
       })
       .finally(() => {
         q.inflight = null;

@@ -7,6 +7,7 @@
 //     label:           string?  — human-readable label for popup UI
 //     stateNames:      string[] — which frontier:state:<name> cards it reads
 //     tracksLiveCount: boolean? — if true, re-dispatched on livecount change
+//     defaultEnabled:  boolean? — overrides the built-in default-on behavior
 //     ops:             object?  — ops handlers (Phase 4)
 //     mount(ctx):      function — called when enabled, receives a Core ctx
 //     unmount():       function — called when disabled or adventure leaves
@@ -85,6 +86,8 @@
   // persisted preference always takes priority.
   function isEnabled(id) {
     if (enabledState.has(id)) return enabledState.get(id);
+    const def = definitions.get(id);
+    if (typeof def?.defaultEnabled === 'boolean') return def.defaultEnabled;
     // Default: built-in modules are enabled, third-party are disabled.
     return !id.includes('.');
   }
@@ -103,6 +106,7 @@
       }
       // Replay cached state so the module doesn't wait for the next card change.
       core._replayStateToModule(def, ctx);
+      core._scheduleHeartbeat?.();
       console.log(TAG, `mounted '${def.id}'`);
     } catch (err) {
       console.error(TAG, `mount of '${def.id}' threw`, err);
@@ -120,6 +124,7 @@
     try { entry.ctx._tearDown(); }
     catch { /* noop */ }
     mounted.delete(id);
+    try { assertCore()._scheduleHeartbeat?.(); } catch { /* Core may be gone during teardown */ }
     console.log(TAG, `unmounted '${id}'`);
   }
 
@@ -181,13 +186,14 @@
       stateNames: Array.isArray(d.stateNames) ? d.stateNames.slice() : [],
       ops: d.ops ? Object.keys(d.ops) : [],
       tracksLiveCount: !!d.tracksLiveCount,
+      defaultEnabled: typeof d.defaultEnabled === 'boolean' ? d.defaultEnabled : !d.id.includes('.'),
       mounted: mounted.has(d.id),
       enabled: isEnabled(d.id),
     }));
   }
 
-  // Called by main.js after Core is instantiated. Loads persisted state,
-  // mounts enabled modules, and wires the adventure boundary hook.
+  // Called by main.js after Core is instantiated. Loads persisted state and
+  // mounts enabled modules.
   async function start() {
     if (coreReady) return;
     const core = assertCore();
@@ -201,14 +207,8 @@
       if (isEnabled(def.id)) mountOne(def);
     }
 
-    // On adventure boundary, call onAdventureChange on mounted modules.
-    // No full unmount/remount — modules control their own reset logic.
-    core.on('adventure:enter', (detail) => {
-      const shortId = detail?.shortId ?? null;
-      // Note: Core already calls onAdventureChange on mounted modules in
-      // its own onAdventureChange handler. We schedule a heartbeat here
-      // to refresh the module list in the heartbeat card.
-    });
+    // Core owns adventure-boundary dispatch; the registry only owns module
+    // enablement and lifecycle.
   }
 
   // ---------- internal helpers for Core dispatch ----------
@@ -222,6 +222,11 @@
     }
   }
 
+  function _getMounted(id) {
+    const entry = mounted.get(id);
+    return entry ? { def: entry.def, ctx: entry.ctx } : null;
+  }
+
   const registry = {
     register,
     unregister,
@@ -231,6 +236,7 @@
     list,
     start,
     _forEachMounted,
+    _getMounted,
     inspect: () => ({
       registered: [...definitions.keys()],
       mounted: [...mounted.keys()],

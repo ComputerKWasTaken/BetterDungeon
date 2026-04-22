@@ -37,8 +37,14 @@ class BetterDungeon {
       return;
     }
     core.setAIService(this.aiDungeonService);
-    registry.start();
-    console.log('[BetterDungeon] Frontier online.');
+    Promise.resolve(registry.start())
+      .then(() => {
+        window.Frontier?.opsDispatcher?.start?.(core);
+        console.log('[BetterDungeon] Frontier online.');
+      })
+      .catch((err) => {
+        console.warn('[BetterDungeon] Frontier startup failed.', err);
+      });
   }
 
   // Setup listener for messages from popup

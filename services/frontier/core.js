@@ -467,9 +467,15 @@
       // Write (delegates to write queue).
       writeCard,
 
-      // Ops stubs — no-op in Phase 2, wired in Phase 4.
-      respond(_requestId, _data) { /* no-op until Phase 4 */ },
-      respondError(_requestId, _err) { /* no-op until Phase 4 */ },
+      // Advanced ops helpers. Normal op handlers should return/throw; these
+      // exist for handlers that need to settle a request outside the call
+      // stack that received it.
+      respond(requestId, data) {
+        return window.Frontier?.opsDispatcher?.respond?.(requestId, data);
+      },
+      respondError(requestId, err) {
+        return window.Frontier?.opsDispatcher?.respondError?.(requestId, err);
+      },
 
       // Structured logging. 'debug' level gated by frontier_debug toggle.
       log(level, ...args) {
@@ -501,6 +507,7 @@
     _makeModuleCtx: makeModuleCtx,
     _replayStateToModule: replayStateToModule,
     _emit: emit,
+    _scheduleHeartbeat: scheduleHeartbeat,
     // Read-only inspection.
     inspect: () => ({
       started: state.started,
@@ -511,6 +518,7 @@
       stateCacheKeys: [...state.stateCache.keys()],
       listeners: [...listeners.keys()].map(k => ({ event: k, count: listeners.get(k).size })),
       writeQueue: getWriteQueue()?.inspect?.() || null,
+      opsDispatcher: window.Frontier?.opsDispatcher?.inspect?.() || null,
     }),
   };
 
