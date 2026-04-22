@@ -41,6 +41,7 @@
     liveCount: 0,
     started: false,
     heartbeatTimer: null,
+    heartbeatPending: false, // guards against overlapping heartbeat creates
     aiService: null,       // AIDungeonService instance, injected by main.js
     debugEnabled: false,   // gated by frontier_debug in chrome.storage.sync
     stateCache: new Map(), // name -> parsed JSON from frontier:state:<name>
@@ -240,6 +241,15 @@
 
   async function runHeartbeat() {
     state.heartbeatTimer = null;
+    // Guard: only one heartbeat write in flight at a time. Without this,
+    // rapid triggers (adventure:enter + mutation:template) can fire multiple
+    // creates before the first server echo returns the card's ID, producing
+    // duplicate cards. If another trigger fires while pending, the debounce
+    // timer will retry after this write completes.
+    if (state.heartbeatPending) {
+      scheduleHeartbeat();
+      return;
+    }
     const instance = state.aiService;
     if (!instance || typeof instance.upsertStoryCard !== 'function') return;
 
@@ -269,10 +279,13 @@
       writtenAt: new Date().toISOString(),
     };
 
+    state.heartbeatPending = true;
     try {
       await writeCard(HEARTBEAT_CARD_TITLE, JSON.stringify(heartbeat), { type: 'frontier' });
     } catch (err) {
       console.warn(TAG, 'heartbeat write failed', err?.message || err);
+    } finally {
+      state.heartbeatPending = false;
     }
   }
 
@@ -343,6 +356,23 @@
   }
 
   async function writeCard(title, value, opts = {}) {
+    // Immediate local dispatch for state cards. The write queue's optimistic
+    // echo updates ws-stream's card map, but ws-stream's diff then sees "no
+    // change" when the server echo arrives — so cards:diff never fires. By
+    // dispatching here, modules get notified synchronously on writes without
+    // waiting for the server round-trip. If the write fails and rolls back,
+    // the next WS echo with the old value will trigger a corrective dispatch.
+    if (title.startsWith(STATE_CARD_PREFIX) && typeof value === 'string' && value.length > 0) {
+      const name = title.slice(STATE_CARD_PREFIX.length);
+      if (name) {
+        try {
+          const parsed = JSON.parse(value);
+          state.stateCache.set(name, parsed);
+          dispatchStateChange(name, parsed);
+        } catch { /* non-JSON — skip local dispatch */ }
+      }
+    }
+
     const wq = getWriteQueue();
     if (wq) return wq.enqueue(title, value, opts);
     const instance = state.aiService;
