@@ -35,6 +35,9 @@
         "services/frontier/write-queue.js",
         "services/frontier/core.js",
         "services/frontier/module-registry.js",
+        "modules/scripture/validators.js",
+        "modules/scripture/renderer.js",
+        "modules/scripture/module.js",
         "services/loading-screen.js",
         "services/story-card-cache.js",
         "services/story-card-scanner.js",
@@ -52,7 +55,6 @@
         "features/notes_feature.js",
         "features/auto_enable_scripts_feature.js",
         "features/story_card_modal_dock_feature.js",
-        "features/better_scripts_feature.js",
         "features/input_history_feature.js",
         "main.js"
       ],

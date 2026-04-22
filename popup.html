@@ -66,7 +66,7 @@
             </div>
             <div class="whats-new-item">
               <span class="whats-new-item-icon icon-code" style="color: #a855f7;"></span>
-              <div><strong>BetterScripts Update</strong> &mdash; Now uses zero-width Unicode encoding for truly invisible script-to-extension communication. Messages are embedded directly in story text without any visible artifacts, using dual encoding, enabling invisible and seamless BetterScripts functionality</div>
+              <div><strong>Frontier Preview</strong> &mdash; Scripture widgets now ride on story-card state instead of hidden story text, keeping widget values aligned with undo, retry, edit, and continue.</div>
             </div>
             <div class="whats-new-item">
               <span class="whats-new-item-icon icon-wrench" style="color: #6b7280;"></span>
@@ -550,22 +550,22 @@
             </div>
           </article>
 
-          <!-- BetterScripts -->
-          <article class="feature-card" data-feature="betterScripts">
+          <!-- Scripture -->
+          <article class="feature-card" data-feature="scripture">
             <div class="feature-row">
               <div class="feature-info">
                 <div class="feature-title-row">
                   <span class="feature-icon" style="color: var(--bd-icon-scripts);">
                     <span class="icon-code"></span>
                   </span>
-                  <h3 class="feature-title">BetterScripts</h3>
+                  <h3 class="feature-title">Scripture</h3>
                 </div>
-                <p class="feature-desc">Script-to-extension widget communication</p>
+                <p class="feature-desc">Frontier-powered script widgets</p>
               </div>
             </div>
             <div class="feature-details">
               <p>Enables AI Dungeon scripts to create <strong>dynamic UI widgets</strong> displaying HP bars, stats, and game state.</p>
-              <p class="feature-hint"><span class="icon-lightbulb"></span> Scripts send commands via invisible zero-width Unicode protocol messages.</p>
+              <p class="feature-hint"><span class="icon-lightbulb"></span> Scripts publish widget state to the Frontier Scripture state card.</p>
               
               <div class="syntax-box">
                 <div class="syntax-row"><code>stat</code><span>Label + value</span></div>
@@ -573,16 +573,20 @@
                 <div class="syntax-row"><code>panel</code><span>Multi-stat container</span></div>
                 <div class="syntax-row"><code>text</code><span>Simple text display</span></div>
                 <div class="syntax-row"><code>custom</code><span>Custom HTML widgets</span></div>
+                <div class="syntax-row"><code>badge</code><span>Status badge</span></div>
+                <div class="syntax-row"><code>list</code><span>Item list</span></div>
+                <div class="syntax-row"><code>icon</code><span>Icon display</span></div>
+                <div class="syntax-row"><code>counter</code><span>Value + delta</span></div>
               </div>
 
               <div class="feature-option">
-                <span class="option-label">Debug Mode</span>
+                <span class="option-label">Frontier Debug</span>
                 <label class="toggle sm">
-                  <input type="checkbox" id="betterscripts-debug">
+                  <input type="checkbox" id="frontier-debug">
                   <span class="toggle-slider"></span>
                 </label>
               </div>
-              <p class="feature-hint"><span class="icon-bug"></span> Shows protocol messages in the story and enables verbose console logging.</p>
+              <p class="feature-hint"><span class="icon-bug"></span> Enables verbose Frontier console logging.</p>
 
               <a href="https://better-repository.netlify.app/scripts" target="_blank" rel="noopener noreferrer" class="btn btn-action">
                 <span class="icon-external-link"></span>

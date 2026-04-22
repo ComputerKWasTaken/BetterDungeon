@@ -102,8 +102,6 @@ class BetterDungeon {
       } else if (message.type === 'OPEN_STORY_CARD_ANALYTICS') {
         this.handleOpenStoryCardAnalytics().then(sendResponse);
         return true;
-      } else if (message.type === 'SET_BETTERSCRIPTS_DEBUG') {
-        this.handleSetBetterScriptsDebug(message.enabled);
       } else if (message.type === 'SET_FRONTIER_DEBUG') {
         window.Frontier?.core?.setDebug?.(message.enabled);
       } else if (message.type === 'SET_FRONTIER_MODULE_ENABLED') {
@@ -129,13 +127,6 @@ class BetterDungeon {
     const markdownFeature = this.featureManager.features.get('markdown');
     if (markdownFeature && typeof markdownFeature.setAutoApply === 'function') {
       markdownFeature.setAutoApply(enabled);
-    }
-  }
-
-  handleSetBetterScriptsDebug(enabled) {
-    const betterScriptsFeature = this.featureManager.features.get('betterScripts');
-    if (betterScriptsFeature && typeof betterScriptsFeature.setDebugMode === 'function') {
-      betterScriptsFeature.setDebugMode(enabled);
     }
   }
 

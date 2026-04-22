@@ -146,6 +146,17 @@
     }
   }
 
+  function processRemovedStateCards(cards) {
+    if (!Array.isArray(cards)) return;
+    for (const card of cards) {
+      if (!card?.title?.startsWith(STATE_CARD_PREFIX)) continue;
+      const name = card.title.slice(STATE_CARD_PREFIX.length);
+      if (!name) continue;
+      state.stateCache.delete(name);
+      dispatchStateChange(name, null);
+    }
+  }
+
   function dispatchStateChange(name, parsed) {
     const registry = getRegistry();
     if (!registry?._forEachMounted) return;
@@ -313,6 +324,7 @@
         ...(e.detail?.updated || []),
       ];
       if (changed.length) processStateCards(changed);
+      processRemovedStateCards(e.detail?.removed);
     });
 
     // --- Action events ---

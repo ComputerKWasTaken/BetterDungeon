@@ -14,7 +14,7 @@ const STORAGE_KEYS = {
   characters: 'betterDungeon_characterPresets',
   autoScan: 'betterDungeon_autoScanTriggers',
   autoApply: 'betterDungeon_autoApplyInstructions',
-  betterScriptsDebug: 'betterDungeon_betterScriptsDebug',
+  frontierDebug: 'frontier_debug',
   customHotkeys: 'betterDungeon_customHotkeys',
   customModeColors: 'betterDungeon_customModeColors',
   commandSubMode: 'betterDungeon_commandSubMode',
@@ -224,15 +224,15 @@ function initToggles() {
     notifyContentScript('SET_AUTO_APPLY', { enabled: e.target.checked });
   });
 
-  // BetterScripts debug toggle
-  chrome.storage.sync.get(STORAGE_KEYS.betterScriptsDebug, (result) => {
-    const toggle = document.getElementById('betterscripts-debug');
-    if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.betterScriptsDebug] ?? false;
+  // Frontier debug toggle
+  chrome.storage.sync.get(STORAGE_KEYS.frontierDebug, (result) => {
+    const toggle = document.getElementById('frontier-debug');
+    if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.frontierDebug] ?? false;
   });
 
-  document.getElementById('betterscripts-debug')?.addEventListener('change', (e) => {
-    chrome.storage.sync.set({ [STORAGE_KEYS.betterScriptsDebug]: e.target.checked });
-    notifyContentScript('SET_BETTERSCRIPTS_DEBUG', { enabled: e.target.checked });
+  document.getElementById('frontier-debug')?.addEventListener('change', (e) => {
+    chrome.storage.sync.set({ [STORAGE_KEYS.frontierDebug]: e.target.checked });
+    notifyContentScript('SET_FRONTIER_DEBUG', { enabled: e.target.checked });
   });
 
 }
