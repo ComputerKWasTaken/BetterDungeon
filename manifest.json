@@ -5,6 +5,7 @@
   "description": "An all-in-one browser extension for AI Dungeon that enhances the experience with QOL additions and brand new features.",
   "permissions": [
     "activeTab",
+    "geolocation",
     "storage"
   ],
   "host_permissions": [
@@ -47,6 +48,9 @@
         "modules/test/module.js",
         "modules/webfetch/consent.js",
         "modules/webfetch/module.js",
+        "modules/clock/module.js",
+        "modules/geolocation/module.js",
+        "modules/weather/module.js",
         "modules/scripture/validators.js",
         "modules/scripture/renderer.js",
         "modules/scripture/module.js",
