@@ -19,6 +19,7 @@ const STORAGE_KEYS = {
   customModeColors: 'betterDungeon_customModeColors',
   commandSubMode: 'betterDungeon_commandSubMode',
   markdownOptions: 'betterDungeon_markdownOptions',
+  textToSpeech: 'betterDungeon_textToSpeechSettings',
 };
 
 // Default mode colors (hex format)
@@ -77,11 +78,24 @@ const DEFAULT_FEATURES = {
   autoSee: false,
   notes: true,
   storyCardModalDock: true,
-  inputHistory: true
+  inputHistory: true,
+  textToSpeech: false
 };
 
 const DEFAULT_SETTINGS = {
   tryCriticalChance: 5
+};
+
+const DEFAULT_TEXT_TO_SPEECH_SETTINGS = {
+  voiceURI: 'auto',
+  voiceName: '',
+  rate: 0.96,
+  pitch: 1,
+  volume: 1,
+  stableDelay: 1600,
+  maxCharacters: 4500,
+  minCharacters: 8,
+  interrupt: true
 };
 
 // State
@@ -96,6 +110,9 @@ let hotkeyKeyListener = null;
 
 // Mode color editor state
 let currentModeColors = { ...DEFAULT_MODE_COLORS };
+
+// Text To Speech settings state
+let currentTextToSpeechSettings = { ...DEFAULT_TEXT_TO_SPEECH_SETTINGS };
 
 // ============================================
 // INITIALIZATION
@@ -112,6 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initModals();
   initTools();
   initMarkdownOptions();
+  initTextToSpeechSettings();
   initHotkeys();
   initModeColors();
   initWhatsNew();
@@ -184,12 +202,22 @@ function initToggles() {
   console.log('[Popup] Initializing toggles...');
   // Load saved states
   chrome.storage.sync.get(STORAGE_KEYS.features, (result) => {
-    const features = (result || {})[STORAGE_KEYS.features] || DEFAULT_FEATURES;
+    const savedFeatures = (result || {})[STORAGE_KEYS.features] || {};
+    const features = { ...DEFAULT_FEATURES, ...savedFeatures };
     
     Object.entries(features).forEach(([id, enabled]) => {
       const toggle = document.getElementById(`feature-${id}`);
-      if (toggle) toggle.checked = enabled;
+      if (toggle) {
+        toggle.checked = enabled;
+      }
+
+      const quickToggle = document.querySelector(`[data-quick-toggle="${id}"]`);
+      if (quickToggle) {
+        quickToggle.checked = enabled;
+      }
     });
+
+    updateSectionCounts();
   });
 
   // Load auto-scan setting
@@ -240,7 +268,8 @@ function initToggles() {
 function saveFeatureState(featureId, enabled) {
   log('[Popup] Saving feature state:', featureId, enabled);
   chrome.storage.sync.get(STORAGE_KEYS.features, (result) => {
-    const features = (result || {})[STORAGE_KEYS.features] || DEFAULT_FEATURES;
+    const savedFeatures = (result || {})[STORAGE_KEYS.features] || {};
+    const features = { ...DEFAULT_FEATURES, ...savedFeatures };
     features[featureId] = enabled;
     
     chrome.storage.sync.set({ [STORAGE_KEYS.features]: features }, () => {
@@ -339,6 +368,225 @@ function initAutoSeeSettings() {
       intervalOption.style.display = mode === 'afterNTurns' ? 'flex' : 'none';
     }
   }
+}
+
+// ============================================
+// TEXT TO SPEECH SETTINGS
+// ============================================
+
+function initTextToSpeechSettings() {
+  const voiceSelect = document.getElementById('tts-voice-select');
+  if (!voiceSelect) return;
+
+  const rateSlider = document.getElementById('tts-rate');
+  const pitchSlider = document.getElementById('tts-pitch');
+  const volumeSlider = document.getElementById('tts-volume');
+  const testBtn = document.getElementById('tts-test-voice');
+  const stopBtn = document.getElementById('tts-stop');
+
+  chrome.storage.sync.get(STORAGE_KEYS.textToSpeech, (result) => {
+    const saved = (result || {})[STORAGE_KEYS.textToSpeech];
+    currentTextToSpeechSettings = normalizeTextToSpeechSettings(saved);
+    updateTextToSpeechControls();
+    populateTextToSpeechVoices();
+  });
+
+  if ('speechSynthesis' in window && window.speechSynthesis?.addEventListener) {
+    window.speechSynthesis.addEventListener('voiceschanged', populateTextToSpeechVoices);
+  }
+
+  voiceSelect.addEventListener('change', () => {
+    const selectedOption = voiceSelect.selectedOptions[0];
+    currentTextToSpeechSettings.voiceURI = voiceSelect.value;
+    currentTextToSpeechSettings.voiceName = selectedOption?.dataset.voiceName || '';
+    saveTextToSpeechSettings();
+  });
+
+  rateSlider?.addEventListener('input', () => {
+    currentTextToSpeechSettings.rate = Number(rateSlider.value);
+    updateTextToSpeechDisplay();
+    saveTextToSpeechSettings();
+  });
+
+  pitchSlider?.addEventListener('input', () => {
+    currentTextToSpeechSettings.pitch = Number(pitchSlider.value);
+    updateTextToSpeechDisplay();
+    saveTextToSpeechSettings();
+  });
+
+  volumeSlider?.addEventListener('input', () => {
+    currentTextToSpeechSettings.volume = Number(volumeSlider.value);
+    updateTextToSpeechDisplay();
+    saveTextToSpeechSettings();
+  });
+
+  testBtn?.addEventListener('click', () => testTextToSpeechVoice(testBtn));
+  stopBtn?.addEventListener('click', () => {
+    stopPopupTextToSpeech();
+    notifyContentScript('STOP_TEXT_TO_SPEECH');
+  });
+}
+
+function normalizeTextToSpeechSettings(settings = {}) {
+  const merged = { ...DEFAULT_TEXT_TO_SPEECH_SETTINGS, ...(settings || {}) };
+  return {
+    ...merged,
+    voiceURI: typeof merged.voiceURI === 'string' ? merged.voiceURI : 'auto',
+    voiceName: typeof merged.voiceName === 'string' ? merged.voiceName : '',
+    rate: clampNumber(merged.rate, 0.65, 1.35, DEFAULT_TEXT_TO_SPEECH_SETTINGS.rate),
+    pitch: clampNumber(merged.pitch, 0.75, 1.35, DEFAULT_TEXT_TO_SPEECH_SETTINGS.pitch),
+    volume: clampNumber(merged.volume, 0, 1, DEFAULT_TEXT_TO_SPEECH_SETTINGS.volume)
+  };
+}
+
+function clampNumber(value, min, max, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, number));
+}
+
+function updateTextToSpeechControls() {
+  const rateSlider = document.getElementById('tts-rate');
+  const pitchSlider = document.getElementById('tts-pitch');
+  const volumeSlider = document.getElementById('tts-volume');
+
+  if (rateSlider) rateSlider.value = currentTextToSpeechSettings.rate;
+  if (pitchSlider) pitchSlider.value = currentTextToSpeechSettings.pitch;
+  if (volumeSlider) volumeSlider.value = currentTextToSpeechSettings.volume;
+
+  updateTextToSpeechDisplay();
+}
+
+function updateTextToSpeechDisplay() {
+  const rateValue = document.getElementById('tts-rate-value');
+  const pitchValue = document.getElementById('tts-pitch-value');
+  const volumeValue = document.getElementById('tts-volume-value');
+
+  if (rateValue) rateValue.textContent = currentTextToSpeechSettings.rate.toFixed(2);
+  if (pitchValue) pitchValue.textContent = currentTextToSpeechSettings.pitch.toFixed(2);
+  if (volumeValue) volumeValue.textContent = `${Math.round(currentTextToSpeechSettings.volume * 100)}%`;
+}
+
+function saveTextToSpeechSettings() {
+  currentTextToSpeechSettings = normalizeTextToSpeechSettings(currentTextToSpeechSettings);
+  chrome.storage.sync.set({ [STORAGE_KEYS.textToSpeech]: currentTextToSpeechSettings }, () => {
+    notifyContentScript('SET_TEXT_TO_SPEECH_SETTINGS', { settings: currentTextToSpeechSettings });
+  });
+}
+
+function populateTextToSpeechVoices() {
+  const voiceSelect = document.getElementById('tts-voice-select');
+  if (!voiceSelect || !('speechSynthesis' in window)) return;
+
+  const voices = window.speechSynthesis.getVoices() || [];
+  const selectedValue = currentTextToSpeechSettings.voiceURI || 'auto';
+
+  voiceSelect.innerHTML = '';
+  const autoOption = document.createElement('option');
+  autoOption.value = 'auto';
+  autoOption.textContent = 'Auto natural voice';
+  voiceSelect.appendChild(autoOption);
+
+  voices
+    .slice()
+    .sort((a, b) => `${a.lang} ${a.name}`.localeCompare(`${b.lang} ${b.name}`))
+    .forEach((voice) => {
+      const option = document.createElement('option');
+      option.value = voice.voiceURI || `${voice.name}|${voice.lang}`;
+      option.dataset.voiceName = voice.name || '';
+      option.textContent = formatTextToSpeechVoiceLabel(voice);
+      voiceSelect.appendChild(option);
+    });
+
+  const hasSelectedVoice = Array.from(voiceSelect.options).some((option) => option.value === selectedValue);
+  voiceSelect.value = hasSelectedVoice ? selectedValue : 'auto';
+}
+
+function formatTextToSpeechVoiceLabel(voice) {
+  const badges = [];
+  if (voice.default) badges.push('default');
+  if (voice.localService) badges.push('local');
+  const suffix = badges.length > 0 ? ` (${badges.join(', ')})` : '';
+  return `${voice.name} - ${voice.lang}${suffix}`;
+}
+
+function testTextToSpeechVoice(btn) {
+  const originalText = btn.innerHTML;
+
+  if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
+    showButtonStatus(btn, 'error', 'Unavailable', originalText);
+    return;
+  }
+
+  stopPopupTextToSpeech();
+
+  const utterance = new SpeechSynthesisUtterance('The storm rolls over the mountains as your adventure continues.');
+  const voice = resolvePopupTextToSpeechVoice();
+
+  if (voice) {
+    utterance.voice = voice;
+    utterance.lang = voice.lang || navigator.language || 'en-US';
+  } else {
+    utterance.lang = navigator.language || 'en-US';
+  }
+
+  utterance.rate = currentTextToSpeechSettings.rate;
+  utterance.pitch = currentTextToSpeechSettings.pitch;
+  utterance.volume = currentTextToSpeechSettings.volume;
+
+  window.speechSynthesis.speak(utterance);
+  showButtonStatus(btn, 'success', 'Playing', originalText);
+}
+
+function stopPopupTextToSpeech() {
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+  }
+}
+
+function resolvePopupTextToSpeechVoice() {
+  if (!('speechSynthesis' in window)) return null;
+
+  const voices = window.speechSynthesis.getVoices() || [];
+  const selected = currentTextToSpeechSettings.voiceURI;
+
+  if (selected && selected !== 'auto') {
+    const selectedVoice = voices.find((voice) => voice.voiceURI === selected) ||
+      voices.find((voice) => `${voice.name}|${voice.lang}` === selected) ||
+      voices.find((voice) => voice.name === currentTextToSpeechSettings.voiceName);
+
+    if (selectedVoice) return selectedVoice;
+  }
+
+  return pickBestPopupTextToSpeechVoice(voices);
+}
+
+function pickBestPopupTextToSpeechVoice(voices) {
+  if (!voices.length) return null;
+
+  const preferredLanguage = (navigator.language || 'en-US').toLowerCase();
+  const preferredBase = preferredLanguage.split('-')[0];
+
+  return voices.slice().sort((a, b) => {
+    return scorePopupTextToSpeechVoice(b, preferredLanguage, preferredBase) -
+      scorePopupTextToSpeechVoice(a, preferredLanguage, preferredBase);
+  })[0];
+}
+
+function scorePopupTextToSpeechVoice(voice, preferredLanguage, preferredBase) {
+  const name = `${voice.name || ''} ${voice.voiceURI || ''}`.toLowerCase();
+  const lang = (voice.lang || '').toLowerCase();
+  let score = 0;
+
+  if (lang === preferredLanguage) score += 50;
+  if (lang.split('-')[0] === preferredBase) score += 30;
+  if (preferredBase === 'en' && lang.startsWith('en')) score += 15;
+  if (voice.default) score += 8;
+  if (voice.localService) score += 4;
+  if (/natural|neural|premium|enhanced|online|google|microsoft|samantha|alex|ava|jenny|aria|guy|libby|sonia|daniel/.test(name)) score += 25;
+  if (/compact|novelty|whisper|robot|zarvox/.test(name)) score -= 20;
+
+  return score;
 }
 
 // ============================================
@@ -1914,7 +2162,7 @@ function updateSectionCounts() {
     'controls': ['hotkey', 'inputHistory', 'inputModeColor'],
     'writing': ['markdown', 'notes'],
     'scenario': ['triggerHighlight', 'storyCardModalDock'],
-    'automations': ['autoSee']
+    'automations': ['autoSee', 'textToSpeech']
   };
 
   Object.entries(sectionMap).forEach(([sectionId, featureIds]) => {

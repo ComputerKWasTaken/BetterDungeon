@@ -66,6 +66,10 @@ class BetterDungeon {
         this.handleSetAutoSeeTriggerMode(message.mode);
       } else if (message.type === 'SET_AUTO_SEE_TURN_INTERVAL') {
         this.handleSetAutoSeeTurnInterval(message.interval);
+      } else if (message.type === 'SET_TEXT_TO_SPEECH_SETTINGS') {
+        this.handleSetTextToSpeechSettings(message.settings);
+      } else if (message.type === 'STOP_TEXT_TO_SPEECH') {
+        this.handleStopTextToSpeech();
       } else if (message.type === 'APPLY_INSTRUCTIONS_WITH_LOADING') {
         this.handleApplyInstructionsWithLoading().then(sendResponse);
         return true;
@@ -147,6 +151,20 @@ class BetterDungeon {
     const autoSeeFeature = this.featureManager.features.get('autoSee');
     if (autoSeeFeature && typeof autoSeeFeature.setTurnInterval === 'function') {
       autoSeeFeature.setTurnInterval(interval);
+    }
+  }
+
+  handleSetTextToSpeechSettings(settings) {
+    const textToSpeechFeature = this.featureManager.features.get('textToSpeech');
+    if (textToSpeechFeature && typeof textToSpeechFeature.setSettings === 'function') {
+      textToSpeechFeature.setSettings(settings);
+    }
+  }
+
+  handleStopTextToSpeech() {
+    const textToSpeechFeature = this.featureManager.features.get('textToSpeech');
+    if (textToSpeechFeature && typeof textToSpeechFeature.stop === 'function') {
+      textToSpeechFeature.stop();
     }
   }
 

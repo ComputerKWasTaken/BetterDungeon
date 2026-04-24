@@ -8,6 +8,16 @@
   if (globalThis.__BetterDungeonBackground) return;
   globalThis.__BetterDungeonBackground = true;
 
+  const extensionRuntime =
+    (typeof chrome !== 'undefined' && chrome.runtime) ||
+    (typeof browser !== 'undefined' && browser.runtime) ||
+    null;
+
+  if (!extensionRuntime?.onMessage?.addListener) {
+    console.warn('[BetterDungeon/background] Extension runtime is unavailable; background services disabled.');
+    return;
+  }
+
   const WEBFETCH_MESSAGE = 'FRONTIER_WEBFETCH_FETCH';
   const DEFAULT_TIMEOUT_MS = 15000;
   const MAX_TIMEOUT_MS = 30000;
@@ -194,7 +204,7 @@
     }
   }
 
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  extensionRuntime.onMessage.addListener((message, _sender, sendResponse) => {
     if (!message || message.type !== WEBFETCH_MESSAGE) return false;
 
     handleWebFetch(message.request)

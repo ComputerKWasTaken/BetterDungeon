@@ -13,7 +13,15 @@
     "https://*/*"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "scripts": [
+      "utils/browser-polyfill.js",
+      "background.js"
+    ],
+    "preferred_environment": [
+      "service_worker",
+      "document"
+    ]
   },
   "browser_specific_settings": {
     "gecko": {
@@ -30,7 +38,10 @@
     },
     {
       "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"],
-      "js": ["services/frontier/ws-stream.js"],
+      "js": [
+        "utils/browser-polyfill.js",
+        "services/frontier/ws-stream.js"
+      ],
       "run_at": "document_start"
     },
     {
@@ -72,6 +83,7 @@
         "features/auto_enable_scripts_feature.js",
         "features/story_card_modal_dock_feature.js",
         "features/input_history_feature.js",
+        "features/text_to_speeech_feature.js",
         "main.js"
       ],
       "css": ["core/theme-variables.css", "styles.css", "fonts/lucide/lucide.css"],

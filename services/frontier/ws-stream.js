@@ -407,7 +407,9 @@
   // This is wrapped in a try/catch because chrome.runtime.getURL can throw if
   // the extension context is invalidated mid-navigation.
   try {
-    const api = typeof browser !== 'undefined' ? browser : chrome;
+    const api = typeof browser !== 'undefined'
+      ? browser
+      : (typeof chrome !== 'undefined' ? chrome : null);
     const url = api?.runtime?.getURL?.('services/frontier/ws-interceptor.js');
     if (url) {
       const scriptEl = document.createElement('script');

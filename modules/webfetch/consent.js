@@ -14,7 +14,9 @@
   const pendingPrompts = new Map();   // origin -> Promise
 
   function extensionApi() {
-    return typeof browser !== 'undefined' ? browser : chrome;
+    if (typeof browser !== 'undefined') return browser;
+    if (typeof chrome !== 'undefined') return chrome;
+    return null;
   }
 
   function normalizeOrigin(originOrUrl) {

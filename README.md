@@ -20,6 +20,8 @@ No Firefox Add-ons listing yet — install manually for now:
 4. Select any file inside the `BetterDungeon` folder (e.g. `manifest.json`)
 5. You're in!
 
+The checked-in MV3 `manifest.json` declares both `background.service_worker` and `background.scripts`. Chrome 121+ uses the service worker and ignores scripts; Firefox uses background scripts because extension service-worker backgrounds are not supported there yet.
+
 > **Note:** Temporary add-ons are removed when Firefox closes. You'll need to re-load the extension each session until a signed version is available on the Firefox Add-ons store.
 
 ### Manual Installation (Chromium)
