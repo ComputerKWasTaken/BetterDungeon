@@ -73,6 +73,12 @@ Each feature implements:
 
 ### Changelog
 
+### v1.2.2
+- Fixed Story Card Dashboard button for AI Dungeon's reworked Story Card menu
+- Updated DOM selectors: Filters button removed, "Add Story Card" renamed to "Create Story Card"
+- Restyled Dashboard button to match the new Create Story Card button design
+- Updated Story Card Scanner to recognize the new "Create Story Card" button
+
 ### v1.2.0
 - **Command Mode Submodes:** Added "Subtle" (brackets) and "OOC" (direct AI query) submodes
 - **Markdown Formatting:** Toggle individual formatting types; added quoted, highlight, and list options
