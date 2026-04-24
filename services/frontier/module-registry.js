@@ -178,6 +178,13 @@
     else disable(id);
   }
 
+  function stop() {
+    for (const id of [...mounted.keys()]) {
+      unmountOne(id);
+    }
+    coreReady = false;
+  }
+
   function list() {
     return [...definitions.values()].map(d => ({
       id: d.id,
@@ -235,6 +242,7 @@
     setModuleEnabled,
     list,
     start,
+    stop,
     _forEachMounted,
     _getMounted,
     inspect: () => ({

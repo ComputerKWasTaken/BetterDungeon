@@ -21,6 +21,7 @@
     inflight: new Map(),      // requestId -> { request, startedAt, startedLiveCount }
     responseCache: new Map(), // moduleId -> response envelope
     acked: new Set(),         // request ids the script has acked this session
+    offFns: [],
     lastOutValue: null,       // diagnostic only; `frontier:out` processing is idempotent
     metrics: {
       outCardsSeen: 0,
@@ -477,24 +478,34 @@
     state.currentAdventureShortId = currentAdventureShortId();
     if (state.currentAdventureShortId) readSessionMirror(state.currentAdventureShortId);
 
-    core.on('cards:full', (detail) => processCards(detail?.cards));
-    core.on('cards:diff', (detail) => {
+    state.offFns.push(core.on('cards:full', (detail) => processCards(detail?.cards)));
+    state.offFns.push(core.on('cards:diff', (detail) => {
       processCards([...(detail?.added || []), ...(detail?.updated || [])]);
       processCards(detail?.removed, true);
-    });
-    core.on('adventure:enter', (detail) => resetForAdventure(detail?.shortId || currentAdventureShortId()));
-    core.on('adventure:leave', () => resetForAdventure(null));
-    core.on('livecount:change', () => {
+    }));
+    state.offFns.push(core.on('adventure:enter', (detail) => resetForAdventure(detail?.shortId || currentAdventureShortId())));
+    state.offFns.push(core.on('adventure:leave', () => resetForAdventure(null)));
+    state.offFns.push(core.on('livecount:change', () => {
       scanCurrentCards();
       pruneByLiveCount();
-    });
+    }));
 
     scanCurrentCards();
     console.log(TAG, 'started');
   }
 
+  function stop() {
+    while (state.offFns.length) {
+      try { state.offFns.pop()(); } catch { /* noop */ }
+    }
+    resetForAdventure(null);
+    state.core = null;
+    state.started = false;
+  }
+
   const opsDispatcher = {
     start,
+    stop,
     respond,
     respondError,
     inspect: () => ({

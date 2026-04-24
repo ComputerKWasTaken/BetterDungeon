@@ -2,11 +2,12 @@
 // Centralized feature lifecycle management
 
 class FeatureManager {
-  constructor() {
+  constructor(context = {}) {
     this.debug = false;
     this.features = new Map();
     this.featureClasses = new Map();
     this.storageManager = window.StorageManager;
+    this.context = context;
   }
 
   log(message, ...args) {
@@ -22,6 +23,10 @@ class FeatureManager {
   }
 
   registerAvailableFeatures() {
+    if (typeof FrontierFeature !== 'undefined') {
+      this.featureClasses.set('frontier', FrontierFeature);
+    }
+
     if (typeof MarkdownFeature !== 'undefined') {
       this.featureClasses.set('markdown', MarkdownFeature);
     }
@@ -115,7 +120,7 @@ class FeatureManager {
     }
 
     try {
-      const feature = new FeatureClass();
+      const feature = new FeatureClass(this.context);
       this.features.set(id, feature);
 
       // Explicitly set enabled state - FeatureManager is the source of truth

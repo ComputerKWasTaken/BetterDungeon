@@ -29,6 +29,10 @@
       <span class="nav-icon icon-sparkles"></span>
       <span class="nav-label">Features</span>
     </button>
+    <button class="nav-item" data-tab="frontier">
+      <span class="nav-icon icon-radio-tower"></span>
+      <span class="nav-label">Frontier</span>
+    </button>
     <button class="nav-item" data-tab="presets">
       <span class="nav-icon icon-bookmark"></span>
       <span class="nav-label">Presets</span>
@@ -558,51 +562,6 @@
             </div>
           </article>
 
-          <!-- Scripture -->
-          <article class="feature-card" data-feature="scripture">
-            <div class="feature-row">
-              <div class="feature-info">
-                <div class="feature-title-row">
-                  <span class="feature-icon" style="color: var(--bd-icon-scripts);">
-                    <span class="icon-code"></span>
-                  </span>
-                  <h3 class="feature-title">Scripture</h3>
-                </div>
-                <p class="feature-desc">Frontier-powered script widgets</p>
-              </div>
-            </div>
-            <div class="feature-details">
-              <p>Enables AI Dungeon scripts to create <strong>dynamic UI widgets</strong> displaying HP bars, stats, and game state.</p>
-              <p class="feature-hint"><span class="icon-lightbulb"></span> Scripts publish widget state to the Frontier Scripture state card.</p>
-              
-              <div class="syntax-box">
-                <div class="syntax-row"><code>stat</code><span>Label + value</span></div>
-                <div class="syntax-row"><code>bar</code><span>Progress bar</span></div>
-                <div class="syntax-row"><code>panel</code><span>Multi-stat container</span></div>
-                <div class="syntax-row"><code>text</code><span>Simple text display</span></div>
-                <div class="syntax-row"><code>custom</code><span>Custom HTML widgets</span></div>
-                <div class="syntax-row"><code>badge</code><span>Status badge</span></div>
-                <div class="syntax-row"><code>list</code><span>Item list</span></div>
-                <div class="syntax-row"><code>icon</code><span>Icon display</span></div>
-                <div class="syntax-row"><code>counter</code><span>Value + delta</span></div>
-              </div>
-
-              <div class="feature-option">
-                <span class="option-label">Frontier Debug</span>
-                <label class="toggle sm">
-                  <input type="checkbox" id="frontier-debug">
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-              <p class="feature-hint"><span class="icon-bug"></span> Enables verbose Frontier console logging.</p>
-
-              <a href="https://better-repository.netlify.app/scripts" target="_blank" rel="noopener noreferrer" class="btn btn-action">
-                <span class="icon-external-link"></span>
-                View Example Scripts
-              </a>
-            </div>
-          </article>
-
         </div>
       </div>
 
@@ -761,6 +720,258 @@
         <p class="empty-desc">Try a different search term</p>
       </div>
 
+    </section>
+
+    <!-- Frontier Tab -->
+    <section class="tab-panel" id="tab-frontier">
+      <div class="section">
+        <div class="section-header">
+          <span class="section-icon icon-activity" style="color: var(--bd-icon-scripts);"></span>
+          <h2 class="section-title">Runtime</h2>
+          <span class="section-count" id="count-frontier-runtime">1/1</span>
+        </div>
+        <div class="section-body">
+          <article class="feature-card expanded frontier-card" data-feature="frontier">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-icon-scripts);">
+                    <span class="icon-radio-tower"></span>
+                  </span>
+                  <h3 class="feature-title">Frontier</h3>
+                </div>
+                <p class="feature-desc">Two-way script modules and live capabilities</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-frontier" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feature-details">
+              <div class="frontier-status-panel" id="frontier-status-panel">
+                <span class="frontier-status-dot" id="frontier-status-dot"></span>
+                <div>
+                  <strong id="frontier-status-label">Checking Frontier</strong>
+                  <span id="frontier-status-detail">Open AI Dungeon to inspect live module state.</span>
+                </div>
+                <button class="btn btn-icon btn-ghost" id="frontier-refresh" aria-label="Refresh Frontier status" title="Refresh">
+                  <span class="icon-refresh-cw"></span>
+                </button>
+              </div>
+              <div class="feature-option frontier-debug-option">
+                <span class="option-label"><span class="icon-bug"></span> Frontier Debug</span>
+                <label class="toggle sm">
+                  <input type="checkbox" id="frontier-debug">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
+          <span class="section-icon icon-layers" style="color: var(--bd-section-formatting);"></span>
+          <h2 class="section-title">Script Surface</h2>
+          <span class="section-count" id="count-frontier-script-surface">3/3</span>
+        </div>
+        <div class="section-body">
+          <div class="frontier-module-list">
+            <article class="feature-card frontier-module-card" data-frontier-module-card="scripture">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-icon-scripts);">
+                      <span class="icon-book-open-text"></span>
+                    </span>
+                    <h3 class="feature-title">Scripture</h3>
+                  </div>
+                  <p class="feature-desc">Live visual UI for script-driven displays</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-frontier-module-toggle="scripture" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>Scripture lets adventure scripts render interface elements outside the story text, including stat bars, counters, panels, status readouts, and custom widgets.</p>
+                <p class="feature-hint"><span class="icon-book-open-text"></span> Useful for RPG HUDs, relationship meters, timers, inventory panels, and scenario-specific dashboards.</p>
+              </div>
+            </article>
+
+            <article class="feature-card frontier-module-card" data-frontier-module-card="webfetch">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-blue);">
+                      <span class="icon-globe-lock"></span>
+                    </span>
+                    <h3 class="feature-title">WebFetch</h3>
+                  </div>
+                  <p class="feature-desc">Consent-gated web requests and simple search</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-frontier-module-toggle="webfetch" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>WebFetch gives scripts conservative web access for live context: safe GET requests, basic search, origin allow/deny decisions, rate limits, and blocked local/private targets.</p>
+                <p class="feature-hint"><span class="icon-globe-lock"></span> Useful for current facts, public reference pages, lightweight lookups, and web-aware scripted tools.</p>
+                <div class="frontier-consent-panel">
+                  <div class="frontier-panel-heading">
+                    <span><span class="icon-shield-check"></span> Origin Permissions</span>
+                    <button class="btn btn-icon btn-ghost" id="webfetch-consent-refresh" aria-label="Refresh WebFetch origins" title="Refresh origins">
+                      <span class="icon-refresh-cw"></span>
+                    </button>
+                  </div>
+                  <div class="frontier-consent-list" id="webfetch-consent-list"></div>
+                  <div class="frontier-consent-editor">
+                    <input type="text" class="form-input" id="webfetch-origin-input" placeholder="https://example.com">
+                    <select class="form-select form-select-sm" id="webfetch-decision-select" aria-label="WebFetch origin decision">
+                      <option value="allow">Allow</option>
+                      <option value="deny">Deny</option>
+                      <option value="clear">Clear</option>
+                    </select>
+                    <button class="btn btn-icon btn-primary" id="webfetch-consent-save" aria-label="Save WebFetch origin" title="Save origin">
+                      <span class="icon-check"></span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article class="feature-card frontier-module-card" data-frontier-module-card="clock">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-mode-story);">
+                      <span class="icon-clock"></span>
+                    </span>
+                    <h3 class="feature-title">Clock</h3>
+                  </div>
+                  <p class="feature-desc">Reliable time, time zones, and formatting</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-frontier-module-toggle="clock" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>Clock gives scripts the user's current local time, IANA time-zone conversion, ISO timestamps, offsets, and deterministic formatted dates.</p>
+                <p class="feature-hint"><span class="icon-clock"></span> Useful for daily events, timed encounters, schedules, cooldowns, holidays, and world clocks.</p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
+          <span class="section-icon icon-map" style="color: var(--bd-section-tools);"></span>
+          <h2 class="section-title">World &amp; Device Context</h2>
+          <span class="section-count" id="count-frontier-context">4/4</span>
+        </div>
+        <div class="section-body">
+          <div class="frontier-module-list">
+            <article class="feature-card frontier-module-card" data-frontier-module-card="geolocation">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-pink);">
+                      <span class="icon-map-pin"></span>
+                    </span>
+                    <h3 class="feature-title">Geolocation</h3>
+                  </div>
+                  <p class="feature-desc">Permission-based real-world location context</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-frontier-module-toggle="geolocation" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>Geolocation lets scripts request the user's browser-approved location, returning coordinates, accuracy, and permission state only after the normal browser prompt allows it.</p>
+                <p class="feature-hint"><span class="icon-map-pin"></span> Useful for local mysteries, travel scenes, real-world scavenger hooks, and location-aware setting details.</p>
+              </div>
+            </article>
+
+            <article class="feature-card frontier-module-card" data-frontier-module-card="weather">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-cyan);">
+                      <span class="icon-cloud-sun"></span>
+                    </span>
+                    <h3 class="feature-title">Weather</h3>
+                  </div>
+                  <p class="feature-desc">Current conditions and forecast lookup</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-frontier-module-toggle="weather" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>Weather gives scripts a focused weather path without general web scraping, using place names or coordinates to return current conditions and short forecasts.</p>
+                <p class="feature-hint"><span class="icon-cloud-sun"></span> Useful for atmospheric scenes, survival mechanics, travel planning, seasonal events, and grounded local flavor.</p>
+              </div>
+            </article>
+
+            <article class="feature-card frontier-module-card" data-frontier-module-card="network">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-green);">
+                      <span class="icon-wifi"></span>
+                    </span>
+                    <h3 class="feature-title">Network</h3>
+                  </div>
+                  <p class="feature-desc">Connection status and quality hints</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-frontier-module-toggle="network" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>Network reports online status and browser connection hints like effective type, round-trip time, downlink estimate, and data-saver preference when available.</p>
+                <p class="feature-hint"><span class="icon-wifi"></span> Useful for scripts that can choose lighter requests, avoid live lookups, or explain degraded behavior cleanly.</p>
+              </div>
+            </article>
+
+            <article class="feature-card frontier-module-card" data-frontier-module-card="system">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-orange);">
+                      <span class="icon-cpu"></span>
+                    </span>
+                    <h3 class="feature-title">System</h3>
+                  </div>
+                  <p class="feature-desc">Coarse device, browser, display, and power hints</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-frontier-module-toggle="system" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>System exposes broad environment details such as device class, platform family, locale, screen size, touch support, browser family, and battery state when supported.</p>
+                <p class="feature-hint"><span class="icon-cpu"></span> Useful for adapting script UI, reducing work on mobile or low-power devices, and tailoring experiences by device context.</p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <a href="https://better-repository.netlify.app/scripts" target="_blank" rel="noopener noreferrer" class="btn btn-action">
+          <span class="icon-external-link"></span>
+          View Example Scripts
+        </a>
+      </div>
     </section>
 
     <!-- Presets Tab -->
@@ -944,7 +1155,7 @@
           <div class="field-add">
             <input type="text" class="form-input" id="new-field-key" placeholder="Field name (e.g. age)">
             <input type="text" class="form-input" id="new-field-value" placeholder="Value (e.g. 25)">
-            <button class="btn btn-icon" id="add-field-btn" aria-label="Add field" title="Add field">
+            <button class="btn btn-icon btn-primary" id="add-field-btn" aria-label="Add field" title="Add field">
               <span class="icon-plus"></span>
             </button>
           </div>

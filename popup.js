@@ -15,6 +15,8 @@ const STORAGE_KEYS = {
   autoScan: 'betterDungeon_autoScanTriggers',
   autoApply: 'betterDungeon_autoApplyInstructions',
   frontierDebug: 'frontier_debug',
+  frontierModules: 'frontier_enabled_modules',
+  webfetchAllowlist: 'frontier_webfetch_allowlist',
   customHotkeys: 'betterDungeon_customHotkeys',
   customModeColors: 'betterDungeon_customModeColors',
   commandSubMode: 'betterDungeon_commandSubMode',
@@ -67,6 +69,7 @@ const DEFAULT_HOTKEY_BINDINGS = {
 };
 
 const DEFAULT_FEATURES = {
+  frontier: true,
   markdown: true,
   command: true,
   try: true,
@@ -81,6 +84,16 @@ const DEFAULT_FEATURES = {
   inputHistory: true,
   textToSpeech: false
 };
+
+const FRONTIER_PUBLIC_MODULES = [
+  'scripture',
+  'webfetch',
+  'clock',
+  'geolocation',
+  'weather',
+  'network',
+  'system'
+];
 
 const DEFAULT_SETTINGS = {
   tryCriticalChance: 5
@@ -132,11 +145,13 @@ document.addEventListener('DOMContentLoaded', () => {
   initTextToSpeechSettings();
   initHotkeys();
   initModeColors();
+  initFrontierSettings();
   initWhatsNew();
   initCollapsibleSections();
   initFeatureSearch();
   initQuickToggles();
   updateSectionCounts();
+  updateFrontierSectionCounts();
   initTutorial();
 });
 
@@ -217,7 +232,9 @@ function initToggles() {
       }
     });
 
+    setFrontierModuleControlsEnabled(features.frontier !== false);
     updateSectionCounts();
+    updateFrontierSectionCounts();
   });
 
   // Load auto-scan setting
@@ -265,6 +282,198 @@ function initToggles() {
 
 }
 
+function initFrontierSettings() {
+  loadFrontierModuleToggles();
+  loadWebFetchConsentList();
+  refreshFrontierState();
+
+  document.querySelectorAll('[data-frontier-module-toggle]').forEach(toggle => {
+    toggle.addEventListener('change', () => {
+      updateFrontierSectionCounts();
+      saveFrontierModuleState(toggle.dataset.frontierModuleToggle, toggle.checked);
+    });
+  });
+
+  document.getElementById('frontier-refresh')?.addEventListener('click', refreshFrontierState);
+  document.getElementById('webfetch-consent-refresh')?.addEventListener('click', loadWebFetchConsentList);
+  document.getElementById('webfetch-consent-save')?.addEventListener('click', saveWebFetchConsentFromForm);
+}
+
+function defaultFrontierModuleState() {
+  return FRONTIER_PUBLIC_MODULES.reduce((out, id) => {
+    out[id] = true;
+    return out;
+  }, {});
+}
+
+function loadFrontierModuleToggles() {
+  chrome.storage.sync.get(STORAGE_KEYS.frontierModules, (result) => {
+    const saved = (result || {})[STORAGE_KEYS.frontierModules] || {};
+    const modules = { ...defaultFrontierModuleState(), ...saved };
+
+    document.querySelectorAll('[data-frontier-module-toggle]').forEach(toggle => {
+      const moduleId = toggle.dataset.frontierModuleToggle;
+      toggle.checked = modules[moduleId] !== false;
+    });
+    updateFrontierSectionCounts();
+  });
+}
+
+function saveFrontierModuleState(moduleId, enabled) {
+  if (!FRONTIER_PUBLIC_MODULES.includes(moduleId)) return;
+
+  chrome.storage.sync.get(STORAGE_KEYS.frontierModules, (result) => {
+    const saved = (result || {})[STORAGE_KEYS.frontierModules] || {};
+    const modules = { ...defaultFrontierModuleState(), ...saved, [moduleId]: !!enabled };
+
+    chrome.storage.sync.set({ [STORAGE_KEYS.frontierModules]: modules }, () => {
+      sendToActiveAIDungeon('SET_FRONTIER_MODULE_ENABLED', { moduleId, enabled: !!enabled })
+        .then(refreshFrontierState)
+        .catch(() => {
+          updateFrontierStatus(null, 'Changes will apply next time Frontier starts.');
+        });
+    });
+  });
+}
+
+async function refreshFrontierState() {
+  try {
+    const state = await sendToActiveAIDungeon('GET_FRONTIER_STATE');
+    updateFrontierStatus(state);
+  } catch {
+    updateFrontierStatus(null, 'Open AI Dungeon to inspect live module state.');
+  }
+}
+
+function updateFrontierStatus(state, fallbackDetail = '') {
+  const dot = document.getElementById('frontier-status-dot');
+  const label = document.getElementById('frontier-status-label');
+  const detail = document.getElementById('frontier-status-detail');
+  if (!dot || !label || !detail) return;
+
+  dot.classList.remove('online', 'offline');
+
+  if (!state) {
+    dot.classList.add('offline');
+    label.textContent = 'Frontier not connected';
+    detail.textContent = fallbackDetail || 'Open AI Dungeon to inspect live module state.';
+    return;
+  }
+
+  const mounted = (state.modules || []).filter(module => module.mounted && FRONTIER_PUBLIC_MODULES.includes(module.id));
+  const enabled = (state.modules || []).filter(module => module.enabled && FRONTIER_PUBLIC_MODULES.includes(module.id));
+  const frontierOn = state.frontierEnabled !== false && state.core?.enabled !== false;
+
+  dot.classList.add(frontierOn ? 'online' : 'offline');
+  label.textContent = frontierOn ? 'Frontier online' : 'Frontier off';
+  detail.textContent = `${mounted.length}/${FRONTIER_PUBLIC_MODULES.length} modules mounted, ${enabled.length} enabled.`;
+}
+
+function normalizeWebFetchStore(value) {
+  const out = {};
+  if (!value || typeof value !== 'object') return out;
+  Object.entries(value).forEach(([origin, entry]) => {
+    if (!entry || typeof entry !== 'object') return;
+    if (entry.decision !== 'allow' && entry.decision !== 'deny') return;
+    out[origin] = {
+      decision: entry.decision,
+      updatedAt: Number(entry.updatedAt || Date.now())
+    };
+  });
+  return out;
+}
+
+function loadWebFetchConsentList() {
+  chrome.storage.sync.get(STORAGE_KEYS.webfetchAllowlist, (result) => {
+    const store = normalizeWebFetchStore((result || {})[STORAGE_KEYS.webfetchAllowlist]);
+    renderWebFetchConsentList(store);
+  });
+}
+
+function renderWebFetchConsentList(store) {
+  const list = document.getElementById('webfetch-consent-list');
+  if (!list) return;
+
+  list.innerHTML = '';
+  const entries = Object.entries(store).sort(([a], [b]) => a.localeCompare(b));
+  if (!entries.length) {
+    const empty = document.createElement('div');
+    empty.className = 'frontier-consent-empty';
+    empty.textContent = 'No saved origins';
+    list.appendChild(empty);
+    return;
+  }
+
+  entries.forEach(([origin, entry]) => {
+    const row = document.createElement('div');
+    row.className = 'frontier-consent-row';
+
+    const originEl = document.createElement('span');
+    originEl.className = 'frontier-consent-origin';
+    originEl.title = origin;
+    originEl.textContent = origin;
+
+    const badge = document.createElement('span');
+    badge.className = `frontier-consent-badge ${entry.decision}`;
+    badge.textContent = entry.decision;
+
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'btn btn-icon btn-ghost';
+    clearBtn.type = 'button';
+    clearBtn.title = 'Clear origin';
+    clearBtn.setAttribute('aria-label', `Clear ${origin}`);
+    clearBtn.innerHTML = '<span class="icon-x"></span>';
+    clearBtn.addEventListener('click', () => setWebFetchConsent(origin, 'clear'));
+
+    row.append(originEl, badge, clearBtn);
+    list.appendChild(row);
+  });
+}
+
+function saveWebFetchConsentFromForm() {
+  const input = document.getElementById('webfetch-origin-input');
+  const select = document.getElementById('webfetch-decision-select');
+  if (!input || !select) return;
+
+  let origin = '';
+  try {
+    origin = new URL(input.value.trim()).origin;
+  } catch {
+    showToast('Enter a valid origin', 'error');
+    return;
+  }
+
+  setWebFetchConsent(origin, select.value).then(() => {
+    input.value = '';
+  });
+}
+
+async function setWebFetchConsent(origin, decision) {
+  try {
+    const response = await sendToActiveAIDungeon('SET_WEBFETCH_CONSENT', { origin, decision });
+    if (response?.success === false) throw new Error(response.error || 'WebFetch consent update failed');
+  } catch {
+    await setWebFetchConsentInStorage(origin, decision);
+  }
+
+  loadWebFetchConsentList();
+  showToast('WebFetch origin updated', 'success');
+}
+
+function setWebFetchConsentInStorage(origin, decision) {
+  return new Promise((resolve) => {
+    chrome.storage.sync.get(STORAGE_KEYS.webfetchAllowlist, (result) => {
+      const store = normalizeWebFetchStore((result || {})[STORAGE_KEYS.webfetchAllowlist]);
+      if (decision === 'clear') {
+        delete store[origin];
+      } else {
+        store[origin] = { decision, updatedAt: Date.now() };
+      }
+      chrome.storage.sync.set({ [STORAGE_KEYS.webfetchAllowlist]: store }, resolve);
+    });
+  });
+}
+
 function saveFeatureState(featureId, enabled) {
   log('[Popup] Saving feature state:', featureId, enabled);
   chrome.storage.sync.get(STORAGE_KEYS.features, (result) => {
@@ -274,8 +483,20 @@ function saveFeatureState(featureId, enabled) {
     
     chrome.storage.sync.set({ [STORAGE_KEYS.features]: features }, () => {
       notifyContentScript('FEATURE_TOGGLE', { featureId, enabled });
+      if (featureId === 'frontier') {
+        setFrontierModuleControlsEnabled(enabled);
+        updateFrontierSectionCounts();
+        setTimeout(refreshFrontierState, 300);
+      }
     });
   });
+}
+
+function setFrontierModuleControlsEnabled(enabled) {
+  document.querySelectorAll('[data-frontier-module-toggle], #frontier-debug, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save')
+    .forEach(control => {
+      control.disabled = !enabled;
+    });
 }
 
 // ============================================
@@ -2148,6 +2369,7 @@ function initQuickToggles() {
       const qt = document.querySelector(`[data-quick-toggle="${featureId}"]`);
       if (qt) qt.checked = mainToggle.checked;
       updateSectionCounts();
+      updateFrontierSectionCounts();
     });
   });
 }
@@ -2175,6 +2397,31 @@ function updateSectionCounts() {
     }).length;
 
     countEl.textContent = `${enabled}/${featureIds.length}`;
+  });
+}
+
+function updateFrontierSectionCounts() {
+  const runtimeCount = document.getElementById('count-frontier-runtime');
+  const frontierToggle = document.getElementById('feature-frontier');
+  if (runtimeCount) {
+    runtimeCount.textContent = `${frontierToggle?.checked ? 1 : 0}/1`;
+  }
+
+  const sectionMap = {
+    'frontier-script-surface': ['scripture', 'webfetch', 'clock'],
+    'frontier-context': ['geolocation', 'weather', 'network', 'system']
+  };
+
+  Object.entries(sectionMap).forEach(([sectionId, moduleIds]) => {
+    const countEl = document.getElementById(`count-${sectionId}`);
+    if (!countEl) return;
+
+    const enabled = moduleIds.filter(id => {
+      const toggle = document.querySelector(`[data-frontier-module-toggle="${id}"]`);
+      return toggle && toggle.checked;
+    }).length;
+
+    countEl.textContent = `${enabled}/${moduleIds.length}`;
   });
 }
 
@@ -2480,6 +2727,27 @@ function notifyContentScript(type, data = {}) {
     if (tab?.id && tab.url?.includes('aidungeon.com')) {
       chrome.tabs.sendMessage(tab.id, { type, ...data }).catch(() => {});
     }
+  });
+}
+
+function sendToActiveAIDungeon(type, data = {}) {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tab = tabs[0];
+      if (!tab?.id || !tab.url?.includes('aidungeon.com')) {
+        reject(new Error('AI Dungeon tab is not active'));
+        return;
+      }
+
+      chrome.tabs.sendMessage(tab.id, { type, ...data }, (response) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          reject(new Error(lastError.message));
+          return;
+        }
+        resolve(response);
+      });
+    });
   });
 }
 

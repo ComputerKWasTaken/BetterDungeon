@@ -40,6 +40,7 @@
     tail: null,
     liveCount: 0,
     started: false,
+    enabled: false,
     heartbeatTimer: null,
     heartbeatPending: false, // guards against overlapping heartbeat creates
     aiService: null,       // AIDungeonService instance, injected by main.js
@@ -246,12 +247,14 @@
   // detection, and the list of currently mounted modules with their ops.
 
   function scheduleHeartbeat() {
+    if (!state.enabled) return;
     if (state.heartbeatTimer) clearTimeout(state.heartbeatTimer);
     state.heartbeatTimer = setTimeout(runHeartbeat, HEARTBEAT_DELAY_MS);
   }
 
-  async function runHeartbeat() {
+  async function runHeartbeat(force = false) {
     state.heartbeatTimer = null;
+    if (!state.enabled && !force) return;
     // Guard: only one heartbeat write in flight at a time. Without this,
     // rapid triggers (adventure:enter + mutation:template) can fire multiple
     // creates before the first server echo returns the card's ID, producing
@@ -275,6 +278,7 @@
       frontier: {
         protocol: PROTOCOL_VERSION,
         profile: 'full',
+        enabled: state.enabled,
         client: 'BetterDungeon',
         clientVersion: (chrome?.runtime?.getManifest?.() || {}).version || 'unknown',
       },
@@ -402,6 +406,20 @@
     }
   }
 
+  function setEnabled(enabled) {
+    state.enabled = !!enabled;
+    if (!state.enabled && state.heartbeatTimer) {
+      clearTimeout(state.heartbeatTimer);
+      state.heartbeatTimer = null;
+    }
+    if (state.enabled && state.adventureId) scheduleHeartbeat();
+    if (!state.enabled && state.adventureId) {
+      runHeartbeat(true).catch((err) => {
+        console.warn(TAG, 'disabled heartbeat write failed', err?.message || err);
+      });
+    }
+  }
+
   // ---------- module context factory (Phase 2 — expanded) ----------
   //
   // Each module's mount(ctx) receives one of these. The context is scoped
@@ -502,6 +520,7 @@
     getLiveCount: () => state.liveCount,
     writeCard,
     setAIService,
+    setEnabled,
     setDebug,
     // Internal hooks used by module-registry.js.
     _makeModuleCtx: makeModuleCtx,
@@ -511,6 +530,7 @@
     // Read-only inspection.
     inspect: () => ({
       started: state.started,
+      enabled: state.enabled,
       adventureId: state.adventureId,
       tail: state.tail,
       liveCount: state.liveCount,

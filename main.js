@@ -4,8 +4,10 @@
 class BetterDungeon {
   constructor() {
     this.debug = false;
-    this.featureManager = new FeatureManager();
     this.aiDungeonService = new AIDungeonService();
+    this.featureManager = new FeatureManager({
+      aiDungeonService: this.aiDungeonService,
+    });
     this.init();
   }
 
@@ -19,32 +21,7 @@ class BetterDungeon {
     console.log('[BetterDungeon] Initializing...');
     this.injectStyles();
     this.setupMessageListener();
-    this.initFrontier();
     this.featureManager.initialize();
-  }
-
-  // Wire the Frontier transport + core + registry. ws-interceptor.js and
-  // ws-stream.js install themselves at document_start (see manifest.json);
-  // this method connects the isolated-world Core to our AIDungeonService
-  // instance (so Frontier modules can write cards) and starts the module
-  // registry. Safe to call even when Frontier is not available (e.g. on
-  // pages where the content script fails to inject).
-  initFrontier() {
-    const core = window.Frontier?.core;
-    const registry = window.Frontier?.registry;
-    if (!core || !registry) {
-      console.warn('[BetterDungeon] Frontier Core/Registry not loaded; Frontier features disabled.');
-      return;
-    }
-    core.setAIService(this.aiDungeonService);
-    Promise.resolve(registry.start())
-      .then(() => {
-        window.Frontier?.opsDispatcher?.start?.(core);
-        console.log('[BetterDungeon] Frontier online.');
-      })
-      .catch((err) => {
-        console.warn('[BetterDungeon] Frontier startup failed.', err);
-      });
   }
 
   // Setup listener for messages from popup
@@ -114,16 +91,53 @@ class BetterDungeon {
         return true;
       } else if (message.type === 'SET_FRONTIER_DEBUG') {
         window.Frontier?.core?.setDebug?.(message.enabled);
+        sendResponse({ success: true, debugEnabled: !!message.enabled });
+        return true;
       } else if (message.type === 'SET_FRONTIER_MODULE_ENABLED') {
         window.Frontier?.registry?.setModuleEnabled?.(message.moduleId, message.enabled);
-      } else if (message.type === 'GET_FRONTIER_STATE') {
         sendResponse({
-          core: window.Frontier?.core?.inspect?.() || null,
+          success: true,
+          moduleId: message.moduleId,
+          enabled: !!message.enabled,
           registry: window.Frontier?.registry?.inspect?.() || null,
         });
         return true;
+      } else if (message.type === 'GET_FRONTIER_STATE') {
+        sendResponse({
+          frontierEnabled: this.featureManager.isFeatureEnabled('frontier'),
+          core: window.Frontier?.core?.inspect?.() || null,
+          registry: window.Frontier?.registry?.inspect?.() || null,
+          modules: window.Frontier?.registry?.list?.() || [],
+        });
+        return true;
+      } else if (message.type === 'GET_WEBFETCH_CONSENT') {
+        this.handleGetWebFetchConsent().then(sendResponse);
+        return true;
+      } else if (message.type === 'SET_WEBFETCH_CONSENT') {
+        this.handleSetWebFetchConsent(message.origin, message.decision).then(sendResponse);
+        return true;
       }
     });
+  }
+
+  async handleGetWebFetchConsent() {
+    try {
+      const consent = window.FrontierWebFetchConsent;
+      if (!consent?.inspect) return { success: false, error: 'WebFetch consent broker not available' };
+      return { success: true, consent: await consent.inspect() };
+    } catch (error) {
+      return { success: false, error: error?.message || String(error) };
+    }
+  }
+
+  async handleSetWebFetchConsent(origin, decision) {
+    try {
+      const consent = window.FrontierWebFetchConsent;
+      if (!consent?.setOrigin) return { success: false, error: 'WebFetch consent broker not available' };
+      return { success: true, result: await consent.setOrigin(origin, decision) };
+    } catch (error) {
+      return { success: false, error: error?.message || String(error) };
+    }
   }
 
   handleSetAutoScan(enabled) {
