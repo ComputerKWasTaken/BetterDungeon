@@ -91,17 +91,28 @@
     const ws = wsStream();
     if (!ws?._optimisticCardSet) return null;
 
-    // Find existing card by title to get its id.
+    // Find existing card by forced id first, then by title. The id path is
+    // important for maintenance writes that rename duplicate reserved cards.
     let existing = null;
     const cards = ws.getCards?.();
     if (cards) {
+      if (opts.id != null) {
+        const target = String(opts.id);
+        for (const card of cards.values()) {
+          if (String(card?.id) === target) { existing = card; break; }
+        }
+      }
       for (const card of cards.values()) {
+        if (existing) break;
         if (card?.title === title) { existing = card; break; }
       }
     }
 
     if (existing) {
-      const updated = { ...existing, value, ...(opts.type ? { type: opts.type } : {}) };
+      const updated = { ...existing, title, value };
+      if (Object.prototype.hasOwnProperty.call(opts, 'type')) updated.type = opts.type;
+      if (Object.prototype.hasOwnProperty.call(opts, 'keys')) updated.keys = opts.keys;
+      if (Object.prototype.hasOwnProperty.call(opts, 'description')) updated.description = opts.description;
       ws._optimisticCardSet(existing.id, updated);
       return existing; // return prev for rollback
     }

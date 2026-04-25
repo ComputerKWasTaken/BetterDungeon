@@ -1325,6 +1325,15 @@ class AIDungeonService {
     return null;
   }
 
+  _findExistingCardById(id) {
+    if (id == null || typeof window === 'undefined' || !window.Frontier?.ws?.getCards) return null;
+    const target = String(id);
+    for (const card of window.Frontier.ws.getCards().values()) {
+      if (String(card?.id) === target) return card;
+    }
+    return null;
+  }
+
   _findTemplate(candidateOpNames) {
     for (const op of candidateOpNames) {
       const t = this._getMutationTemplate(op);
@@ -1415,7 +1424,7 @@ class AIDungeonService {
     }
 
     const existing = forceId
-      ? (this._findExistingCardByTitle(title) || { id: forceId })
+      ? (this._findExistingCardById(forceId) || { id: forceId })
       : this._findExistingCardByTitle(title);
 
     // If existing is present, update in place. Otherwise mint a new id and

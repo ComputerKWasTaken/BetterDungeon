@@ -30,6 +30,7 @@
   const HEARTBEAT_DELAY_MS = 750;
   const STATE_CARD_PREFIX = 'frontier:state:';
   const HEARTBEAT_CARD_TITLE = 'frontier:heartbeat';
+  const HEARTBEAT_ARCHIVE_PREFIX = 'frontier:archived:heartbeat:';
   const PROTOCOL_VERSION = 1;
 
   // ---------- internal state ----------
@@ -43,6 +44,10 @@
     enabled: false,
     heartbeatTimer: null,
     heartbeatPending: false, // guards against overlapping heartbeat creates
+    heartbeatQueuedAfterHydration: false,
+    heartbeatForceAfterHydration: false,
+    heartbeatCardId: null,
+    cardsHydrated: false,
     aiService: null,       // AIDungeonService instance, injected by main.js
     debugEnabled: false,   // gated by frontier_debug in chrome.storage.sync
     stateCache: new Map(), // name -> parsed JSON from frontier:state:<name>
@@ -224,6 +229,10 @@
 
     state.adventureId = id;
     state.stateCache.clear();
+    state.cardsHydrated = false;
+    state.heartbeatQueuedAfterHydration = false;
+    state.heartbeatForceAfterHydration = false;
+    state.heartbeatCardId = null;
 
     if (prevId) emit('adventure:leave', { adventureId: prevId });
     if (id) {
@@ -246,6 +255,106 @@
   // 02-protocol.md. Contains frontier identity, turn counter for staleness
   // detection, and the list of currently mounted modules with their ops.
 
+  function getHeartbeatCards() {
+    const ws = getWs();
+    if (!ws?.getCards) return [];
+    return [...ws.getCards().values()].filter(card => card?.title === HEARTBEAT_CARD_TITLE);
+  }
+
+  function heartbeatWrittenAt(card) {
+    if (!card || typeof card.value !== 'string') return 0;
+    try {
+      const parsed = JSON.parse(card.value);
+      const t = Date.parse(parsed?.writtenAt || '');
+      return Number.isFinite(t) ? t : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  function heartbeatScore(card) {
+    let score = 0;
+    if (card?.type === 'frontier') score += 1000;
+    if (typeof card?.value === 'string') {
+      try {
+        const parsed = JSON.parse(card.value);
+        if (parsed?.frontier?.protocol === PROTOCOL_VERSION) score += 1000;
+        if (parsed?.frontier?.client === 'BetterDungeon') score += 500;
+      } catch { /* not a heartbeat-shaped value */ }
+    }
+    return score;
+  }
+
+  function chooseHeartbeatCard(cards) {
+    if (!Array.isArray(cards) || cards.length === 0) return null;
+    if (state.heartbeatCardId) {
+      const remembered = cards.find(card => String(card?.id) === String(state.heartbeatCardId));
+      if (remembered) return remembered;
+    }
+    return [...cards].sort((a, b) => {
+      const scoreDiff = heartbeatScore(b) - heartbeatScore(a);
+      if (scoreDiff) return scoreDiff;
+      const timeDiff = heartbeatWrittenAt(b) - heartbeatWrittenAt(a);
+      if (timeDiff) return timeDiff;
+      return String(a?.id || '').localeCompare(String(b?.id || ''));
+    })[0] || null;
+  }
+
+  function refreshHeartbeatCardIndex() {
+    const cards = getHeartbeatCards();
+    const canonical = chooseHeartbeatCard(cards);
+    state.heartbeatCardId = canonical?.id != null ? String(canonical.id) : null;
+    return {
+      cards,
+      canonical,
+      duplicates: canonical
+        ? cards.filter(card => String(card?.id) !== String(canonical.id))
+        : [],
+    };
+  }
+
+  function deferHeartbeatUntilCards(force) {
+    state.heartbeatQueuedAfterHydration = true;
+    state.heartbeatForceAfterHydration = state.heartbeatForceAfterHydration || !!force;
+  }
+
+  function makeArchivedHeartbeatValue(card, canonicalId) {
+    return JSON.stringify({
+      frontier: {
+        protocol: PROTOCOL_VERSION,
+        client: 'BetterDungeon',
+        archived: true,
+        reason: 'duplicate_heartbeat',
+        canonicalId: canonicalId || null,
+      },
+      originalTitle: HEARTBEAT_CARD_TITLE,
+      originalId: card?.id != null ? String(card.id) : null,
+      archivedAt: new Date().toISOString(),
+    });
+  }
+
+  async function archiveHeartbeatDuplicates(duplicates, canonicalId) {
+    if (!Array.isArray(duplicates) || duplicates.length === 0) return;
+    for (const card of duplicates) {
+      if (!card?.id) continue;
+      const id = String(card.id);
+      try {
+        await writeCard(
+          HEARTBEAT_ARCHIVE_PREFIX + id,
+          makeArchivedHeartbeatValue(card, canonicalId),
+          {
+            id,
+            type: 'frontier',
+            keys: '',
+            description: 'Archived duplicate Frontier heartbeat card.',
+          },
+        );
+      } catch (err) {
+        console.warn(TAG, `failed to archive duplicate heartbeat '${id}'`, err?.message || err);
+      }
+    }
+  }
+
   function scheduleHeartbeat() {
     if (!state.enabled) return;
     if (state.heartbeatTimer) clearTimeout(state.heartbeatTimer);
@@ -255,6 +364,10 @@
   async function runHeartbeat(force = false) {
     state.heartbeatTimer = null;
     if (!state.enabled && !force) return;
+    if (!state.cardsHydrated) {
+      deferHeartbeatUntilCards(force);
+      return;
+    }
     // Guard: only one heartbeat write in flight at a time. Without this,
     // rapid triggers (adventure:enter + mutation:template) can fire multiple
     // creates before the first server echo returns the card's ID, producing
@@ -273,6 +386,7 @@
 
     const registry = getRegistry();
     const modulesList = registry ? registry.list() : [];
+    const heartbeatPlan = refreshHeartbeatCardIndex();
 
     const heartbeat = {
       frontier: {
@@ -296,7 +410,26 @@
 
     state.heartbeatPending = true;
     try {
-      await writeCard(HEARTBEAT_CARD_TITLE, JSON.stringify(heartbeat), { type: 'frontier' });
+      const opts = { type: 'frontier' };
+      if (heartbeatPlan.canonical?.id != null) {
+        opts.id = String(heartbeatPlan.canonical.id);
+      }
+      const result = await writeCard(HEARTBEAT_CARD_TITLE, JSON.stringify(heartbeat), opts);
+      const card = result?.storyCard && typeof result.storyCard === 'object'
+        ? result.storyCard
+        : result;
+      if (card?.id != null) {
+        state.heartbeatCardId = String(card.id);
+      } else if (opts.id != null) {
+        state.heartbeatCardId = String(opts.id);
+      }
+
+      const duplicates = heartbeatPlan.duplicates
+        .filter(card => String(card?.id) !== String(state.heartbeatCardId));
+      if (duplicates.length) {
+        await archiveHeartbeatDuplicates(duplicates, state.heartbeatCardId);
+        refreshHeartbeatCardIndex();
+      }
     } catch (err) {
       console.warn(TAG, 'heartbeat write failed', err?.message || err);
     } finally {
@@ -316,12 +449,30 @@
 
     document.addEventListener('frontier:cards:full', (e) => {
       emit('cards:full', e.detail);
+      state.cardsHydrated = true;
+      refreshHeartbeatCardIndex();
       // Scan initial card snapshot for state cards.
       processStateCards(e.detail?.cards);
+      const force = state.heartbeatForceAfterHydration;
+      state.heartbeatQueuedAfterHydration = false;
+      state.heartbeatForceAfterHydration = false;
+      if (force) {
+        runHeartbeat(true).catch((err) => {
+          console.warn(TAG, 'deferred heartbeat write failed', err?.message || err);
+        });
+      } else if (state.enabled) {
+        scheduleHeartbeat();
+      }
     });
 
     document.addEventListener('frontier:cards:diff', (e) => {
       emit('cards:diff', e.detail);
+      const heartbeatChanges = [
+        ...(e.detail?.added || []),
+        ...(e.detail?.updated || []),
+        ...(e.detail?.removed || []),
+      ].some(card => card?.title === HEARTBEAT_CARD_TITLE || String(card?.title || '').startsWith(HEARTBEAT_ARCHIVE_PREFIX));
+      if (heartbeatChanges) refreshHeartbeatCardIndex();
       // Scan changed cards (added + updated) for state card changes.
       const changed = [
         ...(e.detail?.added || []),
@@ -534,6 +685,11 @@
       adventureId: state.adventureId,
       tail: state.tail,
       liveCount: state.liveCount,
+      cardsHydrated: state.cardsHydrated,
+      heartbeatPending: state.heartbeatPending,
+      heartbeatQueuedAfterHydration: state.heartbeatQueuedAfterHydration,
+      heartbeatCardId: state.heartbeatCardId,
+      heartbeatCards: getHeartbeatCards().map(card => ({ id: card.id, type: card.type, writtenAt: heartbeatWrittenAt(card) || null })),
       debugEnabled: state.debugEnabled,
       stateCacheKeys: [...state.stateCache.keys()],
       listeners: [...listeners.keys()].map(k => ({ event: k, count: listeners.get(k).size })),
