@@ -740,11 +740,9 @@ class StoryCardAnalyticsFeature {
 
       /* Toolbar Dashboard Button — placed below the Story Cards toolbar row */
       .bd-toolbar-dashboard-btn {
-        display: flex;
+        display: inline-flex;
         align-items: center;
-        justify-content: center;
         gap: 6px;
-        width: 100%;
         padding: 0 12px;
         height: 28px;
         background: rgba(255, 149, 0, 0.1);
