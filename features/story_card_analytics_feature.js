@@ -742,6 +742,7 @@ class StoryCardAnalyticsFeature {
       .bd-toolbar-dashboard-btn {
         display: inline-flex;
         align-items: center;
+        align-self: flex-start;
         gap: 6px;
         padding: 0 12px;
         height: 28px;
