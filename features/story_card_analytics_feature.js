@@ -744,7 +744,7 @@ class StoryCardAnalyticsFeature {
 
       /* Toolbar Dashboard Button — styled to match the Create Story Card button */
       .bd-toolbar-dashboard-btn {
-        display: flex;
+        display: inline-flex;
         align-items: center;
         justify-content: center;
         gap: 6px;
@@ -757,7 +757,6 @@ class StoryCardAnalyticsFeature {
         cursor: pointer;
         user-select: none;
         transition: all 0.15s ease;
-        flex-shrink: 0;
         outline: none;
       }
 
