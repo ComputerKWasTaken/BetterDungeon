@@ -65,11 +65,10 @@ class AIDungeonService {
     GRID_VIEW:           '[aria-label="Grid view"]',
     LIST_VIEW:           '[aria-label="List view"]',
     COMPACT_VIEW:        '[aria-label="Compact view"]',
-    FILTERS_BTN:         '[aria-label="Filters"]',
     SEARCH_BOX:          '[role="searchbox"][placeholder="Search"]',
     CARD_TYPE_BADGE:     'span[aria-label^="type:"]',    // e.g. aria-label="type: character"
     CARD_HEADING:        'h1[role="heading"]',            // Card name inside role="button" cards
-    ADD_STORY_CARD:      '[aria-label="Add Story Card"]', // "Add a story card" button (grid view)
+    CREATE_STORY_CARD:   '[aria-label="Create Story Card"]', // "Create Story Card" button in toolbar
     IMPORT_CARDS:        '[aria-label="import story cards"]',
     EXPORT_CARDS:        '[aria-label="export story cards"]',
 

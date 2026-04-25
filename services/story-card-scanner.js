@@ -573,7 +573,7 @@ class StoryCardScanner {
       const btn = heading.closest('[role="button"]');
       if (!btn || seenElements.has(btn)) continue;
 
-      // Skip "Add Story Card" or similar non-card buttons
+      // Skip "Add/Create Story Card" or similar non-card buttons
       if (this.isAddCardButton(btn)) continue;
 
       // The wrapper div is the absolutely-positioned ancestor (has style.top set)
@@ -633,19 +633,20 @@ class StoryCardScanner {
     return cards;
   }
 
-  // Check if an element is the "Add Story Card" button (not an actual card)
+  // Check if an element is the "Add/Create Story Card" button (not an actual card)
   isAddCardButton(element) {
     const ariaLabel = element.getAttribute('aria-label')?.toLowerCase() || '';
     const text = element.textContent?.toLowerCase() || '';
     
-    // Check for "Add" button characteristics via aria-label
-    if (ariaLabel.includes('add story card') || ariaLabel.includes('add plot component') ||
-        ariaLabel.includes('add character info')) {
+    // Check for "Add" or "Create" button characteristics via aria-label
+    if (ariaLabel.includes('add story card') || ariaLabel.includes('create story card') ||
+        ariaLabel.includes('add plot component') || ariaLabel.includes('add character info')) {
       return true;
     }
 
-    // Check text content for add-related phrases
-    if (text.includes('add a story card') || text.includes('add character info')) {
+    // Check text content for add/create-related phrases
+    if (text.includes('add a story card') || text.includes('create story card') ||
+        text.includes('add character info')) {
       return true;
     }
 
