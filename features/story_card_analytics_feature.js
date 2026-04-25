@@ -80,13 +80,12 @@ class StoryCardAnalyticsFeature {
     const storyCardsTab = document.querySelector('[aria-label="Selected tab Story Cards"]');
     if (!storyCardsTab) return;
 
-    // Find the Create Story Card button to locate the toolbar row
+    // Find the "Create Story Card" button as our anchor
     const createBtn = document.querySelector('[aria-label="Create Story Card"]');
     if (!createBtn) return;
 
-    // The toolbar row containing Create Story Card, view toggles, etc.
-    const toolbarRow = createBtn.closest('.is_Row');
-    if (!toolbarRow) return;
+    // The Create Story Card button is wrapped in a theme <span> inside a toolbar row
+    const createWrapper = createBtn.closest('span') || createBtn;
 
     // Build the button
     this.toolbarButton = document.createElement('div');
@@ -108,8 +107,13 @@ class StoryCardAnalyticsFeature {
       }
     });
 
-    // Insert below the toolbar row (own row, not inline)
-    toolbarRow.insertAdjacentElement('afterend', this.toolbarButton);
+    // Insert as a sibling of the Create button within the same toolbar row
+    const toolbarRow = createWrapper.parentElement;
+    if (toolbarRow && toolbarRow.children.length > 0) {
+      toolbarRow.insertBefore(this.toolbarButton, createWrapper.nextSibling);
+    } else {
+      createWrapper.insertAdjacentElement('afterend', this.toolbarButton);
+    }
   }
 
   removeToolbarButton() {
@@ -738,17 +742,18 @@ class StoryCardAnalyticsFeature {
         -moz-osx-font-smoothing: grayscale;
       }
 
-      /* Toolbar Dashboard Button — placed below the Story Cards toolbar row */
+      /* Toolbar Dashboard Button — styled to match the Create Story Card button */
       .bd-toolbar-dashboard-btn {
         display: inline-flex;
         align-items: center;
-        align-self: flex-start;
+        justify-content: center;
         gap: 6px;
-        padding: 0 12px;
-        height: 28px;
-        background: rgba(255, 149, 0, 0.1);
-        border: 1px solid rgba(255, 149, 0, 0.25);
-        border-radius: 8px;
+        padding: 0 10px;
+        height: var(--size-5, 32px);
+        width: fit-content;
+        background: var(--background, rgba(0, 0, 0, 0.3));
+        border: none;
+        border-radius: var(--radius-1, 6px);
         cursor: pointer;
         user-select: none;
         transition: all 0.15s ease;
@@ -756,13 +761,12 @@ class StoryCardAnalyticsFeature {
       }
 
       .bd-toolbar-dashboard-btn:hover {
-        background: rgba(255, 149, 0, 0.2);
-        border-color: rgba(255, 149, 0, 0.45);
-        box-shadow: 0 0 8px rgba(255, 149, 0, 0.12);
+        background: rgba(255, 149, 0, 0.15);
       }
 
       .bd-toolbar-dashboard-btn:active {
         transform: scale(0.97);
+        background: rgba(255, 149, 0, 0.2);
       }
 
       .bd-toolbar-dashboard-btn:focus-visible {
@@ -778,7 +782,7 @@ class StoryCardAnalyticsFeature {
 
       .bd-toolbar-btn-label {
         font-family: inherit;
-        font-size: 11px;
+        font-size: 12px;
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.5px;

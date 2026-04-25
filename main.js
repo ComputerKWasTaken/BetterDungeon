@@ -4,8 +4,10 @@
 class BetterDungeon {
   constructor() {
     this.debug = false;
-    this.featureManager = new FeatureManager();
     this.aiDungeonService = new AIDungeonService();
+    this.featureManager = new FeatureManager({
+      aiDungeonService: this.aiDungeonService,
+    });
     this.init();
   }
 
@@ -41,6 +43,10 @@ class BetterDungeon {
         this.handleSetAutoSeeTriggerMode(message.mode);
       } else if (message.type === 'SET_AUTO_SEE_TURN_INTERVAL') {
         this.handleSetAutoSeeTurnInterval(message.interval);
+      } else if (message.type === 'SET_TEXT_TO_SPEECH_SETTINGS') {
+        this.handleSetTextToSpeechSettings(message.settings);
+      } else if (message.type === 'STOP_TEXT_TO_SPEECH') {
+        this.handleStopTextToSpeech();
       } else if (message.type === 'APPLY_INSTRUCTIONS_WITH_LOADING') {
         this.handleApplyInstructionsWithLoading().then(sendResponse);
         return true;
@@ -83,10 +89,55 @@ class BetterDungeon {
       } else if (message.type === 'OPEN_STORY_CARD_ANALYTICS') {
         this.handleOpenStoryCardAnalytics().then(sendResponse);
         return true;
-      } else if (message.type === 'SET_BETTERSCRIPTS_DEBUG') {
-        this.handleSetBetterScriptsDebug(message.enabled);
+      } else if (message.type === 'SET_FRONTIER_DEBUG') {
+        window.Frontier?.core?.setDebug?.(message.enabled);
+        sendResponse({ success: true, debugEnabled: !!message.enabled });
+        return true;
+      } else if (message.type === 'SET_FRONTIER_MODULE_ENABLED') {
+        window.Frontier?.registry?.setModuleEnabled?.(message.moduleId, message.enabled);
+        sendResponse({
+          success: true,
+          moduleId: message.moduleId,
+          enabled: !!message.enabled,
+          registry: window.Frontier?.registry?.inspect?.() || null,
+        });
+        return true;
+      } else if (message.type === 'GET_FRONTIER_STATE') {
+        sendResponse({
+          frontierEnabled: this.featureManager.isFeatureEnabled('frontier'),
+          core: window.Frontier?.core?.inspect?.() || null,
+          registry: window.Frontier?.registry?.inspect?.() || null,
+          modules: window.Frontier?.registry?.list?.() || [],
+        });
+        return true;
+      } else if (message.type === 'GET_WEBFETCH_CONSENT') {
+        this.handleGetWebFetchConsent().then(sendResponse);
+        return true;
+      } else if (message.type === 'SET_WEBFETCH_CONSENT') {
+        this.handleSetWebFetchConsent(message.origin, message.decision).then(sendResponse);
+        return true;
       }
     });
+  }
+
+  async handleGetWebFetchConsent() {
+    try {
+      const consent = window.FrontierWebFetchConsent;
+      if (!consent?.inspect) return { success: false, error: 'WebFetch consent broker not available' };
+      return { success: true, consent: await consent.inspect() };
+    } catch (error) {
+      return { success: false, error: error?.message || String(error) };
+    }
+  }
+
+  async handleSetWebFetchConsent(origin, decision) {
+    try {
+      const consent = window.FrontierWebFetchConsent;
+      if (!consent?.setOrigin) return { success: false, error: 'WebFetch consent broker not available' };
+      return { success: true, result: await consent.setOrigin(origin, decision) };
+    } catch (error) {
+      return { success: false, error: error?.message || String(error) };
+    }
   }
 
   handleSetAutoScan(enabled) {
@@ -103,13 +154,6 @@ class BetterDungeon {
     }
   }
 
-  handleSetBetterScriptsDebug(enabled) {
-    const betterScriptsFeature = this.featureManager.features.get('betterScripts');
-    if (betterScriptsFeature && typeof betterScriptsFeature.setDebugMode === 'function') {
-      betterScriptsFeature.setDebugMode(enabled);
-    }
-  }
-
   handleSetAutoSeeTriggerMode(mode) {
     const autoSeeFeature = this.featureManager.features.get('autoSee');
     if (autoSeeFeature && typeof autoSeeFeature.setTriggerMode === 'function') {
@@ -121,6 +165,20 @@ class BetterDungeon {
     const autoSeeFeature = this.featureManager.features.get('autoSee');
     if (autoSeeFeature && typeof autoSeeFeature.setTurnInterval === 'function') {
       autoSeeFeature.setTurnInterval(interval);
+    }
+  }
+
+  handleSetTextToSpeechSettings(settings) {
+    const textToSpeechFeature = this.featureManager.features.get('textToSpeech');
+    if (textToSpeechFeature && typeof textToSpeechFeature.setSettings === 'function') {
+      textToSpeechFeature.setSettings(settings);
+    }
+  }
+
+  handleStopTextToSpeech() {
+    const textToSpeechFeature = this.featureManager.features.get('textToSpeech');
+    if (textToSpeechFeature && typeof textToSpeechFeature.stop === 'function') {
+      textToSpeechFeature.stop();
     }
   }
 

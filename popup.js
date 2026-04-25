@@ -14,11 +14,14 @@ const STORAGE_KEYS = {
   characters: 'betterDungeon_characterPresets',
   autoScan: 'betterDungeon_autoScanTriggers',
   autoApply: 'betterDungeon_autoApplyInstructions',
-  betterScriptsDebug: 'betterDungeon_betterScriptsDebug',
+  frontierDebug: 'frontier_debug',
+  frontierModules: 'frontier_enabled_modules',
+  webfetchAllowlist: 'frontier_webfetch_allowlist',
   customHotkeys: 'betterDungeon_customHotkeys',
   customModeColors: 'betterDungeon_customModeColors',
   commandSubMode: 'betterDungeon_commandSubMode',
   markdownOptions: 'betterDungeon_markdownOptions',
+  textToSpeech: 'betterDungeon_textToSpeechSettings',
 };
 
 // Default mode colors (hex format)
@@ -66,6 +69,7 @@ const DEFAULT_HOTKEY_BINDINGS = {
 };
 
 const DEFAULT_FEATURES = {
+  frontier: true,
   markdown: true,
   command: true,
   try: true,
@@ -77,11 +81,34 @@ const DEFAULT_FEATURES = {
   autoSee: false,
   notes: true,
   storyCardModalDock: true,
-  inputHistory: true
+  inputHistory: true,
+  textToSpeech: false
 };
+
+const FRONTIER_PUBLIC_MODULES = [
+  'scripture',
+  'webfetch',
+  'clock',
+  'geolocation',
+  'weather',
+  'network',
+  'system'
+];
 
 const DEFAULT_SETTINGS = {
   tryCriticalChance: 5
+};
+
+const DEFAULT_TEXT_TO_SPEECH_SETTINGS = {
+  voiceURI: 'auto',
+  voiceName: '',
+  rate: 0.96,
+  pitch: 1,
+  volume: 1,
+  stableDelay: 1600,
+  maxCharacters: 4500,
+  minCharacters: 8,
+  interrupt: true
 };
 
 // State
@@ -96,6 +123,9 @@ let hotkeyKeyListener = null;
 
 // Mode color editor state
 let currentModeColors = { ...DEFAULT_MODE_COLORS };
+
+// Text To Speech settings state
+let currentTextToSpeechSettings = { ...DEFAULT_TEXT_TO_SPEECH_SETTINGS };
 
 // ============================================
 // INITIALIZATION
@@ -112,13 +142,16 @@ document.addEventListener('DOMContentLoaded', () => {
   initModals();
   initTools();
   initMarkdownOptions();
+  initTextToSpeechSettings();
   initHotkeys();
   initModeColors();
+  initFrontierSettings();
   initWhatsNew();
   initCollapsibleSections();
   initFeatureSearch();
   initQuickToggles();
   updateSectionCounts();
+  updateFrontierSectionCounts();
   initTutorial();
 });
 
@@ -184,12 +217,24 @@ function initToggles() {
   console.log('[Popup] Initializing toggles...');
   // Load saved states
   chrome.storage.sync.get(STORAGE_KEYS.features, (result) => {
-    const features = (result || {})[STORAGE_KEYS.features] || DEFAULT_FEATURES;
+    const savedFeatures = (result || {})[STORAGE_KEYS.features] || {};
+    const features = { ...DEFAULT_FEATURES, ...savedFeatures };
     
     Object.entries(features).forEach(([id, enabled]) => {
       const toggle = document.getElementById(`feature-${id}`);
-      if (toggle) toggle.checked = enabled;
+      if (toggle) {
+        toggle.checked = enabled;
+      }
+
+      const quickToggle = document.querySelector(`[data-quick-toggle="${id}"]`);
+      if (quickToggle) {
+        quickToggle.checked = enabled;
+      }
     });
+
+    setFrontierModuleControlsEnabled(features.frontier !== false);
+    updateSectionCounts();
+    updateFrontierSectionCounts();
   });
 
   // Load auto-scan setting
@@ -224,29 +269,234 @@ function initToggles() {
     notifyContentScript('SET_AUTO_APPLY', { enabled: e.target.checked });
   });
 
-  // BetterScripts debug toggle
-  chrome.storage.sync.get(STORAGE_KEYS.betterScriptsDebug, (result) => {
-    const toggle = document.getElementById('betterscripts-debug');
-    if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.betterScriptsDebug] ?? false;
+  // Frontier debug toggle
+  chrome.storage.sync.get(STORAGE_KEYS.frontierDebug, (result) => {
+    const toggle = document.getElementById('frontier-debug');
+    if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.frontierDebug] ?? false;
   });
 
-  document.getElementById('betterscripts-debug')?.addEventListener('change', (e) => {
-    chrome.storage.sync.set({ [STORAGE_KEYS.betterScriptsDebug]: e.target.checked });
-    notifyContentScript('SET_BETTERSCRIPTS_DEBUG', { enabled: e.target.checked });
+  document.getElementById('frontier-debug')?.addEventListener('change', (e) => {
+    chrome.storage.sync.set({ [STORAGE_KEYS.frontierDebug]: e.target.checked });
+    notifyContentScript('SET_FRONTIER_DEBUG', { enabled: e.target.checked });
   });
 
+}
+
+function initFrontierSettings() {
+  loadFrontierModuleToggles();
+  loadWebFetchConsentList();
+  refreshFrontierState();
+
+  document.querySelectorAll('[data-frontier-module-toggle]').forEach(toggle => {
+    toggle.addEventListener('change', () => {
+      updateFrontierSectionCounts();
+      saveFrontierModuleState(toggle.dataset.frontierModuleToggle, toggle.checked);
+    });
+  });
+
+  document.getElementById('frontier-refresh')?.addEventListener('click', refreshFrontierState);
+  document.getElementById('webfetch-consent-refresh')?.addEventListener('click', loadWebFetchConsentList);
+  document.getElementById('webfetch-consent-save')?.addEventListener('click', saveWebFetchConsentFromForm);
+}
+
+function defaultFrontierModuleState() {
+  return FRONTIER_PUBLIC_MODULES.reduce((out, id) => {
+    out[id] = true;
+    return out;
+  }, {});
+}
+
+function loadFrontierModuleToggles() {
+  chrome.storage.sync.get(STORAGE_KEYS.frontierModules, (result) => {
+    const saved = (result || {})[STORAGE_KEYS.frontierModules] || {};
+    const modules = { ...defaultFrontierModuleState(), ...saved };
+
+    document.querySelectorAll('[data-frontier-module-toggle]').forEach(toggle => {
+      const moduleId = toggle.dataset.frontierModuleToggle;
+      toggle.checked = modules[moduleId] !== false;
+    });
+    updateFrontierSectionCounts();
+  });
+}
+
+function saveFrontierModuleState(moduleId, enabled) {
+  if (!FRONTIER_PUBLIC_MODULES.includes(moduleId)) return;
+
+  chrome.storage.sync.get(STORAGE_KEYS.frontierModules, (result) => {
+    const saved = (result || {})[STORAGE_KEYS.frontierModules] || {};
+    const modules = { ...defaultFrontierModuleState(), ...saved, [moduleId]: !!enabled };
+
+    chrome.storage.sync.set({ [STORAGE_KEYS.frontierModules]: modules }, () => {
+      sendToActiveAIDungeon('SET_FRONTIER_MODULE_ENABLED', { moduleId, enabled: !!enabled })
+        .then(refreshFrontierState)
+        .catch(() => {
+          updateFrontierStatus(null, 'Changes will apply next time Frontier starts.');
+        });
+    });
+  });
+}
+
+async function refreshFrontierState() {
+  try {
+    const state = await sendToActiveAIDungeon('GET_FRONTIER_STATE');
+    updateFrontierStatus(state);
+  } catch {
+    updateFrontierStatus(null, 'Open AI Dungeon to inspect live module state.');
+  }
+}
+
+function updateFrontierStatus(state, fallbackDetail = '') {
+  const dot = document.getElementById('frontier-status-dot');
+  const label = document.getElementById('frontier-status-label');
+  const detail = document.getElementById('frontier-status-detail');
+  if (!dot || !label || !detail) return;
+
+  dot.classList.remove('online', 'offline');
+
+  if (!state) {
+    dot.classList.add('offline');
+    label.textContent = 'Frontier not connected';
+    detail.textContent = fallbackDetail || 'Open AI Dungeon to inspect live module state.';
+    return;
+  }
+
+  const mounted = (state.modules || []).filter(module => module.mounted && FRONTIER_PUBLIC_MODULES.includes(module.id));
+  const enabled = (state.modules || []).filter(module => module.enabled && FRONTIER_PUBLIC_MODULES.includes(module.id));
+  const frontierOn = state.frontierEnabled !== false && state.core?.enabled !== false;
+
+  dot.classList.add(frontierOn ? 'online' : 'offline');
+  label.textContent = frontierOn ? 'Frontier online' : 'Frontier off';
+  detail.textContent = `${mounted.length}/${FRONTIER_PUBLIC_MODULES.length} modules mounted, ${enabled.length} enabled.`;
+}
+
+function normalizeWebFetchStore(value) {
+  const out = {};
+  if (!value || typeof value !== 'object') return out;
+  Object.entries(value).forEach(([origin, entry]) => {
+    if (!entry || typeof entry !== 'object') return;
+    if (entry.decision !== 'allow' && entry.decision !== 'deny') return;
+    out[origin] = {
+      decision: entry.decision,
+      updatedAt: Number(entry.updatedAt || Date.now())
+    };
+  });
+  return out;
+}
+
+function loadWebFetchConsentList() {
+  chrome.storage.sync.get(STORAGE_KEYS.webfetchAllowlist, (result) => {
+    const store = normalizeWebFetchStore((result || {})[STORAGE_KEYS.webfetchAllowlist]);
+    renderWebFetchConsentList(store);
+  });
+}
+
+function renderWebFetchConsentList(store) {
+  const list = document.getElementById('webfetch-consent-list');
+  if (!list) return;
+
+  list.innerHTML = '';
+  const entries = Object.entries(store).sort(([a], [b]) => a.localeCompare(b));
+  if (!entries.length) {
+    const empty = document.createElement('div');
+    empty.className = 'frontier-consent-empty';
+    empty.textContent = 'No saved origins';
+    list.appendChild(empty);
+    return;
+  }
+
+  entries.forEach(([origin, entry]) => {
+    const row = document.createElement('div');
+    row.className = 'frontier-consent-row';
+
+    const originEl = document.createElement('span');
+    originEl.className = 'frontier-consent-origin';
+    originEl.title = origin;
+    originEl.textContent = origin;
+
+    const badge = document.createElement('span');
+    badge.className = `frontier-consent-badge ${entry.decision}`;
+    badge.textContent = entry.decision;
+
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'btn btn-icon btn-ghost';
+    clearBtn.type = 'button';
+    clearBtn.title = 'Clear origin';
+    clearBtn.setAttribute('aria-label', `Clear ${origin}`);
+    clearBtn.innerHTML = '<span class="icon-x"></span>';
+    clearBtn.addEventListener('click', () => setWebFetchConsent(origin, 'clear'));
+
+    row.append(originEl, badge, clearBtn);
+    list.appendChild(row);
+  });
+}
+
+function saveWebFetchConsentFromForm() {
+  const input = document.getElementById('webfetch-origin-input');
+  const select = document.getElementById('webfetch-decision-select');
+  if (!input || !select) return;
+
+  let origin = '';
+  try {
+    origin = new URL(input.value.trim()).origin;
+  } catch {
+    showToast('Enter a valid origin', 'error');
+    return;
+  }
+
+  setWebFetchConsent(origin, select.value).then(() => {
+    input.value = '';
+  });
+}
+
+async function setWebFetchConsent(origin, decision) {
+  try {
+    const response = await sendToActiveAIDungeon('SET_WEBFETCH_CONSENT', { origin, decision });
+    if (response?.success === false) throw new Error(response.error || 'WebFetch consent update failed');
+  } catch {
+    await setWebFetchConsentInStorage(origin, decision);
+  }
+
+  loadWebFetchConsentList();
+  showToast('WebFetch origin updated', 'success');
+}
+
+function setWebFetchConsentInStorage(origin, decision) {
+  return new Promise((resolve) => {
+    chrome.storage.sync.get(STORAGE_KEYS.webfetchAllowlist, (result) => {
+      const store = normalizeWebFetchStore((result || {})[STORAGE_KEYS.webfetchAllowlist]);
+      if (decision === 'clear') {
+        delete store[origin];
+      } else {
+        store[origin] = { decision, updatedAt: Date.now() };
+      }
+      chrome.storage.sync.set({ [STORAGE_KEYS.webfetchAllowlist]: store }, resolve);
+    });
+  });
 }
 
 function saveFeatureState(featureId, enabled) {
   log('[Popup] Saving feature state:', featureId, enabled);
   chrome.storage.sync.get(STORAGE_KEYS.features, (result) => {
-    const features = (result || {})[STORAGE_KEYS.features] || DEFAULT_FEATURES;
+    const savedFeatures = (result || {})[STORAGE_KEYS.features] || {};
+    const features = { ...DEFAULT_FEATURES, ...savedFeatures };
     features[featureId] = enabled;
     
     chrome.storage.sync.set({ [STORAGE_KEYS.features]: features }, () => {
       notifyContentScript('FEATURE_TOGGLE', { featureId, enabled });
+      if (featureId === 'frontier') {
+        setFrontierModuleControlsEnabled(enabled);
+        updateFrontierSectionCounts();
+        setTimeout(refreshFrontierState, 300);
+      }
     });
   });
+}
+
+function setFrontierModuleControlsEnabled(enabled) {
+  document.querySelectorAll('[data-frontier-module-toggle], #frontier-debug, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save')
+    .forEach(control => {
+      control.disabled = !enabled;
+    });
 }
 
 // ============================================
@@ -339,6 +589,225 @@ function initAutoSeeSettings() {
       intervalOption.style.display = mode === 'afterNTurns' ? 'flex' : 'none';
     }
   }
+}
+
+// ============================================
+// TEXT TO SPEECH SETTINGS
+// ============================================
+
+function initTextToSpeechSettings() {
+  const voiceSelect = document.getElementById('tts-voice-select');
+  if (!voiceSelect) return;
+
+  const rateSlider = document.getElementById('tts-rate');
+  const pitchSlider = document.getElementById('tts-pitch');
+  const volumeSlider = document.getElementById('tts-volume');
+  const testBtn = document.getElementById('tts-test-voice');
+  const stopBtn = document.getElementById('tts-stop');
+
+  chrome.storage.sync.get(STORAGE_KEYS.textToSpeech, (result) => {
+    const saved = (result || {})[STORAGE_KEYS.textToSpeech];
+    currentTextToSpeechSettings = normalizeTextToSpeechSettings(saved);
+    updateTextToSpeechControls();
+    populateTextToSpeechVoices();
+  });
+
+  if ('speechSynthesis' in window && window.speechSynthesis?.addEventListener) {
+    window.speechSynthesis.addEventListener('voiceschanged', populateTextToSpeechVoices);
+  }
+
+  voiceSelect.addEventListener('change', () => {
+    const selectedOption = voiceSelect.selectedOptions[0];
+    currentTextToSpeechSettings.voiceURI = voiceSelect.value;
+    currentTextToSpeechSettings.voiceName = selectedOption?.dataset.voiceName || '';
+    saveTextToSpeechSettings();
+  });
+
+  rateSlider?.addEventListener('input', () => {
+    currentTextToSpeechSettings.rate = Number(rateSlider.value);
+    updateTextToSpeechDisplay();
+    saveTextToSpeechSettings();
+  });
+
+  pitchSlider?.addEventListener('input', () => {
+    currentTextToSpeechSettings.pitch = Number(pitchSlider.value);
+    updateTextToSpeechDisplay();
+    saveTextToSpeechSettings();
+  });
+
+  volumeSlider?.addEventListener('input', () => {
+    currentTextToSpeechSettings.volume = Number(volumeSlider.value);
+    updateTextToSpeechDisplay();
+    saveTextToSpeechSettings();
+  });
+
+  testBtn?.addEventListener('click', () => testTextToSpeechVoice(testBtn));
+  stopBtn?.addEventListener('click', () => {
+    stopPopupTextToSpeech();
+    notifyContentScript('STOP_TEXT_TO_SPEECH');
+  });
+}
+
+function normalizeTextToSpeechSettings(settings = {}) {
+  const merged = { ...DEFAULT_TEXT_TO_SPEECH_SETTINGS, ...(settings || {}) };
+  return {
+    ...merged,
+    voiceURI: typeof merged.voiceURI === 'string' ? merged.voiceURI : 'auto',
+    voiceName: typeof merged.voiceName === 'string' ? merged.voiceName : '',
+    rate: clampNumber(merged.rate, 0.65, 1.35, DEFAULT_TEXT_TO_SPEECH_SETTINGS.rate),
+    pitch: clampNumber(merged.pitch, 0.75, 1.35, DEFAULT_TEXT_TO_SPEECH_SETTINGS.pitch),
+    volume: clampNumber(merged.volume, 0, 1, DEFAULT_TEXT_TO_SPEECH_SETTINGS.volume)
+  };
+}
+
+function clampNumber(value, min, max, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, number));
+}
+
+function updateTextToSpeechControls() {
+  const rateSlider = document.getElementById('tts-rate');
+  const pitchSlider = document.getElementById('tts-pitch');
+  const volumeSlider = document.getElementById('tts-volume');
+
+  if (rateSlider) rateSlider.value = currentTextToSpeechSettings.rate;
+  if (pitchSlider) pitchSlider.value = currentTextToSpeechSettings.pitch;
+  if (volumeSlider) volumeSlider.value = currentTextToSpeechSettings.volume;
+
+  updateTextToSpeechDisplay();
+}
+
+function updateTextToSpeechDisplay() {
+  const rateValue = document.getElementById('tts-rate-value');
+  const pitchValue = document.getElementById('tts-pitch-value');
+  const volumeValue = document.getElementById('tts-volume-value');
+
+  if (rateValue) rateValue.textContent = currentTextToSpeechSettings.rate.toFixed(2);
+  if (pitchValue) pitchValue.textContent = currentTextToSpeechSettings.pitch.toFixed(2);
+  if (volumeValue) volumeValue.textContent = `${Math.round(currentTextToSpeechSettings.volume * 100)}%`;
+}
+
+function saveTextToSpeechSettings() {
+  currentTextToSpeechSettings = normalizeTextToSpeechSettings(currentTextToSpeechSettings);
+  chrome.storage.sync.set({ [STORAGE_KEYS.textToSpeech]: currentTextToSpeechSettings }, () => {
+    notifyContentScript('SET_TEXT_TO_SPEECH_SETTINGS', { settings: currentTextToSpeechSettings });
+  });
+}
+
+function populateTextToSpeechVoices() {
+  const voiceSelect = document.getElementById('tts-voice-select');
+  if (!voiceSelect || !('speechSynthesis' in window)) return;
+
+  const voices = window.speechSynthesis.getVoices() || [];
+  const selectedValue = currentTextToSpeechSettings.voiceURI || 'auto';
+
+  voiceSelect.innerHTML = '';
+  const autoOption = document.createElement('option');
+  autoOption.value = 'auto';
+  autoOption.textContent = 'Auto natural voice';
+  voiceSelect.appendChild(autoOption);
+
+  voices
+    .slice()
+    .sort((a, b) => `${a.lang} ${a.name}`.localeCompare(`${b.lang} ${b.name}`))
+    .forEach((voice) => {
+      const option = document.createElement('option');
+      option.value = voice.voiceURI || `${voice.name}|${voice.lang}`;
+      option.dataset.voiceName = voice.name || '';
+      option.textContent = formatTextToSpeechVoiceLabel(voice);
+      voiceSelect.appendChild(option);
+    });
+
+  const hasSelectedVoice = Array.from(voiceSelect.options).some((option) => option.value === selectedValue);
+  voiceSelect.value = hasSelectedVoice ? selectedValue : 'auto';
+}
+
+function formatTextToSpeechVoiceLabel(voice) {
+  const badges = [];
+  if (voice.default) badges.push('default');
+  if (voice.localService) badges.push('local');
+  const suffix = badges.length > 0 ? ` (${badges.join(', ')})` : '';
+  return `${voice.name} - ${voice.lang}${suffix}`;
+}
+
+function testTextToSpeechVoice(btn) {
+  const originalText = btn.innerHTML;
+
+    if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
+    showButtonStatus(btn, 'error', 'Unavailable', originalText);
+    return;
+  }
+
+  stopPopupTextToSpeech();
+
+  const utterance = new SpeechSynthesisUtterance('The storm rolls over the mountains as your adventure continues.');
+  const voice = resolvePopupTextToSpeechVoice();
+
+  if (voice) {
+    utterance.voice = voice;
+    utterance.lang = voice.lang || navigator.language || 'en-US';
+  } else {
+    utterance.lang = navigator.language || 'en-US';
+  }
+
+  utterance.rate = currentTextToSpeechSettings.rate;
+  utterance.pitch = currentTextToSpeechSettings.pitch;
+  utterance.volume = currentTextToSpeechSettings.volume;
+
+  window.speechSynthesis.speak(utterance);
+  showButtonStatus(btn, 'success', 'Playing', originalText);
+}
+
+function stopPopupTextToSpeech() {
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+  }
+}
+
+function resolvePopupTextToSpeechVoice() {
+  if (!('speechSynthesis' in window)) return null;
+
+  const voices = window.speechSynthesis.getVoices() || [];
+  const selected = currentTextToSpeechSettings.voiceURI;
+
+  if (selected && selected !== 'auto') {
+    const selectedVoice = voices.find((voice) => voice.voiceURI === selected) ||
+      voices.find((voice) => `${voice.name}|${voice.lang}` === selected) ||
+      voices.find((voice) => voice.name === currentTextToSpeechSettings.voiceName);
+
+    if (selectedVoice) return selectedVoice;
+  }
+
+  return pickBestPopupTextToSpeechVoice(voices);
+}
+
+function pickBestPopupTextToSpeechVoice(voices) {
+  if (!voices.length) return null;
+
+  const preferredLanguage = (navigator.language || 'en-US').toLowerCase();
+  const preferredBase = preferredLanguage.split('-')[0];
+
+  return voices.slice().sort((a, b) => {
+    return scorePopupTextToSpeechVoice(b, preferredLanguage, preferredBase) -
+      scorePopupTextToSpeechVoice(a, preferredLanguage, preferredBase);
+  })[0];
+}
+
+function scorePopupTextToSpeechVoice(voice, preferredLanguage, preferredBase) {
+  const name = `${voice.name || ''} ${voice.voiceURI || ''}`.toLowerCase();
+  const lang = (voice.lang || '').toLowerCase();
+  let score = 0;
+
+  if (lang === preferredLanguage) score += 50;
+  if (lang.split('-')[0] === preferredBase) score += 30;
+  if (preferredBase === 'en' && lang.startsWith('en')) score += 15;
+  if (voice.default) score += 8;
+  if (voice.localService) score += 4;
+  if (/natural|neural|premium|enhanced|online|google|microsoft|samantha|alex|ava|jenny|aria|guy|libby|sonia|daniel/.test(name)) score += 25;
+  if (/compact|novelty|whisper|robot|zarvox/.test(name)) score -= 20;
+
+  return score;
 }
 
 // ============================================
@@ -1900,6 +2369,7 @@ function initQuickToggles() {
       const qt = document.querySelector(`[data-quick-toggle="${featureId}"]`);
       if (qt) qt.checked = mainToggle.checked;
       updateSectionCounts();
+      updateFrontierSectionCounts();
     });
   });
 }
@@ -1914,7 +2384,7 @@ function updateSectionCounts() {
     'controls': ['hotkey', 'inputHistory', 'inputModeColor'],
     'writing': ['markdown', 'notes'],
     'scenario': ['triggerHighlight', 'storyCardModalDock'],
-    'automations': ['autoSee']
+    'automations': ['autoSee', 'textToSpeech']
   };
 
   Object.entries(sectionMap).forEach(([sectionId, featureIds]) => {
@@ -1927,6 +2397,31 @@ function updateSectionCounts() {
     }).length;
 
     countEl.textContent = `${enabled}/${featureIds.length}`;
+  });
+}
+
+function updateFrontierSectionCounts() {
+  const runtimeCount = document.getElementById('count-frontier-runtime');
+  const frontierToggle = document.getElementById('feature-frontier');
+  if (runtimeCount) {
+    runtimeCount.textContent = `${frontierToggle?.checked ? 1 : 0}/1`;
+  }
+
+  const sectionMap = {
+    'frontier-script-surface': ['scripture', 'webfetch', 'clock'],
+    'frontier-context': ['geolocation', 'weather', 'network', 'system']
+  };
+
+  Object.entries(sectionMap).forEach(([sectionId, moduleIds]) => {
+    const countEl = document.getElementById(`count-${sectionId}`);
+    if (!countEl) return;
+
+    const enabled = moduleIds.filter(id => {
+      const toggle = document.querySelector(`[data-frontier-module-toggle="${id}"]`);
+      return toggle && toggle.checked;
+    }).length;
+
+    countEl.textContent = `${enabled}/${moduleIds.length}`;
   });
 }
 
@@ -2232,6 +2727,27 @@ function notifyContentScript(type, data = {}) {
     if (tab?.id && tab.url?.includes('aidungeon.com')) {
       chrome.tabs.sendMessage(tab.id, { type, ...data }).catch(() => {});
     }
+  });
+}
+
+function sendToActiveAIDungeon(type, data = {}) {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tab = tabs[0];
+      if (!tab?.id || !tab.url?.includes('aidungeon.com')) {
+        reject(new Error('AI Dungeon tab is not active'));
+        return;
+      }
+
+      chrome.tabs.sendMessage(tab.id, { type, ...data }, (response) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          reject(new Error(lastError.message));
+          return;
+        }
+        resolve(response);
+      });
+    });
   });
 }
 

@@ -20,6 +20,8 @@ No Firefox Add-ons listing yet — install manually for now:
 4. Select any file inside the `BetterDungeon` folder (e.g. `manifest.json`)
 5. You're in!
 
+The checked-in MV3 `manifest.json` declares both `background.service_worker` and `background.scripts`. Chrome 121+ uses the service worker and ignores scripts; Firefox uses background scripts because extension service-worker backgrounds are not supported there yet.
+
 > **Note:** Temporary add-ons are removed when Firefox closes. You'll need to re-load the extension each session until a signed version is available on the Firefox Add-ons store.
 
 ### Manual Installation (Chromium)
@@ -63,7 +65,7 @@ For developers or if you prefer manual installation:
 - **Trigger Highlighting** — Story card triggers get highlighted in the context viewer. Hover to jump to the card. Also suggests proper nouns that might deserve their own story cards.
 - **Story Card Analytics Dashboard** — For scenario creators showing card statistics, trigger overlaps, coverage analysis, and potential issues. Helps identify missing triggers, empty cards, and optimization opportunities.
 - **Story Card Modal Dock** — Docks the story card modal to the right side, allowing you to scroll through your story while editing Story Cards.
-- **BetterScripts** — A communication layer between the extension and AI Dungeon scripts for dynamic UI widgets. Enables scripts to create HP bars, stats, and game state displays.
+- **Scripture** — A Frontier module for dynamic AI Dungeon script widgets. Enables scripts to create HP bars, stats, and game state displays through story-card state.
 
 ### ⚡ Automations
 

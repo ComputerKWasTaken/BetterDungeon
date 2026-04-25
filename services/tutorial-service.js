@@ -124,11 +124,11 @@ class TutorialService {
         expandCard: true
       },
       {
-        id: 'better-scripts',
+        id: 'scripture',
         type: 'spotlight',
-        target: '[data-feature="betterScripts"]',
-        title: 'BetterScripts',
-        content: 'Enables scripts to display dynamic UI widgets like HP bars, stats, and game state. Scripts using this feature will just work!',
+        target: '[data-feature="scripture"]',
+        title: 'Scripture',
+        content: 'Enables Frontier scripts to display dynamic UI widgets like HP bars, stats, and game state.',
         position: 'top',
         expandCard: true
       },
