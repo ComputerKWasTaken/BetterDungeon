@@ -107,8 +107,13 @@ class StoryCardAnalyticsFeature {
       }
     });
 
-    // Insert after the Create Story Card wrapper
-    createWrapper.insertAdjacentElement('afterend', this.toolbarButton);
+    // Insert as a sibling of the Create button within the same toolbar row
+    const toolbarRow = createWrapper.parentElement;
+    if (toolbarRow && toolbarRow.children.length > 0) {
+      toolbarRow.insertBefore(this.toolbarButton, createWrapper.nextSibling);
+    } else {
+      createWrapper.insertAdjacentElement('afterend', this.toolbarButton);
+    }
   }
 
   removeToolbarButton() {
@@ -745,6 +750,7 @@ class StoryCardAnalyticsFeature {
         gap: 6px;
         padding: 0 10px;
         height: var(--size-5, 32px);
+        width: fit-content;
         background: var(--background, rgba(0, 0, 0, 0.3));
         border: none;
         border-radius: var(--radius-1, 6px);
