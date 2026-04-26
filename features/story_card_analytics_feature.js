@@ -17,10 +17,6 @@ class StoryCardAnalyticsFeature {
     this.autoRefresh = false;
     this.debug = false;
 
-    // Toolbar button injection
-    this.toolbarObserver = null;
-    this.toolbarButton = null;
-    this._toolbarCheckTimer = null;
   }
 
   log(message, ...args) {
@@ -34,93 +30,11 @@ class StoryCardAnalyticsFeature {
   async init() {
     console.log('[StoryCardAnalytics] Initializing Story Card Analytics feature...');
     this.injectStyles();
-    this.startToolbarObserver();
   }
 
   destroy() {
     this.closeDashboard();
-    this.stopToolbarObserver();
-    this.removeToolbarButton();
     this.removeStyles();
-  }
-
-  // ==================== TOOLBAR BUTTON ====================
-
-  // Watch for Story Cards toolbar and inject the Dashboard button when visible
-  startToolbarObserver() {
-    this.toolbarObserver = new MutationObserver(() => {
-      clearTimeout(this._toolbarCheckTimer);
-      this._toolbarCheckTimer = setTimeout(() => this.tryInjectToolbarButton(), 300);
-    });
-
-    this.toolbarObserver.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
-
-    // Initial check after a short delay for page to settle
-    setTimeout(() => this.tryInjectToolbarButton(), 500);
-  }
-
-  stopToolbarObserver() {
-    if (this.toolbarObserver) {
-      this.toolbarObserver.disconnect();
-      this.toolbarObserver = null;
-    }
-    clearTimeout(this._toolbarCheckTimer);
-  }
-
-  // Inject Dashboard button into the Story Cards toolbar if not already present
-  tryInjectToolbarButton() {
-    // Already injected and still in DOM — skip
-    if (this.toolbarButton && document.contains(this.toolbarButton)) return;
-    this.toolbarButton = null;
-
-    // Check if we are in the Story Cards tab
-    const storyCardsTab = document.querySelector('[aria-label="Selected tab Story Cards"]');
-    if (!storyCardsTab) return;
-
-    // Find the "Create Story Card" button as our anchor
-    const createBtn = document.querySelector('[aria-label="Create Story Card"]');
-    if (!createBtn) return;
-
-    // The Create Story Card button is wrapped in a theme <span> inside a toolbar row
-    const createWrapper = createBtn.closest('span') || createBtn;
-
-    // Build the button
-    this.toolbarButton = document.createElement('div');
-    this.toolbarButton.setAttribute('role', 'button');
-    this.toolbarButton.setAttribute('aria-label', 'Story Card Dashboard');
-    this.toolbarButton.setAttribute('data-bd-dashboard-btn', '');
-    this.toolbarButton.className = 'bd-toolbar-dashboard-btn';
-    this.toolbarButton.tabIndex = 0;
-    this.toolbarButton.innerHTML = `
-      <span class="bd-toolbar-btn-icon icon-chart-column"></span>
-      <span class="bd-toolbar-btn-label">Dashboard</span>
-    `;
-
-    this.toolbarButton.addEventListener('click', () => this.openDashboard());
-    this.toolbarButton.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        this.openDashboard();
-      }
-    });
-
-    // Insert as a sibling of the Create button within the same toolbar row
-    const toolbarRow = createWrapper.parentElement;
-    if (toolbarRow && toolbarRow.children.length > 0) {
-      toolbarRow.insertBefore(this.toolbarButton, createWrapper.nextSibling);
-    } else {
-      createWrapper.insertAdjacentElement('afterend', this.toolbarButton);
-    }
-  }
-
-  removeToolbarButton() {
-    if (this.toolbarButton) {
-      this.toolbarButton.remove();
-      this.toolbarButton = null;
-    }
   }
 
   // ==================== DASHBOARD UI ====================
@@ -732,62 +646,12 @@ class StoryCardAnalyticsFeature {
       }
 
       .bd-analytics-dashboard [class^="icon-"],
-      .bd-analytics-dashboard [class*=" icon-"],
-      .bd-toolbar-dashboard-btn [class^="icon-"],
-      .bd-toolbar-dashboard-btn [class*=" icon-"] {
+      .bd-analytics-dashboard [class*=" icon-"] {
         font-family: 'lucide' !important;
         font-size: inherit;
         font-style: normal;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
-      }
-
-      /* Toolbar Dashboard Button — styled to match the Create Story Card button */
-      .bd-toolbar-dashboard-btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        padding: 0 10px;
-        height: var(--size-5, 32px);
-        width: fit-content;
-        background: var(--background, rgba(0, 0, 0, 0.3));
-        border: none;
-        border-radius: var(--radius-1, 6px);
-        cursor: pointer;
-        user-select: none;
-        transition: all 0.15s ease;
-        outline: none;
-      }
-
-      .bd-toolbar-dashboard-btn:hover {
-        background: rgba(255, 149, 0, 0.15);
-      }
-
-      .bd-toolbar-dashboard-btn:active {
-        transform: scale(0.97);
-        background: rgba(255, 149, 0, 0.2);
-      }
-
-      .bd-toolbar-dashboard-btn:focus-visible {
-        outline: 2px solid rgba(255, 149, 0, 0.6);
-        outline-offset: 2px;
-      }
-
-      .bd-toolbar-btn-icon {
-        font-size: 14px;
-        line-height: 1;
-        color: rgba(255, 149, 0, 0.9);
-      }
-
-      .bd-toolbar-btn-label {
-        font-family: inherit;
-        font-size: 12px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        color: rgba(255, 149, 0, 0.9);
-        line-height: 1;
       }
 
       /* Dashboard Container - blocks ALL pointer events from reaching elements behind */
