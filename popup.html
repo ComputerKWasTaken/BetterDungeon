@@ -869,6 +869,62 @@
 
       <div class="section">
         <div class="section-header">
+          <span class="section-icon icon-brain-circuit" style="color: var(--bd-indigo);"></span>
+          <h2 class="section-title">AI Providers</h2>
+          <span class="section-count" id="count-frontier-ai">1/1</span>
+        </div>
+        <div class="section-body">
+          <div class="frontier-module-list">
+            <article class="feature-card frontier-module-card" data-frontier-module-card="providerAI">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-indigo);">
+                      <span class="icon-bot-message-square"></span>
+                    </span>
+                    <h3 class="feature-title">Provider AI</h3>
+                  </div>
+                  <p class="feature-desc">OpenRouter sidecar model calls for scripts</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-frontier-module-toggle="providerAI" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>Provider AI lets scripts ask a hosted model for bounded side tasks such as summarizing clues, classifying intent, generating structured data, or running private reasoning that should not interrupt the story turn.</p>
+                <p class="feature-hint"><span class="icon-brain-circuit"></span> Uses your own OpenRouter key. Scripts can call the module, but the key stays inside BetterDungeon and is never written to Story Cards.</p>
+                <div class="frontier-provider-panel">
+                  <div class="frontier-panel-heading">
+                    <span><span class="icon-key-round"></span> OpenRouter</span>
+                    <button class="btn btn-icon btn-ghost" id="provider-ai-test" aria-label="Test Provider AI connection" title="Test connection">
+                      <span class="icon-plug-zap"></span>
+                    </button>
+                  </div>
+                  <div class="frontier-provider-fields">
+                    <input type="password" class="form-input" id="provider-ai-openrouter-key" autocomplete="off" placeholder="OpenRouter API key">
+                    <input type="text" class="form-input" id="provider-ai-default-model" autocomplete="off" placeholder="Default model, e.g. openai/gpt-5.2">
+                  </div>
+                  <div class="frontier-provider-actions">
+                    <button class="btn btn-primary btn-sm" id="provider-ai-save" type="button">
+                      <span class="icon-check"></span>
+                      Save
+                    </button>
+                    <button class="btn btn-ghost btn-sm" id="provider-ai-clear-key" type="button">
+                      <span class="icon-x"></span>
+                      Clear Key
+                    </button>
+                  </div>
+                  <div class="frontier-provider-status idle" id="provider-ai-status">Add an OpenRouter key to enable hosted model calls.</div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
           <span class="section-icon icon-map" style="color: var(--bd-section-tools);"></span>
           <h2 class="section-title">World &amp; Device Context</h2>
           <span class="section-count" id="count-frontier-context">4/4</span>

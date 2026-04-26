@@ -344,18 +344,6 @@
       return;
     }
 
-    const startedAt = now();
-    const startedLiveCount = currentLiveCount();
-    state.inflight.set(request.id, { request, startedAt, startedLiveCount });
-    writeSessionMirror();
-
-    await setResponse(
-      request.module,
-      request.id,
-      env.pendingResponse({ startedAt, liveCount: startedLiveCount }),
-      'pending'
-    );
-
     const mounted = findMountedModule(request.module);
     if (!mounted) {
       await finalizeRequest(
@@ -379,6 +367,29 @@
       );
       return;
     }
+
+    if (existing?.status === 'pending' && descriptor.idempotent !== 'safe') {
+      await finalizeRequest(
+        request,
+        env.errorResponse({
+          code: 'unsafe_replay_blocked',
+          message: `Pending unsafe op '${request.module}.${request.op}' was not replayed after reload`,
+        }, { liveCount: currentLiveCount() })
+      );
+      return;
+    }
+
+    const startedAt = now();
+    const startedLiveCount = currentLiveCount();
+    state.inflight.set(request.id, { request, startedAt, startedLiveCount });
+    writeSessionMirror();
+
+    await setResponse(
+      request.module,
+      request.id,
+      env.pendingResponse({ startedAt, liveCount: startedLiveCount }),
+      'pending'
+    );
 
     state.metrics.dispatched++;
     try {

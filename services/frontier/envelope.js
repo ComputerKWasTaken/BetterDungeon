@@ -21,6 +21,7 @@
     'timeout',
     'handler_threw',
     'scheme_blocked',
+    'unsafe_replay_blocked',
   ]);
 
   function isObject(value) {

@@ -553,6 +553,50 @@ body {
   gap: 6px;
 }
 
+.frontier-provider-panel {
+  margin-top: 10px;
+  padding-top: 10px;
+  border: 1px solid var(--border);
+  border-width: 1px 0 0;
+  background: transparent;
+}
+
+.frontier-provider-fields {
+  display: grid;
+  gap: 6px;
+}
+
+.frontier-provider-fields .form-input {
+  padding: 8px 10px;
+  font-size: 11px;
+}
+
+.frontier-provider-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.frontier-provider-actions .btn {
+  flex: 1;
+  min-width: 0;
+}
+
+.frontier-provider-status {
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.frontier-provider-status.ok {
+  color: var(--success);
+}
+
+.frontier-provider-status.error {
+  color: var(--error);
+}
+
 .feature-credit {
   font-size: 11px !important;
   font-style: italic;

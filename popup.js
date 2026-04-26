@@ -17,6 +17,8 @@ const STORAGE_KEYS = {
   frontierDebug: 'frontier_debug',
   frontierModules: 'frontier_enabled_modules',
   webfetchAllowlist: 'frontier_webfetch_allowlist',
+  providerAiOpenRouterKey: 'frontier_provider_ai_openrouter_api_key',
+  providerAiOpenRouterDefaultModel: 'frontier_provider_ai_openrouter_default_model',
   customHotkeys: 'betterDungeon_customHotkeys',
   customModeColors: 'betterDungeon_customModeColors',
   commandSubMode: 'betterDungeon_commandSubMode',
@@ -92,7 +94,8 @@ const FRONTIER_PUBLIC_MODULES = [
   'geolocation',
   'weather',
   'network',
-  'system'
+  'system',
+  'providerAI'
 ];
 
 const DEFAULT_SETTINGS = {
@@ -285,6 +288,7 @@ function initToggles() {
 function initFrontierSettings() {
   loadFrontierModuleToggles();
   loadWebFetchConsentList();
+  loadProviderAiSettings();
   refreshFrontierState();
 
   document.querySelectorAll('[data-frontier-module-toggle]').forEach(toggle => {
@@ -297,6 +301,9 @@ function initFrontierSettings() {
   document.getElementById('frontier-refresh')?.addEventListener('click', refreshFrontierState);
   document.getElementById('webfetch-consent-refresh')?.addEventListener('click', loadWebFetchConsentList);
   document.getElementById('webfetch-consent-save')?.addEventListener('click', saveWebFetchConsentFromForm);
+  document.getElementById('provider-ai-save')?.addEventListener('click', saveProviderAiSettings);
+  document.getElementById('provider-ai-clear-key')?.addEventListener('click', clearProviderAiKey);
+  document.getElementById('provider-ai-test')?.addEventListener('click', testProviderAiConnection);
 }
 
 function defaultFrontierModuleState() {
@@ -474,6 +481,138 @@ function setWebFetchConsentInStorage(origin, decision) {
   });
 }
 
+function localStorageGet(keys) {
+  return new Promise((resolve) => {
+    try {
+      chrome.storage.local.get(keys, (result) => {
+        resolve(result || {});
+      });
+    } catch {
+      resolve({});
+    }
+  });
+}
+
+function localStorageSet(items) {
+  return new Promise((resolve) => {
+    try {
+      chrome.storage.local.set(items, resolve);
+    } catch {
+      resolve();
+    }
+  });
+}
+
+function localStorageRemove(keys) {
+  return new Promise((resolve) => {
+    try {
+      chrome.storage.local.remove(keys, resolve);
+    } catch {
+      resolve();
+    }
+  });
+}
+
+async function loadProviderAiSettings() {
+  const keyInput = document.getElementById('provider-ai-openrouter-key');
+  const modelInput = document.getElementById('provider-ai-default-model');
+  if (!keyInput && !modelInput) return;
+
+  const result = await localStorageGet([
+    STORAGE_KEYS.providerAiOpenRouterKey,
+    STORAGE_KEYS.providerAiOpenRouterDefaultModel
+  ]);
+  const hasKey = !!String(result[STORAGE_KEYS.providerAiOpenRouterKey] || '').trim();
+  const model = String(result[STORAGE_KEYS.providerAiOpenRouterDefaultModel] || '').trim();
+
+  if (keyInput) {
+    keyInput.value = '';
+    keyInput.placeholder = hasKey ? 'Saved API key - leave blank to keep' : 'OpenRouter API key';
+  }
+  if (modelInput) {
+    modelInput.value = model;
+  }
+
+  updateProviderAiStatus(hasKey, hasKey ? 'OpenRouter key saved locally.' : 'Add an OpenRouter key to enable hosted model calls.', hasKey ? 'ok' : 'idle');
+}
+
+function updateProviderAiStatus(configured, detail, tone = 'idle') {
+  const status = document.getElementById('provider-ai-status');
+  if (!status) return;
+  status.classList.remove('ok', 'error', 'idle');
+  status.classList.add(tone);
+  status.textContent = configured ? detail : detail;
+}
+
+async function saveProviderAiSettings() {
+  const keyInput = document.getElementById('provider-ai-openrouter-key');
+  const modelInput = document.getElementById('provider-ai-default-model');
+  const key = String(keyInput?.value || '').trim();
+  const model = String(modelInput?.value || '').trim();
+  const updates = {
+    [STORAGE_KEYS.providerAiOpenRouterDefaultModel]: model
+  };
+
+  if (key) {
+    updates[STORAGE_KEYS.providerAiOpenRouterKey] = key;
+  }
+
+  await localStorageSet(updates);
+  if (keyInput) keyInput.value = '';
+  await loadProviderAiSettings();
+  showToast('Provider AI settings saved', 'success');
+}
+
+async function clearProviderAiKey() {
+  await localStorageRemove(STORAGE_KEYS.providerAiOpenRouterKey);
+  await loadProviderAiSettings();
+  showToast('OpenRouter key cleared', 'success');
+}
+
+function sendProviderAiBackgroundRequest(request) {
+  return new Promise((resolve, reject) => {
+    try {
+      chrome.runtime.sendMessage({ type: 'FRONTIER_PROVIDER_AI_REQUEST', request }, (response) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          reject(new Error(lastError.message));
+          return;
+        }
+        if (response?.ok) {
+          resolve(response.data);
+          return;
+        }
+        reject(response?.error || new Error('Provider AI request failed'));
+      });
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+async function testProviderAiConnection() {
+  const btn = document.getElementById('provider-ai-test');
+  if (btn) btn.disabled = true;
+  updateProviderAiStatus(false, 'Testing OpenRouter...', 'idle');
+
+  try {
+    const result = await sendProviderAiBackgroundRequest({
+      provider: 'openrouter',
+      op: 'testConnection',
+      timeoutMs: 30000
+    });
+    const count = typeof result?.modelCount === 'number' ? result.modelCount : 0;
+    updateProviderAiStatus(true, `OpenRouter connected. ${count} models visible.`, 'ok');
+    showToast('Provider AI connection verified', 'success');
+  } catch (error) {
+    const message = error?.message || 'Provider AI connection failed';
+    updateProviderAiStatus(false, message, 'error');
+    showToast(message, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 function saveFeatureState(featureId, enabled) {
   log('[Popup] Saving feature state:', featureId, enabled);
   chrome.storage.sync.get(STORAGE_KEYS.features, (result) => {
@@ -493,7 +632,7 @@ function saveFeatureState(featureId, enabled) {
 }
 
 function setFrontierModuleControlsEnabled(enabled) {
-  document.querySelectorAll('[data-frontier-module-toggle], #frontier-debug, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save')
+  document.querySelectorAll('[data-frontier-module-toggle], #frontier-debug, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #provider-ai-openrouter-key, #provider-ai-default-model, #provider-ai-save, #provider-ai-clear-key, #provider-ai-test')
     .forEach(control => {
       control.disabled = !enabled;
     });
@@ -2409,7 +2548,8 @@ function updateFrontierSectionCounts() {
 
   const sectionMap = {
     'frontier-script-surface': ['scripture', 'webfetch', 'clock'],
-    'frontier-context': ['geolocation', 'weather', 'network', 'system']
+    'frontier-context': ['geolocation', 'weather', 'network', 'system'],
+    'frontier-ai': ['providerAI']
   };
 
   Object.entries(sectionMap).forEach(([sectionId, moduleIds]) => {
