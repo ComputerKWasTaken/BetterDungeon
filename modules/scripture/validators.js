@@ -166,6 +166,14 @@
     }
   }
 
+  function validateSelectPrimitive(value, label, errors, maxStringLength = MAX_TEXT_LENGTH) {
+    if (!stringOrNumberOrBoolean(value)) {
+      errors.push(`${label} must be a string, number, or boolean`);
+    } else if (typeof value === 'string' && value.length > maxStringLength) {
+      errors.push(`${label} must be ${maxStringLength} characters or fewer`);
+    }
+  }
+
   function validateStyleObject(style, errors) {
     if (style === undefined) return;
     if (!isPlainObject(style)) {
@@ -192,14 +200,15 @@
   }
 
   function validateOption(option, index, errors) {
-    if (typeof option === 'string' || typeof option === 'number' || typeof option === 'boolean') return;
+    if (typeof option === 'string' || typeof option === 'number' || typeof option === 'boolean') {
+      validateSelectPrimitive(option, `Select option at index ${index}`, errors, MAX_LABEL_LENGTH);
+      return;
+    }
     if (!isPlainObject(option)) {
       errors.push(`Select option at index ${index} must be a primitive or object`);
       return;
     }
-    if (!stringOrNumberOrBoolean(option.value)) {
-      errors.push(`Select option at index ${index} must have a string, number, or boolean value`);
-    }
+    validateSelectPrimitive(option.value, `Select option at index ${index} value`, errors);
     if (option.label !== undefined && typeof option.label !== 'string') {
       errors.push(`Select option at index ${index} label must be a string`);
     } else if (typeof option.label === 'string' && option.label.length > MAX_LABEL_LENGTH) {
@@ -299,8 +308,8 @@
       } else {
         config.options.forEach((option, index) => validateOption(option, index, errors));
       }
-      if (config.value !== undefined && !stringOrNumberOrBoolean(config.value)) {
-        errors.push('Select widget "value" must be a string, number, or boolean');
+      if (config.value !== undefined) {
+        validateSelectPrimitive(config.value, 'Select widget "value"', errors);
       }
     }
 

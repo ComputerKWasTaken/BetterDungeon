@@ -11,6 +11,10 @@
   const STATE_NAME = 'scripture';
   const IN_CARD_TITLE = 'frontier:in:scripture';
   const MAX_WIDGET_EVENTS = 100;
+  const MAX_EVENT_STRING_LENGTH = 1200;
+  const MAX_EVENT_OBJECT_KEYS = 20;
+  const MAX_EVENT_ARRAY_ITEMS = 20;
+  const MAX_EVENT_DEPTH = 3;
   const DEFAULT_WIDGET_DISPLAY_OPTIONS = {
     size: 'normal',
     maxHeight: 'medium',
@@ -30,13 +34,36 @@
     }
   }
 
-  function cloneJson(value) {
+  function truncateString(value, maxLength = MAX_EVENT_STRING_LENGTH) {
+    const text = String(value);
+    return text.length > maxLength ? text.slice(0, maxLength) : text;
+  }
+
+  function sanitizeEventValue(value, depth = 0) {
     if (value === undefined) return undefined;
-    try {
-      return JSON.parse(JSON.stringify(value));
-    } catch {
-      return null;
+    if (value === null) return null;
+
+    const type = typeof value;
+    if (type === 'string') return truncateString(value);
+    if (type === 'boolean') return value;
+    if (type === 'number') return Number.isFinite(value) ? value : null;
+    if (depth >= MAX_EVENT_DEPTH) return null;
+
+    if (Array.isArray(value)) {
+      return value
+        .slice(0, MAX_EVENT_ARRAY_ITEMS)
+        .map(item => sanitizeEventValue(item, depth + 1));
     }
+
+    if (isObject(value)) {
+      const result = {};
+      for (const [key, child] of Object.entries(value).slice(0, MAX_EVENT_OBJECT_KEYS)) {
+        result[truncateString(key, 80)] = sanitizeEventValue(child, depth + 1);
+      }
+      return result;
+    }
+
+    return null;
   }
 
   function getOwn(obj, key) {
@@ -393,8 +420,8 @@
         widgetType: event.widgetType,
         action: event.action || 'change',
         event: event.event || event.action || 'change',
-        value: cloneJson(event.value),
-        previousValue: cloneJson(event.previousValue),
+        value: sanitizeEventValue(event.value),
+        previousValue: sanitizeEventValue(event.previousValue),
         liveCount: ctx.getLiveCount(),
         actionId: ctx.getCurrentActionId?.() || ctx.getTail?.() || null,
         risk: event.risk || 'enhanced',
@@ -403,9 +430,9 @@
         count: 1,
       };
 
-      if (event.name) record.name = event.name;
-      if (event.label) record.label = event.label;
-      if (event.coalesceKey) record.coalesceKey = event.coalesceKey;
+      if (event.name) record.name = truncateString(event.name, 120);
+      if (event.label) record.label = truncateString(event.label, 120);
+      if (event.coalesceKey) record.coalesceKey = truncateString(event.coalesceKey, 160);
 
       if (record.coalesceKey) {
         const replaced = this._eventQueue.filter(item => item.coalesceKey === record.coalesceKey);
@@ -417,7 +444,9 @@
           record.replaces = replaced.map(item => item.seq);
           record.count = replaced.reduce((sum, item) => sum + Math.max(1, Number(item.count || 1)), 0) + 1;
           record.firstAt = first.firstAt || first.at || record.at;
-          record.firstValue = first.firstValue !== undefined ? cloneJson(first.firstValue) : cloneJson(first.value);
+          record.firstValue = first.firstValue !== undefined
+            ? sanitizeEventValue(first.firstValue)
+            : sanitizeEventValue(first.value);
         }
       }
 
