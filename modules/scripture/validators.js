@@ -17,9 +17,35 @@
     'list',
     'icon',
     'counter',
+    'button',
+    'toggle',
+    'select',
+    'slider',
+    'input',
+    'textarea',
   ]);
 
   const VALID_ALIGNMENTS = new Set(['left', 'center', 'right']);
+  const INTERACTIVE_WIDGET_TYPES = new Set(['button', 'toggle', 'select', 'slider', 'input', 'textarea']);
+  const RISK_LEVELS = ['safe', 'enhanced', 'unsafe'];
+  const RISK_LEVEL_ORDER = {
+    safe: 0,
+    enhanced: 1,
+    unsafe: 2,
+  };
+  const DEFAULT_RISK_LEVEL = 'enhanced';
+  const INPUT_TYPES = new Set(['text', 'search', 'number']);
+  const MAX_WIDGETS = 40;
+  const MAX_WIDGET_ID_LENGTH = 64;
+  const MAX_LABEL_LENGTH = 120;
+  const MAX_TEXT_LENGTH = 512;
+  const MAX_HTML_LENGTH = 4000;
+  const MAX_PANEL_ITEMS = 30;
+  const MAX_LIST_ITEMS = 40;
+  const MAX_SELECT_OPTIONS = 40;
+  const MAX_INPUT_LENGTH = 240;
+  const MAX_TEXTAREA_LENGTH = 1200;
+  const MAX_STYLE_PROPERTIES = 16;
 
   const PRESET_COLORS = new Set([
     'red',
@@ -70,18 +96,124 @@
     'width', 'height', 'max-width', 'max-height', 'min-width', 'min-height',
     'display', 'flex', 'flex-direction', 'justify-content', 'align-items', 'gap',
     'opacity', 'visibility', 'overflow',
-    'position', 'top', 'right', 'bottom', 'left', 'z-index',
   ]);
+
+  const PRIMITIVE_STATE_FIELD_BY_TYPE = {
+    text: 'text',
+    badge: 'text',
+    icon: 'icon',
+  };
+
+  const WIDGET_STATE_FIELDS = {
+    stat: new Set(['value', 'color']),
+    bar: new Set(['value', 'max', 'progress', 'color']),
+    text: new Set(['text', 'color']),
+    panel: new Set(['items', 'content']),
+    custom: new Set(['html', 'color']),
+    badge: new Set(['text', 'color', 'variant']),
+    list: new Set(['items']),
+    icon: new Set(['icon', 'text', 'color', 'size']),
+    counter: new Set(['value', 'delta', 'color', 'icon']),
+    button: new Set(['text', 'disabled', 'value', 'variant']),
+    toggle: new Set(['value', 'disabled']),
+    select: new Set(['value', 'disabled']),
+    slider: new Set(['value', 'disabled']),
+    input: new Set(['value', 'disabled']),
+    textarea: new Set(['value', 'disabled']),
+  };
 
   function isPlainObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
   }
 
-  function validateWidgetConfig(widgetId, config) {
+  function normalizeRiskLevel(level, fallback = DEFAULT_RISK_LEVEL) {
+    const normalized = String(level || '').toLowerCase();
+    return RISK_LEVEL_ORDER[normalized] !== undefined ? normalized : fallback;
+  }
+
+  function compareRiskLevels(a, b) {
+    return RISK_LEVEL_ORDER[normalizeRiskLevel(a)] - RISK_LEVEL_ORDER[normalizeRiskLevel(b)];
+  }
+
+  function highestRiskLevel(...levels) {
+    let highest = 'safe';
+    for (const level of levels) {
+      const normalized = normalizeRiskLevel(level, 'safe');
+      if (compareRiskLevels(normalized, highest) > 0) highest = normalized;
+    }
+    return highest;
+  }
+
+  function getWidgetRiskLevel(config) {
+    const declaredRisk = config?.risk !== undefined
+      ? normalizeRiskLevel(config.risk)
+      : (INTERACTIVE_WIDGET_TYPES.has(config?.type) ? 'enhanced' : 'safe');
+    const htmlRisk = config?.type === 'custom' || config?.html !== undefined ? 'unsafe' : 'safe';
+    const styleRisk = config?.style !== undefined ? 'unsafe' : 'safe';
+    return highestRiskLevel(declaredRisk, htmlRisk, styleRisk);
+  }
+
+  function stringOrNumberOrBoolean(value) {
+    return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
+  }
+
+  function validateStringField(config, field, maxLength, errors, label = field) {
+    if (config[field] === undefined) return;
+    if (typeof config[field] !== 'string') {
+      errors.push(`Widget "${label}" must be a string`);
+    } else if (config[field].length > maxLength) {
+      errors.push(`Widget "${label}" must be ${maxLength} characters or fewer`);
+    }
+  }
+
+  function validateStyleObject(style, errors) {
+    if (style === undefined) return;
+    if (!isPlainObject(style)) {
+      errors.push('Widget "style" must be an object');
+      return;
+    }
+    if (Object.keys(style).length > MAX_STYLE_PROPERTIES) {
+      errors.push(`Widget "style" may contain at most ${MAX_STYLE_PROPERTIES} properties`);
+    }
+  }
+
+  function filterWidgetStatePatch(config, patch) {
+    const allowed = WIDGET_STATE_FIELDS[config?.type] || new Set(['value']);
+    const filtered = {};
+    if (!isPlainObject(patch)) return filtered;
+    for (const [key, value] of Object.entries(patch)) {
+      if (allowed.has(key)) filtered[key] = value;
+    }
+    return filtered;
+  }
+
+  function getPrimitiveStateField(config) {
+    return PRIMITIVE_STATE_FIELD_BY_TYPE[config?.type] || 'value';
+  }
+
+  function validateOption(option, index, errors) {
+    if (typeof option === 'string' || typeof option === 'number' || typeof option === 'boolean') return;
+    if (!isPlainObject(option)) {
+      errors.push(`Select option at index ${index} must be a primitive or object`);
+      return;
+    }
+    if (!stringOrNumberOrBoolean(option.value)) {
+      errors.push(`Select option at index ${index} must have a string, number, or boolean value`);
+    }
+    if (option.label !== undefined && typeof option.label !== 'string') {
+      errors.push(`Select option at index ${index} label must be a string`);
+    } else if (typeof option.label === 'string' && option.label.length > MAX_LABEL_LENGTH) {
+      errors.push(`Select option at index ${index} label must be ${MAX_LABEL_LENGTH} characters or fewer`);
+    }
+  }
+
+  function validateWidgetConfig(widgetId, config, opts = {}) {
     const errors = [];
 
     if (!widgetId || typeof widgetId !== 'string') {
       errors.push('Widget ID must be a non-empty string');
+    } else if (widgetId.length > MAX_WIDGET_ID_LENGTH) {
+      errors.push(`Widget ID must be ${MAX_WIDGET_ID_LENGTH} characters or fewer`);
     } else if (!/^[a-zA-Z0-9_-]+$/.test(widgetId)) {
       errors.push('Widget ID must contain only alphanumeric characters, underscores, and hyphens');
     }
@@ -101,6 +233,22 @@
       errors.push(`Widget align must be one of: ${[...VALID_ALIGNMENTS].join(', ')}`);
     }
 
+    validateStringField(config, 'label', MAX_LABEL_LENGTH, errors, 'label');
+    validateStringField(config, 'text', MAX_TEXT_LENGTH, errors, 'text');
+    validateStringField(config, 'title', MAX_LABEL_LENGTH, errors, 'title');
+    validateStringField(config, 'tooltip', MAX_TEXT_LENGTH, errors, 'tooltip');
+    validateStringField(config, 'placeholder', MAX_LABEL_LENGTH, errors, 'placeholder');
+    validateStyleObject(config.style, errors);
+
+    const riskLevel = getWidgetRiskLevel(config);
+    const allowedRiskLevel = normalizeRiskLevel(opts.allowedRiskLevel);
+    if (config.risk !== undefined && RISK_LEVEL_ORDER[String(config.risk).toLowerCase()] === undefined) {
+      errors.push(`Widget risk must be one of: ${RISK_LEVELS.join(', ')}`);
+    }
+    if (compareRiskLevels(riskLevel, allowedRiskLevel) > 0) {
+      errors.push(`Widget requires "${riskLevel}" risk but current Scripture risk is "${allowedRiskLevel}"`);
+    }
+
     if (config.type === 'bar') {
       if (config.max !== undefined && (typeof config.max !== 'number' || config.max <= 0)) {
         errors.push('Bar widget "max" must be a positive number');
@@ -112,20 +260,104 @@
 
     if (config.type === 'panel' && config.items !== undefined && !Array.isArray(config.items)) {
       errors.push('Panel widget "items" must be an array');
+    } else if (config.type === 'panel' && Array.isArray(config.items) && config.items.length > MAX_PANEL_ITEMS) {
+      errors.push(`Panel widget "items" may contain at most ${MAX_PANEL_ITEMS} entries`);
     }
 
     if (config.type === 'list' && config.items !== undefined && !Array.isArray(config.items)) {
       errors.push('List widget "items" must be an array');
+    } else if (config.type === 'list' && Array.isArray(config.items) && config.items.length > MAX_LIST_ITEMS) {
+      errors.push(`List widget "items" may contain at most ${MAX_LIST_ITEMS} entries`);
     }
 
     if (config.type === 'custom' && config.html !== undefined && typeof config.html !== 'string') {
       errors.push('Custom widget "html" must be a string');
+    } else if (config.type === 'custom' && typeof config.html === 'string' && config.html.length > MAX_HTML_LENGTH) {
+      errors.push(`Custom widget "html" must be ${MAX_HTML_LENGTH} characters or fewer`);
+    }
+
+    if (config.type === 'button') {
+      if (config.label !== undefined && typeof config.label !== 'string') {
+        errors.push('Button widget "label" must be a string');
+      }
+      if (config.text !== undefined && typeof config.text !== 'string') {
+        errors.push('Button widget "text" must be a string');
+      } else if (typeof config.text === 'string' && config.text.length > MAX_LABEL_LENGTH) {
+        errors.push(`Button widget "text" must be ${MAX_LABEL_LENGTH} characters or fewer`);
+      }
+    }
+
+    if (config.type === 'toggle' && config.value !== undefined && typeof config.value !== 'boolean') {
+      errors.push('Toggle widget "value" must be a boolean');
+    }
+
+    if (config.type === 'select') {
+      if (!Array.isArray(config.options)) {
+        errors.push('Select widget "options" must be an array');
+      } else if (config.options.length > MAX_SELECT_OPTIONS) {
+        errors.push(`Select widget "options" may contain at most ${MAX_SELECT_OPTIONS} entries`);
+      } else {
+        config.options.forEach((option, index) => validateOption(option, index, errors));
+      }
+      if (config.value !== undefined && !stringOrNumberOrBoolean(config.value)) {
+        errors.push('Select widget "value" must be a string, number, or boolean');
+      }
+    }
+
+    if (config.type === 'slider') {
+      if (config.value !== undefined && typeof config.value !== 'number') {
+        errors.push('Slider widget "value" must be a number');
+      }
+      if (config.min !== undefined && typeof config.min !== 'number') {
+        errors.push('Slider widget "min" must be a number');
+      }
+      if (config.max !== undefined && typeof config.max !== 'number') {
+        errors.push('Slider widget "max" must be a number');
+      }
+      if (config.step !== undefined && (typeof config.step !== 'number' || config.step <= 0)) {
+        errors.push('Slider widget "step" must be a positive number');
+      }
+      if (
+        typeof config.min === 'number' &&
+        typeof config.max === 'number' &&
+        config.max <= config.min
+      ) {
+        errors.push('Slider widget "max" must be greater than "min"');
+      }
+    }
+
+    if (config.type === 'input') {
+      if (config.value !== undefined && typeof config.value !== 'string' && typeof config.value !== 'number') {
+        errors.push('Input widget "value" must be a string or number');
+      }
+      if (config.inputType !== undefined && !INPUT_TYPES.has(config.inputType)) {
+        errors.push(`Input widget "inputType" must be one of: ${[...INPUT_TYPES].join(', ')}`);
+      }
+      if (config.maxLength !== undefined && (!Number.isInteger(config.maxLength) || config.maxLength <= 0)) {
+        errors.push('Input widget "maxLength" must be a positive integer');
+      } else if (config.maxLength !== undefined && config.maxLength > MAX_INPUT_LENGTH) {
+        errors.push(`Input widget "maxLength" must be ${MAX_INPUT_LENGTH} or less`);
+      }
+    }
+
+    if (config.type === 'textarea') {
+      if (config.value !== undefined && typeof config.value !== 'string') {
+        errors.push('Textarea widget "value" must be a string');
+      }
+      if (config.maxLength !== undefined && (!Number.isInteger(config.maxLength) || config.maxLength <= 0)) {
+        errors.push('Textarea widget "maxLength" must be a positive integer');
+      } else if (config.maxLength !== undefined && config.maxLength > MAX_TEXTAREA_LENGTH) {
+        errors.push(`Textarea widget "maxLength" must be ${MAX_TEXTAREA_LENGTH} or less`);
+      }
+      if (config.rows !== undefined && (!Number.isInteger(config.rows) || config.rows <= 0 || config.rows > 8)) {
+        errors.push('Textarea widget "rows" must be an integer from 1 to 8');
+      }
     }
 
     return { valid: errors.length === 0, errors };
   }
 
-  function validateManifest(manifest) {
+  function validateManifest(manifest, opts = {}) {
     const errors = [];
     const widgets = [];
 
@@ -141,14 +373,19 @@
       return { valid: false, widgets, errors: ['Manifest widgets must be an array'] };
     }
 
-    for (let i = 0; i < manifest.widgets.length; i++) {
-      const widget = manifest.widgets[i];
+    if (manifest.widgets.length > MAX_WIDGETS) {
+      errors.push(`Manifest widgets may contain at most ${MAX_WIDGETS} widgets`);
+    }
+
+    const widgetsToValidate = manifest.widgets.slice(0, MAX_WIDGETS);
+    for (let i = 0; i < widgetsToValidate.length; i++) {
+      const widget = widgetsToValidate[i];
       if (!isPlainObject(widget)) {
         errors.push(`Widget at index ${i} must be an object`);
         continue;
       }
 
-      const validation = validateWidgetConfig(widget.id, widget);
+      const validation = validateWidgetConfig(widget.id, widget, opts);
       if (!validation.valid) {
         errors.push(`Widget "${widget.id || i}" invalid: ${validation.errors.join('; ')}`);
         continue;
@@ -318,8 +555,19 @@
   window.ScriptureValidators = {
     WIDGET_TYPES,
     VALID_ALIGNMENTS,
+    INTERACTIVE_WIDGET_TYPES,
+    RISK_LEVELS,
+    DEFAULT_RISK_LEVEL,
+    MAX_INPUT_LENGTH,
+    MAX_TEXTAREA_LENGTH,
     PRESET_COLORS,
+    WIDGET_STATE_FIELDS,
     isPlainObject,
+    normalizeRiskLevel,
+    compareRiskLevels,
+    getWidgetRiskLevel,
+    filterWidgetStatePatch,
+    getPrimitiveStateField,
     validateWidgetConfig,
     validateManifest,
     sanitizeHTML,

@@ -126,13 +126,16 @@
       return { v: PROTOCOL_VERSION, responses: {} };
     }
 
+    const envelope = cloneJson(parsed.value) || {};
     const responses = {};
     const rawResponses = isObject(parsed.value.responses) ? parsed.value.responses : {};
     for (const [id, response] of Object.entries(rawResponses)) {
       if (typeof id !== 'string' || !id || !isObject(response)) continue;
       responses[id] = { ...response };
     }
-    return { v: PROTOCOL_VERSION, responses };
+    envelope.v = PROTOCOL_VERSION;
+    envelope.responses = responses;
+    return envelope;
   }
 
   function createResponseEnvelope() {

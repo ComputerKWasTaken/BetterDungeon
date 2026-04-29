@@ -797,6 +797,65 @@
               <div class="feature-details">
                 <p>Scripture lets adventure scripts render interface elements outside the story text, including stat bars, counters, panels, status readouts, and custom widgets.</p>
                 <p class="feature-hint"><span class="icon-book-open-text"></span> Useful for RPG HUDs, relationship meters, timers, inventory panels, and scenario-specific dashboards.</p>
+                <div class="scripture-settings-panel">
+                  <div class="frontier-panel-heading">
+                    <span><span class="icon-shield"></span> Widget Permissions</span>
+                  </div>
+                  <label class="scripture-setting-row" for="scripture-risk-level">
+                    <span>
+                      <strong>Risk Level</strong>
+                      <small id="scripture-risk-summary">Enhanced allows normal interactive controls while blocking raw HTML and arbitrary styling.</small>
+                    </span>
+                    <select class="form-select form-select-sm" id="scripture-risk-level" aria-label="Scripture widget risk">
+                      <option value="safe">Safe</option>
+                      <option value="enhanced">Enhanced</option>
+                      <option value="unsafe">Unsafe</option>
+                    </select>
+                  </label>
+                  <div class="scripture-risk-help">
+                    <div><strong>Safe</strong><span>Read-only widgets only: stats, bars, text, badges, counters, panels, lists, and icons.</span></div>
+                    <div><strong>Enhanced</strong><span>Default. Adds buttons, toggles, dropdowns, sliders, and text boxes.</span></div>
+                    <div><strong>Unsafe</strong><span>Allows custom HTML and script-controlled style escape hatches. Use only for scenarios you trust.</span></div>
+                  </div>
+                </div>
+                <div class="scripture-settings-panel">
+                  <div class="frontier-panel-heading">
+                    <span><span class="icon-sliders-horizontal"></span> Widget Display</span>
+                  </div>
+                  <label class="scripture-setting-row" for="scripture-widget-size">
+                    <span>
+                      <strong>Size</strong>
+                      <small>Scales Scripture widgets without changing the script's state.</small>
+                    </span>
+                    <select class="form-select form-select-sm" id="scripture-widget-size" aria-label="Scripture widget size">
+                      <option value="compact">Compact</option>
+                      <option value="normal">Normal</option>
+                      <option value="comfortable">Comfortable</option>
+                      <option value="large">Large</option>
+                    </select>
+                  </label>
+                  <label class="scripture-setting-row" for="scripture-widget-height">
+                    <span>
+                      <strong>Max Height</strong>
+                      <small>Controls how much vertical space the widget bar may use before scrolling.</small>
+                    </span>
+                    <select class="form-select form-select-sm" id="scripture-widget-height" aria-label="Scripture widget max height">
+                      <option value="short">Short</option>
+                      <option value="medium">Medium</option>
+                      <option value="tall">Tall</option>
+                    </select>
+                  </label>
+                  <label class="scripture-setting-row" for="scripture-widget-layout">
+                    <span>
+                      <strong>Layout</strong>
+                      <small>Balanced keeps left, center, and right zones; stacked gives every zone full width.</small>
+                    </span>
+                    <select class="form-select form-select-sm" id="scripture-widget-layout" aria-label="Scripture widget layout">
+                      <option value="balanced">Balanced</option>
+                      <option value="stacked">Stacked</option>
+                    </select>
+                  </label>
+                </div>
               </div>
             </article>
 

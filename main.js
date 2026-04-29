@@ -93,6 +93,14 @@ class BetterDungeon {
         window.Frontier?.core?.setDebug?.(message.enabled);
         sendResponse({ success: true, debugEnabled: !!message.enabled });
         return true;
+      } else if (message.type === 'SET_SCRIPTURE_RISK_LEVEL') {
+        const riskLevel = window.ScriptureModule?.setRiskLevel?.(message.riskLevel, { persist: true }) || 'enhanced';
+        sendResponse({ success: true, riskLevel });
+        return true;
+      } else if (message.type === 'SET_SCRIPTURE_WIDGET_DISPLAY') {
+        const display = window.ScriptureModule?.setWidgetDisplayOptions?.(message.display, { persist: true }) || null;
+        sendResponse({ success: true, display });
+        return true;
       } else if (message.type === 'SET_FRONTIER_MODULE_ENABLED') {
         window.Frontier?.registry?.setModuleEnabled?.(message.moduleId, message.enabled);
         sendResponse({

@@ -16,6 +16,8 @@ const STORAGE_KEYS = {
   autoApply: 'betterDungeon_autoApplyInstructions',
   frontierDebug: 'frontier_debug',
   frontierModules: 'frontier_enabled_modules',
+  scriptureRiskLevel: 'frontier_mod_scripture_risk_level',
+  scriptureWidgetDisplay: 'frontier_mod_scripture_widget_display',
   webfetchAllowlist: 'frontier_webfetch_allowlist',
   providerAiOpenRouterKey: 'frontier_provider_ai_openrouter_api_key',
   providerAiOpenRouterDefaultModel: 'frontier_provider_ai_openrouter_default_model',
@@ -106,6 +108,18 @@ const FRONTIER_PUBLIC_MODULES = [
 
 const DEFAULT_SETTINGS = {
   tryCriticalChance: 5
+};
+
+const DEFAULT_SCRIPTURE_WIDGET_DISPLAY = {
+  size: 'normal',
+  maxHeight: 'medium',
+  layout: 'balanced'
+};
+
+const SCRIPTURE_RISK_SUMMARIES = {
+  safe: 'Safe renders read-only widgets only. Interactive controls and custom HTML are blocked.',
+  enhanced: 'Enhanced allows normal interactive controls while blocking raw HTML and arbitrary styling.',
+  unsafe: 'Unsafe allows custom HTML and style escape hatches. Use it only for scenarios you trust.'
 };
 
 const DEFAULT_TEXT_TO_SPEECH_SETTINGS = {
@@ -293,6 +307,8 @@ function initToggles() {
 
 function initFrontierSettings() {
   loadFrontierModuleToggles();
+  loadScriptureRiskLevel();
+  loadScriptureWidgetDisplay();
   loadWebFetchConsentList();
   loadProviderAiSettings();
   loadLocalAiSettings();
@@ -306,6 +322,10 @@ function initFrontierSettings() {
   });
 
   document.getElementById('frontier-refresh')?.addEventListener('click', refreshFrontierState);
+  document.getElementById('scripture-risk-level')?.addEventListener('change', saveScriptureRiskLevel);
+  document.getElementById('scripture-widget-size')?.addEventListener('change', saveScriptureWidgetDisplay);
+  document.getElementById('scripture-widget-height')?.addEventListener('change', saveScriptureWidgetDisplay);
+  document.getElementById('scripture-widget-layout')?.addEventListener('change', saveScriptureWidgetDisplay);
   document.getElementById('webfetch-consent-refresh')?.addEventListener('click', loadWebFetchConsentList);
   document.getElementById('webfetch-consent-save')?.addEventListener('click', saveWebFetchConsentFromForm);
   document.getElementById('provider-ai-save')?.addEventListener('click', saveProviderAiSettings);
@@ -352,6 +372,75 @@ function saveFrontierModuleState(moduleId, enabled) {
           updateFrontierStatus(null, 'Changes will apply next time Frontier starts.');
         });
     });
+  });
+}
+
+function normalizeScriptureRiskLevel(level) {
+  const normalized = String(level || '').toLowerCase();
+  return ['safe', 'enhanced', 'unsafe'].includes(normalized) ? normalized : 'enhanced';
+}
+
+function normalizeScriptureWidgetDisplay(value = {}) {
+  const raw = value && typeof value === 'object' ? value : {};
+  const size = ['compact', 'normal', 'comfortable', 'large'].includes(String(raw.size || '').toLowerCase())
+    ? String(raw.size).toLowerCase()
+    : DEFAULT_SCRIPTURE_WIDGET_DISPLAY.size;
+  const maxHeight = ['short', 'medium', 'tall'].includes(String(raw.maxHeight || '').toLowerCase())
+    ? String(raw.maxHeight).toLowerCase()
+    : DEFAULT_SCRIPTURE_WIDGET_DISPLAY.maxHeight;
+  const layout = ['balanced', 'stacked'].includes(String(raw.layout || '').toLowerCase())
+    ? String(raw.layout).toLowerCase()
+    : DEFAULT_SCRIPTURE_WIDGET_DISPLAY.layout;
+  return { size, maxHeight, layout };
+}
+
+function updateScriptureRiskSummary(level) {
+  const summary = document.getElementById('scripture-risk-summary');
+  if (summary) summary.textContent = SCRIPTURE_RISK_SUMMARIES[normalizeScriptureRiskLevel(level)];
+}
+
+function loadScriptureRiskLevel() {
+  chrome.storage.sync.get(STORAGE_KEYS.scriptureRiskLevel, (result) => {
+    const select = document.getElementById('scripture-risk-level');
+    if (!select) return;
+    const riskLevel = normalizeScriptureRiskLevel((result || {})[STORAGE_KEYS.scriptureRiskLevel]);
+    select.value = riskLevel;
+    updateScriptureRiskSummary(riskLevel);
+  });
+}
+
+function saveScriptureRiskLevel(event) {
+  const riskLevel = normalizeScriptureRiskLevel(event?.target?.value);
+  updateScriptureRiskSummary(riskLevel);
+  chrome.storage.sync.set({ [STORAGE_KEYS.scriptureRiskLevel]: riskLevel }, () => {
+    notifyContentScript('SET_SCRIPTURE_RISK_LEVEL', { riskLevel });
+  });
+}
+
+function loadScriptureWidgetDisplay() {
+  chrome.storage.sync.get(STORAGE_KEYS.scriptureWidgetDisplay, (result) => {
+    const display = normalizeScriptureWidgetDisplay((result || {})[STORAGE_KEYS.scriptureWidgetDisplay]);
+    const size = document.getElementById('scripture-widget-size');
+    const height = document.getElementById('scripture-widget-height');
+    const layout = document.getElementById('scripture-widget-layout');
+    if (size) size.value = display.size;
+    if (height) height.value = display.maxHeight;
+    if (layout) layout.value = display.layout;
+  });
+}
+
+function getScriptureWidgetDisplayFromForm() {
+  return normalizeScriptureWidgetDisplay({
+    size: document.getElementById('scripture-widget-size')?.value,
+    maxHeight: document.getElementById('scripture-widget-height')?.value,
+    layout: document.getElementById('scripture-widget-layout')?.value,
+  });
+}
+
+function saveScriptureWidgetDisplay() {
+  const display = getScriptureWidgetDisplayFromForm();
+  chrome.storage.sync.set({ [STORAGE_KEYS.scriptureWidgetDisplay]: display }, () => {
+    notifyContentScript('SET_SCRIPTURE_WIDGET_DISPLAY', { display });
   });
 }
 
@@ -803,7 +892,7 @@ function saveFeatureState(featureId, enabled) {
 }
 
 function setFrontierModuleControlsEnabled(enabled) {
-  document.querySelectorAll('[data-frontier-module-toggle], #frontier-debug, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #provider-ai-openrouter-key, #provider-ai-default-model, #provider-ai-save, #provider-ai-clear-key, #provider-ai-test, #local-ai-provider, #local-ai-base-url, #local-ai-api-key, #local-ai-default-model, #local-ai-allow-lan, #local-ai-save, #local-ai-clear-key, #local-ai-test, #local-ai-pull-model, #local-ai-pull')
+  document.querySelectorAll('[data-frontier-module-toggle], #frontier-debug, #scripture-risk-level, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #provider-ai-openrouter-key, #provider-ai-default-model, #provider-ai-save, #provider-ai-clear-key, #provider-ai-test, #local-ai-provider, #local-ai-base-url, #local-ai-api-key, #local-ai-default-model, #local-ai-allow-lan, #local-ai-save, #local-ai-clear-key, #local-ai-test, #local-ai-pull-model, #local-ai-pull')
     .forEach(control => {
       control.disabled = !enabled;
     });
