@@ -871,7 +871,7 @@
         <div class="section-header">
           <span class="section-icon icon-brain-circuit" style="color: var(--bd-indigo);"></span>
           <h2 class="section-title">AI Providers</h2>
-          <span class="section-count" id="count-frontier-ai">1/1</span>
+          <span class="section-count" id="count-frontier-ai">2/2</span>
         </div>
         <div class="section-body">
           <div class="frontier-module-list">
@@ -916,6 +916,77 @@
                     </button>
                   </div>
                   <div class="frontier-provider-status idle" id="provider-ai-status">Add an OpenRouter key to enable hosted model calls.</div>
+                </div>
+              </div>
+            </article>
+
+            <article class="feature-card frontier-module-card" data-frontier-module-card="localAI">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-green);">
+                      <span class="icon-hard-drive-download"></span>
+                    </span>
+                    <h3 class="feature-title">Local AI</h3>
+                  </div>
+                  <p class="feature-desc">Scaffold for future local model calls</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-frontier-module-toggle="localAI">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>Local AI is a Frontier scaffold for future local model runtimes. The module, settings storage, and user-facing controls are in place, but the runtime bridge is intentionally unimplemented.</p>
+                <p class="feature-hint"><span class="icon-hard-drive"></span> Planned targets include Ollama on desktop and a mobile adapter such as llama.rn or MLC LLM in the mobile port.</p>
+                <div class="frontier-provider-panel frontier-local-panel">
+                  <div class="frontier-panel-heading">
+                    <span><span class="icon-server-cog"></span> Runtime Scaffold</span>
+                    <button class="btn btn-icon btn-ghost" id="local-ai-test" aria-label="Preview Local AI scaffold" title="Preview scaffold">
+                      <span class="icon-plug-zap"></span>
+                    </button>
+                  </div>
+                  <div class="frontier-provider-fields">
+                    <select class="form-select form-select-sm" id="local-ai-provider" aria-label="Local AI provider">
+                      <option value="ollama">Ollama</option>
+                      <option value="openaiCompatible">OpenAI-compatible</option>
+                    </select>
+                    <input type="text" class="form-input" id="local-ai-base-url" autocomplete="off" placeholder="http://127.0.0.1:11434">
+                    <input type="password" class="form-input" id="local-ai-api-key" autocomplete="off" placeholder="Optional API key">
+                    <input type="text" class="form-input" id="local-ai-default-model" autocomplete="off" placeholder="Default model, e.g. llama3.2:3b">
+                  </div>
+                  <label class="frontier-provider-option-row">
+                    <input type="checkbox" id="local-ai-allow-lan">
+                    <span>Allow private LAN endpoints</span>
+                  </label>
+                  <div class="frontier-provider-actions">
+                    <button class="btn btn-primary btn-sm" id="local-ai-save" type="button">
+                      <span class="icon-check"></span>
+                      Save
+                    </button>
+                    <button class="btn btn-ghost btn-sm" id="local-ai-clear-key" type="button">
+                      <span class="icon-x"></span>
+                      Clear Key
+                    </button>
+                  </div>
+                  <div class="frontier-local-pull-row" id="local-ai-pull-row">
+                    <input type="text" class="form-input" id="local-ai-pull-model" autocomplete="off" placeholder="Model download placeholder">
+                    <button class="btn btn-icon btn-primary" id="local-ai-pull" aria-label="Preview model download scaffold" title="Preview scaffold">
+                      <span class="icon-cloud-download"></span>
+                    </button>
+                  </div>
+                  <div class="frontier-local-links">
+                    <a href="https://ollama.com/search" target="_blank" rel="noopener noreferrer">
+                      <span class="icon-external-link"></span>
+                      Ollama Models
+                    </a>
+                    <a href="https://huggingface.co/docs/hub/local-apps" target="_blank" rel="noopener noreferrer">
+                      <span class="icon-external-link"></span>
+                      Hugging Face Local Apps
+                    </a>
+                  </div>
+                  <div class="frontier-provider-status idle" id="local-ai-status">Local AI scaffold is ready for implementation.</div>
+                  <div class="frontier-local-model-list" id="local-ai-model-list"></div>
                 </div>
               </div>
             </article>

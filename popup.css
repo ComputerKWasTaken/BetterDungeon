@@ -566,7 +566,8 @@ body {
   gap: 6px;
 }
 
-.frontier-provider-fields .form-input {
+.frontier-provider-fields .form-input,
+.frontier-provider-fields .form-select {
   padding: 8px 10px;
   font-size: 11px;
 }
@@ -595,6 +596,89 @@ body {
 
 .frontier-provider-status.error {
   color: var(--error);
+}
+
+.frontier-provider-option-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.frontier-provider-option-row input {
+  margin: 0;
+}
+
+.frontier-local-pull-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.frontier-local-pull-row.hidden {
+  display: none;
+}
+
+.frontier-local-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.frontier-local-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.frontier-local-links a:hover {
+  text-decoration: underline;
+}
+
+.frontier-local-model-list {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.frontier-local-model-row,
+.frontier-local-model-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 10.5px;
+  line-height: 1.25;
+}
+
+.frontier-local-model-empty {
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.frontier-local-model-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.frontier-local-model-meta {
+  flex: 0 0 auto;
+  color: var(--text-muted);
 }
 
 .feature-credit {

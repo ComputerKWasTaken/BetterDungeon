@@ -65,6 +65,7 @@
         "modules/network/module.js",
         "modules/system/module.js",
         "modules/provider-ai/module.js",
+        "modules/local-ai/module.js",
         "modules/scripture/validators.js",
         "modules/scripture/renderer.js",
         "modules/scripture/module.js",

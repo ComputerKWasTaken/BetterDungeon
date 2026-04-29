@@ -19,6 +19,11 @@ const STORAGE_KEYS = {
   webfetchAllowlist: 'frontier_webfetch_allowlist',
   providerAiOpenRouterKey: 'frontier_provider_ai_openrouter_api_key',
   providerAiOpenRouterDefaultModel: 'frontier_provider_ai_openrouter_default_model',
+  localAiProvider: 'frontier_local_ai_provider',
+  localAiBaseUrl: 'frontier_local_ai_base_url',
+  localAiApiKey: 'frontier_local_ai_api_key',
+  localAiDefaultModel: 'frontier_local_ai_default_model',
+  localAiAllowLan: 'frontier_local_ai_allow_lan',
   customHotkeys: 'betterDungeon_customHotkeys',
   customModeColors: 'betterDungeon_customModeColors',
   commandSubMode: 'betterDungeon_commandSubMode',
@@ -95,7 +100,8 @@ const FRONTIER_PUBLIC_MODULES = [
   'weather',
   'network',
   'system',
-  'providerAI'
+  'providerAI',
+  'localAI'
 ];
 
 const DEFAULT_SETTINGS = {
@@ -289,6 +295,7 @@ function initFrontierSettings() {
   loadFrontierModuleToggles();
   loadWebFetchConsentList();
   loadProviderAiSettings();
+  loadLocalAiSettings();
   refreshFrontierState();
 
   document.querySelectorAll('[data-frontier-module-toggle]').forEach(toggle => {
@@ -304,11 +311,16 @@ function initFrontierSettings() {
   document.getElementById('provider-ai-save')?.addEventListener('click', saveProviderAiSettings);
   document.getElementById('provider-ai-clear-key')?.addEventListener('click', clearProviderAiKey);
   document.getElementById('provider-ai-test')?.addEventListener('click', testProviderAiConnection);
+  document.getElementById('local-ai-provider')?.addEventListener('change', updateLocalAiProviderFields);
+  document.getElementById('local-ai-save')?.addEventListener('click', saveLocalAiSettings);
+  document.getElementById('local-ai-clear-key')?.addEventListener('click', clearLocalAiKey);
+  document.getElementById('local-ai-test')?.addEventListener('click', testLocalAiConnection);
+  document.getElementById('local-ai-pull')?.addEventListener('click', pullLocalAiModel);
 }
 
 function defaultFrontierModuleState() {
   return FRONTIER_PUBLIC_MODULES.reduce((out, id) => {
-    out[id] = true;
+    out[id] = id !== 'localAI';
     return out;
   }, {});
 }
@@ -613,6 +625,165 @@ async function testProviderAiConnection() {
   }
 }
 
+function defaultLocalAiBaseUrl(provider) {
+  return provider === 'openaiCompatible' ? 'http://127.0.0.1:1234' : 'http://127.0.0.1:11434';
+}
+
+function updateLocalAiProviderFields() {
+  const provider = document.getElementById('local-ai-provider')?.value || 'ollama';
+  const baseUrlInput = document.getElementById('local-ai-base-url');
+  const modelInput = document.getElementById('local-ai-default-model');
+  const pullRow = document.getElementById('local-ai-pull-row');
+
+  if (baseUrlInput) {
+    const previousProvider = baseUrlInput.dataset.localAiProvider || provider;
+    const previousDefault = defaultLocalAiBaseUrl(previousProvider);
+    baseUrlInput.placeholder = provider === 'openaiCompatible'
+      ? 'http://127.0.0.1:1234'
+      : 'http://127.0.0.1:11434';
+    if (!baseUrlInput.value.trim() || baseUrlInput.value.trim() === previousDefault) {
+      baseUrlInput.value = defaultLocalAiBaseUrl(provider);
+    }
+    baseUrlInput.dataset.localAiProvider = provider;
+  }
+
+  if (modelInput) {
+    modelInput.placeholder = provider === 'openaiCompatible'
+      ? 'Default model, e.g. local-model'
+      : 'Default model, e.g. llama3.2:3b';
+  }
+
+  if (pullRow) {
+    pullRow.classList.toggle('hidden', provider !== 'ollama');
+  }
+}
+
+async function loadLocalAiSettings() {
+  const providerSelect = document.getElementById('local-ai-provider');
+  const baseUrlInput = document.getElementById('local-ai-base-url');
+  const keyInput = document.getElementById('local-ai-api-key');
+  const modelInput = document.getElementById('local-ai-default-model');
+  const allowLanInput = document.getElementById('local-ai-allow-lan');
+  if (!providerSelect && !baseUrlInput && !keyInput && !modelInput) return;
+
+  const result = await localStorageGet([
+    STORAGE_KEYS.localAiProvider,
+    STORAGE_KEYS.localAiBaseUrl,
+    STORAGE_KEYS.localAiApiKey,
+    STORAGE_KEYS.localAiDefaultModel,
+    STORAGE_KEYS.localAiAllowLan
+  ]);
+  const provider = String(result[STORAGE_KEYS.localAiProvider] || 'ollama');
+  const baseUrl = String(result[STORAGE_KEYS.localAiBaseUrl] || defaultLocalAiBaseUrl(provider)).trim();
+  const hasKey = !!String(result[STORAGE_KEYS.localAiApiKey] || '').trim();
+  const model = String(result[STORAGE_KEYS.localAiDefaultModel] || '').trim();
+
+  if (providerSelect) providerSelect.value = provider === 'openaiCompatible' ? 'openaiCompatible' : 'ollama';
+  if (baseUrlInput) baseUrlInput.value = baseUrl;
+  if (keyInput) {
+    keyInput.value = '';
+    keyInput.placeholder = hasKey ? 'Saved API key - leave blank to keep' : 'Optional API key';
+  }
+  if (modelInput) modelInput.value = model;
+  if (allowLanInput) allowLanInput.checked = result[STORAGE_KEYS.localAiAllowLan] === true;
+
+  updateLocalAiProviderFields();
+  renderLocalAiModels([]);
+  updateLocalAiStatus(true, 'Local AI scaffold is ready for implementation.', 'idle');
+}
+
+function updateLocalAiStatus(configured, detail, tone = 'idle') {
+  const status = document.getElementById('local-ai-status');
+  if (!status) return;
+  status.classList.remove('ok', 'error', 'idle');
+  status.classList.add(tone);
+  status.textContent = configured ? detail : detail;
+}
+
+function renderLocalAiModels(models) {
+  const list = document.getElementById('local-ai-model-list');
+  if (!list) return;
+
+  list.innerHTML = '';
+  if (!Array.isArray(models) || !models.length) {
+    const empty = document.createElement('div');
+    empty.className = 'frontier-local-model-empty';
+    empty.textContent = 'Model listing hook not implemented yet';
+    list.appendChild(empty);
+    return;
+  }
+
+  models.slice(0, 5).forEach((model) => {
+    const row = document.createElement('div');
+    row.className = 'frontier-local-model-row';
+
+    const name = document.createElement('span');
+    name.className = 'frontier-local-model-name';
+    name.title = model.id || model.name || '';
+    name.textContent = model.name || model.id || 'local model';
+
+    const meta = document.createElement('span');
+    meta.className = 'frontier-local-model-meta';
+    meta.textContent = model.parameterSize || model.quantizationLevel || model.ownedBy || '';
+
+    row.append(name, meta);
+    list.appendChild(row);
+  });
+}
+
+async function saveLocalAiSettings(options = {}) {
+  const provider = document.getElementById('local-ai-provider')?.value || 'ollama';
+  const baseUrl = String(document.getElementById('local-ai-base-url')?.value || defaultLocalAiBaseUrl(provider)).trim();
+  const keyInput = document.getElementById('local-ai-api-key');
+  const key = String(keyInput?.value || '').trim();
+  const model = String(document.getElementById('local-ai-default-model')?.value || '').trim();
+  const allowLan = document.getElementById('local-ai-allow-lan')?.checked === true;
+
+  try {
+    new URL(baseUrl);
+  } catch {
+    updateLocalAiStatus(false, 'Enter a valid Local AI endpoint URL.', 'error');
+    showToast('Enter a valid Local AI endpoint URL', 'error');
+    return false;
+  }
+
+  const updates = {
+    [STORAGE_KEYS.localAiProvider]: provider === 'openaiCompatible' ? 'openaiCompatible' : 'ollama',
+    [STORAGE_KEYS.localAiBaseUrl]: baseUrl,
+    [STORAGE_KEYS.localAiDefaultModel]: model,
+    [STORAGE_KEYS.localAiAllowLan]: allowLan,
+  };
+
+  if (key) {
+    updates[STORAGE_KEYS.localAiApiKey] = key;
+  }
+
+  await localStorageSet(updates);
+  if (keyInput) keyInput.value = '';
+  await loadLocalAiSettings();
+  if (!options.silent) showToast('Local AI settings saved', 'success');
+  return true;
+}
+
+async function clearLocalAiKey() {
+  await localStorageRemove(STORAGE_KEYS.localAiApiKey);
+  await loadLocalAiSettings();
+  showToast('Local AI key cleared', 'success');
+}
+
+async function testLocalAiConnection() {
+  await saveLocalAiSettings({ silent: true });
+  renderLocalAiModels([]);
+  updateLocalAiStatus(true, 'Local AI test hook is scaffolded for runtime implementation.', 'idle');
+  showToast('Local AI runtime is scaffolded', 'info');
+}
+
+async function pullLocalAiModel() {
+  await saveLocalAiSettings({ silent: true });
+  updateLocalAiStatus(true, 'Model download hook is scaffolded for runtime implementation.', 'idle');
+  showToast('Model download is scaffolded', 'info');
+}
+
 function saveFeatureState(featureId, enabled) {
   log('[Popup] Saving feature state:', featureId, enabled);
   chrome.storage.sync.get(STORAGE_KEYS.features, (result) => {
@@ -632,7 +803,7 @@ function saveFeatureState(featureId, enabled) {
 }
 
 function setFrontierModuleControlsEnabled(enabled) {
-  document.querySelectorAll('[data-frontier-module-toggle], #frontier-debug, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #provider-ai-openrouter-key, #provider-ai-default-model, #provider-ai-save, #provider-ai-clear-key, #provider-ai-test')
+  document.querySelectorAll('[data-frontier-module-toggle], #frontier-debug, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #provider-ai-openrouter-key, #provider-ai-default-model, #provider-ai-save, #provider-ai-clear-key, #provider-ai-test, #local-ai-provider, #local-ai-base-url, #local-ai-api-key, #local-ai-default-model, #local-ai-allow-lan, #local-ai-save, #local-ai-clear-key, #local-ai-test, #local-ai-pull-model, #local-ai-pull')
     .forEach(control => {
       control.disabled = !enabled;
     });
@@ -2549,7 +2720,7 @@ function updateFrontierSectionCounts() {
   const sectionMap = {
     'frontier-script-surface': ['scripture', 'webfetch', 'clock'],
     'frontier-context': ['geolocation', 'weather', 'network', 'system'],
-    'frontier-ai': ['providerAI']
+    'frontier-ai': ['providerAI', 'localAI']
   };
 
   Object.entries(sectionMap).forEach(([sectionId, moduleIds]) => {

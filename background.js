@@ -20,6 +20,7 @@
 
   const WEBFETCH_MESSAGE = 'FRONTIER_WEBFETCH_FETCH';
   const PROVIDER_AI_MESSAGE = 'FRONTIER_PROVIDER_AI_REQUEST';
+  const LOCAL_AI_MESSAGE = 'FRONTIER_LOCAL_AI_REQUEST';
   const DEFAULT_TIMEOUT_MS = 15000;
   const MAX_TIMEOUT_MS = 30000;
   const DEFAULT_MAX_BODY_BYTES = 50000;
@@ -64,6 +65,17 @@
       };
     }
     return { code: 'provider_ai_failed', message: String(error || 'Provider AI failed') };
+  }
+
+  function normalizeLocalAiError(error) {
+    if (error && typeof error === 'object') {
+      return {
+        ...error,
+        code: typeof error.code === 'string' && error.code ? error.code : 'local_ai_failed',
+        message: typeof error.message === 'string' ? error.message : 'Local AI failed',
+      };
+    }
+    return { code: 'local_ai_failed', message: String(error || 'Local AI failed') };
   }
 
   function clampNumber(value, fallback, min, max) {
@@ -614,6 +626,15 @@
     return handleOpenRouterTestConnection(request, config);
   }
 
+  async function handleLocalAi(request = {}) {
+    const op = String(request.op || '').trim() || 'unknown';
+    throw {
+      code: 'not_implemented',
+      message: `Local AI ${op} is scaffolded but no runtime backend has been implemented yet.`,
+      module: 'localAI',
+      op,
+    };
+  }
   extensionRuntime.onMessage.addListener((message, _sender, sendResponse) => {
     if (!message || message.type !== WEBFETCH_MESSAGE) return false;
 
@@ -629,6 +650,15 @@
     handleProviderAi(message.request)
       .then((data) => sendResponse({ ok: true, data }))
       .catch((error) => sendResponse({ ok: false, error: normalizeProviderAiError(error) }));
+    return true;
+  });
+
+  extensionRuntime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (!message || message.type !== LOCAL_AI_MESSAGE) return false;
+
+    handleLocalAi(message.request)
+      .then((data) => sendResponse({ ok: true, data }))
+      .catch((error) => sendResponse({ ok: false, error: normalizeLocalAiError(error) }));
     return true;
   });
 })();

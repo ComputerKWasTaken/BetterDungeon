@@ -67,6 +67,7 @@ For developers or if you prefer manual installation:
 - **Story Card Modal Dock** — Docks the story card modal to the right side, allowing you to scroll through your story while editing Story Cards.
 - **Scripture** — A Frontier module for dynamic AI Dungeon script widgets. Enables scripts to create HP bars, stats, and game state displays through story-card state.
 - **Frontier Provider AI** — Lets scripts call a user-configured OpenRouter model for bounded sidecar reasoning while keeping API keys inside BetterDungeon.
+- **Frontier Local AI** — Scaffold for future local model support through Ollama, local OpenAI-compatible runtimes, and the mobile port's local runtime adapter.
 
 ### ⚡ Automations
 
