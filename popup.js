@@ -2861,6 +2861,9 @@ function setupTutorialHandlers() {
   document.getElementById('tutorial-next')?.addEventListener('click', () => tutorialService?.next());
   document.getElementById('tutorial-prev')?.addEventListener('click', () => tutorialService?.previous());
   document.getElementById('tutorial-skip')?.addEventListener('click', exitTutorial);
+  document.getElementById('tutorial-topics')?.addEventListener('click', toggleTutorialTopics);
+  document.getElementById('tutorial-topic-panel')?.addEventListener('click', handleTutorialTopicClick);
+  document.getElementById('tutorial-modal-topics')?.addEventListener('click', handleTutorialTopicClick);
   
   document.getElementById('tutorial-modal-primary')?.addEventListener('click', () => {
     // Check if we're on the completion modal (shown after all steps)
@@ -2941,14 +2944,24 @@ function showTutorialModal(step) {
 
   const primaryBtn = document.getElementById('tutorial-modal-primary');
   const secondaryBtn = document.getElementById('tutorial-modal-secondary');
+  const topicList = document.getElementById('tutorial-modal-topics');
 
   if (step.isComplete) {
     primaryBtn.textContent = 'Got It!';
     secondaryBtn.style.display = 'none';
+    topicList?.classList.add('hidden');
+    if (topicList) topicList.innerHTML = '';
   } else {
-    primaryBtn.textContent = 'Start Tour';
+    primaryBtn.textContent = 'Start from Beginning';
     secondaryBtn.style.display = 'block';
     secondaryBtn.textContent = 'Maybe Later';
+    if (step.id === 'welcome' && topicList) {
+      renderTutorialTopics(topicList, { includeHeading: true });
+      topicList.classList.remove('hidden');
+    } else {
+      topicList?.classList.add('hidden');
+      if (topicList) topicList.innerHTML = '';
+    }
   }
 
   modal.classList.add('visible');
@@ -2956,6 +2969,86 @@ function showTutorialModal(step) {
 
 function closeTutorialModal() {
   document.getElementById('tutorial-modal')?.classList.remove('visible');
+}
+
+function renderTutorialTopics(container, options = {}) {
+  if (!container || !tutorialService?.getTopics) return;
+
+  const topics = tutorialService.getTopics();
+  const currentTopic = tutorialService.getTopicForStep?.();
+  container.innerHTML = '';
+
+  if (options.includeHeading) {
+    const heading = document.createElement('div');
+    heading.className = 'tutorial-topic-heading';
+    heading.textContent = 'Jump to a topic';
+    container.appendChild(heading);
+  }
+
+  topics.forEach(topic => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'tutorial-topic-button';
+    button.dataset.tutorialTopic = topic.id;
+    button.setAttribute('aria-label', `Jump to ${topic.title}`);
+    if (currentTopic?.id === topic.id) button.classList.add('active');
+
+    const icon = document.createElement('span');
+    icon.className = 'tutorial-topic-icon';
+    icon.innerHTML = `<span class="${topic.icon || 'icon-circle'}"></span>`;
+
+    const copy = document.createElement('span');
+    copy.className = 'tutorial-topic-copy';
+
+    const title = document.createElement('span');
+    title.className = 'tutorial-topic-title';
+    title.textContent = topic.title;
+
+    const desc = document.createElement('span');
+    desc.className = 'tutorial-topic-desc';
+    desc.textContent = topic.description;
+
+    copy.appendChild(title);
+    copy.appendChild(desc);
+
+    const arrow = document.createElement('span');
+    arrow.className = 'tutorial-topic-arrow';
+    arrow.innerHTML = '<span class="icon-chevron-right"></span>';
+
+    button.appendChild(icon);
+    button.appendChild(copy);
+    button.appendChild(arrow);
+    container.appendChild(button);
+  });
+}
+
+function handleTutorialTopicClick(event) {
+  const button = event.target.closest('[data-tutorial-topic]');
+  if (!button || !tutorialService) return;
+
+  closeTutorialModal();
+  document.getElementById('tutorial-topic-panel')?.classList.add('hidden');
+  tutorialService.goToTopic(button.dataset.tutorialTopic);
+}
+
+function toggleTutorialTopics() {
+  const panel = document.getElementById('tutorial-topic-panel');
+  if (!panel) return;
+
+  renderTutorialTopics(panel);
+  panel.classList.toggle('hidden');
+  repositionTutorialTooltip();
+}
+
+function repositionTutorialTooltip() {
+  const tooltip = document.getElementById('tutorial-tooltip');
+  const step = tutorialService?.getCurrentStep?.();
+  if (!tooltip || !step?.target) return;
+
+  requestAnimationFrame(() => {
+    const target = document.querySelector(step.target);
+    if (target) positionTooltip(tooltip, target.getBoundingClientRect(), step.position || 'bottom');
+  });
 }
 
 function showSpotlight(step, currentIndex, totalSteps) {
@@ -3067,6 +3160,7 @@ function positionTooltip(tooltip, targetRect, position) {
 function updateTooltipContent(step, currentIndex, totalSteps) {
   document.getElementById('tutorial-tooltip-title').textContent = step.title;
   document.getElementById('tutorial-tooltip-content').textContent = step.content;
+  renderTutorialTopics(document.getElementById('tutorial-topic-panel'));
 
   const progress = ((currentIndex + 1) / totalSteps) * 100;
   document.getElementById('tutorial-progress-fill').style.width = `${progress}%`;
@@ -3076,12 +3170,13 @@ function updateTooltipContent(step, currentIndex, totalSteps) {
   const nextBtn = document.getElementById('tutorial-next');
   
   if (prevBtn) prevBtn.style.display = currentIndex > 1 ? 'block' : 'none';
-  if (nextBtn) nextBtn.textContent = currentIndex === totalSteps - 2 ? 'Finish' : 'Next';
+  if (nextBtn) nextBtn.textContent = currentIndex === totalSteps - 1 ? 'Finish' : 'Next';
 }
 
 function cleanupTutorialStep() {
   document.getElementById('tutorial-overlay')?.classList.remove('active');
   document.getElementById('tutorial-tooltip')?.classList.remove('visible');
+  document.getElementById('tutorial-topic-panel')?.classList.add('hidden');
   document.querySelectorAll('.tutorial-highlighted').forEach(el => el.classList.remove('tutorial-highlighted'));
 
   if (previouslyExpandedCard) {

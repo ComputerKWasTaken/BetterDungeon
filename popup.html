@@ -1473,9 +1473,13 @@
         <span class="icon-lightbulb" id="tutorial-tooltip-icon"></span>
       </div>
       <h4 class="tutorial-tooltip-title" id="tutorial-tooltip-title">Feature Title</h4>
+      <button class="btn btn-icon btn-ghost tutorial-topic-toggle" id="tutorial-topics" type="button" aria-label="Browse tutorial topics" title="Topics">
+        <span class="icon-list"></span>
+      </button>
     </div>
     <div class="tutorial-tooltip-body">
       <p class="tutorial-tooltip-content" id="tutorial-tooltip-content">Description goes here.</p>
+      <div class="tutorial-topic-panel hidden" id="tutorial-topic-panel"></div>
     </div>
     <div class="tutorial-tooltip-footer">
       <div class="tutorial-progress">
@@ -1500,6 +1504,7 @@
       </div>
       <h3 class="tutorial-modal-title" id="tutorial-modal-title">Welcome to BetterDungeon!</h3>
       <p class="tutorial-modal-text" id="tutorial-modal-text">This quick tour will introduce you to the features.</p>
+      <div class="tutorial-modal-topics" id="tutorial-modal-topics"></div>
       <div class="tutorial-modal-actions">
         <button class="btn btn-primary" id="tutorial-modal-primary">Start Tour</button>
         <button class="btn btn-ghost" id="tutorial-modal-secondary">Maybe Later</button>

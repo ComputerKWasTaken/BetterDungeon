@@ -140,7 +140,118 @@ class TutorialService {
         title: 'Auto See',
         content: 'Automatically triggers a See action after AI responses to visualize the scene. Set it to run every turn or at custom intervals!',
         position: 'top',
+        action: 'switchTab',
+        actionTarget: 'features',
         expandCard: true
+      },
+      // Frontier Tab Navigation
+      {
+        id: 'frontier-tab',
+        type: 'spotlight',
+        target: '[data-tab="frontier"]',
+        title: 'Frontier Tab',
+        content: 'Frontier is BetterDungeon\'s bridge for script superpowers: scripts ask for a capability, and BetterDungeon safely returns structured results.',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'frontier'
+      },
+      {
+        id: 'frontier-runtime',
+        type: 'spotlight',
+        target: '[data-feature="frontier"]',
+        title: 'Frontier Runtime',
+        content: 'Keep Frontier enabled when you want scripts to use BetterDungeon modules. The status panel shows whether the live adventure bridge is connected.',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'frontier',
+        expandCard: true
+      },
+      {
+        id: 'frontier-modules',
+        type: 'spotlight',
+        target: '[data-frontier-module-card="scripture"]',
+        title: 'Modules',
+        content: 'Each module is a focused capability for scripts, such as UI widgets, web lookups, time, device context, or AI. Toggle only the ones you want available.',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'frontier',
+        expandCard: true
+      },
+      {
+        id: 'frontier-script-flow',
+        type: 'spotlight',
+        target: '[data-frontier-module-card="webfetch"]',
+        title: 'How Scripts Call Frontier',
+        content: 'Scripts write frontier:out requests with id, module, op, and args. BetterDungeon runs the operation and writes results to frontier:in:<module>.',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'frontier',
+        expandCard: true
+      },
+      {
+        id: 'provider-ai-card',
+        type: 'spotlight',
+        target: '[data-frontier-module-card="providerAI"]',
+        title: 'Provider AI',
+        content: 'Provider AI is the main attraction for many scripts: it lets a script ask a hosted model for side tasks without interrupting the main story turn.',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'frontier',
+        expandCard: true
+      },
+      {
+        id: 'provider-ai-key',
+        type: 'spotlight',
+        target: '#provider-ai-openrouter-key',
+        title: 'OpenRouter Key',
+        content: 'Add your OpenRouter key here. BetterDungeon stores it in extension settings and keeps it out of Story Cards, so scripts never see the key.',
+        position: 'top',
+        action: 'switchTab',
+        actionTarget: 'frontier',
+        expandCard: true
+      },
+      {
+        id: 'provider-ai-model',
+        type: 'spotlight',
+        target: '#provider-ai-default-model',
+        title: 'Default Model',
+        content: 'Set the model Provider AI should use by default. Scripts can still request a specific model, but a default keeps simple calls easy.',
+        position: 'top',
+        action: 'switchTab',
+        actionTarget: 'frontier',
+        expandCard: true
+      },
+      {
+        id: 'provider-ai-test',
+        type: 'spotlight',
+        target: '#provider-ai-test',
+        title: 'Test Connection',
+        content: 'After saving your key and model, use this plug button to verify the Provider AI connection before relying on it in a scenario.',
+        position: 'top',
+        action: 'switchTab',
+        actionTarget: 'frontier',
+        expandCard: true
+      },
+      {
+        id: 'provider-ai-script-usage',
+        type: 'spotlight',
+        target: '#provider-ai-status',
+        title: 'Using Provider AI in Scripts',
+        content: 'Send module providerAI, op chat, messages, and optional maxTokens or responseFormat. Read frontier:in:providerAI, then ack the request id.',
+        position: 'top',
+        action: 'switchTab',
+        actionTarget: 'frontier',
+        expandCard: true
+      },
+      {
+        id: 'frontier-examples',
+        type: 'spotlight',
+        target: '#tab-frontier .btn-action',
+        title: 'Example Scripts',
+        content: 'Use the example scripts as starting points for Frontier request envelopes, response handling, and module-specific patterns.',
+        position: 'top',
+        action: 'switchTab',
+        actionTarget: 'frontier'
       },
       // Presets Tab Navigation
       {
@@ -170,6 +281,37 @@ class TutorialService {
         title: 'Character Presets',
         content: 'Tired of retyping character info? Save character profiles and auto-fill scenario entry questions with one click!',
         position: 'top'
+      }
+    ];
+
+    this.topics = [
+      {
+        id: 'features',
+        title: 'Features',
+        description: 'Core tools and story helpers',
+        icon: 'icon-sparkles',
+        stepId: 'features-tab'
+      },
+      {
+        id: 'frontier',
+        title: 'Frontier',
+        description: 'Runtime, modules, and script flow',
+        icon: 'icon-radio-tower',
+        stepId: 'frontier-tab'
+      },
+      {
+        id: 'provider-ai',
+        title: 'Provider AI',
+        description: 'OpenRouter and model calls',
+        icon: 'icon-bot-message-square',
+        stepId: 'provider-ai-card'
+      },
+      {
+        id: 'presets',
+        title: 'Presets',
+        description: 'Plot and character presets',
+        icon: 'icon-bookmark',
+        stepId: 'presets-tab'
       }
     ];
     
@@ -262,7 +404,21 @@ class TutorialService {
     if (index >= 0 && index < this.steps.length) {
       this.currentStep = index;
       this.showCurrentStep();
+      return true;
     }
+    return false;
+  }
+
+  goToStepId(stepId) {
+    const index = this.steps.findIndex(step => step.id === stepId);
+    if (index === -1) return false;
+    return this.goToStep(index);
+  }
+
+  goToTopic(topicId) {
+    const topic = this.topics.find(item => item.id === topicId);
+    if (!topic) return false;
+    return this.goToStepId(topic.stepId);
   }
 
   showCurrentStep() {
@@ -278,6 +434,32 @@ class TutorialService {
   
   getCompletionModal() {
     return this.completionModal;
+  }
+
+  getTopics() {
+    return this.topics.map((topic, index) => {
+      const startIndex = this.steps.findIndex(step => step.id === topic.stepId);
+      const nextTopic = this.topics[index + 1];
+      const nextIndex = nextTopic
+        ? this.steps.findIndex(step => step.id === nextTopic.stepId)
+        : this.steps.length;
+
+      return {
+        ...topic,
+        startIndex,
+        stepCount: Math.max(1, nextIndex - startIndex)
+      };
+    }).filter(topic => topic.startIndex >= 0);
+  }
+
+  getTopicForStep(index = this.currentStep) {
+    const topics = this.getTopics();
+    let currentTopic = null;
+    for (const topic of topics) {
+      if (topic.startIndex <= index) currentTopic = topic;
+      else break;
+    }
+    return currentTopic;
   }
 
   getProgress() {

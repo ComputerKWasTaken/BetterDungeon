@@ -2135,7 +2135,7 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 14px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -2152,9 +2152,17 @@ body {
 }
 
 .tutorial-tooltip-title {
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.tutorial-topic-toggle {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
 }
 
 .tutorial-tooltip-body {
@@ -2165,6 +2173,105 @@ body {
   font-size: 12px;
   color: var(--text-secondary);
   line-height: 1.5;
+}
+
+.tutorial-topic-panel {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+  padding: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.tutorial-topic-panel.hidden,
+.tutorial-modal-topics.hidden {
+  display: none;
+}
+
+.tutorial-topic-heading {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 0 2px;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.tutorial-topic-button {
+  display: grid;
+  grid-template-columns: 26px 1fr 16px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 9px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.tutorial-topic-button:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+}
+
+.tutorial-topic-button.active {
+  background: var(--accent-muted);
+  border-color: var(--border-accent);
+}
+
+.tutorial-topic-panel .tutorial-topic-button {
+  min-height: 38px;
+}
+
+.tutorial-topic-panel .tutorial-topic-desc {
+  display: none;
+}
+
+.tutorial-topic-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-active);
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.tutorial-topic-copy {
+  min-width: 0;
+}
+
+.tutorial-topic-title {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.tutorial-topic-desc {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.25;
+}
+
+.tutorial-topic-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
 .tutorial-tooltip-footer {
@@ -2204,6 +2311,7 @@ body {
 .tutorial-nav {
   display: flex;
   gap: 6px;
+  justify-content: flex-end;
 }
 
 /* === Tutorial Modal === */
@@ -2228,7 +2336,7 @@ body {
 }
 
 .tutorial-modal-content {
-  width: 280px;
+  width: min(340px, calc(100vw - 40px));
   background: var(--bg-surface);
   border: 1px solid var(--border-accent);
   border-radius: var(--radius-xl);
@@ -2267,6 +2375,18 @@ body {
   color: var(--text-secondary);
   line-height: 1.5;
   margin-bottom: 20px;
+}
+
+.tutorial-modal-topics {
+  display: grid;
+  gap: 8px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.tutorial-modal-topics .tutorial-topic-button {
+  min-height: 50px;
+  padding: 9px 10px;
 }
 
 .tutorial-modal-actions {
