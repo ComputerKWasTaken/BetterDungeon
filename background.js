@@ -30,7 +30,9 @@
   const AI_STORAGE_KEYS = {
     openrouterKey: 'frontier_ai_openrouter_api_key',
     openrouterDefaultModel: 'frontier_ai_openrouter_default_model',
-    budget: 'frontier_ai_budget',
+    costControls: 'frontier_ai_cost_controls',
+    legacyBudget: 'frontier_ai_budget',
+    costUsage: 'frontier_ai_cost_usage',
     legacyOpenrouterKey: 'frontier_provider_ai_openrouter_api_key',
     legacyOpenrouterDefaultModel: 'frontier_provider_ai_openrouter_default_model',
   };
@@ -41,11 +43,13 @@
   const AI_MAX_RESPONSE_BYTES = 1500000;
   const AI_DEFAULT_MODEL_LIMIT = 30;
   const AI_MAX_MODEL_LIMIT = 100;
-  const AI_DEFAULT_BUDGET = {
-    enabled: true,
-    maxChatRequestsPerMinute: 6,
-    maxChatRequestsPerAdventure: 30,
-    maxTokensPerRequest: 512,
+  const AI_DEFAULT_COST_CONTROLS = {
+    freeModelsOnly: true,
+    maxPromptPricePerMillion: 0,
+    maxCompletionPricePerMillion: 0,
+    perCallEstimateCap: 0,
+    dailySpendCap: 0,
+    monthlySpendCap: 0,
   };
 
   const BLOCKED_RESPONSE_HEADERS = new Set([
@@ -84,6 +88,12 @@
 
   function clampInteger(value, fallback, min, max) {
     return Math.round(clampNumber(value, fallback, min, max));
+  }
+
+  function clampMoney(value, fallback, min, max) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.max(min, Math.min(max, Math.round(n * 1000000) / 1000000));
   }
 
   function isTextContentType(contentType) {
@@ -275,23 +285,50 @@
     });
   }
 
+  function storageSet(areaName, items) {
+    const area = storageArea(areaName);
+    if (!area?.set) return Promise.resolve();
+
+    return new Promise((resolve) => {
+      try {
+        const maybePromise = area.set(items, () => resolve());
+        if (maybePromise && typeof maybePromise.then === 'function') {
+          maybePromise.then(() => resolve(), () => resolve());
+        }
+      } catch {
+        try {
+          const maybePromise = area.set(items);
+          if (maybePromise && typeof maybePromise.then === 'function') {
+            maybePromise.then(() => resolve(), () => resolve());
+          } else {
+            resolve();
+          }
+        } catch {
+          resolve();
+        }
+      }
+    });
+  }
+
   async function getAiConfig() {
     const keys = Object.values(AI_STORAGE_KEYS);
     const result = await storageGet('local', keys);
     return {
       openrouterKey: String(result?.[AI_STORAGE_KEYS.openrouterKey] || result?.[AI_STORAGE_KEYS.legacyOpenrouterKey] || '').trim(),
       openrouterDefaultModel: String(result?.[AI_STORAGE_KEYS.openrouterDefaultModel] || result?.[AI_STORAGE_KEYS.legacyOpenrouterDefaultModel] || '').trim(),
-      budget: normalizeAiBudget(result?.[AI_STORAGE_KEYS.budget]),
+      costControls: normalizeAiCostControls(result?.[AI_STORAGE_KEYS.costControls] || result?.[AI_STORAGE_KEYS.legacyBudget]),
     };
   }
 
-  function normalizeAiBudget(value = {}) {
+  function normalizeAiCostControls(value = {}) {
     const raw = value && typeof value === 'object' ? value : {};
     return {
-      enabled: raw.enabled !== false,
-      maxChatRequestsPerMinute: clampInteger(raw.maxChatRequestsPerMinute, AI_DEFAULT_BUDGET.maxChatRequestsPerMinute, 1, 60),
-      maxChatRequestsPerAdventure: clampInteger(raw.maxChatRequestsPerAdventure, AI_DEFAULT_BUDGET.maxChatRequestsPerAdventure, 0, 500),
-      maxTokensPerRequest: clampInteger(raw.maxTokensPerRequest, AI_DEFAULT_BUDGET.maxTokensPerRequest, 64, 4096),
+      freeModelsOnly: raw.freeModelsOnly !== false,
+      maxPromptPricePerMillion: clampMoney(raw.maxPromptPricePerMillion, AI_DEFAULT_COST_CONTROLS.maxPromptPricePerMillion, 0, 1000),
+      maxCompletionPricePerMillion: clampMoney(raw.maxCompletionPricePerMillion, AI_DEFAULT_COST_CONTROLS.maxCompletionPricePerMillion, 0, 1000),
+      perCallEstimateCap: clampMoney(raw.perCallEstimateCap, AI_DEFAULT_COST_CONTROLS.perCallEstimateCap, 0, 1000),
+      dailySpendCap: clampMoney(raw.dailySpendCap, AI_DEFAULT_COST_CONTROLS.dailySpendCap, 0, 1000),
+      monthlySpendCap: clampMoney(raw.monthlySpendCap, AI_DEFAULT_COST_CONTROLS.monthlySpendCap, 0, 1000),
     };
   }
 
@@ -407,6 +444,153 @@
       totalTokens: typeof usage.total_tokens === 'number' ? usage.total_tokens : null,
       raw: usage,
     };
+  }
+
+  function priceToNumber(value) {
+    const n = Number(value);
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  }
+
+  function pricePerMillion(model, key) {
+    return priceToNumber(model?.pricing?.[key]) * 1000000;
+  }
+
+  function isFreeModel(model) {
+    return (
+      priceToNumber(model?.pricing?.prompt) === 0 &&
+      priceToNumber(model?.pricing?.completion) === 0 &&
+      priceToNumber(model?.pricing?.request) === 0
+    );
+  }
+
+  function dateKey(timestamp = Date.now()) {
+    return new Date(timestamp).toISOString().slice(0, 10);
+  }
+
+  function monthKey(timestamp = Date.now()) {
+    return new Date(timestamp).toISOString().slice(0, 7);
+  }
+
+  function normalizeCostUsage(value = {}) {
+    const raw = value && typeof value === 'object' ? value : {};
+    const now = Date.now();
+    const today = dateKey(now);
+    const month = monthKey(now);
+    return {
+      date: raw.date === today ? today : today,
+      month: raw.month === month ? month : month,
+      dailySpend: raw.date === today ? clampMoney(raw.dailySpend, 0, 0, 1000000) : 0,
+      monthlySpend: raw.month === month ? clampMoney(raw.monthlySpend, 0, 0, 1000000) : 0,
+    };
+  }
+
+  async function getCostUsage() {
+    const result = await storageGet('local', AI_STORAGE_KEYS.costUsage);
+    return normalizeCostUsage(result?.[AI_STORAGE_KEYS.costUsage]);
+  }
+
+  async function recordCostUsage(cost) {
+    if (!cost) return;
+    const usage = await getCostUsage();
+    const next = {
+      ...usage,
+      dailySpend: clampMoney(usage.dailySpend + cost, 0, 0, 1000000),
+      monthlySpend: clampMoney(usage.monthlySpend + cost, 0, 0, 1000000),
+    };
+    await storageSet('local', { [AI_STORAGE_KEYS.costUsage]: next });
+  }
+
+  function estimateTokens(messages) {
+    const chars = Array.isArray(messages)
+      ? messages.reduce((total, message) => total + String(message?.content || '').length, 0)
+      : 0;
+    return Math.max(1, Math.ceil(chars / 4));
+  }
+
+  function estimateRequestCost(model, request) {
+    const promptTokens = estimateTokens(request.messages);
+    const completionTokens = clampInteger(request.maxTokens, 512, 1, 4096);
+    const promptCost = promptTokens * priceToNumber(model?.pricing?.prompt);
+    const completionCost = completionTokens * priceToNumber(model?.pricing?.completion);
+    return promptCost + completionCost + priceToNumber(model?.pricing?.request);
+  }
+
+  function actualRequestCost(model, usage) {
+    const promptTokens = typeof usage?.promptTokens === 'number' ? usage.promptTokens : 0;
+    const completionTokens = typeof usage?.completionTokens === 'number' ? usage.completionTokens : 0;
+    return (
+      promptTokens * priceToNumber(model?.pricing?.prompt) +
+      completionTokens * priceToNumber(model?.pricing?.completion) +
+      priceToNumber(model?.pricing?.request)
+    );
+  }
+
+  function findModel(models, modelId) {
+    const requested = String(modelId || '').trim().toLowerCase();
+    if (!requested) return null;
+    return models.find((model) => String(model?.id || '').toLowerCase() === requested) || null;
+  }
+
+  async function enforceAiCostControls(request, config, model) {
+    const controls = normalizeAiCostControls(config?.costControls);
+    if (!model) {
+      throw {
+        code: 'model_not_found',
+        message: `OpenRouter model '${request.model}' was not found; verify the model ID or choose one from OpenRouter`,
+        provider: 'openrouter',
+      };
+    }
+
+    if (controls.freeModelsOnly && !isFreeModel(model)) {
+      throw {
+        code: 'cost_control',
+        message: `AI cost controls allow free models only. Disable that setting to use '${model.id}'.`,
+        provider: 'openrouter',
+      };
+    }
+
+    const promptPrice = pricePerMillion(model, 'prompt');
+    if (controls.maxPromptPricePerMillion > 0 && promptPrice > controls.maxPromptPricePerMillion) {
+      throw {
+        code: 'cost_control',
+        message: `Model input price $${promptPrice.toFixed(2)}/1M exceeds your $${controls.maxPromptPricePerMillion.toFixed(2)}/1M cap`,
+        provider: 'openrouter',
+      };
+    }
+
+    const completionPrice = pricePerMillion(model, 'completion');
+    if (controls.maxCompletionPricePerMillion > 0 && completionPrice > controls.maxCompletionPricePerMillion) {
+      throw {
+        code: 'cost_control',
+        message: `Model output price $${completionPrice.toFixed(2)}/1M exceeds your $${controls.maxCompletionPricePerMillion.toFixed(2)}/1M cap`,
+        provider: 'openrouter',
+      };
+    }
+
+    const estimatedCost = estimateRequestCost(model, request);
+    if (controls.perCallEstimateCap > 0 && estimatedCost > controls.perCallEstimateCap) {
+      throw {
+        code: 'cost_control',
+        message: `Estimated AI cost $${estimatedCost.toFixed(4)} exceeds your per-call $${controls.perCallEstimateCap.toFixed(2)} cap`,
+        provider: 'openrouter',
+      };
+    }
+
+    const usage = await getCostUsage();
+    if (controls.dailySpendCap > 0 && usage.dailySpend + estimatedCost > controls.dailySpendCap) {
+      throw {
+        code: 'cost_control',
+        message: `Estimated AI cost would exceed your daily $${controls.dailySpendCap.toFixed(2)} cap`,
+        provider: 'openrouter',
+      };
+    }
+    if (controls.monthlySpendCap > 0 && usage.monthlySpend + estimatedCost > controls.monthlySpendCap) {
+      throw {
+        code: 'cost_control',
+        message: `Estimated AI cost would exceed your monthly $${controls.monthlySpendCap.toFixed(2)} cap`,
+        provider: 'openrouter',
+      };
+    }
   }
 
   function numberOrNull(value) {
@@ -580,7 +764,6 @@
   async function handleOpenRouterChat(request, config) {
     const apiKey = requireOpenRouterKey(config);
     const timeoutMs = clampNumber(request.timeoutMs, AI_DEFAULT_TIMEOUT_MS, 1000, AI_MAX_TIMEOUT_MS);
-    const budget = normalizeAiBudget(config?.budget);
     const model = String(request.model || config.openrouterDefaultModel || '').trim();
     if (!model) {
       throw {
@@ -592,6 +775,9 @@
     if (!Array.isArray(request.messages) || request.messages.length === 0) {
       throw { code: 'invalid_args', message: 'messages must be a non-empty array', provider: 'openrouter' };
     }
+    const models = (await fetchOpenRouterModels(config, timeoutMs)).models;
+    const modelMeta = findModel(models, model);
+    await enforceAiCostControls({ ...request, model }, config, modelMeta);
 
     const body = {
       model,
@@ -599,12 +785,7 @@
       stream: false,
     };
     if (typeof request.temperature === 'number') body.temperature = request.temperature;
-    const requestedMaxTokens = typeof request.maxTokens === 'number' ? request.maxTokens : null;
-    if (budget.enabled) {
-      body.max_tokens = Math.min(requestedMaxTokens || budget.maxTokensPerRequest, budget.maxTokensPerRequest);
-    } else if (requestedMaxTokens) {
-      body.max_tokens = requestedMaxTokens;
-    }
+    if (typeof request.maxTokens === 'number') body.max_tokens = request.maxTokens;
     if (request.responseFormat && typeof request.responseFormat === 'object') {
       body.response_format = request.responseFormat;
     }
@@ -626,7 +807,9 @@
       throw { code: 'ai_failed', message: 'OpenRouter returned invalid JSON', provider: 'openrouter' };
     }
 
-    return normalizeOpenRouterChat(responseBody.payload, model);
+    const normalized = normalizeOpenRouterChat(responseBody.payload, model);
+    await recordCostUsage(actualRequestCost(modelMeta, normalized.usage));
+    return normalized;
   }
 
   async function handleAi(request = {}) {

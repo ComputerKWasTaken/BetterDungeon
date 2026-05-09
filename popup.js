@@ -21,7 +21,8 @@ const STORAGE_KEYS = {
   webfetchAllowlist: 'frontier_webfetch_allowlist',
   aiOpenRouterKey: 'frontier_ai_openrouter_api_key',
   aiOpenRouterDefaultModel: 'frontier_ai_openrouter_default_model',
-  aiBudget: 'frontier_ai_budget',
+  aiCostControls: 'frontier_ai_cost_controls',
+  legacyAiBudget: 'frontier_ai_budget',
   legacyProviderAiOpenRouterKey: 'frontier_provider_ai_openrouter_api_key',
   legacyProviderAiOpenRouterDefaultModel: 'frontier_provider_ai_openrouter_default_model',
   customHotkeys: 'betterDungeon_customHotkeys',
@@ -113,11 +114,13 @@ const DEFAULT_SCRIPTURE_WIDGET_DISPLAY = {
   layout: 'balanced'
 };
 
-const DEFAULT_AI_BUDGET = {
-  enabled: true,
-  maxChatRequestsPerMinute: 6,
-  maxChatRequestsPerAdventure: 30,
-  maxTokensPerRequest: 512,
+const DEFAULT_AI_COST_CONTROLS = {
+  freeModelsOnly: true,
+  maxPromptPricePerMillion: 0,
+  maxCompletionPricePerMillion: 0,
+  perCallEstimateCap: 0,
+  dailySpendCap: 0,
+  monthlySpendCap: 0,
 };
 
 const SCRIPTURE_RISK_SUMMARIES = {
@@ -334,7 +337,6 @@ function initFrontierSettings() {
   document.getElementById('ai-save')?.addEventListener('click', saveAiSettings);
   document.getElementById('ai-clear-key')?.addEventListener('click', clearAiKey);
   document.getElementById('ai-test')?.addEventListener('click', testAiConnection);
-  document.getElementById('ai-refresh-models')?.addEventListener('click', refreshAiModels);
 }
 
 function defaultFrontierModuleState() {
@@ -631,16 +633,19 @@ function localStorageRemove(keys) {
 async function loadAiSettings() {
   const keyInput = document.getElementById('ai-openrouter-key');
   const modelInput = document.getElementById('ai-default-model');
-  const budgetEnabledInput = document.getElementById('ai-budget-enabled');
-  const budgetMinuteInput = document.getElementById('ai-budget-requests-minute');
-  const budgetAdventureInput = document.getElementById('ai-budget-requests-adventure');
-  const budgetTokensInput = document.getElementById('ai-budget-max-tokens');
-  if (!keyInput && !modelInput && !budgetEnabledInput) return;
+  const freeOnlyInput = document.getElementById('ai-cost-free-only');
+  const maxInputPriceInput = document.getElementById('ai-cost-max-input');
+  const maxOutputPriceInput = document.getElementById('ai-cost-max-output');
+  const perCallCapInput = document.getElementById('ai-cost-per-call-cap');
+  const dailyCapInput = document.getElementById('ai-cost-daily-cap');
+  const monthlyCapInput = document.getElementById('ai-cost-monthly-cap');
+  if (!keyInput && !modelInput && !freeOnlyInput) return;
 
   const result = await localStorageGet([
     STORAGE_KEYS.aiOpenRouterKey,
     STORAGE_KEYS.aiOpenRouterDefaultModel,
-    STORAGE_KEYS.aiBudget,
+    STORAGE_KEYS.aiCostControls,
+    STORAGE_KEYS.legacyAiBudget,
     STORAGE_KEYS.legacyProviderAiOpenRouterKey,
     STORAGE_KEYS.legacyProviderAiOpenRouterDefaultModel
   ]);
@@ -669,38 +674,43 @@ async function loadAiSettings() {
   if (modelInput) {
     modelInput.value = model;
   }
-  const budget = normalizeAiBudget(result[STORAGE_KEYS.aiBudget]);
-  if (budgetEnabledInput) budgetEnabledInput.checked = budget.enabled;
-  if (budgetMinuteInput) budgetMinuteInput.value = String(budget.maxChatRequestsPerMinute);
-  if (budgetAdventureInput) budgetAdventureInput.value = String(budget.maxChatRequestsPerAdventure);
-  if (budgetTokensInput) budgetTokensInput.value = String(budget.maxTokensPerRequest);
+  const controls = normalizeAiCostControls(result[STORAGE_KEYS.aiCostControls] || result[STORAGE_KEYS.legacyAiBudget]);
+  if (freeOnlyInput) freeOnlyInput.checked = controls.freeModelsOnly;
+  if (maxInputPriceInput) maxInputPriceInput.value = String(controls.maxPromptPricePerMillion);
+  if (maxOutputPriceInput) maxOutputPriceInput.value = String(controls.maxCompletionPricePerMillion);
+  if (perCallCapInput) perCallCapInput.value = String(controls.perCallEstimateCap);
+  if (dailyCapInput) dailyCapInput.value = String(controls.dailySpendCap);
+  if (monthlyCapInput) monthlyCapInput.value = String(controls.monthlySpendCap);
 
   updateAiStatus(hasKey, hasKey ? 'OpenRouter key saved locally.' : 'Add an OpenRouter key to enable hosted model calls.', hasKey ? 'ok' : 'idle');
-  renderAiModels([]);
 }
 
-function clampInteger(value, fallback, min, max) {
+function clampMoney(value, fallback, min, max) {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
-  return Math.max(min, Math.min(max, Math.round(n)));
+  return Math.max(min, Math.min(max, Math.round(n * 1000000) / 1000000));
 }
 
-function normalizeAiBudget(value = {}) {
+function normalizeAiCostControls(value = {}) {
   const raw = value && typeof value === 'object' ? value : {};
   return {
-    enabled: raw.enabled !== false,
-    maxChatRequestsPerMinute: clampInteger(raw.maxChatRequestsPerMinute, DEFAULT_AI_BUDGET.maxChatRequestsPerMinute, 1, 60),
-    maxChatRequestsPerAdventure: clampInteger(raw.maxChatRequestsPerAdventure, DEFAULT_AI_BUDGET.maxChatRequestsPerAdventure, 0, 500),
-    maxTokensPerRequest: clampInteger(raw.maxTokensPerRequest, DEFAULT_AI_BUDGET.maxTokensPerRequest, 64, 4096),
+    freeModelsOnly: raw.freeModelsOnly !== false,
+    maxPromptPricePerMillion: clampMoney(raw.maxPromptPricePerMillion, DEFAULT_AI_COST_CONTROLS.maxPromptPricePerMillion, 0, 1000),
+    maxCompletionPricePerMillion: clampMoney(raw.maxCompletionPricePerMillion, DEFAULT_AI_COST_CONTROLS.maxCompletionPricePerMillion, 0, 1000),
+    perCallEstimateCap: clampMoney(raw.perCallEstimateCap, DEFAULT_AI_COST_CONTROLS.perCallEstimateCap, 0, 1000),
+    dailySpendCap: clampMoney(raw.dailySpendCap, DEFAULT_AI_COST_CONTROLS.dailySpendCap, 0, 1000),
+    monthlySpendCap: clampMoney(raw.monthlySpendCap, DEFAULT_AI_COST_CONTROLS.monthlySpendCap, 0, 1000),
   };
 }
 
-function getAiBudgetFromForm() {
-  return normalizeAiBudget({
-    enabled: document.getElementById('ai-budget-enabled')?.checked !== false,
-    maxChatRequestsPerMinute: document.getElementById('ai-budget-requests-minute')?.value,
-    maxChatRequestsPerAdventure: document.getElementById('ai-budget-requests-adventure')?.value,
-    maxTokensPerRequest: document.getElementById('ai-budget-max-tokens')?.value,
+function getAiCostControlsFromForm() {
+  return normalizeAiCostControls({
+    freeModelsOnly: document.getElementById('ai-cost-free-only')?.checked !== false,
+    maxPromptPricePerMillion: document.getElementById('ai-cost-max-input')?.value,
+    maxCompletionPricePerMillion: document.getElementById('ai-cost-max-output')?.value,
+    perCallEstimateCap: document.getElementById('ai-cost-per-call-cap')?.value,
+    dailySpendCap: document.getElementById('ai-cost-daily-cap')?.value,
+    monthlySpendCap: document.getElementById('ai-cost-monthly-cap')?.value,
   });
 }
 
@@ -717,10 +727,10 @@ async function saveAiSettings(options = {}) {
   const modelInput = document.getElementById('ai-default-model');
   const key = String(keyInput?.value || '').trim();
   const model = String(modelInput?.value || '').trim();
-  const budget = getAiBudgetFromForm();
+  const costControls = getAiCostControlsFromForm();
   const updates = {
     [STORAGE_KEYS.aiOpenRouterDefaultModel]: model,
-    [STORAGE_KEYS.aiBudget]: budget,
+    [STORAGE_KEYS.aiCostControls]: costControls,
   };
 
   if (key) {
@@ -728,6 +738,7 @@ async function saveAiSettings(options = {}) {
   }
 
   await localStorageSet(updates);
+  await localStorageRemove(STORAGE_KEYS.legacyAiBudget);
   if (key) {
     await localStorageRemove(STORAGE_KEYS.legacyProviderAiOpenRouterKey);
   }
@@ -767,85 +778,6 @@ function sendAiBackgroundRequest(request) {
   });
 }
 
-function formatAiModelMeta(model) {
-  const bits = [];
-  if (typeof model?.contextLength === 'number') bits.push(`${Math.round(model.contextLength / 1000)}k ctx`);
-  if (Array.isArray(model?.inputModalities) && model.inputModalities.length) bits.push(model.inputModalities.join('/'));
-  return bits.join(' • ');
-}
-
-function renderAiModels(models) {
-  const datalist = document.getElementById('ai-model-options');
-  const list = document.getElementById('ai-model-list');
-  if (datalist) datalist.innerHTML = '';
-  if (list) list.innerHTML = '';
-
-  if (!Array.isArray(models) || !models.length) {
-    if (list) {
-      const empty = document.createElement('div');
-      empty.className = 'frontier-ai-model-empty';
-      empty.textContent = 'Refresh models after adding an OpenRouter key.';
-      list.appendChild(empty);
-    }
-    return;
-  }
-
-  models.forEach((model) => {
-    const id = String(model?.id || '').trim();
-    if (!id) return;
-    if (datalist) {
-      const option = document.createElement('option');
-      option.value = id;
-      option.label = model.name && model.name !== id ? model.name : id;
-      datalist.appendChild(option);
-    }
-    if (!list) return;
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = 'frontier-ai-model-row';
-    row.title = model.name && model.name !== id ? `${model.name} (${id})` : id;
-    row.addEventListener('click', () => {
-      const input = document.getElementById('ai-default-model');
-      if (input) input.value = id;
-    });
-
-    const name = document.createElement('span');
-    name.className = 'frontier-ai-model-name';
-    name.textContent = model.name && model.name !== id ? `${model.name} · ${id}` : id;
-
-    const meta = document.createElement('span');
-    meta.className = 'frontier-ai-model-meta';
-    meta.textContent = formatAiModelMeta(model);
-
-    row.append(name, meta);
-    list.appendChild(row);
-  });
-}
-
-async function refreshAiModels() {
-  const btn = document.getElementById('ai-refresh-models');
-  if (btn) btn.disabled = true;
-  updateAiStatus(false, 'Loading OpenRouter models...', 'idle');
-
-  try {
-    await saveAiSettings({ silent: true });
-    const result = await sendAiBackgroundRequest({
-      provider: 'openrouter',
-      op: 'models',
-      limit: 8,
-      timeoutMs: 30000
-    });
-    renderAiModels(result?.models || []);
-    updateAiStatus(true, `Loaded ${result?.returned || 0} of ${result?.totalCount || 0} OpenRouter models.`, 'ok');
-  } catch (error) {
-    const message = error?.message || 'Could not load AI models';
-    updateAiStatus(false, message, 'error');
-    showToast(message, 'error');
-  } finally {
-    if (btn) btn.disabled = false;
-  }
-}
-
 async function testAiConnection() {
   const btn = document.getElementById('ai-test');
   if (btn) btn.disabled = true;
@@ -861,7 +793,6 @@ async function testAiConnection() {
     const count = typeof result?.modelCount === 'number' ? result.modelCount : 0;
     updateAiStatus(true, `OpenRouter connected. ${count} models visible.`, 'ok');
     showToast('AI connection verified', 'success');
-    refreshAiModels();
   } catch (error) {
     const message = error?.message || 'AI connection failed';
     updateAiStatus(false, message, 'error');
@@ -890,7 +821,7 @@ function saveFeatureState(featureId, enabled) {
 }
 
 function setFrontierModuleControlsEnabled(enabled) {
-  document.querySelectorAll('[data-frontier-module-toggle], #frontier-debug, #scripture-risk-level, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #ai-openrouter-key, #ai-default-model, #ai-refresh-models, #ai-budget-enabled, #ai-budget-requests-minute, #ai-budget-requests-adventure, #ai-budget-max-tokens, #ai-save, #ai-clear-key, #ai-test')
+  document.querySelectorAll('[data-frontier-module-toggle], #frontier-debug, #scripture-risk-level, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #ai-openrouter-key, #ai-default-model, #ai-cost-free-only, #ai-cost-max-input, #ai-cost-max-output, #ai-cost-per-call-cap, #ai-cost-daily-cap, #ai-cost-monthly-cap, #ai-save, #ai-clear-key, #ai-test')
     .forEach(control => {
       control.disabled = !enabled;
     });

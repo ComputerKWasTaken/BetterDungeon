@@ -24,20 +24,11 @@
 
   const RATE_WINDOW_MS = 60000;
   const RATE_LIMITS = {
-    chat: 6,
     models: 12,
     testConnection: 12,
   };
-  const BUDGET_STORAGE_KEY = 'frontier_ai_budget';
-  const DEFAULT_BUDGET = {
-    enabled: true,
-    maxChatRequestsPerMinute: 6,
-    maxChatRequestsPerAdventure: 30,
-    maxTokensPerRequest: 512,
-  };
 
   const rateBuckets = new Map();
-  const adventureBuckets = new Map();
 
   function invalidArgs(message, extra = {}) {
     return { code: 'invalid_args', message, ...extra };
@@ -63,10 +54,6 @@
     const n = Number(value);
     if (!Number.isFinite(n)) return fallback;
     return Math.max(min, Math.min(max, n));
-  }
-
-  function clampInteger(value, fallback, min, max) {
-    return Math.round(clampNumber(value, fallback, min, max));
   }
 
   function normalizeTimeoutMs(value) {
@@ -114,16 +101,6 @@
       throw invalidArgs(`maxTokens must be an integer between 1 and ${MAX_TOKENS}`);
     }
     return n;
-  }
-
-  function normalizeBudget(value = {}) {
-    const raw = value && typeof value === 'object' ? value : {};
-    return {
-      enabled: raw.enabled !== false,
-      maxChatRequestsPerMinute: clampInteger(raw.maxChatRequestsPerMinute, DEFAULT_BUDGET.maxChatRequestsPerMinute, 1, 60),
-      maxChatRequestsPerAdventure: clampInteger(raw.maxChatRequestsPerAdventure, DEFAULT_BUDGET.maxChatRequestsPerAdventure, 0, 500),
-      maxTokensPerRequest: clampInteger(raw.maxTokensPerRequest, DEFAULT_BUDGET.maxTokensPerRequest, 64, MAX_TOKENS),
-    };
   }
 
   function normalizeResponseFormat(value) {
@@ -211,86 +188,13 @@
       rateBuckets.set(key, bucket);
       throw {
         code: 'rate_limit',
-        message: `AI ${op} is limited to ${limit} requests per minute for this adventure`,
+        message: `AI ${op} metadata checks are limited to ${limit} requests per minute for this adventure`,
         retryAfterMs,
       };
     }
 
     bucket.push(now);
     rateBuckets.set(key, bucket);
-  }
-
-  function updateRateBucket(key, now) {
-    const bucket = (rateBuckets.get(key) || []).filter((at) => now - at < RATE_WINDOW_MS);
-    bucket.push(now);
-    rateBuckets.set(key, bucket);
-  }
-
-  function storageGetLocal(key) {
-    return new Promise((resolve) => {
-      const fallback = {};
-      const storage =
-        (typeof browser !== 'undefined' && browser?.storage?.local) ||
-        (typeof chrome !== 'undefined' && chrome.storage?.local) ||
-        null;
-      if (!storage?.get) {
-        resolve(fallback);
-        return;
-      }
-      try {
-        if (typeof chrome !== 'undefined' && storage === chrome.storage?.local) {
-          storage.get(key, (result) => resolve(result || fallback));
-          return;
-        }
-        const maybePromise = storage.get(key);
-        if (maybePromise && typeof maybePromise.then === 'function') {
-          maybePromise.then((result) => resolve(result || fallback), () => resolve(fallback));
-        } else {
-          resolve(maybePromise || fallback);
-        }
-      } catch {
-        resolve(fallback);
-      }
-    });
-  }
-
-  async function getBudget() {
-    const result = await storageGetLocal(BUDGET_STORAGE_KEY);
-    return normalizeBudget(result[BUDGET_STORAGE_KEY]);
-  }
-
-  function adventureKey(ctx) {
-    return ctx?.adventureShortId || ctx?.getAdventureId?.() || 'global';
-  }
-
-  function checkChatBudget(ctx, budget) {
-    if (!budget.enabled) return;
-    const now = Date.now();
-    const minuteKey = `${adventureKey(ctx)}:chat`;
-    const minuteBucket = (rateBuckets.get(minuteKey) || []).filter((at) => now - at < RATE_WINDOW_MS);
-
-    if (minuteBucket.length >= budget.maxChatRequestsPerMinute) {
-      const retryAfterMs = Math.max(1000, RATE_WINDOW_MS - (now - minuteBucket[0]));
-      rateBuckets.set(minuteKey, minuteBucket);
-      throw {
-        code: 'budget_limit',
-        message: `AI chat is limited to ${budget.maxChatRequestsPerMinute} requests per minute for this adventure`,
-        retryAfterMs,
-      };
-    }
-
-    const maxAdventureRequests = budget.maxChatRequestsPerAdventure;
-    const adventure = adventureKey(ctx);
-    const adventureCount = adventureBuckets.get(adventure) || 0;
-    if (maxAdventureRequests > 0 && adventureCount >= maxAdventureRequests) {
-      throw {
-        code: 'budget_limit',
-        message: `AI chat reached the ${maxAdventureRequests} request budget for this adventure`,
-      };
-    }
-
-    updateRateBucket(minuteKey, now);
-    adventureBuckets.set(adventure, adventureCount + 1);
   }
 
   function unwrapBackgroundResponse(response) {
@@ -328,25 +232,18 @@
 
   async function chatOp(args = {}, ctx) {
     const normalized = normalizeArgs(args);
-    const budget = await getBudget();
-    const maxTokens = normalizeMaxTokens(normalized.maxTokens);
     const request = {
       provider: normalizeProvider(normalized.provider),
       op: 'chat',
       model: normalizeModel(normalized.model),
       messages: normalizeMessages(normalized.messages),
       temperature: normalizeTemperature(normalized.temperature),
-      maxTokens: budget.enabled ? Math.min(maxTokens, budget.maxTokensPerRequest) : maxTokens,
+      maxTokens: normalizeMaxTokens(normalized.maxTokens),
       responseFormat: normalizeResponseFormat(normalized.responseFormat),
       stop: normalizeStop(normalized.stop),
       timeoutMs: normalizeTimeoutMs(normalized.timeoutMs),
     };
 
-    if (budget.enabled) {
-      checkChatBudget(ctx, budget);
-    } else {
-      checkRateLimit(ctx, 'chat');
-    }
     return backgroundRequest(request);
   }
 
@@ -382,7 +279,6 @@
     for (const key of [...rateBuckets.keys()]) {
       if (key.startsWith(`${adventure}:`)) rateBuckets.delete(key);
     }
-    adventureBuckets.delete(adventure);
   }
 
   const FrontierAIModule = {

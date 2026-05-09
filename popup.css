@@ -632,64 +632,21 @@ body {
   font-size: 11px;
 }
 
-.frontier-ai-model-picker {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 6px;
-}
-
-.frontier-ai-model-list {
-  display: grid;
-  gap: 4px;
-  margin-top: 8px;
-}
-
-.frontier-ai-model-row,
-.frontier-ai-model-empty {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
+.frontier-ai-model-link {
+  display: inline-flex;
   align-items: center;
-  width: 100%;
-  padding: 6px 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-secondary);
-  font: inherit;
+  gap: 5px;
+  color: var(--text-muted);
   font-size: 10.5px;
-  line-height: 1.25;
-  text-align: left;
+  line-height: 1.35;
+  text-decoration: none;
 }
 
-.frontier-ai-model-row {
-  cursor: pointer;
+.frontier-ai-model-link:hover {
+  color: var(--accent);
 }
 
-.frontier-ai-model-row:hover {
-  border-color: var(--accent);
-  color: var(--text-primary);
-}
-
-.frontier-ai-model-empty {
-  display: flex;
-  justify-content: center;
-  color: var(--text-muted);
-}
-
-.frontier-ai-model-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.frontier-ai-model-meta {
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-.frontier-ai-budget-panel {
+.frontier-ai-cost-panel {
   margin-top: 8px;
   padding: 8px;
   border: 1px solid var(--border);
@@ -697,7 +654,8 @@ body {
   background: var(--bg-elevated);
 }
 
-.frontier-ai-budget-heading {
+.frontier-ai-cost-heading,
+.frontier-ai-cost-toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -707,14 +665,19 @@ body {
   font-weight: 600;
 }
 
-.frontier-ai-budget-grid {
+.frontier-ai-cost-toggle {
+  margin-top: 8px;
+  font-weight: 500;
+}
+
+.frontier-ai-cost-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
   margin-top: 8px;
 }
 
-.frontier-ai-budget-grid label {
+.frontier-ai-cost-grid label {
   display: grid;
   gap: 4px;
   color: var(--text-muted);
@@ -722,7 +685,7 @@ body {
   line-height: 1.25;
 }
 
-.frontier-ai-budget-hint {
+.frontier-ai-cost-hint {
   margin: 8px 0 0;
   color: var(--text-muted);
   font-size: 10.5px;

@@ -14,17 +14,6 @@ class TutorialService {
     this.steps = [
       // Welcome Modal
       {
-        id: 'ai-budget',
-        type: 'spotlight',
-        target: '.frontier-ai-budget-panel',
-        title: 'AI Budget Controls',
-        content: 'Set simple request and response-token budgets here. BetterDungeon blocks over-budget chat calls before they reach OpenRouter.',
-        position: 'top',
-        action: 'switchTab',
-        actionTarget: 'frontier',
-        expandCard: true
-      },
-      {
         id: 'welcome',
         type: 'modal',
         title: 'Welcome to BetterDungeon!',
@@ -227,6 +216,17 @@ class TutorialService {
         target: '#ai-default-model',
         title: 'Default Model',
         content: 'Set the model AI should use by default. Scripts can still request a specific model, but a default keeps simple calls easy.',
+        position: 'top',
+        action: 'switchTab',
+        actionTarget: 'frontier',
+        expandCard: true
+      },
+      {
+        id: 'ai-cost-controls',
+        type: 'spotlight',
+        target: '.frontier-ai-cost-panel',
+        title: 'AI Cost Controls',
+        content: 'Paid models are blocked by default. Add optional price and spend caps to keep OpenRouter calls within the cost range you expect.',
         position: 'top',
         action: 'switchTab',
         actionTarget: 'frontier',

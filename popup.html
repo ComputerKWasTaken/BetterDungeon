@@ -962,38 +962,46 @@
                   </div>
                   <div class="frontier-provider-fields">
                     <input type="password" class="form-input" id="ai-openrouter-key" autocomplete="off" placeholder="OpenRouter API key">
-                    <div class="frontier-ai-model-picker">
-                      <input type="text" class="form-input" id="ai-default-model" autocomplete="off" list="ai-model-options" placeholder="Default model, e.g. openai/gpt-5.2">
-                      <button class="btn btn-icon btn-ghost" id="ai-refresh-models" aria-label="Refresh AI model list" title="Refresh models" type="button">
-                        <span class="icon-refresh-cw"></span>
-                      </button>
-                      <datalist id="ai-model-options"></datalist>
-                    </div>
+                    <input type="text" class="form-input" id="ai-default-model" autocomplete="off" placeholder="OpenRouter model ID, e.g. google/gemini-2.0-flash-exp:free">
+                    <a class="frontier-ai-model-link" href="https://openrouter.ai/models?output_modalities=text&amp;max_price=0" target="_blank" rel="noopener noreferrer">
+                      <span class="icon-external-link"></span>
+                      Browse free text models on OpenRouter
+                    </a>
                   </div>
-                  <div class="frontier-ai-model-list" id="ai-model-list"></div>
-                  <div class="frontier-ai-budget-panel">
-                    <div class="frontier-ai-budget-heading">
-                      <span><span class="icon-shield-check"></span> Budget Controls</span>
-                      <label class="toggle xs" title="Enable AI budget controls">
-                        <input type="checkbox" id="ai-budget-enabled" checked>
+                  <div class="frontier-ai-cost-panel">
+                    <div class="frontier-ai-cost-heading">
+                      <span><span class="icon-shield-check"></span> Cost Controls</span>
+                    </div>
+                    <div class="frontier-ai-cost-toggle">
+                      <span>Free models only</span>
+                      <label class="toggle xs" title="Block paid OpenRouter models">
+                        <input type="checkbox" id="ai-cost-free-only" checked>
                         <span class="toggle-slider"></span>
                       </label>
                     </div>
-                    <div class="frontier-ai-budget-grid">
+                    <div class="frontier-ai-cost-grid">
                       <label>
-                        <span>Requests / minute</span>
-                        <input type="number" class="form-input" id="ai-budget-requests-minute" min="1" max="60" step="1">
+                        <span>Max input $ / 1M</span>
+                        <input type="number" class="form-input" id="ai-cost-max-input" min="0" max="1000" step="0.01">
                       </label>
                       <label>
-                        <span>Requests / adventure</span>
-                        <input type="number" class="form-input" id="ai-budget-requests-adventure" min="0" max="500" step="1">
+                        <span>Max output $ / 1M</span>
+                        <input type="number" class="form-input" id="ai-cost-max-output" min="0" max="1000" step="0.01">
                       </label>
                       <label>
-                        <span>Max response tokens</span>
-                        <input type="number" class="form-input" id="ai-budget-max-tokens" min="64" max="4096" step="64">
+                        <span>Per-call estimate cap</span>
+                        <input type="number" class="form-input" id="ai-cost-per-call-cap" min="0" max="1000" step="0.01">
+                      </label>
+                      <label>
+                        <span>Daily spend cap</span>
+                        <input type="number" class="form-input" id="ai-cost-daily-cap" min="0" max="1000" step="0.01">
+                      </label>
+                      <label>
+                        <span>Monthly spend cap</span>
+                        <input type="number" class="form-input" id="ai-cost-monthly-cap" min="0" max="1000" step="0.01">
                       </label>
                     </div>
-                    <p class="frontier-ai-budget-hint">Chat calls are limited before OpenRouter is contacted. Set adventure requests to 0 for unlimited.</p>
+                    <p class="frontier-ai-cost-hint">Paid models are blocked by default. Set optional price/spend caps to 0 for no extra cap.</p>
                   </div>
                   <div class="frontier-provider-actions">
                     <button class="btn btn-primary btn-sm" id="ai-save" type="button">
