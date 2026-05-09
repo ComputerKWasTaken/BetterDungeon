@@ -21,6 +21,7 @@ const STORAGE_KEYS = {
   webfetchAllowlist: 'frontier_webfetch_allowlist',
   aiOpenRouterKey: 'frontier_ai_openrouter_api_key',
   aiOpenRouterDefaultModel: 'frontier_ai_openrouter_default_model',
+  aiBudget: 'frontier_ai_budget',
   legacyProviderAiOpenRouterKey: 'frontier_provider_ai_openrouter_api_key',
   legacyProviderAiOpenRouterDefaultModel: 'frontier_provider_ai_openrouter_default_model',
   customHotkeys: 'betterDungeon_customHotkeys',
@@ -110,6 +111,13 @@ const DEFAULT_SCRIPTURE_WIDGET_DISPLAY = {
   size: 'normal',
   maxHeight: 'medium',
   layout: 'balanced'
+};
+
+const DEFAULT_AI_BUDGET = {
+  enabled: true,
+  maxChatRequestsPerMinute: 6,
+  maxChatRequestsPerAdventure: 30,
+  maxTokensPerRequest: 512,
 };
 
 const SCRIPTURE_RISK_SUMMARIES = {
@@ -623,11 +631,16 @@ function localStorageRemove(keys) {
 async function loadAiSettings() {
   const keyInput = document.getElementById('ai-openrouter-key');
   const modelInput = document.getElementById('ai-default-model');
-  if (!keyInput && !modelInput) return;
+  const budgetEnabledInput = document.getElementById('ai-budget-enabled');
+  const budgetMinuteInput = document.getElementById('ai-budget-requests-minute');
+  const budgetAdventureInput = document.getElementById('ai-budget-requests-adventure');
+  const budgetTokensInput = document.getElementById('ai-budget-max-tokens');
+  if (!keyInput && !modelInput && !budgetEnabledInput) return;
 
   const result = await localStorageGet([
     STORAGE_KEYS.aiOpenRouterKey,
     STORAGE_KEYS.aiOpenRouterDefaultModel,
+    STORAGE_KEYS.aiBudget,
     STORAGE_KEYS.legacyProviderAiOpenRouterKey,
     STORAGE_KEYS.legacyProviderAiOpenRouterDefaultModel
   ]);
@@ -656,9 +669,39 @@ async function loadAiSettings() {
   if (modelInput) {
     modelInput.value = model;
   }
+  const budget = normalizeAiBudget(result[STORAGE_KEYS.aiBudget]);
+  if (budgetEnabledInput) budgetEnabledInput.checked = budget.enabled;
+  if (budgetMinuteInput) budgetMinuteInput.value = String(budget.maxChatRequestsPerMinute);
+  if (budgetAdventureInput) budgetAdventureInput.value = String(budget.maxChatRequestsPerAdventure);
+  if (budgetTokensInput) budgetTokensInput.value = String(budget.maxTokensPerRequest);
 
   updateAiStatus(hasKey, hasKey ? 'OpenRouter key saved locally.' : 'Add an OpenRouter key to enable hosted model calls.', hasKey ? 'ok' : 'idle');
   renderAiModels([]);
+}
+
+function clampInteger(value, fallback, min, max) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+function normalizeAiBudget(value = {}) {
+  const raw = value && typeof value === 'object' ? value : {};
+  return {
+    enabled: raw.enabled !== false,
+    maxChatRequestsPerMinute: clampInteger(raw.maxChatRequestsPerMinute, DEFAULT_AI_BUDGET.maxChatRequestsPerMinute, 1, 60),
+    maxChatRequestsPerAdventure: clampInteger(raw.maxChatRequestsPerAdventure, DEFAULT_AI_BUDGET.maxChatRequestsPerAdventure, 0, 500),
+    maxTokensPerRequest: clampInteger(raw.maxTokensPerRequest, DEFAULT_AI_BUDGET.maxTokensPerRequest, 64, 4096),
+  };
+}
+
+function getAiBudgetFromForm() {
+  return normalizeAiBudget({
+    enabled: document.getElementById('ai-budget-enabled')?.checked !== false,
+    maxChatRequestsPerMinute: document.getElementById('ai-budget-requests-minute')?.value,
+    maxChatRequestsPerAdventure: document.getElementById('ai-budget-requests-adventure')?.value,
+    maxTokensPerRequest: document.getElementById('ai-budget-max-tokens')?.value,
+  });
 }
 
 function updateAiStatus(configured, detail, tone = 'idle') {
@@ -674,8 +717,10 @@ async function saveAiSettings(options = {}) {
   const modelInput = document.getElementById('ai-default-model');
   const key = String(keyInput?.value || '').trim();
   const model = String(modelInput?.value || '').trim();
+  const budget = getAiBudgetFromForm();
   const updates = {
-    [STORAGE_KEYS.aiOpenRouterDefaultModel]: model
+    [STORAGE_KEYS.aiOpenRouterDefaultModel]: model,
+    [STORAGE_KEYS.aiBudget]: budget,
   };
 
   if (key) {
@@ -845,7 +890,7 @@ function saveFeatureState(featureId, enabled) {
 }
 
 function setFrontierModuleControlsEnabled(enabled) {
-  document.querySelectorAll('[data-frontier-module-toggle], #frontier-debug, #scripture-risk-level, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #ai-openrouter-key, #ai-default-model, #ai-refresh-models, #ai-save, #ai-clear-key, #ai-test')
+  document.querySelectorAll('[data-frontier-module-toggle], #frontier-debug, #scripture-risk-level, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #ai-openrouter-key, #ai-default-model, #ai-refresh-models, #ai-budget-enabled, #ai-budget-requests-minute, #ai-budget-requests-adventure, #ai-budget-max-tokens, #ai-save, #ai-clear-key, #ai-test')
     .forEach(control => {
       control.disabled = !enabled;
     });

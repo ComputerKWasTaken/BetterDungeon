@@ -971,6 +971,30 @@
                     </div>
                   </div>
                   <div class="frontier-ai-model-list" id="ai-model-list"></div>
+                  <div class="frontier-ai-budget-panel">
+                    <div class="frontier-ai-budget-heading">
+                      <span><span class="icon-shield-check"></span> Budget Controls</span>
+                      <label class="toggle xs" title="Enable AI budget controls">
+                        <input type="checkbox" id="ai-budget-enabled" checked>
+                        <span class="toggle-slider"></span>
+                      </label>
+                    </div>
+                    <div class="frontier-ai-budget-grid">
+                      <label>
+                        <span>Requests / minute</span>
+                        <input type="number" class="form-input" id="ai-budget-requests-minute" min="1" max="60" step="1">
+                      </label>
+                      <label>
+                        <span>Requests / adventure</span>
+                        <input type="number" class="form-input" id="ai-budget-requests-adventure" min="0" max="500" step="1">
+                      </label>
+                      <label>
+                        <span>Max response tokens</span>
+                        <input type="number" class="form-input" id="ai-budget-max-tokens" min="64" max="4096" step="64">
+                      </label>
+                    </div>
+                    <p class="frontier-ai-budget-hint">Chat calls are limited before OpenRouter is contacted. Set adventure requests to 0 for unlimited.</p>
+                  </div>
                   <div class="frontier-provider-actions">
                     <button class="btn btn-primary btn-sm" id="ai-save" type="button">
                       <span class="icon-check"></span>

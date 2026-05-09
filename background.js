@@ -30,6 +30,7 @@
   const AI_STORAGE_KEYS = {
     openrouterKey: 'frontier_ai_openrouter_api_key',
     openrouterDefaultModel: 'frontier_ai_openrouter_default_model',
+    budget: 'frontier_ai_budget',
     legacyOpenrouterKey: 'frontier_provider_ai_openrouter_api_key',
     legacyOpenrouterDefaultModel: 'frontier_provider_ai_openrouter_default_model',
   };
@@ -40,6 +41,12 @@
   const AI_MAX_RESPONSE_BYTES = 1500000;
   const AI_DEFAULT_MODEL_LIMIT = 30;
   const AI_MAX_MODEL_LIMIT = 100;
+  const AI_DEFAULT_BUDGET = {
+    enabled: true,
+    maxChatRequestsPerMinute: 6,
+    maxChatRequestsPerAdventure: 30,
+    maxTokensPerRequest: 512,
+  };
 
   const BLOCKED_RESPONSE_HEADERS = new Set([
     'set-cookie',
@@ -73,6 +80,10 @@
     const n = Number(value);
     if (!Number.isFinite(n)) return fallback;
     return Math.max(min, Math.min(max, n));
+  }
+
+  function clampInteger(value, fallback, min, max) {
+    return Math.round(clampNumber(value, fallback, min, max));
   }
 
   function isTextContentType(contentType) {
@@ -270,6 +281,17 @@
     return {
       openrouterKey: String(result?.[AI_STORAGE_KEYS.openrouterKey] || result?.[AI_STORAGE_KEYS.legacyOpenrouterKey] || '').trim(),
       openrouterDefaultModel: String(result?.[AI_STORAGE_KEYS.openrouterDefaultModel] || result?.[AI_STORAGE_KEYS.legacyOpenrouterDefaultModel] || '').trim(),
+      budget: normalizeAiBudget(result?.[AI_STORAGE_KEYS.budget]),
+    };
+  }
+
+  function normalizeAiBudget(value = {}) {
+    const raw = value && typeof value === 'object' ? value : {};
+    return {
+      enabled: raw.enabled !== false,
+      maxChatRequestsPerMinute: clampInteger(raw.maxChatRequestsPerMinute, AI_DEFAULT_BUDGET.maxChatRequestsPerMinute, 1, 60),
+      maxChatRequestsPerAdventure: clampInteger(raw.maxChatRequestsPerAdventure, AI_DEFAULT_BUDGET.maxChatRequestsPerAdventure, 0, 500),
+      maxTokensPerRequest: clampInteger(raw.maxTokensPerRequest, AI_DEFAULT_BUDGET.maxTokensPerRequest, 64, 4096),
     };
   }
 
@@ -558,6 +580,7 @@
   async function handleOpenRouterChat(request, config) {
     const apiKey = requireOpenRouterKey(config);
     const timeoutMs = clampNumber(request.timeoutMs, AI_DEFAULT_TIMEOUT_MS, 1000, AI_MAX_TIMEOUT_MS);
+    const budget = normalizeAiBudget(config?.budget);
     const model = String(request.model || config.openrouterDefaultModel || '').trim();
     if (!model) {
       throw {
@@ -576,7 +599,12 @@
       stream: false,
     };
     if (typeof request.temperature === 'number') body.temperature = request.temperature;
-    if (typeof request.maxTokens === 'number') body.max_tokens = request.maxTokens;
+    const requestedMaxTokens = typeof request.maxTokens === 'number' ? request.maxTokens : null;
+    if (budget.enabled) {
+      body.max_tokens = Math.min(requestedMaxTokens || budget.maxTokensPerRequest, budget.maxTokensPerRequest);
+    } else if (requestedMaxTokens) {
+      body.max_tokens = requestedMaxTokens;
+    }
     if (request.responseFormat && typeof request.responseFormat === 'object') {
       body.response_format = request.responseFormat;
     }

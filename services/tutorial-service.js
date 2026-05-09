@@ -14,6 +14,17 @@ class TutorialService {
     this.steps = [
       // Welcome Modal
       {
+        id: 'ai-budget',
+        type: 'spotlight',
+        target: '.frontier-ai-budget-panel',
+        title: 'AI Budget Controls',
+        content: 'Set simple request and response-token budgets here. BetterDungeon blocks over-budget chat calls before they reach OpenRouter.',
+        position: 'top',
+        action: 'switchTab',
+        actionTarget: 'frontier',
+        expandCard: true
+      },
+      {
         id: 'welcome',
         type: 'modal',
         title: 'Welcome to BetterDungeon!',
