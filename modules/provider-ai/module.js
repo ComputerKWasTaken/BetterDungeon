@@ -1,6 +1,6 @@
 // modules/provider-ai/module.js
 //
-// Frontier Provider AI module. Provides bounded, user-configured hosted model
+// Frontier AI module. Provides bounded, user-configured hosted model
 // calls through a background-worker bridge so scripts never see API keys.
 
 (function () {
@@ -189,7 +189,7 @@
       rateBuckets.set(key, bucket);
       throw {
         code: 'rate_limit',
-        message: `Provider AI ${op} is limited to ${limit} requests per minute for this adventure`,
+        message: `AI ${op} is limited to ${limit} requests per minute for this adventure`,
         retryAfterMs,
       };
     }
@@ -200,7 +200,7 @@
 
   function unwrapBackgroundResponse(response) {
     if (response?.ok) return response.data;
-    throw response?.error || { code: 'provider_ai_failed', message: 'Provider AI background request failed' };
+    throw response?.error || { code: 'provider_ai_failed', message: 'AI background request failed' };
   }
 
   function backgroundRequest(request) {
@@ -219,7 +219,7 @@
       runtime.sendMessage({ type: PROVIDER_AI_MESSAGE, request }, (response) => {
         const lastError = typeof chrome !== 'undefined' ? chrome.runtime?.lastError : null;
         if (lastError) {
-          reject({ code: 'provider_ai_unavailable', message: lastError.message || 'Provider AI background request failed' });
+          reject({ code: 'provider_ai_unavailable', message: lastError.message || 'AI background request failed' });
           return;
         }
         try {
@@ -286,7 +286,7 @@
   const FrontierProviderAIModule = {
     id: 'providerAI',
     version: '1.0.0',
-    label: 'Provider AI',
+    label: 'AI',
     description: 'Provides bounded hosted-model calls through user-configured OpenRouter credentials.',
 
     ops: {
@@ -309,7 +309,7 @@
 
     mount(ctx) {
       this._ctx = ctx;
-      ctx.log('debug', 'Provider AI mounted');
+      ctx.log('debug', 'AI mounted');
     },
 
     unmount() {
@@ -341,7 +341,7 @@
   if (window.Frontier?.registry) {
     window.Frontier.registry.register(FrontierProviderAIModule);
   } else {
-    console.warn('[ProviderAI] Frontier registry not available; Provider AI module not registered.');
+    console.warn('[ProviderAI] Frontier registry not available; AI module not registered.');
   }
 
   if (typeof module !== 'undefined' && module.exports) {
