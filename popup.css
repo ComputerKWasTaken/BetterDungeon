@@ -632,6 +632,63 @@ body {
   font-size: 11px;
 }
 
+.frontier-ai-model-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+.frontier-ai-model-list {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.frontier-ai-model-row,
+.frontier-ai-model-empty {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 10.5px;
+  line-height: 1.25;
+  text-align: left;
+}
+
+.frontier-ai-model-row {
+  cursor: pointer;
+}
+
+.frontier-ai-model-row:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.frontier-ai-model-empty {
+  display: flex;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.frontier-ai-model-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.frontier-ai-model-meta {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 .frontier-provider-actions {
   display: flex;
   gap: 6px;

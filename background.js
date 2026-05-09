@@ -19,24 +19,27 @@
   }
 
   const WEBFETCH_MESSAGE = 'FRONTIER_WEBFETCH_FETCH';
-  const PROVIDER_AI_MESSAGE = 'FRONTIER_PROVIDER_AI_REQUEST';
+  const AI_MESSAGE = 'FRONTIER_AI_REQUEST';
+  const LEGACY_PROVIDER_AI_MESSAGE = 'FRONTIER_PROVIDER_AI_REQUEST';
   const DEFAULT_TIMEOUT_MS = 15000;
   const MAX_TIMEOUT_MS = 30000;
   const DEFAULT_MAX_BODY_BYTES = 50000;
   const MAX_BODY_BYTES = 100000;
   const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
-  const PROVIDER_AI_STORAGE_KEYS = {
-    openrouterKey: 'frontier_provider_ai_openrouter_api_key',
-    openrouterDefaultModel: 'frontier_provider_ai_openrouter_default_model',
+  const AI_STORAGE_KEYS = {
+    openrouterKey: 'frontier_ai_openrouter_api_key',
+    openrouterDefaultModel: 'frontier_ai_openrouter_default_model',
+    legacyOpenrouterKey: 'frontier_provider_ai_openrouter_api_key',
+    legacyOpenrouterDefaultModel: 'frontier_provider_ai_openrouter_default_model',
   };
   const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
   const OPENROUTER_TITLE = 'BetterDungeon Frontier';
-  const PROVIDER_AI_DEFAULT_TIMEOUT_MS = 30000;
-  const PROVIDER_AI_MAX_TIMEOUT_MS = 60000;
-  const PROVIDER_AI_MAX_RESPONSE_BYTES = 1500000;
-  const PROVIDER_AI_DEFAULT_MODEL_LIMIT = 30;
-  const PROVIDER_AI_MAX_MODEL_LIMIT = 100;
+  const AI_DEFAULT_TIMEOUT_MS = 30000;
+  const AI_MAX_TIMEOUT_MS = 60000;
+  const AI_MAX_RESPONSE_BYTES = 1500000;
+  const AI_DEFAULT_MODEL_LIMIT = 30;
+  const AI_MAX_MODEL_LIMIT = 100;
 
   const BLOCKED_RESPONSE_HEADERS = new Set([
     'set-cookie',
@@ -55,15 +58,15 @@
     return { code: 'webfetch_failed', message: String(error || 'WebFetch failed') };
   }
 
-  function normalizeProviderAiError(error) {
+  function normalizeAiError(error) {
     if (error && typeof error === 'object') {
       return {
         ...error,
-        code: typeof error.code === 'string' && error.code ? error.code : 'provider_ai_failed',
+        code: typeof error.code === 'string' && error.code ? error.code : 'ai_failed',
         message: typeof error.message === 'string' ? error.message : 'AI failed',
       };
     }
-    return { code: 'provider_ai_failed', message: String(error || 'AI failed') };
+    return { code: 'ai_failed', message: String(error || 'AI failed') };
   }
 
   function clampNumber(value, fallback, min, max) {
@@ -261,12 +264,12 @@
     });
   }
 
-  async function getProviderAiConfig() {
-    const keys = Object.values(PROVIDER_AI_STORAGE_KEYS);
+  async function getAiConfig() {
+    const keys = Object.values(AI_STORAGE_KEYS);
     const result = await storageGet('local', keys);
     return {
-      openrouterKey: String(result?.[PROVIDER_AI_STORAGE_KEYS.openrouterKey] || '').trim(),
-      openrouterDefaultModel: String(result?.[PROVIDER_AI_STORAGE_KEYS.openrouterDefaultModel] || '').trim(),
+      openrouterKey: String(result?.[AI_STORAGE_KEYS.openrouterKey] || result?.[AI_STORAGE_KEYS.legacyOpenrouterKey] || '').trim(),
+      openrouterDefaultModel: String(result?.[AI_STORAGE_KEYS.openrouterDefaultModel] || result?.[AI_STORAGE_KEYS.legacyOpenrouterDefaultModel] || '').trim(),
     };
   }
 
@@ -291,8 +294,8 @@
     };
   }
 
-  async function openRouterFetch(path, options = {}, timeoutMs = PROVIDER_AI_DEFAULT_TIMEOUT_MS) {
-    const limit = clampNumber(timeoutMs, PROVIDER_AI_DEFAULT_TIMEOUT_MS, 1000, PROVIDER_AI_MAX_TIMEOUT_MS);
+  async function openRouterFetch(path, options = {}, timeoutMs = AI_DEFAULT_TIMEOUT_MS) {
+    const limit = clampNumber(timeoutMs, AI_DEFAULT_TIMEOUT_MS, 1000, AI_MAX_TIMEOUT_MS);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), limit);
 
@@ -307,14 +310,14 @@
       if (err?.name === 'AbortError') {
         throw { code: 'timeout', message: `AI timed out after ${limit} ms`, provider: 'openrouter' };
       }
-      throw { code: 'provider_ai_failed', message: err?.message || 'AI request failed', provider: 'openrouter' };
+      throw { code: 'ai_failed', message: err?.message || 'AI request failed', provider: 'openrouter' };
     } finally {
       clearTimeout(timer);
     }
   }
 
   async function readProviderJson(response) {
-    const body = await readBodyBytes(response, PROVIDER_AI_MAX_RESPONSE_BYTES);
+    const body = await readBodyBytes(response, AI_MAX_RESPONSE_BYTES);
     const text = new TextDecoder().decode(body.bytes);
     let payload = null;
     if (text) {
@@ -480,7 +483,7 @@
       throw providerStatusError(response, body.payload, body.text, body.truncated);
     }
     if (!body.payload || typeof body.payload !== 'object') {
-      throw { code: 'provider_ai_failed', message: 'OpenRouter returned invalid key metadata', provider: 'openrouter' };
+      throw { code: 'ai_failed', message: 'OpenRouter returned invalid key metadata', provider: 'openrouter' };
     }
 
     return normalizeOpenRouterKeyInfo(body.payload.data);
@@ -498,7 +501,7 @@
       throw providerStatusError(response, body.payload, body.text, body.truncated);
     }
     if (!body.payload || typeof body.payload !== 'object') {
-      throw { code: 'provider_ai_failed', message: 'OpenRouter returned invalid JSON', provider: 'openrouter' };
+      throw { code: 'ai_failed', message: 'OpenRouter returned invalid JSON', provider: 'openrouter' };
     }
 
     return {
@@ -508,8 +511,8 @@
   }
 
   async function handleOpenRouterModels(request, config) {
-    const timeoutMs = clampNumber(request.timeoutMs, PROVIDER_AI_DEFAULT_TIMEOUT_MS, 1000, PROVIDER_AI_MAX_TIMEOUT_MS);
-    const limit = Math.round(clampNumber(request.limit, PROVIDER_AI_DEFAULT_MODEL_LIMIT, 0, PROVIDER_AI_MAX_MODEL_LIMIT));
+    const timeoutMs = clampNumber(request.timeoutMs, AI_DEFAULT_TIMEOUT_MS, 1000, AI_MAX_TIMEOUT_MS);
+    const limit = Math.round(clampNumber(request.limit, AI_DEFAULT_MODEL_LIMIT, 0, AI_MAX_MODEL_LIMIT));
     const query = String(request.query || '').trim().toLowerCase();
     const fetched = await fetchOpenRouterModels(config, timeoutMs);
     const allModels = fetched.models;
@@ -536,7 +539,7 @@
   }
 
   async function handleOpenRouterTestConnection(request, config) {
-    const timeoutMs = clampNumber(request.timeoutMs, PROVIDER_AI_DEFAULT_TIMEOUT_MS, 1000, PROVIDER_AI_MAX_TIMEOUT_MS);
+    const timeoutMs = clampNumber(request.timeoutMs, AI_DEFAULT_TIMEOUT_MS, 1000, AI_MAX_TIMEOUT_MS);
     const key = await fetchOpenRouterKeyInfo(config, timeoutMs);
     const result = await handleOpenRouterModels({ ...request, limit: 0, timeoutMs }, config);
     return {
@@ -554,7 +557,7 @@
 
   async function handleOpenRouterChat(request, config) {
     const apiKey = requireOpenRouterKey(config);
-    const timeoutMs = clampNumber(request.timeoutMs, PROVIDER_AI_DEFAULT_TIMEOUT_MS, 1000, PROVIDER_AI_MAX_TIMEOUT_MS);
+    const timeoutMs = clampNumber(request.timeoutMs, AI_DEFAULT_TIMEOUT_MS, 1000, AI_MAX_TIMEOUT_MS);
     const model = String(request.model || config.openrouterDefaultModel || '').trim();
     if (!model) {
       throw {
@@ -592,13 +595,13 @@
       throw providerStatusError(response, responseBody.payload, responseBody.text, responseBody.truncated);
     }
     if (!responseBody.payload || typeof responseBody.payload !== 'object') {
-      throw { code: 'provider_ai_failed', message: 'OpenRouter returned invalid JSON', provider: 'openrouter' };
+      throw { code: 'ai_failed', message: 'OpenRouter returned invalid JSON', provider: 'openrouter' };
     }
 
     return normalizeOpenRouterChat(responseBody.payload, model);
   }
 
-  async function handleProviderAi(request = {}) {
+  async function handleAi(request = {}) {
     const provider = String(request.provider || 'openrouter').trim().toLowerCase();
     const op = String(request.op || '').trim();
 
@@ -606,10 +609,10 @@
       throw { code: 'invalid_args', message: `provider '${provider || '(empty)'}' is not supported`, provider };
     }
     if (op !== 'chat' && op !== 'models' && op !== 'testConnection') {
-      throw { code: 'invalid_args', message: `providerAI op '${op || '(empty)'}' is not supported`, provider };
+      throw { code: 'invalid_args', message: `AI op '${op || '(empty)'}' is not supported`, provider };
     }
 
-    const config = await getProviderAiConfig();
+    const config = await getAiConfig();
     if (op === 'chat') return handleOpenRouterChat(request, config);
     if (op === 'models') return handleOpenRouterModels(request, config);
     return handleOpenRouterTestConnection(request, config);
@@ -625,11 +628,11 @@
   });
 
   extensionRuntime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (!message || message.type !== PROVIDER_AI_MESSAGE) return false;
+    if (!message || (message.type !== AI_MESSAGE && message.type !== LEGACY_PROVIDER_AI_MESSAGE)) return false;
 
-    handleProviderAi(message.request)
+    handleAi(message.request)
       .then((data) => sendResponse({ ok: true, data }))
-      .catch((error) => sendResponse({ ok: false, error: normalizeProviderAiError(error) }));
+      .catch((error) => sendResponse({ ok: false, error: normalizeAiError(error) }));
     return true;
   });
 

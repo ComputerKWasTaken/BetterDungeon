@@ -257,7 +257,12 @@
   function findMountedModule(moduleId) {
     let found = null;
     registry()?._forEachMounted?.((def, ctx) => {
-      if (!found && def?.id === moduleId) found = { def, ctx };
+      if (
+        !found &&
+        (def?.id === moduleId || (Array.isArray(def?.aliases) && def.aliases.includes(moduleId)))
+      ) {
+        found = { def, ctx };
+      }
     });
     return found;
   }

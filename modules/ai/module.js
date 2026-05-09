@@ -1,12 +1,12 @@
-// modules/provider-ai/module.js
+// modules/ai/module.js
 //
 // Frontier AI module. Provides bounded, user-configured hosted model
 // calls through a background-worker bridge so scripts never see API keys.
 
 (function () {
-  if (window.FrontierProviderAIModule) return;
+  if (window.FrontierAIModule) return;
 
-  const PROVIDER_AI_MESSAGE = 'FRONTIER_PROVIDER_AI_REQUEST';
+  const AI_MESSAGE = 'FRONTIER_AI_REQUEST';
   const SUPPORTED_PROVIDER = 'openrouter';
 
   const DEFAULT_TIMEOUT_MS = 30000;
@@ -200,26 +200,26 @@
 
   function unwrapBackgroundResponse(response) {
     if (response?.ok) return response.data;
-    throw response?.error || { code: 'provider_ai_failed', message: 'AI background request failed' };
+    throw response?.error || { code: 'ai_failed', message: 'AI background request failed' };
   }
 
   function backgroundRequest(request) {
     if (typeof browser !== 'undefined' && browser?.runtime?.sendMessage) {
       return browser.runtime
-        .sendMessage({ type: PROVIDER_AI_MESSAGE, request })
+        .sendMessage({ type: AI_MESSAGE, request })
         .then((response) => unwrapBackgroundResponse(response));
     }
 
     const runtime = typeof chrome !== 'undefined' ? chrome.runtime : null;
     if (!runtime?.sendMessage) {
-      return Promise.reject({ code: 'provider_ai_unavailable', message: 'Extension runtime is unavailable' });
+      return Promise.reject({ code: 'ai_unavailable', message: 'Extension runtime is unavailable' });
     }
 
     return new Promise((resolve, reject) => {
-      runtime.sendMessage({ type: PROVIDER_AI_MESSAGE, request }, (response) => {
+      runtime.sendMessage({ type: AI_MESSAGE, request }, (response) => {
         const lastError = typeof chrome !== 'undefined' ? chrome.runtime?.lastError : null;
         if (lastError) {
-          reject({ code: 'provider_ai_unavailable', message: lastError.message || 'AI background request failed' });
+          reject({ code: 'ai_unavailable', message: lastError.message || 'AI background request failed' });
           return;
         }
         try {
@@ -283,8 +283,9 @@
     }
   }
 
-  const FrontierProviderAIModule = {
-    id: 'providerAI',
+  const FrontierAIModule = {
+    id: 'ai',
+    aliases: ['providerAI'],
     version: '1.0.0',
     label: 'AI',
     description: 'Provides bounded hosted-model calls through user-configured OpenRouter credentials.',
@@ -336,15 +337,15 @@
     },
   };
 
-  window.FrontierProviderAIModule = FrontierProviderAIModule;
+  window.FrontierAIModule = FrontierAIModule;
 
   if (window.Frontier?.registry) {
-    window.Frontier.registry.register(FrontierProviderAIModule);
+    window.Frontier.registry.register(FrontierAIModule);
   } else {
-    console.warn('[ProviderAI] Frontier registry not available; AI module not registered.');
+    console.warn('[FrontierAI] Frontier registry not available; AI module not registered.');
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = FrontierProviderAIModule;
+    module.exports = FrontierAIModule;
   }
 })();

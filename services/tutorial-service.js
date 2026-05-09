@@ -189,9 +189,9 @@ class TutorialService {
         expandCard: true
       },
       {
-        id: 'provider-ai-card',
+        id: 'ai-card',
         type: 'spotlight',
-        target: '[data-frontier-module-card="providerAI"]',
+        target: '[data-frontier-module-card="ai"]',
         title: 'AI',
         content: 'AI is the main attraction for many scripts: it lets a script ask a hosted model for side tasks without interrupting the main story turn.',
         position: 'bottom',
@@ -200,9 +200,9 @@ class TutorialService {
         expandCard: true
       },
       {
-        id: 'provider-ai-key',
+        id: 'ai-key',
         type: 'spotlight',
-        target: '#provider-ai-openrouter-key',
+        target: '#ai-openrouter-key',
         title: 'OpenRouter Key',
         content: 'Add your OpenRouter key here. BetterDungeon stores it in extension settings and keeps it out of Story Cards, so scripts never see the key.',
         position: 'top',
@@ -211,9 +211,9 @@ class TutorialService {
         expandCard: true
       },
       {
-        id: 'provider-ai-model',
+        id: 'ai-model',
         type: 'spotlight',
-        target: '#provider-ai-default-model',
+        target: '#ai-default-model',
         title: 'Default Model',
         content: 'Set the model AI should use by default. Scripts can still request a specific model, but a default keeps simple calls easy.',
         position: 'top',
@@ -222,9 +222,9 @@ class TutorialService {
         expandCard: true
       },
       {
-        id: 'provider-ai-test',
+        id: 'ai-test',
         type: 'spotlight',
-        target: '#provider-ai-test',
+        target: '#ai-test',
         title: 'Test Connection',
         content: 'After saving your key and model, use this plug button to verify the AI connection before relying on it in a scenario.',
         position: 'top',
@@ -233,11 +233,11 @@ class TutorialService {
         expandCard: true
       },
       {
-        id: 'provider-ai-script-usage',
+        id: 'ai-script-usage',
         type: 'spotlight',
-        target: '#provider-ai-status',
+        target: '#ai-status',
         title: 'Using AI in Scripts',
-        content: 'Send module providerAI, op chat, messages, and optional maxTokens or responseFormat. Read frontier:in:providerAI, then ack the request id.',
+        content: 'Send module ai, op chat, messages, and optional maxTokens or responseFormat. Read frontier:in:ai, then ack the request id.',
         position: 'top',
         action: 'switchTab',
         actionTarget: 'frontier',
@@ -300,11 +300,11 @@ class TutorialService {
         stepId: 'frontier-tab'
       },
       {
-        id: 'provider-ai',
+        id: 'ai',
         title: 'AI',
         description: 'OpenRouter and model calls',
         icon: 'icon-bot-message-square',
-        stepId: 'provider-ai-card'
+        stepId: 'ai-card'
       },
       {
         id: 'presets',

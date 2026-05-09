@@ -19,8 +19,10 @@ const STORAGE_KEYS = {
   scriptureRiskLevel: 'frontier_mod_scripture_risk_level',
   scriptureWidgetDisplay: 'frontier_mod_scripture_widget_display',
   webfetchAllowlist: 'frontier_webfetch_allowlist',
-  providerAiOpenRouterKey: 'frontier_provider_ai_openrouter_api_key',
-  providerAiOpenRouterDefaultModel: 'frontier_provider_ai_openrouter_default_model',
+  aiOpenRouterKey: 'frontier_ai_openrouter_api_key',
+  aiOpenRouterDefaultModel: 'frontier_ai_openrouter_default_model',
+  legacyProviderAiOpenRouterKey: 'frontier_provider_ai_openrouter_api_key',
+  legacyProviderAiOpenRouterDefaultModel: 'frontier_provider_ai_openrouter_default_model',
   customHotkeys: 'betterDungeon_customHotkeys',
   customModeColors: 'betterDungeon_customModeColors',
   commandSubMode: 'betterDungeon_commandSubMode',
@@ -97,7 +99,7 @@ const FRONTIER_PUBLIC_MODULES = [
   'weather',
   'network',
   'system',
-  'providerAI'
+  'ai'
 ];
 
 const DEFAULT_SETTINGS = {
@@ -304,7 +306,7 @@ function initFrontierSettings() {
   loadScriptureRiskLevel();
   loadScriptureWidgetDisplay();
   loadWebFetchConsentList();
-  loadProviderAiSettings();
+  loadAiSettings();
   refreshFrontierState();
 
   document.querySelectorAll('[data-frontier-module-toggle]').forEach(toggle => {
@@ -321,9 +323,10 @@ function initFrontierSettings() {
   document.getElementById('scripture-widget-layout')?.addEventListener('change', saveScriptureWidgetDisplay);
   document.getElementById('webfetch-consent-refresh')?.addEventListener('click', loadWebFetchConsentList);
   document.getElementById('webfetch-consent-save')?.addEventListener('click', saveWebFetchConsentFromForm);
-  document.getElementById('provider-ai-save')?.addEventListener('click', saveProviderAiSettings);
-  document.getElementById('provider-ai-clear-key')?.addEventListener('click', clearProviderAiKey);
-  document.getElementById('provider-ai-test')?.addEventListener('click', testProviderAiConnection);
+  document.getElementById('ai-save')?.addEventListener('click', saveAiSettings);
+  document.getElementById('ai-clear-key')?.addEventListener('click', clearAiKey);
+  document.getElementById('ai-test')?.addEventListener('click', testAiConnection);
+  document.getElementById('ai-refresh-models')?.addEventListener('click', refreshAiModels);
 }
 
 function defaultFrontierModuleState() {
@@ -333,15 +336,30 @@ function defaultFrontierModuleState() {
   }, {});
 }
 
+function normalizeFrontierModuleState(saved = {}) {
+  const raw = saved && typeof saved === 'object' ? saved : {};
+  const modules = { ...defaultFrontierModuleState(), ...raw };
+  if (Object.prototype.hasOwnProperty.call(raw, 'providerAI')) {
+    if (!Object.prototype.hasOwnProperty.call(raw, 'ai')) {
+      modules.ai = !!raw.providerAI;
+    }
+    delete modules.providerAI;
+  }
+  return modules;
+}
+
 function loadFrontierModuleToggles() {
   chrome.storage.sync.get(STORAGE_KEYS.frontierModules, (result) => {
     const saved = (result || {})[STORAGE_KEYS.frontierModules] || {};
-    const modules = { ...defaultFrontierModuleState(), ...saved };
+    const modules = normalizeFrontierModuleState(saved);
 
     document.querySelectorAll('[data-frontier-module-toggle]').forEach(toggle => {
       const moduleId = toggle.dataset.frontierModuleToggle;
       toggle.checked = modules[moduleId] !== false;
     });
+    if (Object.prototype.hasOwnProperty.call(saved, 'providerAI')) {
+      chrome.storage.sync.set({ [STORAGE_KEYS.frontierModules]: modules });
+    }
     updateFrontierSectionCounts();
   });
 }
@@ -351,7 +369,7 @@ function saveFrontierModuleState(moduleId, enabled) {
 
   chrome.storage.sync.get(STORAGE_KEYS.frontierModules, (result) => {
     const saved = (result || {})[STORAGE_KEYS.frontierModules] || {};
-    const modules = { ...defaultFrontierModuleState(), ...saved, [moduleId]: !!enabled };
+    const modules = { ...normalizeFrontierModuleState(saved), [moduleId]: !!enabled };
 
     chrome.storage.sync.set({ [STORAGE_KEYS.frontierModules]: modules }, () => {
       sendToActiveAIDungeon('SET_FRONTIER_MODULE_ENABLED', { moduleId, enabled: !!enabled })
@@ -602,17 +620,34 @@ function localStorageRemove(keys) {
   });
 }
 
-async function loadProviderAiSettings() {
-  const keyInput = document.getElementById('provider-ai-openrouter-key');
-  const modelInput = document.getElementById('provider-ai-default-model');
+async function loadAiSettings() {
+  const keyInput = document.getElementById('ai-openrouter-key');
+  const modelInput = document.getElementById('ai-default-model');
   if (!keyInput && !modelInput) return;
 
   const result = await localStorageGet([
-    STORAGE_KEYS.providerAiOpenRouterKey,
-    STORAGE_KEYS.providerAiOpenRouterDefaultModel
+    STORAGE_KEYS.aiOpenRouterKey,
+    STORAGE_KEYS.aiOpenRouterDefaultModel,
+    STORAGE_KEYS.legacyProviderAiOpenRouterKey,
+    STORAGE_KEYS.legacyProviderAiOpenRouterDefaultModel
   ]);
-  const hasKey = !!String(result[STORAGE_KEYS.providerAiOpenRouterKey] || '').trim();
-  const model = String(result[STORAGE_KEYS.providerAiOpenRouterDefaultModel] || '').trim();
+  const savedKey = String(result[STORAGE_KEYS.aiOpenRouterKey] || '').trim();
+  const legacyKey = String(result[STORAGE_KEYS.legacyProviderAiOpenRouterKey] || '').trim();
+  const savedModel = String(result[STORAGE_KEYS.aiOpenRouterDefaultModel] || '').trim();
+  const legacyModel = String(result[STORAGE_KEYS.legacyProviderAiOpenRouterDefaultModel] || '').trim();
+  const hasKey = !!(savedKey || legacyKey);
+  const model = savedModel || legacyModel;
+
+  if ((!savedKey && legacyKey) || (!savedModel && legacyModel)) {
+    const updates = {};
+    if (!savedKey && legacyKey) updates[STORAGE_KEYS.aiOpenRouterKey] = legacyKey;
+    if (!savedModel && legacyModel) updates[STORAGE_KEYS.aiOpenRouterDefaultModel] = legacyModel;
+    await localStorageSet(updates);
+    await localStorageRemove([
+      STORAGE_KEYS.legacyProviderAiOpenRouterKey,
+      STORAGE_KEYS.legacyProviderAiOpenRouterDefaultModel
+    ]);
+  }
 
   if (keyInput) {
     keyInput.value = '';
@@ -622,46 +657,54 @@ async function loadProviderAiSettings() {
     modelInput.value = model;
   }
 
-  updateProviderAiStatus(hasKey, hasKey ? 'OpenRouter key saved locally.' : 'Add an OpenRouter key to enable hosted model calls.', hasKey ? 'ok' : 'idle');
+  updateAiStatus(hasKey, hasKey ? 'OpenRouter key saved locally.' : 'Add an OpenRouter key to enable hosted model calls.', hasKey ? 'ok' : 'idle');
+  renderAiModels([]);
 }
 
-function updateProviderAiStatus(configured, detail, tone = 'idle') {
-  const status = document.getElementById('provider-ai-status');
+function updateAiStatus(configured, detail, tone = 'idle') {
+  const status = document.getElementById('ai-status');
   if (!status) return;
   status.classList.remove('ok', 'error', 'idle');
   status.classList.add(tone);
   status.textContent = configured ? detail : detail;
 }
 
-async function saveProviderAiSettings() {
-  const keyInput = document.getElementById('provider-ai-openrouter-key');
-  const modelInput = document.getElementById('provider-ai-default-model');
+async function saveAiSettings(options = {}) {
+  const keyInput = document.getElementById('ai-openrouter-key');
+  const modelInput = document.getElementById('ai-default-model');
   const key = String(keyInput?.value || '').trim();
   const model = String(modelInput?.value || '').trim();
   const updates = {
-    [STORAGE_KEYS.providerAiOpenRouterDefaultModel]: model
+    [STORAGE_KEYS.aiOpenRouterDefaultModel]: model
   };
 
   if (key) {
-    updates[STORAGE_KEYS.providerAiOpenRouterKey] = key;
+    updates[STORAGE_KEYS.aiOpenRouterKey] = key;
   }
 
   await localStorageSet(updates);
+  if (key) {
+    await localStorageRemove(STORAGE_KEYS.legacyProviderAiOpenRouterKey);
+  }
+  await localStorageRemove(STORAGE_KEYS.legacyProviderAiOpenRouterDefaultModel);
   if (keyInput) keyInput.value = '';
-  await loadProviderAiSettings();
-  showToast('AI settings saved', 'success');
+  await loadAiSettings();
+  if (!options.silent) showToast('AI settings saved', 'success');
 }
 
-async function clearProviderAiKey() {
-  await localStorageRemove(STORAGE_KEYS.providerAiOpenRouterKey);
-  await loadProviderAiSettings();
+async function clearAiKey() {
+  await localStorageRemove([
+    STORAGE_KEYS.aiOpenRouterKey,
+    STORAGE_KEYS.legacyProviderAiOpenRouterKey
+  ]);
+  await loadAiSettings();
   showToast('OpenRouter key cleared', 'success');
 }
 
-function sendProviderAiBackgroundRequest(request) {
+function sendAiBackgroundRequest(request) {
   return new Promise((resolve, reject) => {
     try {
-      chrome.runtime.sendMessage({ type: 'FRONTIER_PROVIDER_AI_REQUEST', request }, (response) => {
+      chrome.runtime.sendMessage({ type: 'FRONTIER_AI_REQUEST', request }, (response) => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
           reject(new Error(lastError.message));
@@ -679,23 +722,104 @@ function sendProviderAiBackgroundRequest(request) {
   });
 }
 
-async function testProviderAiConnection() {
-  const btn = document.getElementById('provider-ai-test');
+function formatAiModelMeta(model) {
+  const bits = [];
+  if (typeof model?.contextLength === 'number') bits.push(`${Math.round(model.contextLength / 1000)}k ctx`);
+  if (Array.isArray(model?.inputModalities) && model.inputModalities.length) bits.push(model.inputModalities.join('/'));
+  return bits.join(' • ');
+}
+
+function renderAiModels(models) {
+  const datalist = document.getElementById('ai-model-options');
+  const list = document.getElementById('ai-model-list');
+  if (datalist) datalist.innerHTML = '';
+  if (list) list.innerHTML = '';
+
+  if (!Array.isArray(models) || !models.length) {
+    if (list) {
+      const empty = document.createElement('div');
+      empty.className = 'frontier-ai-model-empty';
+      empty.textContent = 'Refresh models after adding an OpenRouter key.';
+      list.appendChild(empty);
+    }
+    return;
+  }
+
+  models.forEach((model) => {
+    const id = String(model?.id || '').trim();
+    if (!id) return;
+    if (datalist) {
+      const option = document.createElement('option');
+      option.value = id;
+      option.label = model.name && model.name !== id ? model.name : id;
+      datalist.appendChild(option);
+    }
+    if (!list) return;
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'frontier-ai-model-row';
+    row.title = model.name && model.name !== id ? `${model.name} (${id})` : id;
+    row.addEventListener('click', () => {
+      const input = document.getElementById('ai-default-model');
+      if (input) input.value = id;
+    });
+
+    const name = document.createElement('span');
+    name.className = 'frontier-ai-model-name';
+    name.textContent = model.name && model.name !== id ? `${model.name} · ${id}` : id;
+
+    const meta = document.createElement('span');
+    meta.className = 'frontier-ai-model-meta';
+    meta.textContent = formatAiModelMeta(model);
+
+    row.append(name, meta);
+    list.appendChild(row);
+  });
+}
+
+async function refreshAiModels() {
+  const btn = document.getElementById('ai-refresh-models');
   if (btn) btn.disabled = true;
-  updateProviderAiStatus(false, 'Testing OpenRouter...', 'idle');
+  updateAiStatus(false, 'Loading OpenRouter models...', 'idle');
 
   try {
-    const result = await sendProviderAiBackgroundRequest({
+    await saveAiSettings({ silent: true });
+    const result = await sendAiBackgroundRequest({
+      provider: 'openrouter',
+      op: 'models',
+      limit: 8,
+      timeoutMs: 30000
+    });
+    renderAiModels(result?.models || []);
+    updateAiStatus(true, `Loaded ${result?.returned || 0} of ${result?.totalCount || 0} OpenRouter models.`, 'ok');
+  } catch (error) {
+    const message = error?.message || 'Could not load AI models';
+    updateAiStatus(false, message, 'error');
+    showToast(message, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function testAiConnection() {
+  const btn = document.getElementById('ai-test');
+  if (btn) btn.disabled = true;
+  updateAiStatus(false, 'Testing OpenRouter...', 'idle');
+
+  try {
+    await saveAiSettings({ silent: true });
+    const result = await sendAiBackgroundRequest({
       provider: 'openrouter',
       op: 'testConnection',
       timeoutMs: 30000
     });
     const count = typeof result?.modelCount === 'number' ? result.modelCount : 0;
-    updateProviderAiStatus(true, `OpenRouter connected. ${count} models visible.`, 'ok');
+    updateAiStatus(true, `OpenRouter connected. ${count} models visible.`, 'ok');
     showToast('AI connection verified', 'success');
+    refreshAiModels();
   } catch (error) {
     const message = error?.message || 'AI connection failed';
-    updateProviderAiStatus(false, message, 'error');
+    updateAiStatus(false, message, 'error');
     showToast(message, 'error');
   } finally {
     if (btn) btn.disabled = false;
@@ -721,7 +845,7 @@ function saveFeatureState(featureId, enabled) {
 }
 
 function setFrontierModuleControlsEnabled(enabled) {
-  document.querySelectorAll('[data-frontier-module-toggle], #frontier-debug, #scripture-risk-level, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #provider-ai-openrouter-key, #provider-ai-default-model, #provider-ai-save, #provider-ai-clear-key, #provider-ai-test')
+  document.querySelectorAll('[data-frontier-module-toggle], #frontier-debug, #scripture-risk-level, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #ai-openrouter-key, #ai-default-model, #ai-refresh-models, #ai-save, #ai-clear-key, #ai-test')
     .forEach(control => {
       control.disabled = !enabled;
     });
@@ -2638,7 +2762,7 @@ function updateFrontierSectionCounts() {
   const sectionMap = {
     'frontier-script-surface': ['scripture', 'webfetch', 'clock'],
     'frontier-context': ['geolocation', 'weather', 'network', 'system'],
-    'frontier-ai': ['providerAI']
+    'frontier-ai': ['ai']
   };
 
   Object.entries(sectionMap).forEach(([sectionId, moduleIds]) => {
