@@ -66,11 +66,21 @@ function auraCardsState() {
   s.ackAttempts = s.ackAttempts || {};
   s.events = s.events || [];
   s.index = s.index || {};
-  s.stats = s.stats || { created: 0, updated: 0, compressed: 0, skipped: 0, failed: 0, queued: 0 };
-  if (typeof s.stats.queued !== 'number') s.stats.queued = 0;
+  s.stats = s.stats || {};
+  auraEnsureStats(s.stats);
   s._acks = s._acks || [];
 
   return s;
+}
+
+function auraEnsureStats(stats) {
+  var defaults = { created: 0, updated: 0, compressed: 0, skipped: 0, failed: 0, queued: 0 };
+  for (var key in defaults) {
+    if (!Object.prototype.hasOwnProperty.call(defaults, key)) continue;
+    if (typeof stats[key] !== 'number' || !Number.isFinite(stats[key])) {
+      stats[key] = defaults[key];
+    }
+  }
 }
 
 function auraNow() {
@@ -172,7 +182,7 @@ function auraWriteCard(title, entry, type, keys, description) {
   return card;
 }
 
-function auraRemoveCard(title) {
+function auraDeleteCard(title) {
   var found = auraFindCard(title);
   if (!found.card || found.index < 0 || typeof removeStoryCard !== 'function') return false;
   removeStoryCard(found.index);
@@ -491,15 +501,48 @@ function auraParseAiJson(data) {
   try {
     return JSON.parse(text);
   } catch (err) {
-    var first = text.indexOf('{');
-    var last = text.lastIndexOf('}');
-    if (first === -1 || last === -1 || last <= first) return null;
+    var jsonText = auraFirstJsonObject(text);
+    if (!jsonText) return null;
     try {
-      return JSON.parse(text.slice(first, last + 1));
+      return JSON.parse(jsonText);
     } catch (err2) {
       return null;
     }
   }
+}
+
+function auraFirstJsonObject(text) {
+  text = String(text || '');
+  var start = text.indexOf('{');
+  if (start === -1) return '';
+
+  var depth = 0;
+  var inString = false;
+  var escaped = false;
+  for (var i = start; i < text.length; i++) {
+    var ch = text.charAt(i);
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+    } else if (ch === '{') {
+      depth++;
+    } else if (ch === '}') {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return '';
 }
 
 function auraApplySweep(parsed, meta, cfg) {
@@ -574,16 +617,19 @@ function auraNormalizeTitle(title) {
   if (title.length < 3 || title.length > 90) return '';
   if (!/[A-Za-z]/.test(title)) return '';
 
+  var lettersOnly = title.replace(/[^A-Za-z]/g, '');
+  var wholeTitleIsAllCaps = lettersOnly.length > 4 && lettersOnly === lettersOnly.toUpperCase();
   var words = title.split(' ');
   for (var i = 0; i < words.length; i++) {
     if (!words[i]) continue;
     var lower = words[i].toLowerCase();
     if (i > 0 && auraMinorWords()[lower]) {
       words[i] = lower;
-    } else if (/^[A-Z]{2,}$/.test(words[i])) {
+    } else if (!wholeTitleIsAllCaps && /^[A-Z]{2,4}$/.test(words[i])) {
       words[i] = words[i];
     } else {
-      words[i] = words[i].charAt(0).toUpperCase() + words[i].slice(1);
+      var base = (wholeTitleIsAllCaps || /^[A-Z]{5,}$/.test(words[i])) ? lower : words[i];
+      words[i] = base.charAt(0).toUpperCase() + base.slice(1);
     }
   }
   return words.join(' ');
@@ -741,8 +787,8 @@ function auraReadAuraMetadata(card) {
   var rest = description.slice(start).trim();
   var firstBrace = rest.indexOf('{');
   if (firstBrace === -1) return {};
-  var memoryStart = rest.indexOf(AURA_MEMORY_MARKER);
-  var jsonText = memoryStart === -1 ? rest.slice(firstBrace) : rest.slice(firstBrace, memoryStart).trim();
+  var jsonText = auraFirstJsonObject(rest.slice(firstBrace));
+  if (!jsonText) return {};
   try {
     return JSON.parse(jsonText);
   } catch (err) {
@@ -960,6 +1006,9 @@ function auraFindCompressionTarget(cfg) {
   for (var i = 0; i < cards.length; i++) {
     var c = cards[i];
     if (!auraIsAuraCard(c)) continue;
+    var metadata = auraReadAuraMetadata(c);
+    var title = metadata.title || c.title;
+    if (auraHasPendingKind('compress', auraTitleKey(title))) continue;
     var memories = auraReadAuraMemories(c);
     var text = memories.join(' ');
     if (text.length > cfg.memoryLimit) return { card: c, index: i, memories: memories };
@@ -1070,7 +1119,6 @@ function auraQueueCompressionIfNeeded(cfg) {
   if (!target) return false;
   var metadata = auraReadAuraMetadata(target.card);
   var title = metadata.title || target.card.title;
-  if (auraHasPendingKind('compress', auraTitleKey(title))) return false;
   auraQueueAiRequest('compress', auraBuildCompressionArgs(target, cfg), {
     title: title,
     titleKey: auraTitleKey(title),
@@ -1157,6 +1205,7 @@ function auraDrive(outputText, cfg) {
 
 function auraWriteTrace(cfg) {
   if (!cfg.showTrace) {
+    auraDeleteCard(AURA_TRACE_CARD_TITLE);
     return;
   }
 
