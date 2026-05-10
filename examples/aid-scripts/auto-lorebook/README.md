@@ -44,7 +44,7 @@ context for free — without you ever opening the lorebook editor.
 1. Install BetterDungeon and open AI Dungeon.
 2. Open BetterDungeon → **Frontier** → enable Frontier and the **AI**
    module.
-3. Open Frontier → **AI Providers** → save an OpenRouter API key.
+3. Open Frontier → **AI** → save an OpenRouter API key.
    Optionally set a default model.
 4. In AI Dungeon, edit your scenario's **Scripting** panel:
    - Paste `library.js` into the **Library** script.
