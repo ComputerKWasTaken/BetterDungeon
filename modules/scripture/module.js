@@ -176,7 +176,7 @@
     return { size, maxHeight, layout };
   }
 
-  function buildRenderWidgets(parsed, liveCount, ctx, opts = {}) {
+  function buildRenderWidgets(parsed, liveCount, ctx) {
     const validators = window.ScriptureValidators;
     if (!validators) throw new Error('ScriptureValidators is not loaded');
 
@@ -188,9 +188,7 @@
       return { widgets: [], errors: [`Unsupported Scripture state version: ${parsed.v}`] };
     }
 
-    const manifestResult = validators.validateManifest(parsed.manifest, {
-      allowedRiskLevel: opts.allowedRiskLevel,
-    });
+    const manifestResult = validators.validateManifest(parsed.manifest);
     const errors = manifestResult.errors.slice();
     const values = selectHistoryEntry(parsed.history, liveCount);
     const widgets = [];
@@ -207,9 +205,7 @@
         config.progress = progressValue;
       }
 
-      const validation = validators.validateWidgetConfig(config.id, config, {
-        allowedRiskLevel: opts.allowedRiskLevel,
-      });
+      const validation = validators.validateWidgetConfig(config.id, config);
       if (!validation.valid) {
         errors.push(`Widget "${config.id}" invalid after values: ${validation.errors.join('; ')}`);
         continue;
@@ -230,7 +226,6 @@
     tracksLiveCount: true,
     _renderer: null,
     _ctx: null,
-    _riskLevel: 'enhanced',
     _widgetDisplayOptions: { ...DEFAULT_WIDGET_DISPLAY_OPTIONS },
     _lastParsed: null,
     _lastCtx: null,
@@ -247,9 +242,6 @@
         log: (level, ...args) => ctx.log(level, ...args),
         onInteraction: (event) => this.queueInteraction(event),
         displayOptions: this._widgetDisplayOptions,
-      });
-      ctx.storage.get('risk_level', 'enhanced').then((level) => {
-        if (this._ctx === ctx) this.setRiskLevel(level);
       });
       ctx.storage.get('widget_display', DEFAULT_WIDGET_DISPLAY_OPTIONS).then((options) => {
         if (this._ctx === ctx) this.setWidgetDisplayOptions(options);
@@ -318,9 +310,7 @@
       this.processInteractionAck(parsed, ctx);
 
       const liveCount = ctx.getLiveCount();
-      const result = buildRenderWidgets(parsed, liveCount, ctx, {
-        allowedRiskLevel: this._riskLevel,
-      });
+      const result = buildRenderWidgets(parsed, liveCount, ctx);
 
       if (result.errors.length) {
         this.warnOnce(ctx, 'state-warnings', 'Scripture state warnings:', result.errors);
@@ -342,24 +332,6 @@
       this._warnedMessages.add(cacheKey);
       if (this._warnedMessages.size > 200) this._warnedMessages.clear();
       ctx?.log?.('warn', message, details);
-    },
-
-    setRiskLevel(level, opts = {}) {
-      const validators = window.ScriptureValidators;
-      const normalized = validators?.normalizeRiskLevel
-        ? validators.normalizeRiskLevel(level, 'enhanced')
-        : (['safe', 'enhanced', 'unsafe'].includes(String(level).toLowerCase()) ? String(level).toLowerCase() : 'enhanced');
-      this._riskLevel = normalized;
-
-      if (opts.persist && this._ctx?.storage) {
-        this._ctx.storage.set('risk_level', normalized);
-      }
-
-      if (this._lastParsed && this._lastCtx) {
-        this.renderState(this._lastParsed, this._lastCtx);
-      }
-
-      return normalized;
     },
 
     setWidgetDisplayOptions(options, opts = {}) {
@@ -424,7 +396,6 @@
         previousValue: sanitizeEventValue(event.previousValue),
         liveCount: ctx.getLiveCount(),
         actionId: ctx.getCurrentActionId?.() || ctx.getTail?.() || null,
-        risk: event.risk || 'enhanced',
         ts: nowMs,
         at: new Date(nowMs).toISOString(),
         count: 1,
@@ -510,7 +481,6 @@
       return {
         mounted: !!this._renderer,
         widgets: this._renderer ? [...this._renderer.registeredWidgets.keys()] : [],
-        riskLevel: this._riskLevel,
         widgetDisplayOptions: { ...this._widgetDisplayOptions },
         widgetEventQueueLength: this._eventQueue.length,
         widgetEventLatestSeq: this._lastSeq,

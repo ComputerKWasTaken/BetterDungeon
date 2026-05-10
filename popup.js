@@ -16,7 +16,6 @@ const STORAGE_KEYS = {
   autoApply: 'betterDungeon_autoApplyInstructions',
   frontierDebug: 'frontier_debug',
   frontierModules: 'frontier_enabled_modules',
-  scriptureRiskLevel: 'frontier_mod_scripture_risk_level',
   scriptureWidgetDisplay: 'frontier_mod_scripture_widget_display',
   webfetchAllowlist: 'frontier_webfetch_allowlist',
   aiOpenRouterKey: 'frontier_ai_openrouter_api_key',
@@ -122,12 +121,6 @@ const DEFAULT_AI_COST_CONTROLS = {
   perCallEstimateCap: 0,
   dailySpendCap: 0,
   monthlySpendCap: 0,
-};
-
-const SCRIPTURE_RISK_SUMMARIES = {
-  safe: 'Safe renders read-only widgets only. Interactive controls and custom HTML are blocked.',
-  enhanced: 'Enhanced allows normal interactive controls while blocking raw HTML and arbitrary styling.',
-  unsafe: 'Unsafe allows custom HTML and style escape hatches. Use it only for scenarios you trust.'
 };
 
 const DEFAULT_TEXT_TO_SPEECH_SETTINGS = {
@@ -315,7 +308,6 @@ function initToggles() {
 
 function initFrontierSettings() {
   loadFrontierModuleToggles();
-  loadScriptureRiskLevel();
   loadScriptureWidgetDisplay();
   loadWebFetchConsentList();
   loadAiSettings();
@@ -329,7 +321,6 @@ function initFrontierSettings() {
   });
 
   document.getElementById('frontier-refresh')?.addEventListener('click', refreshFrontierState);
-  document.getElementById('scripture-risk-level')?.addEventListener('change', saveScriptureRiskLevel);
   document.getElementById('scripture-widget-size')?.addEventListener('change', saveScriptureWidgetDisplay);
   document.getElementById('scripture-widget-height')?.addEventListener('change', saveScriptureWidgetDisplay);
   document.getElementById('scripture-widget-layout')?.addEventListener('change', saveScriptureWidgetDisplay);
@@ -403,11 +394,6 @@ function saveFrontierModuleState(moduleId, enabled) {
   });
 }
 
-function normalizeScriptureRiskLevel(level) {
-  const normalized = String(level || '').toLowerCase();
-  return ['safe', 'enhanced', 'unsafe'].includes(normalized) ? normalized : 'enhanced';
-}
-
 function normalizeScriptureWidgetDisplay(value = {}) {
   const raw = value && typeof value === 'object' ? value : {};
   const size = ['compact', 'normal', 'comfortable', 'large'].includes(String(raw.size || '').toLowerCase())
@@ -420,29 +406,6 @@ function normalizeScriptureWidgetDisplay(value = {}) {
     ? String(raw.layout).toLowerCase()
     : DEFAULT_SCRIPTURE_WIDGET_DISPLAY.layout;
   return { size, maxHeight, layout };
-}
-
-function updateScriptureRiskSummary(level) {
-  const summary = document.getElementById('scripture-risk-summary');
-  if (summary) summary.textContent = SCRIPTURE_RISK_SUMMARIES[normalizeScriptureRiskLevel(level)];
-}
-
-function loadScriptureRiskLevel() {
-  chrome.storage.sync.get(STORAGE_KEYS.scriptureRiskLevel, (result) => {
-    const select = document.getElementById('scripture-risk-level');
-    if (!select) return;
-    const riskLevel = normalizeScriptureRiskLevel((result || {})[STORAGE_KEYS.scriptureRiskLevel]);
-    select.value = riskLevel;
-    updateScriptureRiskSummary(riskLevel);
-  });
-}
-
-function saveScriptureRiskLevel(event) {
-  const riskLevel = normalizeScriptureRiskLevel(event?.target?.value);
-  updateScriptureRiskSummary(riskLevel);
-  chrome.storage.sync.set({ [STORAGE_KEYS.scriptureRiskLevel]: riskLevel }, () => {
-    notifyContentScript('SET_SCRIPTURE_RISK_LEVEL', { riskLevel });
-  });
 }
 
 function loadScriptureWidgetDisplay() {
@@ -846,7 +809,7 @@ function saveFeatureState(featureId, enabled) {
 }
 
 function setFrontierModuleControlsEnabled(enabled) {
-  document.querySelectorAll('[data-frontier-module-toggle], #frontier-debug, #scripture-risk-level, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #ai-openrouter-key, #ai-default-model, #ai-cost-free-only, #ai-cost-advanced-toggle, #ai-cost-max-input, #ai-cost-max-output, #ai-cost-per-call-cap, #ai-cost-daily-cap, #ai-cost-monthly-cap, #ai-save, #ai-clear-key, #ai-test')
+  document.querySelectorAll('[data-frontier-module-toggle], #frontier-debug, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #ai-openrouter-key, #ai-default-model, #ai-cost-free-only, #ai-cost-advanced-toggle, #ai-cost-max-input, #ai-cost-max-output, #ai-cost-per-call-cap, #ai-cost-daily-cap, #ai-cost-monthly-cap, #ai-save, #ai-clear-key, #ai-test')
     .forEach(control => {
       control.disabled = !enabled;
     });

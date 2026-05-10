@@ -1385,8 +1385,8 @@ html.bd-story-card-dock-active > body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1fr);
   align-items: start;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 7px;
+  padding: 7px 10px;
   width: 100%;
   max-height: min(42vh, 340px);
   overflow-x: hidden;
@@ -1432,7 +1432,7 @@ html.bd-story-card-dock-active > body {
   flex-direction: row;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   min-width: 0;
   max-width: 100%;
   pointer-events: none;
@@ -1455,26 +1455,29 @@ html.bd-story-card-dock-active > body {
 }
 
 .bd-widget {
-  background: rgba(20, 20, 28, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--bd-radius-md);
-  padding: 6px 10px;
+  background: linear-gradient(180deg, rgba(32, 32, 40, 0.96) 0%, rgba(20, 20, 26, 0.96) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  padding: 7px 10px;
   font-size: var(--bd-font-size-sm);
-  line-height: 1.25;
+  line-height: 1.2;
   color: var(--bd-text-primary);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
   pointer-events: auto;
   min-width: 0;
   max-width: 100%;
-  min-height: 32px;
+  min-height: 34px;
   box-sizing: border-box;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
 }
 
 .bd-widget:hover {
-  background: rgba(30, 30, 40, 0.9);
-  border-color: rgba(255, 255, 255, 0.15);
+  background: linear-gradient(180deg, rgba(38, 38, 47, 0.98) 0%, rgba(24, 24, 31, 0.98) 100%);
+  border-color: rgba(255, 255, 255, 0.22);
 }
 
 .bd-betterscripts-container[data-widget-size="compact"] .bd-widget {
@@ -1512,16 +1515,16 @@ html.bd-story-card-dock-active > body {
 .bd-widget-stat {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   flex-wrap: nowrap;
 }
 
 .bd-widget-label {
   font-size: var(--bd-font-size-xs);
-  font-weight: var(--bd-font-weight-medium);
-  color: var(--bd-text-secondary);
+  font-weight: var(--bd-font-weight-semibold);
+  color: rgba(255, 255, 255, 0.62);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1531,8 +1534,9 @@ html.bd-story-card-dock-active > body {
 .bd-widget-value {
   font-size: var(--bd-font-size-md);
   font-weight: var(--bd-font-weight-bold);
-  color: var(--bd-accent-primary);
-  font-family: var(--bd-font-family-mono);
+  color: var(--bd-text-primary);
+  font-family: var(--bd-font-family-primary);
+  font-variant-numeric: tabular-nums;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -1551,19 +1555,18 @@ html.bd-story-card-dock-active > body {
   position: relative;
   width: 100%;
   height: 18px;
-  background: rgba(0, 0, 0, 0.4);
-  border-radius: var(--bd-radius-sm);
+  background: rgba(0, 0, 0, 0.34);
+  border-radius: 6px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
 .bd-widget-bar-fill {
   height: 100%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, transparent 50%, rgba(0, 0, 0, 0.1) 100%),
-              linear-gradient(90deg, var(--bd-success) 0%, var(--bd-success-light) 100%);
-  border-radius: calc(var(--bd-radius-sm) - 1px);
-  box-shadow: 0 0 8px rgba(34, 197, 94, 0.3);
+  background: linear-gradient(90deg, var(--bd-success) 0%, var(--bd-success-light) 100%);
+  border-radius: 5px;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.24);
   /* transition removed to avoid issues with duplicate message processing */
 }
 
@@ -1576,8 +1579,9 @@ html.bd-story-card-dock-active > body {
   font-weight: var(--bd-font-weight-bold);
   color: #fff;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 4px rgba(0, 0, 0, 0.5);
-  letter-spacing: 0.3px;
-  font-family: var(--bd-font-family-mono);
+  letter-spacing: 0;
+  font-family: var(--bd-font-family-primary);
+  font-variant-numeric: tabular-nums;
 }
 
 .bd-widget-text {
@@ -1597,11 +1601,11 @@ html.bd-story-card-dock-active > body {
 .bd-widget-panel-title {
   font-size: var(--bd-font-size-xs);
   font-weight: var(--bd-font-weight-semibold);
-  color: var(--bd-accent-light);
+  color: rgba(255, 255, 255, 0.72);
   text-transform: uppercase;
-  letter-spacing: 0.8px;
+  letter-spacing: 0;
   padding-bottom: 4px;
-  border-bottom: 1px solid var(--bd-border-subtle);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .bd-widget-panel-content {
@@ -1620,14 +1624,15 @@ html.bd-story-card-dock-active > body {
 
 .bd-widget-panel-item-label {
   font-size: var(--bd-font-size-xs);
-  color: var(--bd-text-secondary);
+  color: rgba(255, 255, 255, 0.62);
 }
 
 .bd-widget-panel-item-value {
   font-size: var(--bd-font-size-sm);
   font-weight: var(--bd-font-weight-semibold);
   color: var(--bd-text-primary);
-  font-family: var(--bd-font-family-mono);
+  font-family: var(--bd-font-family-primary);
+  font-variant-numeric: tabular-nums;
   min-width: 0;
   overflow-wrap: anywhere;
   text-align: right;
@@ -1787,13 +1792,13 @@ html.bd-story-card-dock-active > body {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 10px;
-  border-radius: 999px;
+  padding: 4px 10px;
+  border-radius: 8px;
   font-size: var(--bd-font-size-xs);
   font-weight: var(--bd-font-weight-semibold);
-  background: color-mix(in srgb, var(--badge-color) 20%, transparent);
-  border: 1px solid color-mix(in srgb, var(--badge-color) 40%, transparent);
-  color: var(--badge-color);
+  background: color-mix(in srgb, var(--badge-color) 14%, rgba(255, 255, 255, 0.04));
+  border: 1px solid color-mix(in srgb, var(--badge-color) 32%, rgba(255, 255, 255, 0.12));
+  color: color-mix(in srgb, var(--badge-color) 82%, white);
 }
 
 .bd-widget-badge[data-variant="solid"] {
@@ -1803,9 +1808,9 @@ html.bd-story-card-dock-active > body {
 }
 
 .bd-widget-badge[data-variant="outline"] {
-  background: transparent;
-  border-color: var(--badge-color);
-  color: var(--badge-color);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: color-mix(in srgb, var(--badge-color) 48%, rgba(255, 255, 255, 0.16));
+  color: color-mix(in srgb, var(--badge-color) 88%, white);
 }
 
 .bd-widget-badge-icon {
@@ -1828,11 +1833,11 @@ html.bd-story-card-dock-active > body {
 .bd-widget-list-title {
   font-size: var(--bd-font-size-xs);
   font-weight: var(--bd-font-weight-semibold);
-  color: var(--bd-accent-light);
+  color: rgba(255, 255, 255, 0.72);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0;
   padding-bottom: 4px;
-  border-bottom: 1px solid var(--bd-border-subtle);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .bd-widget-list-items {
@@ -1849,7 +1854,7 @@ html.bd-story-card-dock-active > body {
   align-items: center;
   gap: 6px;
   font-size: var(--bd-font-size-xs);
-  color: var(--bd-text-secondary);
+  color: rgba(255, 255, 255, 0.72);
   padding: 2px 0;
 }
 
@@ -1921,8 +1926,8 @@ html.bd-story-card-dock-active > body {
 
 .bd-widget-control-label {
   font-size: var(--bd-font-size-xs);
-  font-weight: var(--bd-font-weight-medium);
-  color: var(--bd-text-secondary);
+  font-weight: var(--bd-font-weight-semibold);
+  color: rgba(255, 255, 255, 0.66);
   max-width: 9rem;
   white-space: nowrap;
   overflow: hidden;
@@ -1932,13 +1937,14 @@ html.bd-story-card-dock-active > body {
 
 .bd-widget-control {
   min-height: 32px;
-  border: 1px solid var(--bd-border-default);
-  border-radius: var(--bd-radius-sm);
-  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.07);
   color: var(--bd-text-primary);
   font: inherit;
   font-size: var(--bd-font-size-sm);
   box-sizing: border-box;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .bd-widget-control:focus-visible {
@@ -1959,7 +1965,7 @@ html.bd-story-card-dock-active > body {
 
 .bd-widget-button-control:hover {
   background: rgba(255, 255, 255, 0.12);
-  border-color: var(--bd-border-strong);
+  border-color: rgba(255, 255, 255, 0.24);
 }
 
 .bd-widget-button-control[data-variant="primary"] {
@@ -1980,8 +1986,8 @@ html.bd-story-card-dock-active > body {
 .bd-widget-toggle-control {
   position: relative;
   display: inline-flex;
-  width: 34px;
-  height: 18px;
+  width: 36px;
+  height: 20px;
   flex: 0 0 auto;
   cursor: pointer;
 }
@@ -1997,26 +2003,26 @@ html.bd-story-card-dock-active > body {
   position: absolute;
   inset: 0;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.14);
-  border: 1px solid var(--bd-border-default);
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   transition: var(--bd-transition-fast);
 }
 
 .bd-widget-toggle-slider::after {
   content: '';
   position: absolute;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   top: 1px;
   left: 1px;
   border-radius: 50%;
-  background: var(--bd-text-secondary);
+  background: rgba(255, 255, 255, 0.58);
   transition: var(--bd-transition-fast);
 }
 
 .bd-widget-toggle-control input:checked + .bd-widget-toggle-slider {
-  background: rgba(255, 149, 0, 0.28);
-  border-color: var(--bd-accent-primary);
+  background: rgba(255, 149, 0, 0.3);
+  border-color: rgba(255, 149, 0, 0.58);
 }
 
 .bd-widget-toggle-control input:checked + .bd-widget-toggle-slider::after {
@@ -2036,7 +2042,7 @@ html.bd-story-card-dock-active > body {
 .bd-widget-input-control {
   width: 100%;
   min-width: 0;
-  padding: 0 8px;
+  padding: 0 10px;
 }
 
 .bd-widget-textarea {
@@ -2046,7 +2052,7 @@ html.bd-story-card-dock-active > body {
 .bd-widget-textarea-control {
   width: min(260px, 100%);
   min-height: 64px;
-  padding: 6px 8px;
+  padding: 8px 10px;
   resize: vertical;
   line-height: 1.3;
 }
@@ -2065,45 +2071,59 @@ html.bd-story-card-dock-active > body {
   font-weight: var(--bd-font-weight-semibold);
 }
 
-.bd-widget[data-color="red"] .bd-widget-value,
-.bd-widget[data-color="red"] .bd-widget-bar-fill {
+.bd-widget[data-color="red"] .bd-widget-value {
   color: var(--bd-error);
+}
+
+.bd-widget[data-color="red"] .bd-widget-bar-fill {
   background: linear-gradient(90deg, var(--bd-error) 0%, var(--bd-error-light) 100%);
 }
 
-.bd-widget[data-color="green"] .bd-widget-value,
-.bd-widget[data-color="green"] .bd-widget-bar-fill {
+.bd-widget[data-color="green"] .bd-widget-value {
   color: var(--bd-success);
+}
+
+.bd-widget[data-color="green"] .bd-widget-bar-fill {
   background: linear-gradient(90deg, var(--bd-success) 0%, var(--bd-success-light) 100%);
 }
 
-.bd-widget[data-color="blue"] .bd-widget-value,
-.bd-widget[data-color="blue"] .bd-widget-bar-fill {
+.bd-widget[data-color="blue"] .bd-widget-value {
   color: var(--bd-info);
+}
+
+.bd-widget[data-color="blue"] .bd-widget-bar-fill {
   background: linear-gradient(90deg, var(--bd-info) 0%, var(--bd-info-light) 100%);
 }
 
-.bd-widget[data-color="yellow"] .bd-widget-value,
-.bd-widget[data-color="yellow"] .bd-widget-bar-fill {
+.bd-widget[data-color="yellow"] .bd-widget-value {
   color: var(--bd-warning);
+}
+
+.bd-widget[data-color="yellow"] .bd-widget-bar-fill {
   background: linear-gradient(90deg, var(--bd-warning) 0%, var(--bd-warning-light) 100%);
 }
 
-.bd-widget[data-color="purple"] .bd-widget-value,
-.bd-widget[data-color="purple"] .bd-widget-bar-fill {
+.bd-widget[data-color="purple"] .bd-widget-value {
   color: var(--bd-purple);
+}
+
+.bd-widget[data-color="purple"] .bd-widget-bar-fill {
   background: linear-gradient(90deg, var(--bd-purple) 0%, var(--bd-purple-light) 100%);
 }
 
-.bd-widget[data-color="cyan"] .bd-widget-value,
-.bd-widget[data-color="cyan"] .bd-widget-bar-fill {
+.bd-widget[data-color="cyan"] .bd-widget-value {
   color: var(--bd-cyan);
+}
+
+.bd-widget[data-color="cyan"] .bd-widget-bar-fill {
   background: linear-gradient(90deg, var(--bd-cyan) 0%, var(--bd-cyan-light) 100%);
 }
 
-.bd-widget[data-color="orange"] .bd-widget-value,
-.bd-widget[data-color="orange"] .bd-widget-bar-fill {
+.bd-widget[data-color="orange"] .bd-widget-value {
   color: var(--bd-accent-primary);
+}
+
+.bd-widget[data-color="orange"] .bd-widget-bar-fill {
   background: linear-gradient(90deg, var(--bd-accent-primary) 0%, var(--bd-accent-light) 100%);
 }
 
@@ -2297,7 +2317,7 @@ html.bd-story-card-dock-active > body {
   .bd-widget {
     padding: 10px 18px;
     font-size: 17px;
-    border-radius: var(--bd-radius-lg);
+    border-radius: 8px;
   }
   
   .bd-widget-stat {
@@ -2318,7 +2338,7 @@ html.bd-story-card-dock-active > body {
   
   .bd-widget-bar-container {
     height: 28px;
-    border-radius: var(--bd-radius-md);
+    border-radius: 6px;
   }
   
   .bd-widget-bar-text {

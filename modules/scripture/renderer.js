@@ -128,7 +128,6 @@
         label: config.label || config.text || config.title || null,
         value,
         previousValue,
-        risk: validators().getWidgetRiskLevel?.(config) || config.risk || 'enhanced',
         coalesceKey: coalesce ? `${config.id}:${widgetType}:${config.event || action}` : null,
         ...extra,
       };
@@ -481,9 +480,7 @@
     }
 
     createWidget(widgetId, config) {
-      const validation = validators().validateWidgetConfig(widgetId, config, {
-        allowedRiskLevel: 'unsafe',
-      });
+      const validation = validators().validateWidgetConfig(widgetId, config);
       if (!validation.valid) {
         this.warnOnce(
           `validation:${widgetId}:${validation.errors.join('|')}`,
@@ -563,6 +560,7 @@
       const zone = this.widgetZones[align];
       if (zone) zone.appendChild(widgetElement);
       else this.widgetContainer.appendChild(widgetElement);
+      if (config.type === 'custom') this.activateCustomWidgetScripts(widgetElement);
 
       this.registeredWidgets.set(widgetId, { element: widgetElement, config: { ...config } });
       this.recalculateWidgetDensity();
@@ -643,10 +641,28 @@
 
     createCustomWidget(widgetId, config) {
       const widget = this.createBaseWidget(widgetId, 'bd-widget-custom', config);
-      if (config.html) widget.innerHTML = validators().sanitizeHTML(config.html);
+      this.setCustomWidgetHTML(widget, config.html);
       if (config.color) widget.style.color = config.color;
       this.applyStyles(widget, config.style);
       return widget;
+    }
+
+    setCustomWidgetHTML(element, html) {
+      element.innerHTML = validators().sanitizeHTML(html);
+      this.activateCustomWidgetScripts(element);
+    }
+
+    activateCustomWidgetScripts(element) {
+      if (!element.isConnected) return;
+      const scripts = Array.from(element.querySelectorAll('script'));
+      for (const oldScript of scripts) {
+        const script = document.createElement('script');
+        for (const attr of Array.from(oldScript.attributes)) {
+          script.setAttribute(attr.name, attr.value);
+        }
+        script.textContent = oldScript.textContent;
+        oldScript.replaceWith(script);
+      }
     }
 
     createBadgeWidget(widgetId, config) {
@@ -940,7 +956,7 @@
           this.updatePanelWidget(element, config);
           break;
         case 'custom':
-          element.innerHTML = config.html !== undefined ? validators().sanitizeHTML(config.html) : '';
+          if (config.html !== existingConfig.html) this.setCustomWidgetHTML(element, config.html);
           element.style.color = config.color || '';
           this.replaceStyles(element, existingConfig.style, config.style);
           break;

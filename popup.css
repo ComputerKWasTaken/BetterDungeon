@@ -544,33 +544,6 @@ body {
   font-size: 11px;
 }
 
-.scripture-risk-help {
-  display: grid;
-  gap: 6px;
-  margin-top: 6px;
-}
-
-.scripture-risk-help div {
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  gap: 8px;
-  padding: 7px 8px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-}
-
-.scripture-risk-help strong {
-  color: var(--accent);
-  font-size: 11px;
-}
-
-.scripture-risk-help span {
-  color: var(--text-muted);
-  font-size: 10.5px;
-  line-height: 1.35;
-}
-
 .frontier-consent-row {
   display: grid;
   grid-template-columns: 1fr auto auto;

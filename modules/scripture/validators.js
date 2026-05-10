@@ -1,6 +1,6 @@
 // modules/scripture/validators.js
 //
-// Validation and sanitization helpers for the Frontier Scripture module.
+// Validation and compatibility helpers for the Frontier Scripture module.
 // These are intentionally pure-ish utilities so the module can reject malformed
 // state without the renderer throwing during a Frontier dispatch tick.
 
@@ -27,25 +27,17 @@
 
   const VALID_ALIGNMENTS = new Set(['left', 'center', 'right']);
   const INTERACTIVE_WIDGET_TYPES = new Set(['button', 'toggle', 'select', 'slider', 'input', 'textarea']);
-  const RISK_LEVELS = ['safe', 'enhanced', 'unsafe'];
-  const RISK_LEVEL_ORDER = {
-    safe: 0,
-    enhanced: 1,
-    unsafe: 2,
-  };
-  const DEFAULT_RISK_LEVEL = 'enhanced';
   const INPUT_TYPES = new Set(['text', 'search', 'number']);
   const MAX_WIDGETS = 40;
   const MAX_WIDGET_ID_LENGTH = 64;
   const MAX_LABEL_LENGTH = 120;
   const MAX_TEXT_LENGTH = 512;
-  const MAX_HTML_LENGTH = 4000;
+  const MAX_HTML_LENGTH = 20000;
   const MAX_PANEL_ITEMS = 30;
   const MAX_LIST_ITEMS = 40;
   const MAX_SELECT_OPTIONS = 40;
   const MAX_INPUT_LENGTH = 240;
   const MAX_TEXTAREA_LENGTH = 1200;
-  const MAX_STYLE_PROPERTIES = 16;
 
   const PRESET_COLORS = new Set([
     'red',
@@ -57,47 +49,6 @@
     'orange',
   ]);
 
-  const ALLOWED_TAGS = new Set([
-    'div', 'span', 'p', 'br', 'hr',
-    'strong', 'b', 'em', 'i', 'u', 's', 'mark',
-    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-    'ul', 'ol', 'li',
-    'table', 'thead', 'tbody', 'tr', 'th', 'td',
-    'img', 'a',
-    'pre', 'code', 'blockquote',
-  ]);
-
-  const BLOCKED_TAGS = new Set([
-    'script',
-    'style',
-    'iframe',
-    'object',
-    'embed',
-    'svg',
-    'math',
-    'link',
-    'meta',
-    'base',
-  ]);
-
-  const ALLOWED_ATTRS = {
-    '*': ['class', 'id', 'style', 'title'],
-    a: ['href', 'target', 'rel'],
-    img: ['src', 'alt', 'width', 'height'],
-  };
-
-  const ALLOWED_STYLES = new Set([
-    'color', 'background-color', 'background',
-    'font-size', 'font-weight', 'font-style', 'font-family',
-    'text-align', 'text-decoration', 'text-transform',
-    'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
-    'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
-    'border', 'border-radius', 'border-color', 'border-width', 'border-style',
-    'width', 'height', 'max-width', 'max-height', 'min-width', 'min-height',
-    'display', 'flex', 'flex-direction', 'justify-content', 'align-items', 'gap',
-    'opacity', 'visibility', 'overflow',
-  ]);
-
   const PRIMITIVE_STATE_FIELD_BY_TYPE = {
     text: 'text',
     badge: 'text',
@@ -105,52 +56,25 @@
   };
 
   const WIDGET_STATE_FIELDS = {
-    stat: new Set(['value', 'color']),
-    bar: new Set(['value', 'max', 'progress', 'color']),
-    text: new Set(['text', 'color']),
-    panel: new Set(['items', 'content']),
-    custom: new Set(['html', 'color']),
-    badge: new Set(['text', 'color', 'variant']),
-    list: new Set(['items']),
-    icon: new Set(['icon', 'text', 'color', 'size']),
-    counter: new Set(['value', 'delta', 'color', 'icon']),
-    button: new Set(['text', 'disabled', 'value', 'variant']),
-    toggle: new Set(['value', 'disabled']),
-    select: new Set(['value', 'disabled']),
-    slider: new Set(['value', 'disabled']),
-    input: new Set(['value', 'disabled']),
-    textarea: new Set(['value', 'disabled']),
+    stat: new Set(['value', 'color', 'style']),
+    bar: new Set(['value', 'max', 'progress', 'color', 'style']),
+    text: new Set(['text', 'color', 'style']),
+    panel: new Set(['items', 'content', 'style']),
+    custom: new Set(['html', 'color', 'style']),
+    badge: new Set(['text', 'color', 'variant', 'style']),
+    list: new Set(['items', 'style']),
+    icon: new Set(['icon', 'text', 'color', 'size', 'style']),
+    counter: new Set(['value', 'delta', 'color', 'icon', 'style']),
+    button: new Set(['text', 'disabled', 'value', 'variant', 'style']),
+    toggle: new Set(['value', 'disabled', 'style']),
+    select: new Set(['value', 'disabled', 'style']),
+    slider: new Set(['value', 'disabled', 'style']),
+    input: new Set(['value', 'disabled', 'style']),
+    textarea: new Set(['value', 'disabled', 'style']),
   };
 
   function isPlainObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
-  }
-
-  function normalizeRiskLevel(level, fallback = DEFAULT_RISK_LEVEL) {
-    const normalized = String(level || '').toLowerCase();
-    return RISK_LEVEL_ORDER[normalized] !== undefined ? normalized : fallback;
-  }
-
-  function compareRiskLevels(a, b) {
-    return RISK_LEVEL_ORDER[normalizeRiskLevel(a)] - RISK_LEVEL_ORDER[normalizeRiskLevel(b)];
-  }
-
-  function highestRiskLevel(...levels) {
-    let highest = 'safe';
-    for (const level of levels) {
-      const normalized = normalizeRiskLevel(level, 'safe');
-      if (compareRiskLevels(normalized, highest) > 0) highest = normalized;
-    }
-    return highest;
-  }
-
-  function getWidgetRiskLevel(config) {
-    const declaredRisk = config?.risk !== undefined
-      ? normalizeRiskLevel(config.risk)
-      : (INTERACTIVE_WIDGET_TYPES.has(config?.type) ? 'enhanced' : 'safe');
-    const htmlRisk = config?.type === 'custom' || config?.html !== undefined ? 'unsafe' : 'safe';
-    const styleRisk = config?.style !== undefined ? 'unsafe' : 'safe';
-    return highestRiskLevel(declaredRisk, htmlRisk, styleRisk);
   }
 
   function stringOrNumberOrBoolean(value) {
@@ -178,10 +102,6 @@
     if (style === undefined) return;
     if (!isPlainObject(style)) {
       errors.push('Widget "style" must be an object');
-      return;
-    }
-    if (Object.keys(style).length > MAX_STYLE_PROPERTIES) {
-      errors.push(`Widget "style" may contain at most ${MAX_STYLE_PROPERTIES} properties`);
     }
   }
 
@@ -216,7 +136,7 @@
     }
   }
 
-  function validateWidgetConfig(widgetId, config, opts = {}) {
+  function validateWidgetConfig(widgetId, config) {
     const errors = [];
 
     if (!widgetId || typeof widgetId !== 'string') {
@@ -248,15 +168,6 @@
     validateStringField(config, 'tooltip', MAX_TEXT_LENGTH, errors, 'tooltip');
     validateStringField(config, 'placeholder', MAX_LABEL_LENGTH, errors, 'placeholder');
     validateStyleObject(config.style, errors);
-
-    const riskLevel = getWidgetRiskLevel(config);
-    const allowedRiskLevel = normalizeRiskLevel(opts.allowedRiskLevel);
-    if (config.risk !== undefined && RISK_LEVEL_ORDER[String(config.risk).toLowerCase()] === undefined) {
-      errors.push(`Widget risk must be one of: ${RISK_LEVELS.join(', ')}`);
-    }
-    if (compareRiskLevels(riskLevel, allowedRiskLevel) > 0) {
-      errors.push(`Widget requires "${riskLevel}" risk but current Scripture risk is "${allowedRiskLevel}"`);
-    }
 
     if (config.type === 'bar') {
       if (config.max !== undefined && (typeof config.max !== 'number' || config.max <= 0)) {
@@ -366,7 +277,7 @@
     return { valid: errors.length === 0, errors };
   }
 
-  function validateManifest(manifest, opts = {}) {
+  function validateManifest(manifest) {
     const errors = [];
     const widgets = [];
 
@@ -394,7 +305,7 @@
         continue;
       }
 
-      const validation = validateWidgetConfig(widget.id, widget, opts);
+      const validation = validateWidgetConfig(widget.id, widget);
       if (!validation.valid) {
         errors.push(`Widget "${widget.id || i}" invalid: ${validation.errors.join('; ')}`);
         continue;
@@ -407,174 +318,26 @@
   }
 
   function sanitizeHTML(html) {
-    if (typeof html !== 'string') return '';
-
-    const temp = document.createElement('div');
-    temp.innerHTML = html;
-    sanitizeNode(temp);
-    return temp.innerHTML;
-  }
-
-  function sanitizeNode(node) {
-    const children = Array.from(node.childNodes);
-    for (const child of children) {
-      sanitizeElement(child);
-    }
-  }
-
-  function sanitizeElement(el) {
-    if (!el || el.nodeType !== Node.ELEMENT_NODE) return;
-    const tagName = el.tagName.toLowerCase();
-
-    if (BLOCKED_TAGS.has(tagName)) {
-      el.remove();
-      return;
-    }
-
-    if (!ALLOWED_TAGS.has(tagName)) {
-      const parent = el.parentNode;
-      if (!parent) {
-        el.remove();
-        return;
-      }
-      const toHoist = Array.from(el.childNodes);
-      for (const child of toHoist) {
-        parent.insertBefore(child, el);
-        sanitizeElement(child);
-      }
-      el.remove();
-      return;
-    }
-
-    sanitizeAttributes(el, tagName);
-    sanitizeNode(el);
-  }
-
-  function sanitizeAttributes(element, tagName) {
-    const allowedGlobal = ALLOWED_ATTRS['*'] || [];
-    const allowedForTag = ALLOWED_ATTRS[tagName] || [];
-    const allAllowed = new Set([...allowedGlobal, ...allowedForTag]);
-    const attrsSnapshot = Array.from(element.attributes);
-    const attrsToRemove = [];
-
-    for (const attr of attrsSnapshot) {
-      const attrName = attr.name.toLowerCase();
-
-      if (attrName.startsWith('on')) {
-        attrsToRemove.push(attr.name);
-        continue;
-      }
-
-      if (!allAllowed.has(attrName)) {
-        attrsToRemove.push(attr.name);
-        continue;
-      }
-
-      if (attrName === 'href') {
-        const href = attr.value.trim().toLowerCase();
-        if (href.startsWith('javascript:') || href.startsWith('data:') || href.startsWith('vbscript:')) {
-          attrsToRemove.push(attr.name);
-          continue;
-        }
-      }
-
-      if (attrName === 'src') {
-        const src = attr.value.trim().toLowerCase();
-        if (src.startsWith('javascript:') || src.startsWith('data:') || src.startsWith('vbscript:')) {
-          attrsToRemove.push(attr.name);
-          continue;
-        }
-      }
-
-      if (attrName === 'style') {
-        element.setAttribute('style', sanitizeStyleString(attr.value));
-      }
-    }
-
-    for (const attrName of attrsToRemove) {
-      element.removeAttribute(attrName);
-    }
-
-    if (tagName === 'a' && element.hasAttribute('target')) {
-      const rel = element.getAttribute('rel') || '';
-      const relValues = rel.toLowerCase().split(/\s+/).filter(Boolean);
-      if (!relValues.includes('noopener')) relValues.push('noopener');
-      if (!relValues.includes('noreferrer')) relValues.push('noreferrer');
-      element.setAttribute('rel', relValues.join(' '));
-    }
+    return typeof html === 'string' ? html : '';
   }
 
   function sanitizeStyleString(styleString) {
-    if (!styleString || typeof styleString !== 'string') return '';
-
-    const sanitizedParts = [];
-    const declarations = styleString.split(';');
-
-    for (const declaration of declarations) {
-      const colonIndex = declaration.indexOf(':');
-      if (colonIndex === -1) continue;
-
-      const property = declaration.substring(0, colonIndex).trim().toLowerCase();
-      const value = declaration.substring(colonIndex + 1).trim();
-
-      if (!ALLOWED_STYLES.has(property)) continue;
-
-      const lowerValue = value.toLowerCase();
-      if (
-        lowerValue.includes('url(') ||
-        lowerValue.includes('expression(') ||
-        lowerValue.includes('javascript:') ||
-        lowerValue.includes('behavior:')
-      ) {
-        continue;
-      }
-
-      sanitizedParts.push(`${property}: ${value}`);
-    }
-
-    return sanitizedParts.join('; ');
+    return typeof styleString === 'string' ? styleString : '';
   }
 
   function sanitizeStyleObject(styleObj) {
-    if (!isPlainObject(styleObj)) return {};
-
-    const sanitized = {};
-    for (const [property, value] of Object.entries(styleObj)) {
-      const kebabProperty = property.replace(/([A-Z])/g, '-$1').toLowerCase();
-      if (!ALLOWED_STYLES.has(kebabProperty)) continue;
-
-      if (typeof value === 'string') {
-        const lowerValue = value.toLowerCase();
-        if (
-          lowerValue.includes('url(') ||
-          lowerValue.includes('expression(') ||
-          lowerValue.includes('javascript:') ||
-          lowerValue.includes('behavior:')
-        ) {
-          continue;
-        }
-      }
-
-      sanitized[property] = value;
-    }
-
-    return sanitized;
+    return isPlainObject(styleObj) ? { ...styleObj } : {};
   }
 
   window.ScriptureValidators = {
     WIDGET_TYPES,
     VALID_ALIGNMENTS,
     INTERACTIVE_WIDGET_TYPES,
-    RISK_LEVELS,
-    DEFAULT_RISK_LEVEL,
     MAX_INPUT_LENGTH,
     MAX_TEXTAREA_LENGTH,
     PRESET_COLORS,
     WIDGET_STATE_FIELDS,
     isPlainObject,
-    normalizeRiskLevel,
-    compareRiskLevels,
-    getWidgetRiskLevel,
     filterWidgetStatePatch,
     getPrimitiveStateField,
     validateWidgetConfig,
