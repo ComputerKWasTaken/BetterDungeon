@@ -1,10 +1,9 @@
-// This is just the Auto Cards original script pasted here. Modify this file instead of the raw Auto Cards file in BetterRepository.
+// Aura Cards intentionally does not use the Context Modifier.
+// The old Auto-Cards approach inserted card prompts into context; Aura Cards
+// sends those requests through Frontier's AI module instead.
 
-// Your "Context" tab should look like this
-const modifier = (text) => {
-  // Your other context modifier scripts go here (preferred)
-  [text, stop] = AutoCards("context", text, stop);
-  // Your other context modifier scripts go here (alternative)
-  return {text, stop};
+var modifier = function (text) {
+  return { text: text};
 };
+
 modifier(text);

@@ -1,0 +1,53 @@
+# Aura Cards
+
+Aura Cards is an example AI Dungeon scenario script that rebuilds the core
+Auto-Cards idea on top of Frontier's AI module.
+
+Instead of hijacking the story model and asking the player to press Continue
+while card text is generated, Aura Cards sends a sidecar `ai.chat` request
+through Frontier. Normal gameplay continues; the script polls the response on
+later turns and writes or updates story cards when the AI returns structured
+JSON.
+
+## What It Demonstrates
+
+- Frontier `ai.chat` calls from an AI Dungeon script.
+- `responseFormat: json_schema` for reliable card operations.
+- Automatic story-card creation and updates.
+- Memory-bank accumulation and sidecar compression.
+- Graceful degradation when Frontier or the AI module is not enabled.
+
+## Setup
+
+1. Load BetterDungeon and open AI Dungeon.
+2. Open BetterDungeon -> Frontier and enable Frontier plus the AI module.
+3. In Frontier -> AI, save an OpenRouter API key and optionally a default model.
+4. Paste `library.js` into the scenario Library tab.
+5. Paste `output.js` into the Output Modifier tab.
+6. Start or resume the adventure.
+
+Aura Cards is enabled by default. Open the `Configure Aura Cards` story card
+to tune usage or set `"enabled": false` to pause it.
+
+`input.js` and `context.js` are intentionally no-ops. They are included only
+for scenarios or docs that expect all four script tabs to exist.
+
+## Runtime Cards
+
+- `Configure Aura Cards` - editable JSON config.
+- `Aura Cards Trace` - status, pending request ids, stats, and recent events.
+- `frontier:out` - request queue consumed by BetterDungeon.
+- `frontier:in:ai` - AI responses written by BetterDungeon.
+
+Generated cards are ordinary story cards marked in their notes with
+`Aura Cards metadata:` so Aura can update only its own cards and avoid
+overwriting user-authored cards.
+
+## Usage Defaults
+
+Aura Cards keeps a small number of sidecar AI requests in flight, waits
+`cooldownTurns` turns between sweeps, limits each sweep to
+`maxCardsPerSweep` cards, and allows up to `maxConcurrentRequests` in-flight
+sidecar requests. The showcase defaults assume free or low-cost models:
+4-turn cooldown, 18-action lookback, 5 cards per sweep, and 2 concurrent
+requests.

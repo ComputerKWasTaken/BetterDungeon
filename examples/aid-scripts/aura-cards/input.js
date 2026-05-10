@@ -1,10 +1,8 @@
-// This is just the Auto Cards original script pasted here. Modify this file instead of the raw Auto Cards file in BetterRepository.
+// Aura Cards does not need an Input Modifier.
+// Paste this only if your scenario expects every script tab to be filled.
 
-// Your "Input" tab should look like this
-const modifier = (text) => {
-  // Your other input modifier scripts go here (preferred)
-  text = AutoCards("input", text);
-  // Your other input modifier scripts go here (alternative)
-  return {text};
+var modifier = function (text) {
+  return { text: text };
 };
+
 modifier(text);

@@ -1,10 +1,17 @@
-// This is just the Auto Cards original script pasted here. Modify this file instead of the raw Auto Cards file in BetterRepository.
+// Aura Cards - Output Modifier
+//
+// Drives one non-blocking Aura Cards tick after each normal generation.
+// The story text is always returned unchanged.
 
-// Your "Output" tab should look like this
-const modifier = (text) => {
-  // Your other output modifier scripts go here (preferred)
-  text = AutoCards("output", text);
-  // Your other output modifier scripts go here (alternative)
-  return {text};
+var modifier = function (text) {
+  if (typeof auraCardsStep === 'function') {
+    try {
+      auraCardsStep(text);
+    } catch (err) {
+      // Never break gameplay because the sidecar card worker had a problem.
+    }
+  }
+  return { text: text };
 };
+
 modifier(text);
