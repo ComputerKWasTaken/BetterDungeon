@@ -1,6 +1,6 @@
-# Chronos V2
+# Chronos
 
-Chronos V2 is a Frontier showcase script for AI Dungeon: a complete time and
+Chronos is a Frontier showcase script for AI Dungeon: a complete time and
 weather engine with an interactive Scripture dashboard, optional Clock sync,
 and optional real weather.
 
@@ -29,8 +29,8 @@ but gameplay continues normally when they are missing.
 5. Paste `input.js`, `context.js`, and `output.js` into their matching tabs.
 6. Start or resume the adventure.
 
-Chronos V2 creates `Configure Chronos V2`, `Chronos V2 Commands`, and
-`Chronos V2 Trace` story cards. It also writes Frontier protocol cards such as
+Chronos creates `Configure Chronos`, `Chronos Commands`, and
+`Chronos Trace` story cards. It also writes Frontier protocol cards such as
 `frontier:out`, `frontier:in:*`, and `frontier:state:scripture`.
 
 ## Dashboard
@@ -41,7 +41,7 @@ from the dashboard:
 
 - pause/resume automatic time
 - toggle real elapsed time
-- advance 15 minutes or 1 hour
+- edit the time directly, or enter offsets such as `+15m` and `+1h`
 - sleep until the configured wake hour
 - sync available Clock and Weather data
 - switch simulated/real weather
@@ -75,14 +75,14 @@ edit the card directly.
 
 Widgets are the preferred interface, but commands remain available:
 
-- `:time`, `:date`, `:weather`, `:chronos`
-- `:advance <N> <minutes|hours|days>`
-- `:sleep`
-- `:settime <HH:MM>`
-- `:setdate <day> <month> <year>`
-- `:pause`, `:resume`
-- `:setweather <condition>`
-- `:chronos help`, `:chronos reset`
+- `/time`, `/date`, `/weather`, `/chronos`
+- `/advance <N> <minutes|hours|days>`
+- `/sleep`
+- `/settime <HH:MM>`
+- `/setdate <day> <month> <year>`
+- `/pause`, `/resume`
+- `/setweather <condition>`
+- `/chronos help`, `/chronos reset`
 
 ## Stability Notes
 
@@ -93,7 +93,7 @@ and lets simulated weather continue if real weather fails or times out.
 The Context Modifier injects one compact line like:
 
 ```text
-[Chronos V2: Current story date is Tuesday, June 2, 2026. Current story time is 7:15 AM (Morning). Season: Summer. Weather: Clear, 70 F (sim). Use these as the current scene environment unless the story says otherwise.]
+[Chronos: Current story date is Tuesday, June 2, 2026. Current story time is 7:15 AM (Morning). Season: Summer. Weather: Clear, 70 F (sim). Use these as the current scene environment unless the story says otherwise.]
 ```
 
 That line gives the model enough situational grounding without turning the

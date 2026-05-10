@@ -2132,17 +2132,35 @@ html.bd-story-card-dock-active > body {
   padding: 0;
 }
 
-#bd-widget-chronos-clock {
-  min-width: min(132px, 100%);
+#bd-widget-chronos-time {
+  min-width: min(190px, 100%);
 }
 
-#bd-widget-chronos-clock .bd-widget-value {
-  font-size: 18px;
+#bd-widget-chronos-time .bd-widget-input-control {
+  width: 116px;
+  font-size: 17px;
+  font-weight: var(--bd-font-weight-bold);
   color: var(--bd-text-primary);
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+}
+
+#bd-widget-chronos-time .bd-widget-control-label {
+  color: rgba(255, 255, 255, 0.72);
 }
 
 #bd-widget-chronos-weather {
-  min-width: min(150px, 100%);
+  min-width: min(220px, 100%);
+}
+
+#bd-widget-chronos-weather .bd-widget-value {
+  font-size: 17px;
+  color: var(--bd-text-primary);
+}
+
+#bd-widget-chronos-weather-mode,
+#bd-widget-chronos-place {
+  min-width: min(230px, 100%);
 }
 
 /* ============================================

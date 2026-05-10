@@ -1,6 +1,6 @@
-// Chronos V2 - Frontier multi-module example
+// Chronos - Frontier multi-module example
 //
-// Chronos V2 is a direct-tracking time and weather engine for AI Dungeon.
+// Chronos is a direct-tracking time and weather engine for AI Dungeon.
 // It showcases several Frontier modules working together:
 //   - Scripture: interactive dashboard widgets.
 //   - Clock: real-world time initialization and manual sync.
@@ -11,16 +11,16 @@
 //   2. Enable Scripture, Clock, and Weather as desired.
 //   3. Paste this file into the AI Dungeon Library tab.
 //   4. Paste input.js, context.js, and output.js into their tabs.
-//   5. Start or resume the adventure. Chronos V2 is enabled by default.
+//   5. Start or resume the adventure. Chronos is enabled by default.
 
-var CHRONOS_CONFIG_CARD_TITLE = 'Configure Chronos V2';
-var CHRONOS_TRACE_CARD_TITLE = 'Chronos V2 Trace';
-var CHRONOS_COMMANDS_CARD_TITLE = 'Chronos V2 Commands';
+var CHRONOS_CONFIG_CARD_TITLE = 'Configure Chronos';
+var CHRONOS_TRACE_CARD_TITLE = 'Chronos Trace';
+var CHRONOS_COMMANDS_CARD_TITLE = 'Chronos Commands';
 var CHRONOS_CARD_TYPE = 'Chronos';
 var CHRONOS_SCRIPTURE_STATE_CARD = 'frontier:state:scripture';
 
 var CHRONOS_DEFAULT_CONFIG = {
-  // Master enable switch for Chronos V2 functionality
+  // Master enable switch for Chronos functionality
   enabled: true,
   // Minutes of story time to advance per turn in simulated mode
   minutesPerTurn: 2,
@@ -72,7 +72,7 @@ var CHRONOS_COMMANDS_ENTRY = [
   '',
   '--- System ---',
   '/chronos help - Show this command list',
-  '/chronos reset - Reset Chronos V2 state'
+  '/chronos reset - Reset Chronos state'
 ].join('\n');
 
 var CHRONOS_MONTHS = [
@@ -182,7 +182,7 @@ var CHRONOS_TRANSITIONS = {
   }
 };
 
-function chronosV2Input(text) {
+function chronosInput(text) {
   var s = chronosState();
   if (!s) return text;
   var cfg = chronosEnsureConfigCard();
@@ -200,7 +200,7 @@ function chronosV2Input(text) {
   return ' ';
 }
 
-function chronosV2Context(text) {
+function chronosContext(text) {
   var s = chronosState();
   if (!s) return text;
   var cfg = chronosEnsureConfigCard();
@@ -223,7 +223,7 @@ function chronosV2Context(text) {
   return line + '\n' + cleaned;
 }
 
-function chronosV2Output(text) {
+function chronosOutput(text) {
   var s = chronosState();
   if (!s) return text;
   var cfg = chronosEnsureConfigCard();
@@ -267,12 +267,12 @@ function chronosTick(hook, text, cfg) {
 
 function chronosState() {
   if (typeof state === 'undefined' || !state || typeof state !== 'object') return null;
-  var s = state.chronosV2;
+  var s = state.chronos;
   if (!s || typeof s !== 'object' || Array.isArray(s)) s = {};
-  state.chronosV2 = s;
+  state.chronos = s;
 
-  s.v = 2;
-  s.runId = s.runId || ('chronos-v2-' + chronosNow().toString(36));
+  s.v = 1;
+  s.runId = s.runId || ('chronos-' + chronosNow().toString(36));
   s.turn = chronosNumber(s.turn, 0);
   s.seq = chronosNumber(s.seq, 0);
   s.outSeq = chronosNumber(s.outSeq, 0);
@@ -488,7 +488,7 @@ function chronosWriteConfigCard(cfg) {
     CHRONOS_CARD_TYPE,
     CHRONOS_CONFIG_CARD_TITLE,
     [
-      'Editable JSON settings for Chronos V2.',
+      'Editable JSON settings for Chronos.',
       'Widgets can update these settings for you.',
       'Real weather uses the manual place string; keep weatherMode simulated for faster fantasy pacing.'
     ].join('\n')
@@ -523,7 +523,7 @@ function chronosEnsureCommandsCard() {
       CHRONOS_COMMANDS_ENTRY,
       CHRONOS_CARD_TYPE,
       CHRONOS_COMMANDS_CARD_TITLE,
-      'Fallback chat commands for Chronos V2.'
+      'Fallback chat commands for Chronos.'
     );
   }
 }
@@ -669,6 +669,37 @@ function chronosSetTime(hour, minute) {
   chronosResetRealAnchor();
 }
 
+function chronosApplyTimeInput(raw, cfg) {
+  var text = chronosClean(raw).toLowerCase().replace(/\s+/g, '');
+  if (!text) return 'No time entered';
+
+  var advance = text.match(/^([+-]?\d+(?:\.\d+)?)(m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days)?$/);
+  if (advance && (text.charAt(0) === '+' || text.charAt(0) === '-')) {
+    var amount = Number(advance[1]);
+    var unit = advance[2] || 'm';
+    var minutes = amount;
+    if (unit.charAt(0) === 'h') minutes = amount * 60;
+    if (unit.charAt(0) === 'd') minutes = amount * 1440;
+    chronosAdvanceTime(minutes);
+    chronosSimulateWeather(cfg);
+    return (minutes < 0 ? 'Rewound ' : 'Advanced ') +
+      Math.abs(minutes) + ' minute' + (Math.abs(minutes) === 1 ? '' : 's');
+  }
+
+  var match = text.match(/^(\d{1,2})(?::?(\d{2}))?(am|pm)?$/);
+  if (!match) return 'Try a time like 7:30pm, 19:30, +15m, or +1h';
+
+  var hour = Number(match[1]);
+  var minute = match[2] === undefined ? 0 : Number(match[2]);
+  var suffix = match[3] || '';
+  if (suffix === 'pm' && hour < 12) hour += 12;
+  if (suffix === 'am' && hour === 12) hour = 0;
+  if (hour > 23 || minute > 59) return 'Time was outside the valid range';
+
+  chronosSetTime(hour, minute);
+  return 'Time set to ' + chronosTimeString(true);
+}
+
 function chronosSetDate(day, month, year) {
   var s = chronosState();
   var y = chronosClampInt(year, 1, 9999, s.time.year);
@@ -797,7 +828,7 @@ function chronosWeatherLine(cfg) {
 function chronosContextLine(cfg) {
   var s = chronosState();
   if (!cfg.enabled) return '';
-  return '[Chronos V2: Current story date is ' + chronosDateString() + '. Current story time is ' +
+  return '[Chronos: Current story date is ' + chronosDateString() + '. Current story time is ' +
     chronosTimeString(true) + ' (' + chronosGetPhase().name + '). Season: ' + chronosGetSeason() +
     '. Weather: ' + chronosWeatherLine(cfg) + '. Use these as the current scene environment unless the story says otherwise.]';
 }
@@ -813,12 +844,12 @@ function chronosHandleCommand(input, cfg) {
   if (cmd === 'weather') return '\nWeather: ' + chronosWeatherLine(cfg);
   if (cmd === 'pause') {
     chronosState().paused = true;
-    return '\nChronos V2 paused.';
+    return '\nChronos paused.';
   }
   if (cmd === 'resume') {
     chronosState().paused = false;
     chronosResetRealAnchor();
-    return '\nChronos V2 resumed.';
+    return '\nChronos resumed.';
   }
   if (cmd === 'sleep') {
     var sleepMinutes = chronosMinutesUntilWake(cfg.wakeHour);
@@ -879,10 +910,10 @@ function chronosCommandSystem(args, cfg) {
   var sub = String(args[0] || '').toLowerCase();
   if (sub === 'help') return '\n' + CHRONOS_COMMANDS_ENTRY;
   if (sub === 'reset') {
-    state.chronosV2 = null;
+    state.chronos = null;
     chronosDeleteCard(CHRONOS_TRACE_CARD_TITLE);
     chronosWriteConfigCard(CHRONOS_DEFAULT_CONFIG);
-    return '\nChronos V2 reset to defaults.';
+    return '\nChronos reset to defaults.';
   }
   return '\n' + chronosStatusLine(cfg) + '\nMode: ' + cfg.timeMode + ', weather: ' +
     cfg.weatherMode + ', paused: ' + (chronosState().paused ? 'yes' : 'no') + '.';
@@ -1206,14 +1237,8 @@ function chronosHandleWidgetEvent(event, cfg) {
     chronosResetRealAnchor();
     return false;
   }
-  if (id === 'chronos-advance-15') {
-    chronosAdvanceTime(15);
-    s.status = 'Advanced 15 minutes';
-    return false;
-  }
-  if (id === 'chronos-advance-60') {
-    chronosAdvanceTime(60);
-    s.status = 'Advanced 1 hour';
+  if (id === 'chronos-time') {
+    s.status = chronosApplyTimeInput(value, cfg);
     return false;
   }
   if (id === 'chronos-sleep') {
@@ -1267,28 +1292,26 @@ function chronosHandleWidgetEvent(event, cfg) {
 function chronosScriptureManifest() {
   return {
     widgets: [
-      { id: 'chronos-clock', type: 'stat', label: 'Time', align: 'left', order: 1 },
-      { id: 'chronos-phase', type: 'badge', label: 'Phase', align: 'center', order: 3 },
-      { id: 'chronos-weather', type: 'stat', label: 'Sky', align: 'right', order: 4 },
-      { id: 'chronos-paused', type: 'toggle', label: 'Pause', tooltip: 'Pause or resume automatic time progression.', risk: 'enhanced', order: 8 },
-      { id: 'chronos-real-time', type: 'toggle', label: 'Real', tooltip: 'Use real elapsed minutes instead of minutes per turn.', risk: 'enhanced', order: 9 },
-      { id: 'chronos-advance-15', type: 'button', text: '+15m', tooltip: 'Advance story time by 15 minutes.', value: 'advance-15', variant: 'secondary', risk: 'enhanced', order: 10 },
-      { id: 'chronos-advance-60', type: 'button', text: '+1h', tooltip: 'Advance story time by 1 hour.', value: 'advance-60', variant: 'secondary', risk: 'enhanced', order: 11 },
-      { id: 'chronos-sleep', type: 'button', text: 'Sleep', tooltip: 'Advance to the configured wake hour.', value: 'sleep', variant: 'primary', risk: 'enhanced', order: 12 },
-      { id: 'chronos-sync', type: 'button', text: 'Sync', tooltip: 'Sync Clock, and real Weather when configured.', value: 'sync', risk: 'enhanced', order: 13 },
+      { id: 'chronos-time', type: 'input', label: 'Time', placeholder: '+15m, +1h, 7:30pm', maxLength: 16, tooltip: 'Edit story time directly, or enter +15m / +1h to advance.', align: 'left', order: 1 },
+      { id: 'chronos-phase', type: 'badge', label: 'Phase', align: 'left', order: 2 },
+      { id: 'chronos-paused', type: 'toggle', label: 'Pause', tooltip: 'Pause or resume automatic time progression.', align: 'center', order: 1 },
+      { id: 'chronos-real-time', type: 'toggle', label: 'Real', tooltip: 'Use real elapsed minutes instead of minutes per turn.', align: 'center', order: 2 },
+      { id: 'chronos-sleep', type: 'button', text: 'Sleep', tooltip: 'Advance to the configured wake hour.', value: 'sleep', variant: 'primary', align: 'center', order: 3 },
+      { id: 'chronos-sync', type: 'button', text: 'Sync', tooltip: 'Sync Clock, and real Weather when configured.', value: 'sync', align: 'center', order: 4 },
+      { id: 'chronos-weather', type: 'stat', label: 'Sky', align: 'right', order: 1 },
       {
         id: 'chronos-weather-mode',
         type: 'select',
-        label: 'Wx',
+        label: 'Mode',
         options: [
           { label: 'Sim', value: 'simulated' },
           { label: 'Real', value: 'real' }
         ],
         tooltip: 'Switch between simulated and real current weather.',
-        risk: 'enhanced',
-        order: 20
+        align: 'right',
+        order: 2
       },
-      { id: 'chronos-place', type: 'input', label: 'Place', placeholder: 'City', maxLength: 100, tooltip: 'Manual place for real weather.', risk: 'enhanced', order: 21 }
+      { id: 'chronos-place', type: 'input', label: 'Place', placeholder: 'City', maxLength: 100, tooltip: 'Manual place for real weather.', align: 'right', order: 3 }
     ]
   };
 }
@@ -1301,13 +1324,11 @@ function chronosScriptureValues(cfg) {
   var clockAvailable = chronosHasOp('clock', 'now');
   var weatherAvailable = chronosHasOp('weather', 'current');
   return {
-    'chronos-clock': { value: chronosReadableTime(), color: 'cyan' },
+    'chronos-time': { value: chronosReadableTime(), disabled: !cfg.enabled },
     'chronos-phase': { text: phase.name, color: phase.color, variant: 'soft' },
-    'chronos-weather': { value: chronosLimit((s.weather.label || weather.label) + ', ' + chronosTemperatureString(cfg), 26), color: 'cyan' },
+    'chronos-weather': { value: chronosLimit((s.weather.label || weather.label) + ', ' + chronosTemperatureString(cfg), 42), color: 'cyan' },
     'chronos-paused': { value: !!s.paused },
     'chronos-real-time': { value: cfg.timeMode === 'realElapsed', disabled: !clockAvailable && !s.clockStarted },
-    'chronos-advance-15': { disabled: !cfg.enabled },
-    'chronos-advance-60': { disabled: !cfg.enabled },
     'chronos-sleep': { disabled: !cfg.enabled },
     'chronos-sync': { disabled: !clockAvailable && !(weatherAvailable && canWeather) },
     'chronos-weather-mode': { value: cfg.weatherMode },
@@ -1336,7 +1357,7 @@ function chronosPublishScripture(cfg) {
     widgetEvents: { ackSeq: s.widgetAckSeq },
     ack: { scripture: s.widgetAckSeq },
     meta: {
-      source: 'Chronos V2',
+      source: 'Chronos',
       writtenAt: chronosIso(),
       liveKey: liveKey
     }
