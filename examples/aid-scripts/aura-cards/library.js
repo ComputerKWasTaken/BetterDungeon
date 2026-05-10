@@ -13,7 +13,7 @@ Auto-Cards is fully open-source, please copy for use within your own projects! �
 // =============================================================================
 // Aura Cards — Frontier AI integration layer
 // =============================================================================
-// Adds Provider AI support to the original Auto-Cards script via the
+// Adds Frontier AI support to the original Auto-Cards script via the
 // BetterDungeon Frontier protocol. When the Frontier "ai" module is mounted
 // and advertises the "chat" op in `frontier:heartbeat`, card-entry generation
 // is offloaded to a dedicated chat request and the player's turn proceeds
@@ -41,7 +41,7 @@ var AuraFrontier = (function () {
     var STATUS_CARD    = "aura:status";
 
     // Tunables — these match the rest of the BetterDungeon examples.
-    // Tighten LORE_MAX_TOKENS if you want shorter card entries; raise it
+    // Tighten MAX_TOKENS if you want shorter card entries; raise it
     // if you use reasoning models that consume tokens before emitting text.
     var DEFAULT_MODEL = "";          // empty = use BD's configured default
     var MAX_TOKENS    = 800;
@@ -3204,7 +3204,7 @@ function AutoCards(inHook, inText, inStop) {
             }
             function promptGeneration() {
                 // AURA: Frontier-driven generation path.
-                // When the Provider AI module is mounted via BetterDungeon's
+                // When the AI module is mounted via BetterDungeon's
                 // Frontier protocol, offload card-entry generation to a
                 // dedicated chat request and let the player's turn proceed
                 // normally. We do NOT touch `context` and we leave

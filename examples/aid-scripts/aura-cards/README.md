@@ -41,7 +41,7 @@ dedicated `chat` request to the Frontier AI module:
 
 1. Install BetterDungeon, open AI Dungeon.
 2. BetterDungeon → **Frontier** → enable Frontier and the **AI** module.
-3. Frontier → **AI Providers** → save an OpenRouter API key. Optionally
+3. Frontier → **AI** → save an OpenRouter API key. Optionally
    pin a default model.
 4. In your AI Dungeon scenario's **Scripting** panel:
    - Library tab: paste `library.js`.
