@@ -1566,7 +1566,6 @@ html.bd-story-card-dock-active > body {
   height: 100%;
   background: linear-gradient(90deg, var(--bd-success) 0%, var(--bd-success-light) 100%);
   border-radius: 5px;
-  box-shadow: 0 0 10px rgba(34, 197, 94, 0.24);
   /* transition removed to avoid issues with duplicate message processing */
 }
 
@@ -1929,6 +1928,7 @@ html.bd-story-card-dock-active > body {
   font-weight: var(--bd-font-weight-semibold);
   color: rgba(255, 255, 255, 0.66);
   max-width: 9rem;
+  flex-shrink: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1941,10 +1941,19 @@ html.bd-story-card-dock-active > body {
   border-radius: 7px;
   background: rgba(255, 255, 255, 0.07);
   color: var(--bd-text-primary);
+  color-scheme: dark;
   font: inherit;
   font-size: var(--bd-font-size-sm);
   box-sizing: border-box;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.bd-widget-control::placeholder {
+  color: var(--bd-text-muted);
+}
+
+.bd-widget-control:disabled {
+  cursor: not-allowed;
 }
 
 .bd-widget-control:focus-visible {
@@ -2045,6 +2054,11 @@ html.bd-story-card-dock-active > body {
   padding: 0 10px;
 }
 
+.bd-widget-select-control option {
+  background: var(--bd-bg-elevated);
+  color: var(--bd-text-primary);
+}
+
 .bd-widget-textarea {
   align-items: flex-start;
 }
@@ -2077,6 +2091,7 @@ html.bd-story-card-dock-active > body {
 
 .bd-widget[data-color="red"] .bd-widget-bar-fill {
   background: linear-gradient(90deg, var(--bd-error) 0%, var(--bd-error-light) 100%);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.24);
 }
 
 .bd-widget[data-color="green"] .bd-widget-value {
@@ -2085,6 +2100,7 @@ html.bd-story-card-dock-active > body {
 
 .bd-widget[data-color="green"] .bd-widget-bar-fill {
   background: linear-gradient(90deg, var(--bd-success) 0%, var(--bd-success-light) 100%);
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.24);
 }
 
 .bd-widget[data-color="blue"] .bd-widget-value {
@@ -2093,6 +2109,7 @@ html.bd-story-card-dock-active > body {
 
 .bd-widget[data-color="blue"] .bd-widget-bar-fill {
   background: linear-gradient(90deg, var(--bd-info) 0%, var(--bd-info-light) 100%);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.24);
 }
 
 .bd-widget[data-color="yellow"] .bd-widget-value {
@@ -2101,6 +2118,7 @@ html.bd-story-card-dock-active > body {
 
 .bd-widget[data-color="yellow"] .bd-widget-bar-fill {
   background: linear-gradient(90deg, var(--bd-warning) 0%, var(--bd-warning-light) 100%);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.24);
 }
 
 .bd-widget[data-color="purple"] .bd-widget-value {
@@ -2109,6 +2127,7 @@ html.bd-story-card-dock-active > body {
 
 .bd-widget[data-color="purple"] .bd-widget-bar-fill {
   background: linear-gradient(90deg, var(--bd-purple) 0%, var(--bd-purple-light) 100%);
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.24);
 }
 
 .bd-widget[data-color="cyan"] .bd-widget-value {
@@ -2117,6 +2136,7 @@ html.bd-story-card-dock-active > body {
 
 .bd-widget[data-color="cyan"] .bd-widget-bar-fill {
   background: linear-gradient(90deg, var(--bd-cyan) 0%, var(--bd-cyan-light) 100%);
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.24);
 }
 
 .bd-widget[data-color="orange"] .bd-widget-value {
@@ -2125,6 +2145,7 @@ html.bd-story-card-dock-active > body {
 
 .bd-widget[data-color="orange"] .bd-widget-bar-fill {
   background: linear-gradient(90deg, var(--bd-accent-primary) 0%, var(--bd-accent-light) 100%);
+  box-shadow: 0 0 10px rgba(255, 149, 0, 0.24);
 }
 
 .bd-widget-stat .bd-widget-value {

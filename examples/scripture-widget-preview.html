@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scripture Widget Design Preview</title>
+
+  <!-- Theme variables & widget styles from BetterDungeon -->
+  <link rel="stylesheet" href="../core/theme-variables.css" />
+  <link rel="stylesheet" href="../styles.css" />
+
+  <style>
+    /* ---- Preview-page scaffolding (not part of the widget system) ---- */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bd-bg-primary);
+      color: var(--bd-text-primary);
+      font-family: var(--bd-font-family-primary);
+      min-height: 100vh;
+    }
+
+    .preview-page {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+    }
+
+    .preview-header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .preview-header h1 {
+      font-size: 28px;
+      font-weight: var(--bd-font-weight-bold);
+      color: var(--bd-accent-primary);
+      margin: 0 0 8px;
+    }
+
+    .preview-header p {
+      font-size: 14px;
+      color: var(--bd-text-secondary);
+      margin: 0;
+    }
+
+    /* Section cards that group related widget examples */
+    .preview-section {
+      margin-bottom: 40px;
+    }
+
+    .preview-section h2 {
+      font-size: 18px;
+      font-weight: var(--bd-font-weight-semibold);
+      color: var(--bd-text-primary);
+      margin: 0 0 6px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--bd-border-default);
+    }
+
+    .preview-section h2 span {
+      color: var(--bd-text-muted);
+      font-weight: var(--bd-font-weight-normal);
+      font-size: 13px;
+      margin-left: 8px;
+    }
+
+    .preview-section p.desc {
+      font-size: 13px;
+      color: var(--bd-text-secondary);
+      margin: 0 0 16px;
+    }
+
+    /* Container size control bar */
+    .controls-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 24px;
+      padding: 12px 16px;
+      background: var(--bd-bg-secondary);
+      border: 1px solid var(--bd-border-default);
+      border-radius: var(--bd-radius-lg);
+    }
+
+    .controls-bar label {
+      font-size: 12px;
+      font-weight: var(--bd-font-weight-semibold);
+      color: var(--bd-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .controls-bar select {
+      padding: 4px 8px;
+      font-size: 13px;
+      font-family: inherit;
+      color: var(--bd-text-primary);
+      background: var(--bd-bg-elevated);
+      border: 1px solid var(--bd-border-default);
+      border-radius: var(--bd-radius-md);
+    }
+
+    /* Width slider label */
+    .controls-bar .width-control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .controls-bar input[type="range"] {
+      width: 160px;
+      accent-color: var(--bd-accent-primary);
+    }
+
+    .width-value {
+      font-size: 12px;
+      color: var(--bd-text-muted);
+      min-width: 48px;
+    }
+
+    /* Simulated game content area */
+    .game-area {
+      background: var(--bd-bg-secondary);
+      border: 1px solid var(--bd-border-default);
+      border-radius: var(--bd-radius-xl);
+      padding: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Override the fixed positioning for the preview so widgets flow in-page */
+    .game-area .bd-betterscripts-wrapper {
+      position: relative !important;
+      top: auto !important;
+      left: auto !important;
+      width: 100% !important;
+      z-index: auto !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="preview-page">
+
+    <!-- ========== HEADER ========== -->
+    <div class="preview-header">
+      <h1>Scripture — Widget Design Preview</h1>
+      <p>All 15 widget types rendered with the live BetterDungeon theme &amp; styles.</p>
+    </div>
+
+    <!-- ========== CONTROLS ========== -->
+    <div class="controls-bar">
+      <label>Size</label>
+      <select id="ctrl-size">
+        <option value="compact">Compact</option>
+        <option value="normal" selected>Normal</option>
+        <option value="comfortable">Comfortable</option>
+        <option value="large">Large</option>
+      </select>
+
+      <label>Max Height</label>
+      <select id="ctrl-height">
+        <option value="short">Short</option>
+        <option value="medium" selected>Medium</option>
+        <option value="tall">Tall</option>
+      </select>
+
+      <label>Layout</label>
+      <select id="ctrl-layout">
+        <option value="balanced" selected>Balanced (3-zone grid)</option>
+        <option value="stacked">Stacked (single column)</option>
+      </select>
+
+      <div class="width-control">
+        <label>Container Width</label>
+        <input type="range" id="ctrl-width" min="320" max="1200" value="900" />
+        <span class="width-value" id="ctrl-width-value">900px</span>
+      </div>
+    </div>
+
+    <!-- ================================================================
+         SECTION 1 — DISPLAY WIDGETS (read-only)
+         ================================================================ -->
+    <div class="preview-section">
+      <h2>Display Widgets <span>stat · bar · text · badge · icon · counter · list · panel</span></h2>
+      <p class="desc">Non-interactive, data-display widgets.</p>
+
+      <div class="game-area" id="display-area">
+        <!-- wrapper mirrors the real container structure from renderer.js -->
+        <div class="bd-betterscripts-wrapper bd-scripture-wrapper" id="bd-betterscripts-wrapper">
+          <div class="bd-betterscripts-container bd-scripture-container" id="bd-betterscripts-top"
+               data-widget-size="normal" data-widget-height="medium" data-widget-layout="balanced">
+
+            <!-- LEFT ZONE -->
+            <div class="bd-bar-zone bd-bar-left bd-scripture-zone" id="zone-left">
+
+              <!-- Stat (green) -->
+              <div class="bd-widget bd-widget-stat" id="bd-widget-hp" data-color="green" style="pointer-events:auto">
+                <span class="bd-widget-label">HP</span>
+                <span class="bd-widget-value">87</span>
+              </div>
+
+              <!-- Stat (red) -->
+              <div class="bd-widget bd-widget-stat" id="bd-widget-mp" data-color="red" style="pointer-events:auto">
+                <span class="bd-widget-label">MP</span>
+                <span class="bd-widget-value">23</span>
+              </div>
+
+              <!-- Stat (blue) -->
+              <div class="bd-widget bd-widget-stat" id="bd-widget-xp" data-color="blue" style="pointer-events:auto">
+                <span class="bd-widget-label">XP</span>
+                <span class="bd-widget-value">1,240</span>
+              </div>
+
+              <!-- Counter with positive delta -->
+              <div class="bd-widget bd-widget-counter" id="bd-widget-gold" style="pointer-events:auto">
+                <span class="bd-widget-counter-icon">🪙</span>
+                <span class="bd-widget-counter-value">350</span>
+                <span class="bd-widget-counter-delta" data-positive="true">+25</span>
+              </div>
+
+              <!-- Counter with negative delta -->
+              <div class="bd-widget bd-widget-counter" id="bd-widget-reputation" style="pointer-events:auto">
+                <span class="bd-widget-counter-icon">⚔️</span>
+                <span class="bd-widget-counter-value" style="color:var(--bd-purple)">12</span>
+                <span class="bd-widget-counter-delta" data-positive="false">-3</span>
+              </div>
+
+            </div>
+
+            <!-- CENTER ZONE -->
+            <div class="bd-bar-zone bd-bar-center bd-scripture-zone" id="zone-center">
+
+              <!-- Bar (green — HP) -->
+              <div class="bd-widget bd-widget-bar" id="bd-widget-hp-bar" data-color="green" style="pointer-events:auto">
+                <span class="bd-widget-label">Health</span>
+                <div class="bd-widget-bar-container">
+                  <div class="bd-widget-bar-fill" style="width:87%"></div>
+                  <span class="bd-widget-bar-text">87/100</span>
+                </div>
+              </div>
+
+              <!-- Bar (blue — Mana) -->
+              <div class="bd-widget bd-widget-bar" id="bd-widget-mana-bar" data-color="blue" style="pointer-events:auto">
+                <span class="bd-widget-label">Mana</span>
+                <div class="bd-widget-bar-container">
+                  <div class="bd-widget-bar-fill" style="width:23%"></div>
+                  <span class="bd-widget-bar-text">23/100</span>
+                </div>
+              </div>
+
+              <!-- Bar (yellow — Stamina) -->
+              <div class="bd-widget bd-widget-bar" id="bd-widget-stamina-bar" data-color="yellow" style="pointer-events:auto">
+                <span class="bd-widget-label">Stamina</span>
+                <div class="bd-widget-bar-container">
+                  <div class="bd-widget-bar-fill" style="width:62%"></div>
+                  <span class="bd-widget-bar-text">62/100</span>
+                </div>
+              </div>
+
+              <!-- Bar (purple — XP Progress) -->
+              <div class="bd-widget bd-widget-bar" id="bd-widget-xp-bar" data-color="purple" style="pointer-events:auto">
+                <span class="bd-widget-label">Level Up</span>
+                <div class="bd-widget-bar-container">
+                  <div class="bd-widget-bar-fill" style="width:45%"></div>
+                  <span class="bd-widget-bar-text">450/1000</span>
+                </div>
+              </div>
+
+              <!-- Text widget -->
+              <div class="bd-widget bd-widget-text" id="bd-widget-quest-text" style="pointer-events:auto;color:var(--bd-text-secondary)">
+                The forest grows darker as you press deeper. An ancient hum resonates in the air…
+              </div>
+
+            </div>
+
+            <!-- RIGHT ZONE -->
+            <div class="bd-bar-zone bd-bar-right bd-scripture-zone" id="zone-right">
+
+              <!-- Badge (default) -->
+              <div class="bd-widget bd-widget-badge" id="bd-widget-badge-class" style="pointer-events:auto;--badge-color:var(--bd-purple)">
+                <span class="bd-widget-badge-icon">🧙</span>
+                <span class="bd-widget-badge-text">Mage</span>
+              </div>
+
+              <!-- Badge (solid variant) -->
+              <div class="bd-widget bd-widget-badge" id="bd-widget-badge-level" data-variant="solid" style="pointer-events:auto;--badge-color:var(--bd-success)">
+                <span class="bd-widget-badge-text">Level 12</span>
+              </div>
+
+              <!-- Badge (outline variant) -->
+              <div class="bd-widget bd-widget-badge" id="bd-widget-badge-quest" data-variant="outline" style="pointer-events:auto;--badge-color:var(--bd-cyan)">
+                <span class="bd-widget-badge-icon">📜</span>
+                <span class="bd-widget-badge-text">Main Quest</span>
+              </div>
+
+              <!-- Icon widget -->
+              <div class="bd-widget bd-widget-icon" id="bd-widget-icon-shield" style="pointer-events:auto;color:var(--bd-amber)" title="Shield equipped">
+                🛡️
+              </div>
+
+              <!-- Icon widget (larger) -->
+              <div class="bd-widget bd-widget-icon" id="bd-widget-icon-potion" style="pointer-events:auto;color:var(--bd-success);--icon-size:1.6em" title="Health potion ready">
+                🧪
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================================
+         SECTION 2 — LIST & PANEL (compound display widgets)
+         ================================================================ -->
+    <div class="preview-section">
+      <h2>Compound Display <span>list · panel · custom</span></h2>
+      <p class="desc">Multi-item display containers.</p>
+
+      <div class="game-area" id="compound-area">
+        <div class="bd-betterscripts-wrapper bd-scripture-wrapper">
+          <div class="bd-betterscripts-container bd-scripture-container"
+               data-widget-size="normal" data-widget-height="medium" data-widget-layout="balanced">
+
+            <div class="bd-bar-zone bd-bar-left bd-scripture-zone">
+
+              <!-- List widget -->
+              <div class="bd-widget bd-widget-list" id="bd-widget-inventory" style="pointer-events:auto">
+                <div class="bd-widget-list-title">Inventory</div>
+                <ul class="bd-widget-list-items">
+                  <li class="bd-widget-list-item">
+                    <span class="bd-widget-list-item-icon">⚔️</span>
+                    <span>Iron Sword</span>
+                  </li>
+                  <li class="bd-widget-list-item">
+                    <span class="bd-widget-list-item-icon">🛡️</span>
+                    <span>Oak Shield</span>
+                  </li>
+                  <li class="bd-widget-list-item">
+                    <span class="bd-widget-list-item-icon">🧪</span>
+                    <span style="color:var(--bd-success)">Health Potion ×3</span>
+                  </li>
+                  <li class="bd-widget-list-item">
+                    <span class="bd-widget-list-item-icon">📜</span>
+                    <span style="color:var(--bd-cyan)">Scroll of Fireball</span>
+                  </li>
+                  <li class="bd-widget-list-item">
+                    <span class="bd-widget-list-item-icon">🗝️</span>
+                    <span style="color:var(--bd-warning)">Dungeon Key</span>
+                  </li>
+                </ul>
+              </div>
+
+            </div>
+
+            <div class="bd-bar-zone bd-bar-center bd-scripture-zone">
+
+              <!-- Panel widget -->
+              <div class="bd-widget bd-widget-panel" id="bd-widget-char-stats" style="pointer-events:auto">
+                <div class="bd-widget-panel-title">Character Stats</div>
+                <div class="bd-widget-panel-content">
+                  <div class="bd-widget-panel-item">
+                    <span class="bd-widget-panel-item-label">Strength</span>
+                    <span class="bd-widget-panel-item-value" style="color:var(--bd-error)">16</span>
+                  </div>
+                  <div class="bd-widget-panel-item">
+                    <span class="bd-widget-panel-item-label">Dexterity</span>
+                    <span class="bd-widget-panel-item-value" style="color:var(--bd-success)">14</span>
+                  </div>
+                  <div class="bd-widget-panel-item">
+                    <span class="bd-widget-panel-item-label">Intelligence</span>
+                    <span class="bd-widget-panel-item-value" style="color:var(--bd-info)">20</span>
+                  </div>
+                  <div class="bd-widget-panel-item">
+                    <span class="bd-widget-panel-item-label">Charisma</span>
+                    <span class="bd-widget-panel-item-value" style="color:var(--bd-purple)">12</span>
+                  </div>
+                  <div class="bd-widget-panel-item">
+                    <span class="bd-widget-panel-item-label">Wisdom</span>
+                    <span class="bd-widget-panel-item-value" style="color:var(--bd-warning)">18</span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <div class="bd-bar-zone bd-bar-right bd-scripture-zone">
+
+              <!-- Custom HTML widget -->
+              <div class="bd-widget bd-widget-custom" id="bd-widget-custom-quest" style="pointer-events:auto">
+                <h3 style="margin:0 0 4px;color:var(--bd-warning)">🏰 The Dark Keep</h3>
+                <p style="margin:0 0 6px;color:var(--bd-text-secondary);font-size:11px;">
+                  Defeat the <strong style="color:var(--bd-error)">Shadow Lord</strong> and
+                  retrieve the <em style="color:var(--bd-cyan)">Crystal of Dawn</em>.
+                </p>
+                <ul style="padding-left:16px;margin:0;font-size:11px;">
+                  <li style="color:var(--bd-success)">✓ Found the entrance</li>
+                  <li style="color:var(--bd-text-muted)">○ Solve the riddle</li>
+                  <li style="color:var(--bd-text-muted)">○ Defeat the Shadow Lord</li>
+                </ul>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================================
+         SECTION 3 — INTERACTIVE WIDGETS
+         ================================================================ -->
+    <div class="preview-section">
+      <h2>Interactive Widgets <span>button · toggle · select · slider · input · textarea</span></h2>
+      <p class="desc">Widgets that emit user interactions back to the AI script.</p>
+
+      <div class="game-area" id="interactive-area">
+        <div class="bd-betterscripts-wrapper bd-scripture-wrapper">
+          <div class="bd-betterscripts-container bd-scripture-container"
+               data-widget-size="normal" data-widget-height="medium" data-widget-layout="balanced">
+
+            <div class="bd-bar-zone bd-bar-left bd-scripture-zone">
+
+              <!-- Button (default) -->
+              <div class="bd-widget bd-widget-button bd-widget-interactive" id="bd-widget-btn-attack" style="pointer-events:auto">
+                <button type="button" class="bd-widget-control bd-widget-button-control">
+                  <span class="bd-widget-control-icon">⚔️</span>
+                  <span class="bd-widget-button-text">Attack</span>
+                </button>
+              </div>
+
+              <!-- Button (primary variant) -->
+              <div class="bd-widget bd-widget-button bd-widget-interactive" id="bd-widget-btn-cast" style="pointer-events:auto">
+                <button type="button" class="bd-widget-control bd-widget-button-control" data-variant="primary">
+                  <span class="bd-widget-control-icon">✨</span>
+                  <span class="bd-widget-button-text">Cast Spell</span>
+                </button>
+              </div>
+
+              <!-- Button (disabled) -->
+              <div class="bd-widget bd-widget-button bd-widget-interactive bd-widget-disabled" id="bd-widget-btn-flee" style="pointer-events:auto" aria-disabled="true">
+                <button type="button" class="bd-widget-control bd-widget-button-control" disabled>
+                  <span class="bd-widget-button-text">Flee (blocked)</span>
+                </button>
+              </div>
+
+            </div>
+
+            <div class="bd-bar-zone bd-bar-center bd-scripture-zone">
+
+              <!-- Toggle -->
+              <div class="bd-widget bd-widget-toggle bd-widget-interactive" id="bd-widget-toggle-stealth" style="pointer-events:auto">
+                <label class="bd-widget-toggle-control">
+                  <input type="checkbox" checked />
+                  <span class="bd-widget-toggle-slider"></span>
+                </label>
+                <span class="bd-widget-control-label">Stealth Mode</span>
+              </div>
+
+              <!-- Toggle (unchecked) -->
+              <div class="bd-widget bd-widget-toggle bd-widget-interactive" id="bd-widget-toggle-autocast" style="pointer-events:auto">
+                <label class="bd-widget-toggle-control">
+                  <input type="checkbox" />
+                  <span class="bd-widget-toggle-slider"></span>
+                </label>
+                <span class="bd-widget-control-label">Auto-Cast</span>
+              </div>
+
+              <!-- Select -->
+              <div class="bd-widget bd-widget-select bd-widget-interactive" id="bd-widget-select-weapon" style="pointer-events:auto">
+                <span class="bd-widget-control-label">Weapon</span>
+                <select class="bd-widget-control bd-widget-select-control">
+                  <option>Iron Sword</option>
+                  <option selected>Flame Blade</option>
+                  <option>Ice Staff</option>
+                  <option>Shadow Dagger</option>
+                </select>
+              </div>
+
+            </div>
+
+            <div class="bd-bar-zone bd-bar-right bd-scripture-zone">
+
+              <!-- Slider -->
+              <div class="bd-widget bd-widget-slider bd-widget-interactive" id="bd-widget-slider-aggro" style="pointer-events:auto">
+                <span class="bd-widget-control-label">Aggression</span>
+                <input type="range" class="bd-widget-control bd-widget-slider-control" min="0" max="100" value="65" />
+                <span class="bd-widget-slider-value">65</span>
+              </div>
+
+              <!-- Input -->
+              <div class="bd-widget bd-widget-input bd-widget-interactive" id="bd-widget-input-name" style="pointer-events:auto">
+                <span class="bd-widget-control-label">Character Name</span>
+                <input type="text" class="bd-widget-control bd-widget-input-control" value="Aldric" placeholder="Enter name…" />
+              </div>
+
+              <!-- Textarea -->
+              <div class="bd-widget bd-widget-textarea bd-widget-interactive" id="bd-widget-textarea-notes" style="pointer-events:auto">
+                <span class="bd-widget-control-label">Battle Notes</span>
+                <textarea class="bd-widget-control bd-widget-textarea-control" rows="2" placeholder="Write notes…">The shadow lord is weak to fire magic.</textarea>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================================
+         SECTION 4 — COLOR PRESETS
+         ================================================================ -->
+    <div class="preview-section">
+      <h2>Color Presets <span>red · green · blue · yellow · purple · cyan · orange</span></h2>
+      <p class="desc">All seven preset colors applied to stat &amp; bar widgets.</p>
+
+      <div class="game-area" id="color-area">
+        <div class="bd-betterscripts-wrapper bd-scripture-wrapper">
+          <div class="bd-betterscripts-container bd-scripture-container"
+               data-widget-size="normal" data-widget-height="tall" data-widget-layout="stacked">
+
+            <div class="bd-bar-zone bd-bar-center bd-scripture-zone">
+
+              <div class="bd-widget bd-widget-stat" data-color="red" style="pointer-events:auto">
+                <span class="bd-widget-label">Red</span>
+                <span class="bd-widget-value">42</span>
+              </div>
+              <div class="bd-widget bd-widget-stat" data-color="green" style="pointer-events:auto">
+                <span class="bd-widget-label">Green</span>
+                <span class="bd-widget-value">78</span>
+              </div>
+              <div class="bd-widget bd-widget-stat" data-color="blue" style="pointer-events:auto">
+                <span class="bd-widget-label">Blue</span>
+                <span class="bd-widget-value">55</span>
+              </div>
+              <div class="bd-widget bd-widget-stat" data-color="yellow" style="pointer-events:auto">
+                <span class="bd-widget-label">Yellow</span>
+                <span class="bd-widget-value">91</span>
+              </div>
+              <div class="bd-widget bd-widget-stat" data-color="purple" style="pointer-events:auto">
+                <span class="bd-widget-label">Purple</span>
+                <span class="bd-widget-value">33</span>
+              </div>
+              <div class="bd-widget bd-widget-stat" data-color="cyan" style="pointer-events:auto">
+                <span class="bd-widget-label">Cyan</span>
+                <span class="bd-widget-value">67</span>
+              </div>
+              <div class="bd-widget bd-widget-stat" data-color="orange" style="pointer-events:auto">
+                <span class="bd-widget-label">Orange</span>
+                <span class="bd-widget-value">50</span>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- Bar variants for all colors -->
+        <div class="bd-betterscripts-wrapper bd-scripture-wrapper" style="margin-top:12px">
+          <div class="bd-betterscripts-container bd-scripture-container"
+               data-widget-size="normal" data-widget-height="tall" data-widget-layout="stacked">
+            <div class="bd-bar-zone bd-bar-center bd-scripture-zone">
+
+              <div class="bd-widget bd-widget-bar" data-color="red" style="pointer-events:auto">
+                <span class="bd-widget-label">Red Bar</span>
+                <div class="bd-widget-bar-container">
+                  <div class="bd-widget-bar-fill" style="width:42%"></div>
+                  <span class="bd-widget-bar-text">42/100</span>
+                </div>
+              </div>
+              <div class="bd-widget bd-widget-bar" data-color="green" style="pointer-events:auto">
+                <span class="bd-widget-label">Green Bar</span>
+                <div class="bd-widget-bar-container">
+                  <div class="bd-widget-bar-fill" style="width:78%"></div>
+                  <span class="bd-widget-bar-text">78/100</span>
+                </div>
+              </div>
+              <div class="bd-widget bd-widget-bar" data-color="blue" style="pointer-events:auto">
+                <span class="bd-widget-label">Blue Bar</span>
+                <div class="bd-widget-bar-container">
+                  <div class="bd-widget-bar-fill" style="width:55%"></div>
+                  <span class="bd-widget-bar-text">55/100</span>
+                </div>
+              </div>
+              <div class="bd-widget bd-widget-bar" data-color="yellow" style="pointer-events:auto">
+                <span class="bd-widget-label">Yellow Bar</span>
+                <div class="bd-widget-bar-container">
+                  <div class="bd-widget-bar-fill" style="width:91%"></div>
+                  <span class="bd-widget-bar-text">91/100</span>
+                </div>
+              </div>
+              <div class="bd-widget bd-widget-bar" data-color="purple" style="pointer-events:auto">
+                <span class="bd-widget-label">Purple Bar</span>
+                <div class="bd-widget-bar-container">
+                  <div class="bd-widget-bar-fill" style="width:33%"></div>
+                  <span class="bd-widget-bar-text">33/100</span>
+                </div>
+              </div>
+              <div class="bd-widget bd-widget-bar" data-color="cyan" style="pointer-events:auto">
+                <span class="bd-widget-label">Cyan Bar</span>
+                <div class="bd-widget-bar-container">
+                  <div class="bd-widget-bar-fill" style="width:67%"></div>
+                  <span class="bd-widget-bar-text">67/100</span>
+                </div>
+              </div>
+              <div class="bd-widget bd-widget-bar" data-color="orange" style="pointer-events:auto">
+                <span class="bd-widget-label">Orange Bar</span>
+                <div class="bd-widget-bar-container">
+                  <div class="bd-widget-bar-fill" style="width:50%"></div>
+                  <span class="bd-widget-bar-text">50/100</span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================================
+         SECTION 5 — BADGE VARIANTS
+         ================================================================ -->
+    <div class="preview-section">
+      <h2>Badge Variants <span>default · solid · outline</span></h2>
+      <p class="desc">Three badge rendering modes across several accent colors.</p>
+
+      <div class="game-area">
+        <div class="bd-betterscripts-wrapper bd-scripture-wrapper">
+          <div class="bd-betterscripts-container bd-scripture-container"
+               data-widget-size="normal" data-widget-height="medium" data-widget-layout="stacked">
+            <div class="bd-bar-zone bd-bar-center bd-scripture-zone">
+
+              <!-- Default badges -->
+              <div class="bd-widget bd-widget-badge" style="pointer-events:auto;--badge-color:var(--bd-accent-primary)">
+                <span class="bd-widget-badge-icon">🔥</span>
+                <span class="bd-widget-badge-text">Default Orange</span>
+              </div>
+              <div class="bd-widget bd-widget-badge" style="pointer-events:auto;--badge-color:var(--bd-info)">
+                <span class="bd-widget-badge-text">Default Blue</span>
+              </div>
+              <div class="bd-widget bd-widget-badge" style="pointer-events:auto;--badge-color:var(--bd-error)">
+                <span class="bd-widget-badge-icon">💀</span>
+                <span class="bd-widget-badge-text">Default Red</span>
+              </div>
+
+              <!-- Solid badges -->
+              <div class="bd-widget bd-widget-badge" data-variant="solid" style="pointer-events:auto;--badge-color:var(--bd-success)">
+                <span class="bd-widget-badge-text">Solid Green</span>
+              </div>
+              <div class="bd-widget bd-widget-badge" data-variant="solid" style="pointer-events:auto;--badge-color:var(--bd-purple)">
+                <span class="bd-widget-badge-icon">👑</span>
+                <span class="bd-widget-badge-text">Solid Purple</span>
+              </div>
+              <div class="bd-widget bd-widget-badge" data-variant="solid" style="pointer-events:auto;--badge-color:var(--bd-cyan)">
+                <span class="bd-widget-badge-text">Solid Cyan</span>
+              </div>
+
+              <!-- Outline badges -->
+              <div class="bd-widget bd-widget-badge" data-variant="outline" style="pointer-events:auto;--badge-color:var(--bd-warning)">
+                <span class="bd-widget-badge-icon">⚠️</span>
+                <span class="bd-widget-badge-text">Outline Yellow</span>
+              </div>
+              <div class="bd-widget bd-widget-badge" data-variant="outline" style="pointer-events:auto;--badge-color:var(--bd-info)">
+                <span class="bd-widget-badge-text">Outline Blue</span>
+              </div>
+              <div class="bd-widget bd-widget-badge" data-variant="outline" style="pointer-events:auto;--badge-color:var(--bd-error)">
+                <span class="bd-widget-badge-icon">🩸</span>
+                <span class="bd-widget-badge-text">Outline Red</span>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /.preview-page -->
+
+  <!-- ================================================================
+       INTERACTIVE CONTROLS — wire up the display-options controls
+       ================================================================ -->
+  <script>
+    (function () {
+      const containers = document.querySelectorAll('.bd-betterscripts-container');
+
+      // Sync a data-attribute across all containers
+      function setAttr(attr, value) {
+        containers.forEach(c => c.dataset[attr] = value);
+      }
+
+      document.getElementById('ctrl-size').addEventListener('change', function () {
+        setAttr('widgetSize', this.value);
+      });
+
+      document.getElementById('ctrl-height').addEventListener('change', function () {
+        setAttr('widgetHeight', this.value);
+      });
+
+      document.getElementById('ctrl-layout').addEventListener('change', function () {
+        setAttr('widgetLayout', this.value);
+      });
+
+      const widthSlider = document.getElementById('ctrl-width');
+      const widthLabel = document.getElementById('ctrl-width-value');
+      const gameAreas = document.querySelectorAll('.game-area');
+
+      widthSlider.addEventListener('input', function () {
+        const px = this.value + 'px';
+        widthLabel.textContent = px;
+        gameAreas.forEach(area => area.style.maxWidth = px);
+      });
+
+      // Live slider value display
+      document.querySelectorAll('.bd-widget-slider-control').forEach(range => {
+        const valueEl = range.parentElement.querySelector('.bd-widget-slider-value');
+        if (valueEl) {
+          range.addEventListener('input', () => { valueEl.textContent = range.value; });
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
