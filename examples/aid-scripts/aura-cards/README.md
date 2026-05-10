@@ -43,6 +43,13 @@ Generated cards are ordinary story cards marked in their notes with
 `Aura Cards metadata:` so Aura can update only its own cards and avoid
 overwriting user-authored cards.
 
+## Stability Notes
+
+Aura Cards keeps the last valid config if the config card JSON is malformed,
+prunes old request bookkeeping from `state`, ignores completed sidecar results
+while disabled, and tolerates imperfect free-model JSON when the important
+card fields are still recoverable.
+
 ## Usage Defaults
 
 Aura Cards keeps a small number of sidecar AI requests in flight, waits

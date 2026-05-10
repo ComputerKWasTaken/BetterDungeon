@@ -47,7 +47,8 @@ var AURA_DEFAULT_CONFIG = {
 };
 
 function auraCardsState() {
-  var s = state.auraCards || {};
+  var s = state.auraCards;
+  if (!s || typeof s !== 'object' || Array.isArray(s)) s = {};
   state.auraCards = s;
 
   s.v = 1;
@@ -66,6 +67,7 @@ function auraCardsState() {
   s.ackAttempts = s.ackAttempts || {};
   s.events = s.events || [];
   s.index = s.index || {};
+  s.lastConfig = s.lastConfig && typeof s.lastConfig === 'object' ? s.lastConfig : null;
   s.stats = s.stats || {};
   auraEnsureStats(s.stats);
   s._acks = s._acks || [];
@@ -102,11 +104,15 @@ function auraRunId() {
 }
 
 function auraCards() {
-  return Array.isArray(storyCards) ? storyCards : [];
+  return auraHasCardArray() ? storyCards : [];
+}
+
+function auraHasCardArray() {
+  return (typeof storyCards !== 'undefined' && Array.isArray(storyCards));
 }
 
 function auraLiveKey() {
-  return String((Array.isArray(history) ? history.length : 0) + 1);
+  return String(((typeof history !== 'undefined' && Array.isArray(history)) ? history.length : 0) + 1);
 }
 
 function auraLog(event, detail) {
@@ -164,13 +170,17 @@ function auraReadJsonCard(title) {
   }
 }
 
-function auraWriteCard(title, entry, type, keys, description) {
-  var found = auraFindCard(title);
+function auraWriteCard(title, entry, type, keys, description, targetCard) {
+  var found = targetCard ? { card: targetCard, index: auraCards().indexOf(targetCard) } : auraFindCard(title);
   var card = found.card;
   if (!card && typeof addStoryCard === 'function') {
     addStoryCard(title, entry || '', type || AURA_CARD_TYPE);
     found = auraFindCard(title);
     card = found.card;
+  }
+  if (!card && auraHasCardArray()) {
+    card = { title: title, keys: keys || title, entry: entry || '', type: type || AURA_CARD_TYPE, description: description || '' };
+    auraCards().push(card);
   }
   if (!card) return null;
 
@@ -184,8 +194,14 @@ function auraWriteCard(title, entry, type, keys, description) {
 
 function auraDeleteCard(title) {
   var found = auraFindCard(title);
-  if (!found.card || found.index < 0 || typeof removeStoryCard !== 'function') return false;
-  removeStoryCard(found.index);
+  if (!found.card || found.index < 0) return false;
+  if (typeof removeStoryCard === 'function') {
+    removeStoryCard(found.index);
+  } else if (auraHasCardArray()) {
+    auraCards().splice(found.index, 1);
+  } else {
+    return false;
+  }
   return true;
 }
 
@@ -216,6 +232,7 @@ function auraHash(str) {
 }
 
 function auraUniqueStrings(values, limit) {
+  values = Array.isArray(values) ? values : [];
   var out = [];
   var seen = {};
   for (var i = 0; i < values.length; i++) {
@@ -234,6 +251,7 @@ function auraDefaultConfigText() {
 }
 
 function auraEnsureConfigCard() {
+  var s = auraCardsState();
   var found = auraFindCard(AURA_CONFIG_CARD_TITLE);
   var description = [
     'Aura Cards uses Frontier AI sidecar calls to maintain story cards.',
@@ -250,7 +268,8 @@ function auraEnsureConfigCard() {
       description
     );
     auraLog('config-created', 'Created the Configure Aura Cards story card');
-    return auraCloneConfig(AURA_DEFAULT_CONFIG);
+    s.lastConfig = auraCloneConfig(AURA_DEFAULT_CONFIG);
+    return auraCloneConfig(s.lastConfig);
   }
 
   found.card.keys = found.card.keys || 'Aura Cards Configuration';
@@ -261,14 +280,15 @@ function auraEnsureConfigCard() {
   try {
     parsed = JSON.parse(found.card.entry || found.card.value || '{}');
   } catch (err) {
-    auraLog('config-invalid', 'Could not parse config JSON; using defaults until fixed');
-    return auraCloneConfig(AURA_DEFAULT_CONFIG);
+    auraLog('config-invalid', 'Could not parse config JSON; using the last valid config until fixed');
+    return auraCloneConfig(s.lastConfig || AURA_DEFAULT_CONFIG);
   }
 
   if (parsed && parsed.reset === true) {
     found.card.entry = auraDefaultConfigText();
     auraLog('config-reset', 'Reset Aura Cards config to defaults');
-    return auraCloneConfig(AURA_DEFAULT_CONFIG);
+    s.lastConfig = auraCloneConfig(AURA_DEFAULT_CONFIG);
+    return auraCloneConfig(s.lastConfig);
   }
 
   var cfg = auraNormalizeConfig(parsed);
@@ -277,6 +297,7 @@ function auraEnsureConfigCard() {
     found.card.entry = normalizedText;
     auraLog('config-normalized', 'Refreshed Aura Cards config fields');
   }
+  s.lastConfig = auraCloneConfig(cfg);
   return cfg;
 }
 
@@ -288,7 +309,7 @@ function auraNormalizeConfig(raw) {
   var cfg = auraCloneConfig(AURA_DEFAULT_CONFIG);
   raw = raw && typeof raw === 'object' ? raw : {};
 
-  cfg.enabled = raw.enabled === true;
+  cfg.enabled = auraBool(raw.enabled, cfg.enabled);
   cfg.cooldownTurns = auraClampInt(raw.cooldownTurns, 1, 200, cfg.cooldownTurns);
   cfg.lookbackActions = auraClampInt(raw.lookbackActions, 4, 60, cfg.lookbackActions);
   cfg.maxCardsPerSweep = auraClampInt(raw.maxCardsPerSweep, 1, 12, cfg.maxCardsPerSweep);
@@ -297,10 +318,10 @@ function auraNormalizeConfig(raw) {
   cfg.entryLimit = auraClampInt(raw.entryLimit, 300, 2000, cfg.entryLimit);
   cfg.memoryLimit = auraClampInt(raw.memoryLimit, 800, 9900, cfg.memoryLimit);
   cfg.maxPendingTurns = auraClampInt(raw.maxPendingTurns, 3, 60, cfg.maxPendingTurns);
-  cfg.showTrace = raw.showTrace !== false;
+  cfg.showTrace = auraBool(raw.showTrace, cfg.showTrace);
   cfg.model = auraCleanSpaces(raw.model || AURA_CARDS_MODEL || '');
   cfg.bannedTitles = auraUniqueStrings(
-    AURA_DEFAULT_BANNED_TITLES.concat(Array.isArray(raw.bannedTitles) ? raw.bannedTitles : []),
+    AURA_DEFAULT_BANNED_TITLES.concat(auraCoerceStringArray(raw.bannedTitles)),
     400
   );
 
@@ -318,6 +339,16 @@ function auraClampNumber(value, min, max, fallback) {
   var n = Number(value);
   if (!Number.isFinite(n)) return fallback;
   return Math.max(min, Math.min(max, n));
+}
+
+function auraBool(value, fallback) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    var normalized = value.trim().toLowerCase();
+    if (normalized === 'true' || normalized === 'yes' || normalized === 'on') return true;
+    if (normalized === 'false' || normalized === 'no' || normalized === 'off') return false;
+  }
+  return fallback;
 }
 
 function auraHeartbeat() {
@@ -453,9 +484,45 @@ function auraReapStalePending(cfg) {
   if (changed) auraWriteOut();
 }
 
+function auraPruneRuntimeState() {
+  var s = auraCardsState();
+  var protect = {};
+  var pendingIds = Object.keys(s.pending || {});
+  for (var i = 0; i < pendingIds.length; i++) protect[pendingIds[i]] = true;
+
+  auraPruneObject(s.completed, 80, protect);
+  auraPruneObject(s.acked, 120, protect);
+  auraPruneObject(s.ackAttempts, 120, protect);
+
+  var metaIds = Object.keys(s.requestMeta || {});
+  for (var j = 0; j < metaIds.length; j++) {
+    if (!s.pending[metaIds[j]]) delete s.requestMeta[metaIds[j]];
+  }
+
+  auraPruneObject(s.index, 500, {});
+  if (s.events.length > 80) s.events.splice(0, s.events.length - 80);
+}
+
+function auraPruneObject(obj, max, protect) {
+  if (!obj || typeof obj !== 'object') return;
+  var keys = Object.keys(obj);
+  var excess = keys.length - max;
+  for (var i = 0; excess > 0 && i < keys.length; i++) {
+    var key = keys[i];
+    if (protect && protect[key]) continue;
+    delete obj[key];
+    excess--;
+  }
+}
+
 function auraProcessAiResponse(requestId, response, cfg) {
   var s = auraCardsState();
   var meta = s.requestMeta[requestId] || {};
+
+  if (!cfg.enabled) {
+    auraLog('response-ignored', requestId + ' ignored because Aura Cards is disabled');
+    return;
+  }
 
   if (response.status !== 'ok') {
     var err = response.error || {};
@@ -501,8 +568,8 @@ function auraParseAiJson(data) {
   try {
     return JSON.parse(text);
   } catch (err) {
-    var jsonText = auraFirstJsonObject(text);
-    if (!jsonText) return null;
+    var jsonText = auraFirstValidJsonObject(text);
+    if (jsonText === '') return null;
     try {
       return JSON.parse(jsonText);
     } catch (err2) {
@@ -511,15 +578,39 @@ function auraParseAiJson(data) {
   }
 }
 
-function auraFirstJsonObject(text) {
-  text = String(text || '');
-  var start = text.indexOf('{');
-  if (start === -1) return '';
+function auraFirstValidJsonObject(text) {
+  var candidates = auraJsonObjectCandidates(text);
+  for (var i = 0; i < candidates.length; i++) {
+    var candidate = candidates[i];
+    try {
+      JSON.parse(candidate);
+      return candidate;
+    } catch (err) {
+      var relaxed = candidate.replace(/,\s*([}\]])/g, '$1');
+      try {
+        JSON.parse(relaxed);
+        return relaxed;
+      } catch (err2) {
+        // Keep trying later balanced objects.
+      }
+    }
+  }
+  return '';
+}
 
+function auraFirstJsonObject(text) {
+  return auraJsonObjectCandidates(text)[0] || '';
+}
+
+function auraJsonObjectCandidates(text) {
+  text = String(text || '');
+  var candidates = [];
   var depth = 0;
   var inString = false;
   var escaped = false;
-  for (var i = start; i < text.length; i++) {
+  var start = -1;
+
+  for (var i = 0; i < text.length; i++) {
     var ch = text.charAt(i);
 
     if (inString) {
@@ -536,18 +627,27 @@ function auraFirstJsonObject(text) {
     if (ch === '"') {
       inString = true;
     } else if (ch === '{') {
+      if (depth === 0) start = i;
       depth++;
     } else if (ch === '}') {
+      if (depth === 0) continue;
       depth--;
-      if (depth === 0) return text.slice(start, i + 1);
+      if (depth === 0 && start !== -1) {
+        candidates.push(text.slice(start, i + 1));
+        start = -1;
+      }
     }
   }
-  return '';
+  return candidates;
 }
 
 function auraApplySweep(parsed, meta, cfg) {
   var s = auraCardsState();
-  var cards = Array.isArray(parsed.cards) ? parsed.cards : [];
+  var cards = [];
+  if (Array.isArray(parsed)) cards = parsed;
+  else if (Array.isArray(parsed.cards)) cards = parsed.cards;
+  else if (Array.isArray(parsed.operations)) cards = parsed.operations;
+  else if (parsed.card && typeof parsed.card === 'object') cards = [parsed.card];
   var created = 0;
   var updated = 0;
   var skipped = 0;
@@ -574,27 +674,29 @@ function auraApplySweep(parsed, meta, cfg) {
 
 function auraNormalizeCandidate(raw, cfg) {
   if (!raw || typeof raw !== 'object') return null;
-  if (raw.mode === 'skip') return null;
+  var mode = auraTitleKey(raw.mode || raw.action || '');
+  if (mode === 'skip' || mode === 'ignore') return null;
 
-  var title = auraNormalizeTitle(raw.title);
+  var title = auraNormalizeTitle(auraFirstValue(raw, ['title', 'name', 'entity', 'cardTitle']));
   if (!title) return null;
   if (auraIsBannedTitle(title, cfg)) return null;
 
-  var confidence = auraClampNumber(raw.confidence, 0, 1, 0);
+  var rawConfidence = auraFirstValue(raw, ['confidence', 'score', 'relevance']);
+  var confidence = rawConfidence === undefined ? 0.75 : auraClampNumber(rawConfidence, 0, 1, 0);
   if (confidence < cfg.minConfidence) return null;
 
-  var kind = auraNormalizeKind(raw.kind);
-  var keys = Array.isArray(raw.keys) ? raw.keys : [];
-  keys = auraUniqueStrings([title].concat(keys), 6).filter(function (key) {
+  var kind = auraNormalizeKind(auraFirstValue(raw, ['kind', 'type', 'category']));
+  var keys = auraCoerceStringArray(auraFirstValue(raw, ['keys', 'triggers', 'aliases']));
+  keys = auraUniqueStrings([title].concat(keys), 6).map(auraNormalizeKey).filter(function (key) {
     return key.length >= 2 && key.length <= 60 && !auraIsBannedTitle(key, cfg);
   });
   if (!keys.length) keys = [title];
 
-  var entry = auraCleanEntry(raw.entry, title, cfg.entryLimit);
+  var memory = auraCleanMemory(auraFirstValue(raw, ['memory', 'memories', 'fact', 'facts']));
+  var entry = auraCleanEntry(auraFirstValue(raw, ['entry', 'description', 'summary', 'lore']), title, cfg.entryLimit, memory);
   if (!entry) return null;
 
-  var memory = auraCleanMemory(raw.memory);
-  var reason = auraLimit(auraCleanSpaces(raw.reason || ''), 220);
+  var reason = auraLimit(auraCleanSpaces(auraFirstValue(raw, ['reason', 'rationale', 'notes']) || ''), 220);
 
   return {
     title: title,
@@ -609,8 +711,30 @@ function auraNormalizeCandidate(raw, cfg) {
   };
 }
 
+function auraFirstValue(obj, names) {
+  for (var i = 0; i < names.length; i++) {
+    if (Object.prototype.hasOwnProperty.call(obj, names[i]) && obj[names[i]] !== undefined && obj[names[i]] !== null) {
+      return obj[names[i]];
+    }
+  }
+  return undefined;
+}
+
+function auraCoerceText(value) {
+  if (value === undefined || value === null) return '';
+  if (Array.isArray(value)) return value.map(auraCoerceText).filter(Boolean).join('; ');
+  if (typeof value === 'object') return '';
+  return String(value);
+}
+
+function auraCoerceStringArray(value) {
+  if (Array.isArray(value)) return value.map(auraCoerceText);
+  if (typeof value === 'string') return value.split(/[,;|]/);
+  return [];
+}
+
 function auraNormalizeTitle(title) {
-  title = auraCleanSpaces(title)
+  title = auraCleanSpaces(auraCoerceText(title))
     .replace(/[{}[\]<>#*_`"\\]/g, '')
     .replace(/\s*[.!?;:]+\s*$/g, '')
     .trim();
@@ -635,6 +759,13 @@ function auraNormalizeTitle(title) {
   return words.join(' ');
 }
 
+function auraNormalizeKey(key) {
+  return auraCleanSpaces(auraCoerceText(key))
+    .replace(/[{}[\]<>#*_`"\\]/g, '')
+    .replace(/\s*[.!?;:]+\s*$/g, '')
+    .trim();
+}
+
 function auraMinorWords() {
   return {
     a: true, an: true, and: true, as: true, at: true, but: true, by: true,
@@ -647,6 +778,7 @@ function auraMinorWords() {
 function auraIsBannedTitle(title, cfg) {
   var key = auraTitleKey(title);
   if (!key) return true;
+  if (key.indexOf('frontier:') === 0 || key.indexOf('aura cards') !== -1) return true;
   var bans = cfg.bannedTitles || [];
   for (var i = 0; i < bans.length; i++) {
     if (auraTitleKey(bans[i]) === key) return true;
@@ -673,13 +805,16 @@ function auraKindToType(kind) {
   return 'Custom';
 }
 
-function auraCleanEntry(entry, title, limit) {
-  entry = String(entry || '')
+function auraCleanEntry(entry, title, limit, fallbackMemory) {
+  entry = auraCoerceText(entry)
     .replace(/^```[\s\S]*?\n/i, '')
     .replace(/```$/i, '')
     .replace(/\s+/g, ' ')
     .trim();
   entry = entry.replace(/^\{[^}]*\}\s*/, '').trim();
+  if (entry.length < 40 && fallbackMemory) {
+    entry = fallbackMemory;
+  }
   if (entry.length < 40) return '';
   if (entry.toLowerCase().indexOf(title.toLowerCase()) === -1) {
     entry = title + ' is ' + entry.charAt(0).toLowerCase() + entry.slice(1);
@@ -688,7 +823,7 @@ function auraCleanEntry(entry, title, limit) {
 }
 
 function auraCleanMemory(memory) {
-  memory = auraCleanSpaces(memory).replace(/^-+\s*/, '');
+  memory = auraCleanSpaces(auraCoerceText(memory)).replace(/^-+\s*/, '');
   if (memory.length < 20) return '';
   return auraLimit(memory, 500);
 }
@@ -733,13 +868,18 @@ function auraUpsertAuraCard(cardPlan, cfg, meta) {
     : cardPlan.keys;
 
   var description = auraBuildAuraDescription(metadata, memoryLines);
-  auraWriteCard(
+  var written = auraWriteCard(
     cardPlan.title,
     auraFormatEntry(cardPlan.title, cardPlan.entry),
     cardPlan.type,
     keys.join(', '),
-    description
+    description,
+    existingAura.card
   );
+  if (!written) {
+    auraLog('write-failed', cardPlan.title);
+    return 'skipped';
+  }
 
   auraCardsState().index[cardPlan.titleKey] = {
     title: cardPlan.title,
@@ -771,8 +911,20 @@ function auraFindAuraCard(title) {
     if (auraTitleKey(metadata.title || card.title) === key) {
       return { card: card, index: i };
     }
+    if (auraCardHasKey(card, key)) {
+      return { card: card, index: i };
+    }
   }
   return { card: null, index: -1 };
+}
+
+function auraCardHasKey(card, key) {
+  if (!card || !key) return false;
+  var values = [card.title].concat(String(card.keys || card.key || '').split(','));
+  for (var i = 0; i < values.length; i++) {
+    if (auraTitleKey(values[i]) === key) return true;
+  }
+  return false;
 }
 
 function auraIsAuraCard(card) {
@@ -787,7 +939,7 @@ function auraReadAuraMetadata(card) {
   var rest = description.slice(start).trim();
   var firstBrace = rest.indexOf('{');
   if (firstBrace === -1) return {};
-  var jsonText = auraFirstJsonObject(rest.slice(firstBrace));
+  var jsonText = auraFirstValidJsonObject(rest.slice(firstBrace));
   if (!jsonText) return {};
   try {
     return JSON.parse(jsonText);
@@ -864,7 +1016,7 @@ function auraWordSet(text) {
 
 function auraRecentStory(outputText, cfg) {
   var pieces = [];
-  var entries = Array.isArray(history) ? history : [];
+  var entries = (typeof history !== 'undefined' && Array.isArray(history)) ? history : [];
   var start = Math.max(0, entries.length - cfg.lookbackActions);
 
   for (var i = start; i < entries.length; i++) {
@@ -1247,6 +1399,7 @@ function auraCardsStep(outputText) {
     auraPollResponses(cfg);
     auraReapStalePending(cfg);
     auraDrive(outputText, cfg);
+    auraPruneRuntimeState();
   } catch (err) {
     s.phase = 'script error';
     s.stats.failed++;
