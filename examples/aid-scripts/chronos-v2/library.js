@@ -20,44 +20,59 @@ var CHRONOS_CARD_TYPE = 'Chronos';
 var CHRONOS_SCRIPTURE_STATE_CARD = 'frontier:state:scripture';
 
 var CHRONOS_DEFAULT_CONFIG = {
+  // Master enable switch for Chronos V2 functionality
   enabled: true,
+  // Minutes of story time to advance per turn in simulated mode
   minutesPerTurn: 2,
+  // Time progression mode: 'simulated' (fixed per turn) or 'realElapsed' (actual elapsed time)
   timeMode: 'simulated',
+  // Initialize story time from real-world clock on first run
   useClockStart: true,
+  // Weather mode: 'simulated' (procedural) or 'real' (API-based current weather)
   weatherMode: 'simulated',
+  // Location string for real weather lookups (e.g., 'London, UK')
   place: '',
+  // Temperature unit: 'F' (Fahrenheit) or 'C' (Celsius)
   temperatureUnit: 'F',
+  // Inject time/weather context into story memory
   showContext: true,
+  // Maximum number of widget history states to retain
   widgetHistoryLimit: 80,
+  // Hour (0-23) to wake to when using /sleep command
   wakeHour: 7,
+  // Minimum turns between real weather refresh attempts
   weatherRefreshTurns: 30,
+  // Minimum turns before simulated weather can change again
   weatherChangeCooldown: 15,
+  // Maximum turns to wait for Frontier module responses before timeout
   maxPendingTurns: 12,
+  // IANA timezone string for clock sync (e.g., 'America/New_York')
   timeZone: '',
+  // Show debug trace card with internal state
   showTrace: true
 };
 
 var CHRONOS_COMMANDS_ENTRY = [
   '--- Status ---',
-  ':time - Show current time and status',
-  ':date - Show current date and season',
-  ':weather - Show weather status',
-  ':chronos - Full Chronos status',
+  '/time - Show current time and status',
+  '/date - Show current date and season',
+  '/weather - Show weather status',
+  '/chronos - Full Chronos status',
   '',
   '--- Time Control ---',
-  ':advance <N> <unit> - Advance time, e.g. :advance 3 hours',
-  ':sleep - Sleep until the configured wake hour',
-  ':settime <HH:MM> - Set story time',
-  ':setdate <day> <month> <year> - Set story date',
-  ':pause - Pause automatic time advancement',
-  ':resume - Resume automatic time advancement',
+  '/advance <N> <unit> - Advance time, e.g. /advance 3 hours',
+  '/sleep - Sleep until the configured wake hour',
+  '/settime <HH:MM> - Set story time',
+  '/setdate <day> <month> <year> - Set story date',
+  '/pause - Pause automatic time advancement',
+  '/resume - Resume automatic time advancement',
   '',
   '--- Weather ---',
-  ':setweather <condition> - Set simulated weather',
+  '/setweather <condition> - Set simulated weather',
   '',
   '--- System ---',
-  ':chronos help - Show this command list',
-  ':chronos reset - Reset Chronos V2 state'
+  '/chronos help - Show this command list',
+  '/chronos reset - Reset Chronos V2 state'
 ].join('\n');
 
 var CHRONOS_MONTHS = [
@@ -174,7 +189,7 @@ function chronosV2Input(text) {
   chronosEnsureCommandsCard();
 
   var trimmed = chronosClean(text);
-  if (!trimmed || trimmed.charAt(0) !== ':') return text;
+  if (!trimmed || trimmed.charAt(0) !== '/') return text;
 
   var result = chronosHandleCommand(trimmed, cfg);
   if (!result) return text;
@@ -822,7 +837,7 @@ function chronosHandleCommand(input, cfg) {
 function chronosCommandAdvance(args, cfg) {
   var amount = Number(args[0]);
   var unit = String(args[1] || 'minutes').toLowerCase();
-  if (!Number.isFinite(amount)) return '\nUsage: :advance <N> <minutes|hours|days>';
+  if (!Number.isFinite(amount)) return '\nUsage: /advance <N> <minutes|hours|days>';
   var minutes = amount;
   if (unit.indexOf('hour') === 0 || unit === 'h') minutes = amount * 60;
   if (unit.indexOf('day') === 0 || unit === 'd') minutes = amount * 1440;
@@ -834,13 +849,13 @@ function chronosCommandAdvance(args, cfg) {
 function chronosCommandSetTime(args) {
   var raw = String(args[0] || '');
   var match = raw.match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) return '\nUsage: :settime <HH:MM>';
+  if (!match) return '\nUsage: /settime <HH:MM>';
   chronosSetTime(Number(match[1]), Number(match[2]));
   return '\nTime set to ' + chronosTimeString(true) + '.';
 }
 
 function chronosCommandSetDate(args) {
-  if (args.length < 3) return '\nUsage: :setdate <day> <month> <year>';
+  if (args.length < 3) return '\nUsage: /setdate <day> <month> <year>';
   chronosSetDate(Number(args[0]), Number(args[1]), Number(args[2]));
   return '\nDate set to ' + chronosDateString() + '.';
 }
