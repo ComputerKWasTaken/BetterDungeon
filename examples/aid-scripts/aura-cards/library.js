@@ -53,26 +53,39 @@ function auraCardsState() {
 
   s.v = 1;
   s.runId = s.runId || null;
-  s.turn = Number(s.turn || 0);
-  s.seq = Number(s.seq || 0);
-  s.outSeq = Number(s.outSeq || 0);
-  s.cooldown = Number(s.cooldown || 0);
-  s.lastSweepLiveKey = Number(s.lastSweepLiveKey || 0);
+  s.turn = auraStateNumber(s.turn, 0);
+  s.seq = auraStateNumber(s.seq, 0);
+  s.outSeq = auraStateNumber(s.outSeq, 0);
+  s.cooldown = auraStateNumber(s.cooldown, 0);
+  s.lastSweepLiveKey = auraStateNumber(s.lastSweepLiveKey, 0);
   s.lastStorySig = s.lastStorySig || '';
   s.phase = s.phase || 'boot';
-  s.pending = s.pending || {};
-  s.requestMeta = s.requestMeta || {};
-  s.completed = s.completed || {};
-  s.acked = s.acked || {};
-  s.ackAttempts = s.ackAttempts || {};
-  s.events = s.events || [];
-  s.index = s.index || {};
-  s.lastConfig = s.lastConfig && typeof s.lastConfig === 'object' ? s.lastConfig : null;
-  s.stats = s.stats || {};
+  s.pending = auraPlainObject(s.pending);
+  s.requestMeta = auraPlainObject(s.requestMeta);
+  s.completed = auraPlainObject(s.completed);
+  s.acked = auraPlainObject(s.acked);
+  s.ackAttempts = auraPlainObject(s.ackAttempts);
+  s.events = Array.isArray(s.events) ? s.events : [];
+  s.index = auraPlainObject(s.index);
+  s.lastConfig = auraPlainObjectOrNull(s.lastConfig);
+  s.stats = auraPlainObject(s.stats);
   auraEnsureStats(s.stats);
-  s._acks = s._acks || [];
+  s._acks = Array.isArray(s._acks) ? s._acks : [];
 
   return s;
+}
+
+function auraPlainObject(value) {
+  return (value && typeof value === 'object' && !Array.isArray(value)) ? value : {};
+}
+
+function auraPlainObjectOrNull(value) {
+  return (value && typeof value === 'object' && !Array.isArray(value)) ? value : null;
+}
+
+function auraStateNumber(value, fallback) {
+  var n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
 }
 
 function auraEnsureStats(stats) {
@@ -596,10 +609,6 @@ function auraFirstValidJsonObject(text) {
     }
   }
   return '';
-}
-
-function auraFirstJsonObject(text) {
-  return auraJsonObjectCandidates(text)[0] || '';
 }
 
 function auraJsonObjectCandidates(text) {
