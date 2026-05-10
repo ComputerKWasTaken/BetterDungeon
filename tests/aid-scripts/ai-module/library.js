@@ -11,7 +11,7 @@
 //
 // Before running:
 //   1. Open BetterDungeon -> Frontier and enable Frontier + the AI module.
-//   2. In Frontier -> AI Providers, save an OpenRouter API key.
+//   2. In Frontier -> AI, save an OpenRouter API key.
 //   3. Optionally edit FRONTIER_AI_TEST_MODEL below; otherwise a free model
 //      is used.
 
@@ -85,10 +85,46 @@ var FAI_STEPS = [
     validate: faiValidChat
   },
   {
+    label: 'chat-json-object',
+    module: 'ai',
+    op: 'chat',
+    args: function () { return faiJsonObjectArgs(faiPickChatModel()); },
+    expect: 'ok',
+    validate: faiValidJsonObjectChat
+  },
+  {
+    label: 'chat-json-schema',
+    module: 'ai',
+    op: 'chat',
+    args: function () { return faiJsonSchemaArgs(faiPickChatModel()); },
+    expect: 'ok',
+    validate: faiValidJsonSchemaChat
+  },
+  {
     label: 'err-empty-messages',
     module: 'ai',
     op: 'chat',
     args: function () { return { provider: 'openrouter', messages: [] }; },
+    expect: 'err',
+    errorCode: 'invalid_args'
+  },
+  {
+    label: 'err-bad-response-format',
+    module: 'ai',
+    op: 'chat',
+    args: function () {
+      return {
+        provider: 'openrouter',
+        messages: [{ role: 'user', content: 'hi' }],
+        responseFormat: {
+          type: 'json_schema',
+          json_schema: {
+            name: 'bad schema name!',
+            schema: { type: 'object' }
+          }
+        }
+      };
+    },
     expect: 'err',
     errorCode: 'invalid_args'
   },
@@ -370,6 +406,43 @@ function faiChatArgs(model) {
   return args;
 }
 
+function faiJsonObjectArgs(model) {
+  var args = faiChatArgs(model);
+  args.messages = [
+    { role: 'system', content: 'Reply only with compact JSON.' },
+    { role: 'user', content: 'Return {"status":"online"} and no prose.' }
+  ];
+  args.responseFormat = { type: 'json_object' };
+  return args;
+}
+
+function faiJsonSchemaArgs(model) {
+  var args = faiChatArgs(model);
+  args.messages = [
+    { role: 'system', content: 'Reply only with JSON matching the requested schema.' },
+    { role: 'user', content: 'Report that Frontier AI is online.' }
+  ];
+  args.responseFormat = {
+    type: 'json_schema',
+    json_schema: {
+      name: 'frontier_ai_status',
+      strict: true,
+      schema: {
+        type: 'object',
+        properties: {
+          status: {
+            type: 'string',
+            enum: ['online']
+          }
+        },
+        required: ['status'],
+        additionalProperties: false
+      }
+    }
+  };
+  return args;
+}
+
 // Validate the chat response envelope shape only, not the model's word count.
 // Reasoning models (e.g. inclusionai/ring-*) legitimately return empty
 // `text` / `message.content` when their reasoning budget exhausts maxTokens
@@ -383,6 +456,20 @@ function faiValidChat(r) {
     r.message && r.message.role === 'assistant' &&
     typeof r.message.content === 'string'
   );
+}
+
+function faiParseJsonText(r) {
+  if (!r || typeof r.text !== 'string' || !r.text.trim()) return null;
+  try { return JSON.parse(r.text); } catch (e) { return null; }
+}
+
+function faiValidJsonObjectChat(r) {
+  return faiValidChat(r) && !!faiParseJsonText(r);
+}
+
+function faiValidJsonSchemaChat(r) {
+  var parsed = faiParseJsonText(r);
+  return faiValidChat(r) && !!parsed && parsed.status === 'online';
 }
 
 // Look at recent history + the current output to detect command tokens.

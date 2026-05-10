@@ -17,9 +17,12 @@ The suite runs a fixed plan of requests, one per turn, in order:
 | `models` | `ai` | `models` | ok + non-empty `models[]` |
 | `chat-canonical` | `ai` | `chat` | ok + assistant text |
 | `chat-via-alias` | `providerAI` | `chat` | ok (verifies alias routing) |
+| `chat-json-object` | `ai` | `chat` | ok + JSON-shaped assistant text |
+| `chat-json-schema` | `ai` | `chat` | ok + schema-shaped assistant text |
 | `err-empty-messages` | `ai` | `chat` | err `invalid_args` |
 | `err-oversized-content` | `ai` | `chat` | err `invalid_args` |
 | `err-bad-temperature` | `ai` | `chat` | err `invalid_args` |
+| `err-bad-response-format` | `ai` | `chat` | err `invalid_args` |
 | `err-bad-provider` | `ai` | `testConnection` | err `invalid_args` |
 | `err-unknown-op` | `ai` | `thisOpDoesNotExist` | err `unknown_op` |
 | `err-unknown-module` | `definitelyNotAModule` | `chat` | err `unknown_module` |
@@ -38,7 +41,7 @@ It also verifies:
 1. Load the BetterDungeon extension and open AI Dungeon.
 2. Open BetterDungeon → **Frontier** and enable Frontier and the **AI**
    module.
-3. Open Frontier → **AI Providers**, save an OpenRouter API key.
+3. Open Frontier → **AI**, save an OpenRouter API key.
 4. Optionally edit `FRONTIER_AI_TEST_MODEL` at the top of `library.js`.
    The default is a free OpenRouter model.
 
