@@ -451,6 +451,22 @@
     return Number.isFinite(n) && n >= 0 ? n : 0;
   }
 
+  function hasModelPricing(model) {
+    const pricing = model?.pricing;
+    if (!pricing || typeof pricing !== 'object') return false;
+    const prompt = Number(pricing.prompt);
+    const completion = Number(pricing.completion);
+    const request = pricing.request === undefined || pricing.request === null ? 0 : Number(pricing.request);
+    return (
+      Number.isFinite(prompt) &&
+      prompt >= 0 &&
+      Number.isFinite(completion) &&
+      completion >= 0 &&
+      Number.isFinite(request) &&
+      request >= 0
+    );
+  }
+
   function pricePerMillion(model, key) {
     return priceToNumber(model?.pricing?.[key]) * 1000000;
   }
@@ -477,8 +493,8 @@
     const today = dateKey(now);
     const month = monthKey(now);
     return {
-      date: raw.date === today ? today : today,
-      month: raw.month === month ? month : month,
+      date: today,
+      month,
       dailySpend: raw.date === today ? clampMoney(raw.dailySpend, 0, 0, 1000000) : 0,
       monthlySpend: raw.month === month ? clampMoney(raw.monthlySpend, 0, 0, 1000000) : 0,
     };
@@ -537,6 +553,20 @@
       throw {
         code: 'model_not_found',
         message: `OpenRouter model '${request.model}' was not found; verify the model ID or choose one from OpenRouter`,
+        provider: 'openrouter',
+      };
+    }
+    const needsPricing =
+      controls.freeModelsOnly ||
+      controls.maxPromptPricePerMillion > 0 ||
+      controls.maxCompletionPricePerMillion > 0 ||
+      controls.perCallEstimateCap > 0 ||
+      controls.dailySpendCap > 0 ||
+      controls.monthlySpendCap > 0;
+    if (needsPricing && !hasModelPricing(model)) {
+      throw {
+        code: 'cost_control',
+        message: `OpenRouter pricing is unavailable for '${model.id}', so AI cost controls cannot verify the request`,
         provider: 'openrouter',
       };
     }

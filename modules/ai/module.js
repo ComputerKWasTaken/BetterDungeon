@@ -140,7 +140,12 @@
     if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
       throw invalidArgs('responseFormat.json_schema.schema must be an object');
     }
-    const schemaJson = JSON.stringify(schema);
+    let schemaJson;
+    try {
+      schemaJson = JSON.stringify(schema);
+    } catch {
+      throw invalidArgs('responseFormat.json_schema.schema must be JSON-serializable');
+    }
     if (schemaJson.length > MAX_JSON_SCHEMA_CHARS) {
       throw invalidArgs(`responseFormat.json_schema.schema must serialize to ${MAX_JSON_SCHEMA_CHARS} characters or fewer`);
     }

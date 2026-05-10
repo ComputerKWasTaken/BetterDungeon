@@ -340,7 +340,14 @@ function initFrontierSettings() {
   document.getElementById('ai-test')?.addEventListener('click', testAiConnection);
   document.getElementById('ai-cost-advanced-toggle')?.addEventListener('click', () => {
     const controls = getAiCostControlsFromForm();
-    setAiCostAdvancedOpen(!controls.advancedOpen);
+    const advancedOpen = !controls.advancedOpen;
+    setAiCostAdvancedOpen(advancedOpen);
+    localStorageSet({
+      [STORAGE_KEYS.aiCostControls]: {
+        ...controls,
+        advancedOpen,
+      }
+    });
   });
 }
 
