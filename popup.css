@@ -670,11 +670,37 @@ body {
   font-weight: 500;
 }
 
+.frontier-ai-cost-advanced-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.frontier-ai-cost-advanced-toggle:hover {
+  color: var(--accent);
+}
+
+.frontier-ai-cost-advanced-toggle[aria-expanded="true"] .icon-chevron-down {
+  transform: rotate(180deg);
+}
+
 .frontier-ai-cost-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
   margin-top: 8px;
+}
+
+.frontier-ai-cost-grid.hidden {
+  display: none;
 }
 
 .frontier-ai-cost-grid label {

@@ -116,6 +116,7 @@ const DEFAULT_SCRIPTURE_WIDGET_DISPLAY = {
 
 const DEFAULT_AI_COST_CONTROLS = {
   freeModelsOnly: true,
+  advancedOpen: false,
   maxPromptPricePerMillion: 0,
   maxCompletionPricePerMillion: 0,
   perCallEstimateCap: 0,
@@ -337,6 +338,10 @@ function initFrontierSettings() {
   document.getElementById('ai-save')?.addEventListener('click', saveAiSettings);
   document.getElementById('ai-clear-key')?.addEventListener('click', clearAiKey);
   document.getElementById('ai-test')?.addEventListener('click', testAiConnection);
+  document.getElementById('ai-cost-advanced-toggle')?.addEventListener('click', () => {
+    const controls = getAiCostControlsFromForm();
+    setAiCostAdvancedOpen(!controls.advancedOpen);
+  });
 }
 
 function defaultFrontierModuleState() {
@@ -634,6 +639,8 @@ async function loadAiSettings() {
   const keyInput = document.getElementById('ai-openrouter-key');
   const modelInput = document.getElementById('ai-default-model');
   const freeOnlyInput = document.getElementById('ai-cost-free-only');
+  const advancedToggle = document.getElementById('ai-cost-advanced-toggle');
+  const advancedPanel = document.getElementById('ai-cost-advanced');
   const maxInputPriceInput = document.getElementById('ai-cost-max-input');
   const maxOutputPriceInput = document.getElementById('ai-cost-max-output');
   const perCallCapInput = document.getElementById('ai-cost-per-call-cap');
@@ -676,6 +683,7 @@ async function loadAiSettings() {
   }
   const controls = normalizeAiCostControls(result[STORAGE_KEYS.aiCostControls] || result[STORAGE_KEYS.legacyAiBudget]);
   if (freeOnlyInput) freeOnlyInput.checked = controls.freeModelsOnly;
+  if (advancedToggle || advancedPanel) setAiCostAdvancedOpen(controls.advancedOpen);
   if (maxInputPriceInput) maxInputPriceInput.value = String(controls.maxPromptPricePerMillion);
   if (maxOutputPriceInput) maxOutputPriceInput.value = String(controls.maxCompletionPricePerMillion);
   if (perCallCapInput) perCallCapInput.value = String(controls.perCallEstimateCap);
@@ -695,6 +703,7 @@ function normalizeAiCostControls(value = {}) {
   const raw = value && typeof value === 'object' ? value : {};
   return {
     freeModelsOnly: raw.freeModelsOnly !== false,
+    advancedOpen: raw.advancedOpen === true,
     maxPromptPricePerMillion: clampMoney(raw.maxPromptPricePerMillion, DEFAULT_AI_COST_CONTROLS.maxPromptPricePerMillion, 0, 1000),
     maxCompletionPricePerMillion: clampMoney(raw.maxCompletionPricePerMillion, DEFAULT_AI_COST_CONTROLS.maxCompletionPricePerMillion, 0, 1000),
     perCallEstimateCap: clampMoney(raw.perCallEstimateCap, DEFAULT_AI_COST_CONTROLS.perCallEstimateCap, 0, 1000),
@@ -706,12 +715,21 @@ function normalizeAiCostControls(value = {}) {
 function getAiCostControlsFromForm() {
   return normalizeAiCostControls({
     freeModelsOnly: document.getElementById('ai-cost-free-only')?.checked !== false,
+    advancedOpen: document.getElementById('ai-cost-advanced-toggle')?.getAttribute('aria-expanded') === 'true',
     maxPromptPricePerMillion: document.getElementById('ai-cost-max-input')?.value,
     maxCompletionPricePerMillion: document.getElementById('ai-cost-max-output')?.value,
     perCallEstimateCap: document.getElementById('ai-cost-per-call-cap')?.value,
     dailySpendCap: document.getElementById('ai-cost-daily-cap')?.value,
     monthlySpendCap: document.getElementById('ai-cost-monthly-cap')?.value,
   });
+}
+
+function setAiCostAdvancedOpen(open) {
+  const expanded = !!open;
+  const toggle = document.getElementById('ai-cost-advanced-toggle');
+  const panel = document.getElementById('ai-cost-advanced');
+  if (toggle) toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  if (panel) panel.classList.toggle('hidden', !expanded);
 }
 
 function updateAiStatus(configured, detail, tone = 'idle') {
@@ -821,7 +839,7 @@ function saveFeatureState(featureId, enabled) {
 }
 
 function setFrontierModuleControlsEnabled(enabled) {
-  document.querySelectorAll('[data-frontier-module-toggle], #frontier-debug, #scripture-risk-level, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #ai-openrouter-key, #ai-default-model, #ai-cost-free-only, #ai-cost-max-input, #ai-cost-max-output, #ai-cost-per-call-cap, #ai-cost-daily-cap, #ai-cost-monthly-cap, #ai-save, #ai-clear-key, #ai-test')
+  document.querySelectorAll('[data-frontier-module-toggle], #frontier-debug, #scripture-risk-level, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #ai-openrouter-key, #ai-default-model, #ai-cost-free-only, #ai-cost-advanced-toggle, #ai-cost-max-input, #ai-cost-max-output, #ai-cost-per-call-cap, #ai-cost-daily-cap, #ai-cost-monthly-cap, #ai-save, #ai-clear-key, #ai-test')
     .forEach(control => {
       control.disabled = !enabled;
     });

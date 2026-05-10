@@ -979,7 +979,11 @@
                         <span class="toggle-slider"></span>
                       </label>
                     </div>
-                    <div class="frontier-ai-cost-grid">
+                    <button class="frontier-ai-cost-advanced-toggle" id="ai-cost-advanced-toggle" type="button" aria-expanded="false">
+                      <span class="icon-chevron-down"></span>
+                      Paid model safeguards
+                    </button>
+                    <div class="frontier-ai-cost-grid hidden" id="ai-cost-advanced">
                       <label>
                         <span>Max input $ / 1M</span>
                         <input type="number" class="form-input" id="ai-cost-max-input" min="0" max="1000" step="0.01">
@@ -1001,7 +1005,7 @@
                         <input type="number" class="form-input" id="ai-cost-monthly-cap" min="0" max="1000" step="0.01">
                       </label>
                     </div>
-                    <p class="frontier-ai-cost-hint">Paid models are blocked by default. Set optional price/spend caps to 0 for no extra cap.</p>
+                    <p class="frontier-ai-cost-hint">Free models are simplest. Open paid safeguards only if you intentionally enable paid models.</p>
                   </div>
                   <div class="frontier-provider-actions">
                     <button class="btn btn-primary btn-sm" id="ai-save" type="button">

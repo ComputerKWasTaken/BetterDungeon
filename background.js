@@ -788,6 +788,7 @@
     if (typeof request.maxTokens === 'number') body.max_tokens = request.maxTokens;
     if (request.responseFormat && typeof request.responseFormat === 'object') {
       body.response_format = request.responseFormat;
+      body.provider = { require_parameters: true };
     }
     if (Array.isArray(request.stop) || typeof request.stop === 'string') {
       body.stop = request.stop;

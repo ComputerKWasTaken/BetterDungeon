@@ -21,6 +21,9 @@
   const MAX_QUERY_CHARS = 120;
   const MAX_STOP_SEQUENCES = 4;
   const MAX_STOP_CHARS = 200;
+  const MAX_RESPONSE_FORMAT_NAME_CHARS = 64;
+  const MAX_JSON_SCHEMA_CHARS = 12000;
+  const MAX_JSON_SCHEMA_DEPTH = 10;
 
   const RATE_WINDOW_MS = 60000;
   const RATE_LIMITS = {
@@ -109,10 +112,54 @@
       throw invalidArgs('responseFormat must be an object');
     }
     const type = String(value.type || '').trim();
-    if (type !== 'json_object' && type !== 'text') {
-      throw invalidArgs("responseFormat.type must be 'json_object' or 'text'");
+    if (type === 'text' || type === 'json_object') {
+      return { type };
     }
-    return { type };
+    if (type === 'json_schema') {
+      return {
+        type,
+        json_schema: normalizeJsonSchemaFormat(value.json_schema || value.jsonSchema),
+      };
+    }
+    throw invalidArgs("responseFormat.type must be 'text', 'json_object', or 'json_schema'");
+  }
+
+  function normalizeJsonSchemaFormat(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw invalidArgs('responseFormat.json_schema must be an object');
+    }
+    const name = String(value.name || '').trim();
+    if (!name) throw invalidArgs('responseFormat.json_schema.name is required');
+    if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+      throw invalidArgs('responseFormat.json_schema.name may only include letters, numbers, underscores, and hyphens');
+    }
+    if (name.length > MAX_RESPONSE_FORMAT_NAME_CHARS) {
+      throw invalidArgs(`responseFormat.json_schema.name must be ${MAX_RESPONSE_FORMAT_NAME_CHARS} characters or fewer`);
+    }
+    const schema = value.schema;
+    if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
+      throw invalidArgs('responseFormat.json_schema.schema must be an object');
+    }
+    const schemaJson = JSON.stringify(schema);
+    if (schemaJson.length > MAX_JSON_SCHEMA_CHARS) {
+      throw invalidArgs(`responseFormat.json_schema.schema must serialize to ${MAX_JSON_SCHEMA_CHARS} characters or fewer`);
+    }
+    if (jsonDepth(schema) > MAX_JSON_SCHEMA_DEPTH) {
+      throw invalidArgs(`responseFormat.json_schema.schema may be at most ${MAX_JSON_SCHEMA_DEPTH} levels deep`);
+    }
+    return {
+      name,
+      strict: value.strict !== false,
+      schema: JSON.parse(schemaJson),
+    };
+  }
+
+  function jsonDepth(value, depth = 0) {
+    if (!value || typeof value !== 'object') return depth;
+    if (Array.isArray(value)) {
+      return value.reduce((max, item) => Math.max(max, jsonDepth(item, depth + 1)), depth + 1);
+    }
+    return Object.values(value).reduce((max, item) => Math.max(max, jsonDepth(item, depth + 1)), depth + 1);
   }
 
   function normalizeStop(value) {
@@ -329,7 +376,8 @@
           maxMessageChars: MAX_MESSAGE_CHARS,
           maxTotalChars: MAX_TOTAL_CHARS,
           maxTokens: MAX_TOKENS,
-          chatPerMinute: RATE_LIMITS.chat,
+          maxJsonSchemaChars: MAX_JSON_SCHEMA_CHARS,
+          responseFormats: ['text', 'json_object', 'json_schema'],
         },
       };
     },
