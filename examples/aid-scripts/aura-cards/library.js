@@ -3214,7 +3214,12 @@ function AutoCards(inHook, inText, inStop) {
                 if (AuraFrontier.available()) {
                     const wp = AC.generation.workpiece;
                     const aura = AuraFrontier.state();
-                    const stillPending = wp.auraRequestId && aura.pending && aura.pending[wp.auraRequestId];
+                    // Auto-Cards freezes the workpiece via O.f, so we track
+                    // the in-flight request id in state.aura keyed by title
+                    // (one workpiece is in flight at a time by design).
+                    aura.byTitle = aura.byTitle || {};
+                    const existingId = aura.byTitle[wp.title];
+                    const stillPending = existingId && aura.pending && aura.pending[existingId];
                     if (!stillPending) {
                         // Build the same prompt the original code path would
                         // have appended to context, but feed it straight to
@@ -3224,7 +3229,7 @@ function AutoCards(inHook, inText, inStop) {
                         const auraPrompt = entryPlaceholderPattern.test(wp.prompt)
                             ? wp.prompt.replace(entryPlaceholderPattern, partialEntry)
                             : (wp.prompt.trimEnd() + "\n\n" + partialEntry);
-                        wp.auraRequestId = AuraFrontier.queueChat(wp.title, auraPrompt);
+                        aura.byTitle[wp.title] = AuraFrontier.queueChat(wp.title, auraPrompt);
                         AuraFrontier.logEvent("offload", wp.title);
                     }
                     return;
@@ -3328,7 +3333,9 @@ function AutoCards(inHook, inText, inStop) {
             (function applyAuraIfReady() {
                 if (!isPendingGeneration()) return;
                 const wp = AC.generation.workpiece;
-                const requestId = wp && wp.auraRequestId;
+                const aura = AuraFrontier.state();
+                aura.byTitle = aura.byTitle || {};
+                const requestId = wp && aura.byTitle[wp.title];
                 if (!requestId) return;
                 const response = AuraFrontier.pollResponse(requestId);
                 if (!response) return;
@@ -3338,7 +3345,7 @@ function AutoCards(inHook, inText, inStop) {
                     // the next context phase requeues, ack the response so
                     // BetterDungeon cleans it up.
                     AuraFrontier.complete(requestId, response.status, response.error || null);
-                    delete wp.auraRequestId;
+                    delete aura.byTitle[wp.title];
                     return;
                 }
 
@@ -3376,7 +3383,7 @@ function AutoCards(inHook, inText, inStop) {
                     // The model returned no usable content; treat as a soft
                     // failure and let the next turn try again.
                     AuraFrontier.complete(requestId, "ok", { code: "empty", message: "no usable sentences in response" });
-                    delete wp.auraRequestId;
+                    delete aura.byTitle[wp.title];
                     return;
                 }
                 if (
@@ -3466,6 +3473,7 @@ function AutoCards(inHook, inText, inStop) {
                 AC.generation.cooldown = AC.config.addCardCooldown;
                 AC.generation.completed = 0;
                 AC.generation.permitted = 34;
+                delete aura.byTitle[wp.title];
                 AC.generation.workpiece = O.f({});
                 clearTransientTitles();
                 AuraFrontier.complete(requestId, "ok");
