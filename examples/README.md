@@ -16,6 +16,12 @@ the system works, examples prove it's worth using.
     `responseFormat: json_schema`, cost discipline, graceful degradation,
     and idempotent integration with the AID story-card system.
 
+  - **`aid-scripts/chronos-v2/`** - Chronos V2. Tracks story time, calendar
+    state, day/night phase, and weather while publishing an interactive
+    Scripture dashboard. Demonstrates multiple widgets in one script plus
+    hybrid use of `clock.now` and `weather.current` without making the
+    scenario depend on those modules being present.
+
 ## Adding a new example
 
 1. Create `examples/aid-scripts/<feature>/` with a `README.md`,
@@ -23,5 +29,6 @@ the system works, examples prove it's worth using.
 2. Always degrade gracefully if Frontier or the relevant module isn't
    mounted - the example must never break gameplay for users who haven't
    enabled the feature yet.
-3. Throttle paid AI calls (e.g. every N turns or after specific triggers).
-   Examples run on real OpenRouter credits, not test ones.
+3. Throttle paid AI calls (e.g. every N turns or after specific triggers)
+   and cache slow or permissioned sidecar calls such as weather/location
+   lookups. Examples run in real adventures, not test harnesses.

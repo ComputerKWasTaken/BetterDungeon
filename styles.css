@@ -1513,6 +1513,7 @@ html.bd-story-card-dock-active > body {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: nowrap;
 }
 
 .bd-widget-label {
@@ -1521,6 +1522,10 @@ html.bd-story-card-dock-active > body {
   color: var(--bd-text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
 }
 
 .bd-widget-value {
@@ -1528,6 +1533,11 @@ html.bd-story-card-dock-active > body {
   font-weight: var(--bd-font-weight-bold);
   color: var(--bd-accent-primary);
   font-family: var(--bd-font-family-mono);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
 }
 
 .bd-widget-bar {
@@ -1914,7 +1924,10 @@ html.bd-story-card-dock-active > body {
   font-weight: var(--bd-font-weight-medium);
   color: var(--bd-text-secondary);
   max-width: 9rem;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
 }
 
 .bd-widget-control {
@@ -2092,6 +2105,24 @@ html.bd-story-card-dock-active > body {
 .bd-widget[data-color="orange"] .bd-widget-bar-fill {
   color: var(--bd-accent-primary);
   background: linear-gradient(90deg, var(--bd-accent-primary) 0%, var(--bd-accent-light) 100%);
+}
+
+.bd-widget-stat .bd-widget-value {
+  background: transparent !important;
+  padding: 0;
+}
+
+#bd-widget-chronos-clock {
+  min-width: min(132px, 100%);
+}
+
+#bd-widget-chronos-clock .bd-widget-value {
+  font-size: 18px;
+  color: var(--bd-text-primary);
+}
+
+#bd-widget-chronos-weather {
+  min-width: min(150px, 100%);
 }
 
 /* ============================================
