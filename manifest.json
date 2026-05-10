@@ -56,7 +56,6 @@
         "services/frontier/core.js",
         "services/frontier/module-registry.js",
         "services/frontier/ops-dispatcher.js",
-        "modules/test/module.js",
         "modules/webfetch/consent.js",
         "modules/webfetch/module.js",
         "modules/clock/module.js",
