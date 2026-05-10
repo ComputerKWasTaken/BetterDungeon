@@ -19,25 +19,38 @@
   }
 
   const WEBFETCH_MESSAGE = 'FRONTIER_WEBFETCH_FETCH';
-  const PROVIDER_AI_MESSAGE = 'FRONTIER_PROVIDER_AI_REQUEST';
-  const LOCAL_AI_MESSAGE = 'FRONTIER_LOCAL_AI_REQUEST';
+  const AI_MESSAGE = 'FRONTIER_AI_REQUEST';
+  const LEGACY_PROVIDER_AI_MESSAGE = 'FRONTIER_PROVIDER_AI_REQUEST';
   const DEFAULT_TIMEOUT_MS = 15000;
   const MAX_TIMEOUT_MS = 30000;
   const DEFAULT_MAX_BODY_BYTES = 50000;
   const MAX_BODY_BYTES = 100000;
   const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
-  const PROVIDER_AI_STORAGE_KEYS = {
-    openrouterKey: 'frontier_provider_ai_openrouter_api_key',
-    openrouterDefaultModel: 'frontier_provider_ai_openrouter_default_model',
+  const AI_STORAGE_KEYS = {
+    openrouterKey: 'frontier_ai_openrouter_api_key',
+    openrouterDefaultModel: 'frontier_ai_openrouter_default_model',
+    costControls: 'frontier_ai_cost_controls',
+    legacyBudget: 'frontier_ai_budget',
+    costUsage: 'frontier_ai_cost_usage',
+    legacyOpenrouterKey: 'frontier_provider_ai_openrouter_api_key',
+    legacyOpenrouterDefaultModel: 'frontier_provider_ai_openrouter_default_model',
   };
   const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
   const OPENROUTER_TITLE = 'BetterDungeon Frontier';
-  const PROVIDER_AI_DEFAULT_TIMEOUT_MS = 30000;
-  const PROVIDER_AI_MAX_TIMEOUT_MS = 60000;
-  const PROVIDER_AI_MAX_RESPONSE_BYTES = 1500000;
-  const PROVIDER_AI_DEFAULT_MODEL_LIMIT = 30;
-  const PROVIDER_AI_MAX_MODEL_LIMIT = 100;
+  const AI_DEFAULT_TIMEOUT_MS = 30000;
+  const AI_MAX_TIMEOUT_MS = 60000;
+  const AI_MAX_RESPONSE_BYTES = 1500000;
+  const AI_DEFAULT_MODEL_LIMIT = 30;
+  const AI_MAX_MODEL_LIMIT = 100;
+  const AI_DEFAULT_COST_CONTROLS = {
+    freeModelsOnly: true,
+    maxPromptPricePerMillion: 0,
+    maxCompletionPricePerMillion: 0,
+    perCallEstimateCap: 0,
+    dailySpendCap: 0,
+    monthlySpendCap: 0,
+  };
 
   const BLOCKED_RESPONSE_HEADERS = new Set([
     'set-cookie',
@@ -56,32 +69,31 @@
     return { code: 'webfetch_failed', message: String(error || 'WebFetch failed') };
   }
 
-  function normalizeProviderAiError(error) {
+  function normalizeAiError(error) {
     if (error && typeof error === 'object') {
       return {
         ...error,
-        code: typeof error.code === 'string' && error.code ? error.code : 'provider_ai_failed',
-        message: typeof error.message === 'string' ? error.message : 'Provider AI failed',
+        code: typeof error.code === 'string' && error.code ? error.code : 'ai_failed',
+        message: typeof error.message === 'string' ? error.message : 'AI failed',
       };
     }
-    return { code: 'provider_ai_failed', message: String(error || 'Provider AI failed') };
-  }
-
-  function normalizeLocalAiError(error) {
-    if (error && typeof error === 'object') {
-      return {
-        ...error,
-        code: typeof error.code === 'string' && error.code ? error.code : 'local_ai_failed',
-        message: typeof error.message === 'string' ? error.message : 'Local AI failed',
-      };
-    }
-    return { code: 'local_ai_failed', message: String(error || 'Local AI failed') };
+    return { code: 'ai_failed', message: String(error || 'AI failed') };
   }
 
   function clampNumber(value, fallback, min, max) {
     const n = Number(value);
     if (!Number.isFinite(n)) return fallback;
     return Math.max(min, Math.min(max, n));
+  }
+
+  function clampInteger(value, fallback, min, max) {
+    return Math.round(clampNumber(value, fallback, min, max));
+  }
+
+  function clampMoney(value, fallback, min, max) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.max(min, Math.min(max, Math.round(n * 1000000) / 1000000));
   }
 
   function isTextContentType(contentType) {
@@ -273,12 +285,50 @@
     });
   }
 
-  async function getProviderAiConfig() {
-    const keys = Object.values(PROVIDER_AI_STORAGE_KEYS);
+  function storageSet(areaName, items) {
+    const area = storageArea(areaName);
+    if (!area?.set) return Promise.resolve();
+
+    return new Promise((resolve) => {
+      try {
+        const maybePromise = area.set(items, () => resolve());
+        if (maybePromise && typeof maybePromise.then === 'function') {
+          maybePromise.then(() => resolve(), () => resolve());
+        }
+      } catch {
+        try {
+          const maybePromise = area.set(items);
+          if (maybePromise && typeof maybePromise.then === 'function') {
+            maybePromise.then(() => resolve(), () => resolve());
+          } else {
+            resolve();
+          }
+        } catch {
+          resolve();
+        }
+      }
+    });
+  }
+
+  async function getAiConfig() {
+    const keys = Object.values(AI_STORAGE_KEYS);
     const result = await storageGet('local', keys);
     return {
-      openrouterKey: String(result?.[PROVIDER_AI_STORAGE_KEYS.openrouterKey] || '').trim(),
-      openrouterDefaultModel: String(result?.[PROVIDER_AI_STORAGE_KEYS.openrouterDefaultModel] || '').trim(),
+      openrouterKey: String(result?.[AI_STORAGE_KEYS.openrouterKey] || result?.[AI_STORAGE_KEYS.legacyOpenrouterKey] || '').trim(),
+      openrouterDefaultModel: String(result?.[AI_STORAGE_KEYS.openrouterDefaultModel] || result?.[AI_STORAGE_KEYS.legacyOpenrouterDefaultModel] || '').trim(),
+      costControls: normalizeAiCostControls(result?.[AI_STORAGE_KEYS.costControls] || result?.[AI_STORAGE_KEYS.legacyBudget]),
+    };
+  }
+
+  function normalizeAiCostControls(value = {}) {
+    const raw = value && typeof value === 'object' ? value : {};
+    return {
+      freeModelsOnly: raw.freeModelsOnly !== false,
+      maxPromptPricePerMillion: clampMoney(raw.maxPromptPricePerMillion, AI_DEFAULT_COST_CONTROLS.maxPromptPricePerMillion, 0, 1000),
+      maxCompletionPricePerMillion: clampMoney(raw.maxCompletionPricePerMillion, AI_DEFAULT_COST_CONTROLS.maxCompletionPricePerMillion, 0, 1000),
+      perCallEstimateCap: clampMoney(raw.perCallEstimateCap, AI_DEFAULT_COST_CONTROLS.perCallEstimateCap, 0, 1000),
+      dailySpendCap: clampMoney(raw.dailySpendCap, AI_DEFAULT_COST_CONTROLS.dailySpendCap, 0, 1000),
+      monthlySpendCap: clampMoney(raw.monthlySpendCap, AI_DEFAULT_COST_CONTROLS.monthlySpendCap, 0, 1000),
     };
   }
 
@@ -298,12 +348,13 @@
     return {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
+      'HTTP-Referer': extensionRuntime.getURL('popup.html'),
       'X-OpenRouter-Title': OPENROUTER_TITLE,
     };
   }
 
-  async function openRouterFetch(path, options = {}, timeoutMs = PROVIDER_AI_DEFAULT_TIMEOUT_MS) {
-    const limit = clampNumber(timeoutMs, PROVIDER_AI_DEFAULT_TIMEOUT_MS, 1000, PROVIDER_AI_MAX_TIMEOUT_MS);
+  async function openRouterFetch(path, options = {}, timeoutMs = AI_DEFAULT_TIMEOUT_MS) {
+    const limit = clampNumber(timeoutMs, AI_DEFAULT_TIMEOUT_MS, 1000, AI_MAX_TIMEOUT_MS);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), limit);
 
@@ -316,16 +367,16 @@
       });
     } catch (err) {
       if (err?.name === 'AbortError') {
-        throw { code: 'timeout', message: `Provider AI timed out after ${limit} ms`, provider: 'openrouter' };
+        throw { code: 'timeout', message: `AI timed out after ${limit} ms`, provider: 'openrouter' };
       }
-      throw { code: 'provider_ai_failed', message: err?.message || 'Provider AI request failed', provider: 'openrouter' };
+      throw { code: 'ai_failed', message: err?.message || 'AI request failed', provider: 'openrouter' };
     } finally {
       clearTimeout(timer);
     }
   }
 
   async function readProviderJson(response) {
-    const body = await readBodyBytes(response, PROVIDER_AI_MAX_RESPONSE_BYTES);
+    const body = await readBodyBytes(response, AI_MAX_RESPONSE_BYTES);
     const text = new TextDecoder().decode(body.bytes);
     let payload = null;
     if (text) {
@@ -393,6 +444,183 @@
       totalTokens: typeof usage.total_tokens === 'number' ? usage.total_tokens : null,
       raw: usage,
     };
+  }
+
+  function priceToNumber(value) {
+    const n = Number(value);
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  }
+
+  function hasModelPricing(model) {
+    const pricing = model?.pricing;
+    if (!pricing || typeof pricing !== 'object') return false;
+    const prompt = Number(pricing.prompt);
+    const completion = Number(pricing.completion);
+    const request = pricing.request === undefined || pricing.request === null ? 0 : Number(pricing.request);
+    return (
+      Number.isFinite(prompt) &&
+      prompt >= 0 &&
+      Number.isFinite(completion) &&
+      completion >= 0 &&
+      Number.isFinite(request) &&
+      request >= 0
+    );
+  }
+
+  function pricePerMillion(model, key) {
+    return priceToNumber(model?.pricing?.[key]) * 1000000;
+  }
+
+  function isFreeModel(model) {
+    return (
+      priceToNumber(model?.pricing?.prompt) === 0 &&
+      priceToNumber(model?.pricing?.completion) === 0 &&
+      priceToNumber(model?.pricing?.request) === 0
+    );
+  }
+
+  function dateKey(timestamp = Date.now()) {
+    return new Date(timestamp).toISOString().slice(0, 10);
+  }
+
+  function monthKey(timestamp = Date.now()) {
+    return new Date(timestamp).toISOString().slice(0, 7);
+  }
+
+  function normalizeCostUsage(value = {}) {
+    const raw = value && typeof value === 'object' ? value : {};
+    const now = Date.now();
+    const today = dateKey(now);
+    const month = monthKey(now);
+    return {
+      date: today,
+      month,
+      dailySpend: raw.date === today ? clampMoney(raw.dailySpend, 0, 0, 1000000) : 0,
+      monthlySpend: raw.month === month ? clampMoney(raw.monthlySpend, 0, 0, 1000000) : 0,
+    };
+  }
+
+  async function getCostUsage() {
+    const result = await storageGet('local', AI_STORAGE_KEYS.costUsage);
+    return normalizeCostUsage(result?.[AI_STORAGE_KEYS.costUsage]);
+  }
+
+  async function recordCostUsage(cost) {
+    if (!cost) return;
+    const usage = await getCostUsage();
+    const next = {
+      ...usage,
+      dailySpend: clampMoney(usage.dailySpend + cost, 0, 0, 1000000),
+      monthlySpend: clampMoney(usage.monthlySpend + cost, 0, 0, 1000000),
+    };
+    await storageSet('local', { [AI_STORAGE_KEYS.costUsage]: next });
+  }
+
+  function estimateTokens(messages) {
+    const chars = Array.isArray(messages)
+      ? messages.reduce((total, message) => total + String(message?.content || '').length, 0)
+      : 0;
+    return Math.max(1, Math.ceil(chars / 4));
+  }
+
+  function estimateRequestCost(model, request) {
+    const promptTokens = estimateTokens(request.messages);
+    const completionTokens = clampInteger(request.maxTokens, 512, 1, 4096);
+    const promptCost = promptTokens * priceToNumber(model?.pricing?.prompt);
+    const completionCost = completionTokens * priceToNumber(model?.pricing?.completion);
+    return promptCost + completionCost + priceToNumber(model?.pricing?.request);
+  }
+
+  function actualRequestCost(model, usage) {
+    const promptTokens = typeof usage?.promptTokens === 'number' ? usage.promptTokens : 0;
+    const completionTokens = typeof usage?.completionTokens === 'number' ? usage.completionTokens : 0;
+    return (
+      promptTokens * priceToNumber(model?.pricing?.prompt) +
+      completionTokens * priceToNumber(model?.pricing?.completion) +
+      priceToNumber(model?.pricing?.request)
+    );
+  }
+
+  function findModel(models, modelId) {
+    const requested = String(modelId || '').trim().toLowerCase();
+    if (!requested) return null;
+    return models.find((model) => String(model?.id || '').toLowerCase() === requested) || null;
+  }
+
+  async function enforceAiCostControls(request, config, model) {
+    const controls = normalizeAiCostControls(config?.costControls);
+    if (!model) {
+      throw {
+        code: 'model_not_found',
+        message: `OpenRouter model '${request.model}' was not found; verify the model ID or choose one from OpenRouter`,
+        provider: 'openrouter',
+      };
+    }
+    const needsPricing =
+      controls.freeModelsOnly ||
+      controls.maxPromptPricePerMillion > 0 ||
+      controls.maxCompletionPricePerMillion > 0 ||
+      controls.perCallEstimateCap > 0 ||
+      controls.dailySpendCap > 0 ||
+      controls.monthlySpendCap > 0;
+    if (needsPricing && !hasModelPricing(model)) {
+      throw {
+        code: 'cost_control',
+        message: `OpenRouter pricing is unavailable for '${model.id}', so AI cost controls cannot verify the request`,
+        provider: 'openrouter',
+      };
+    }
+
+    if (controls.freeModelsOnly && !isFreeModel(model)) {
+      throw {
+        code: 'cost_control',
+        message: `AI cost controls allow free models only. Disable that setting to use '${model.id}'.`,
+        provider: 'openrouter',
+      };
+    }
+
+    const promptPrice = pricePerMillion(model, 'prompt');
+    if (controls.maxPromptPricePerMillion > 0 && promptPrice > controls.maxPromptPricePerMillion) {
+      throw {
+        code: 'cost_control',
+        message: `Model input price $${promptPrice.toFixed(2)}/1M exceeds your $${controls.maxPromptPricePerMillion.toFixed(2)}/1M cap`,
+        provider: 'openrouter',
+      };
+    }
+
+    const completionPrice = pricePerMillion(model, 'completion');
+    if (controls.maxCompletionPricePerMillion > 0 && completionPrice > controls.maxCompletionPricePerMillion) {
+      throw {
+        code: 'cost_control',
+        message: `Model output price $${completionPrice.toFixed(2)}/1M exceeds your $${controls.maxCompletionPricePerMillion.toFixed(2)}/1M cap`,
+        provider: 'openrouter',
+      };
+    }
+
+    const estimatedCost = estimateRequestCost(model, request);
+    if (controls.perCallEstimateCap > 0 && estimatedCost > controls.perCallEstimateCap) {
+      throw {
+        code: 'cost_control',
+        message: `Estimated AI cost $${estimatedCost.toFixed(4)} exceeds your per-call $${controls.perCallEstimateCap.toFixed(2)} cap`,
+        provider: 'openrouter',
+      };
+    }
+
+    const usage = await getCostUsage();
+    if (controls.dailySpendCap > 0 && usage.dailySpend + estimatedCost > controls.dailySpendCap) {
+      throw {
+        code: 'cost_control',
+        message: `Estimated AI cost would exceed your daily $${controls.dailySpendCap.toFixed(2)} cap`,
+        provider: 'openrouter',
+      };
+    }
+    if (controls.monthlySpendCap > 0 && usage.monthlySpend + estimatedCost > controls.monthlySpendCap) {
+      throw {
+        code: 'cost_control',
+        message: `Estimated AI cost would exceed your monthly $${controls.monthlySpendCap.toFixed(2)} cap`,
+        provider: 'openrouter',
+      };
+    }
   }
 
   function numberOrNull(value) {
@@ -491,7 +719,7 @@
       throw providerStatusError(response, body.payload, body.text, body.truncated);
     }
     if (!body.payload || typeof body.payload !== 'object') {
-      throw { code: 'provider_ai_failed', message: 'OpenRouter returned invalid key metadata', provider: 'openrouter' };
+      throw { code: 'ai_failed', message: 'OpenRouter returned invalid key metadata', provider: 'openrouter' };
     }
 
     return normalizeOpenRouterKeyInfo(body.payload.data);
@@ -509,7 +737,7 @@
       throw providerStatusError(response, body.payload, body.text, body.truncated);
     }
     if (!body.payload || typeof body.payload !== 'object') {
-      throw { code: 'provider_ai_failed', message: 'OpenRouter returned invalid JSON', provider: 'openrouter' };
+      throw { code: 'ai_failed', message: 'OpenRouter returned invalid JSON', provider: 'openrouter' };
     }
 
     return {
@@ -519,8 +747,8 @@
   }
 
   async function handleOpenRouterModels(request, config) {
-    const timeoutMs = clampNumber(request.timeoutMs, PROVIDER_AI_DEFAULT_TIMEOUT_MS, 1000, PROVIDER_AI_MAX_TIMEOUT_MS);
-    const limit = Math.round(clampNumber(request.limit, PROVIDER_AI_DEFAULT_MODEL_LIMIT, 0, PROVIDER_AI_MAX_MODEL_LIMIT));
+    const timeoutMs = clampNumber(request.timeoutMs, AI_DEFAULT_TIMEOUT_MS, 1000, AI_MAX_TIMEOUT_MS);
+    const limit = Math.round(clampNumber(request.limit, AI_DEFAULT_MODEL_LIMIT, 0, AI_MAX_MODEL_LIMIT));
     const query = String(request.query || '').trim().toLowerCase();
     const fetched = await fetchOpenRouterModels(config, timeoutMs);
     const allModels = fetched.models;
@@ -547,7 +775,7 @@
   }
 
   async function handleOpenRouterTestConnection(request, config) {
-    const timeoutMs = clampNumber(request.timeoutMs, PROVIDER_AI_DEFAULT_TIMEOUT_MS, 1000, PROVIDER_AI_MAX_TIMEOUT_MS);
+    const timeoutMs = clampNumber(request.timeoutMs, AI_DEFAULT_TIMEOUT_MS, 1000, AI_MAX_TIMEOUT_MS);
     const key = await fetchOpenRouterKeyInfo(config, timeoutMs);
     const result = await handleOpenRouterModels({ ...request, limit: 0, timeoutMs }, config);
     return {
@@ -565,7 +793,7 @@
 
   async function handleOpenRouterChat(request, config) {
     const apiKey = requireOpenRouterKey(config);
-    const timeoutMs = clampNumber(request.timeoutMs, PROVIDER_AI_DEFAULT_TIMEOUT_MS, 1000, PROVIDER_AI_MAX_TIMEOUT_MS);
+    const timeoutMs = clampNumber(request.timeoutMs, AI_DEFAULT_TIMEOUT_MS, 1000, AI_MAX_TIMEOUT_MS);
     const model = String(request.model || config.openrouterDefaultModel || '').trim();
     if (!model) {
       throw {
@@ -577,6 +805,9 @@
     if (!Array.isArray(request.messages) || request.messages.length === 0) {
       throw { code: 'invalid_args', message: 'messages must be a non-empty array', provider: 'openrouter' };
     }
+    const models = (await fetchOpenRouterModels(config, timeoutMs)).models;
+    const modelMeta = findModel(models, model);
+    await enforceAiCostControls({ ...request, model }, config, modelMeta);
 
     const body = {
       model,
@@ -587,6 +818,7 @@
     if (typeof request.maxTokens === 'number') body.max_tokens = request.maxTokens;
     if (request.responseFormat && typeof request.responseFormat === 'object') {
       body.response_format = request.responseFormat;
+      body.provider = { require_parameters: true };
     }
     if (Array.isArray(request.stop) || typeof request.stop === 'string') {
       body.stop = request.stop;
@@ -603,13 +835,15 @@
       throw providerStatusError(response, responseBody.payload, responseBody.text, responseBody.truncated);
     }
     if (!responseBody.payload || typeof responseBody.payload !== 'object') {
-      throw { code: 'provider_ai_failed', message: 'OpenRouter returned invalid JSON', provider: 'openrouter' };
+      throw { code: 'ai_failed', message: 'OpenRouter returned invalid JSON', provider: 'openrouter' };
     }
 
-    return normalizeOpenRouterChat(responseBody.payload, model);
+    const normalized = normalizeOpenRouterChat(responseBody.payload, model);
+    await recordCostUsage(actualRequestCost(modelMeta, normalized.usage));
+    return normalized;
   }
 
-  async function handleProviderAi(request = {}) {
+  async function handleAi(request = {}) {
     const provider = String(request.provider || 'openrouter').trim().toLowerCase();
     const op = String(request.op || '').trim();
 
@@ -617,24 +851,15 @@
       throw { code: 'invalid_args', message: `provider '${provider || '(empty)'}' is not supported`, provider };
     }
     if (op !== 'chat' && op !== 'models' && op !== 'testConnection') {
-      throw { code: 'invalid_args', message: `providerAI op '${op || '(empty)'}' is not supported`, provider };
+      throw { code: 'invalid_args', message: `AI op '${op || '(empty)'}' is not supported`, provider };
     }
 
-    const config = await getProviderAiConfig();
+    const config = await getAiConfig();
     if (op === 'chat') return handleOpenRouterChat(request, config);
     if (op === 'models') return handleOpenRouterModels(request, config);
     return handleOpenRouterTestConnection(request, config);
   }
 
-  async function handleLocalAi(request = {}) {
-    const op = String(request.op || '').trim() || 'unknown';
-    throw {
-      code: 'not_implemented',
-      message: `Local AI ${op} is scaffolded but no runtime backend has been implemented yet.`,
-      module: 'localAI',
-      op,
-    };
-  }
   extensionRuntime.onMessage.addListener((message, _sender, sendResponse) => {
     if (!message || message.type !== WEBFETCH_MESSAGE) return false;
 
@@ -645,20 +870,12 @@
   });
 
   extensionRuntime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (!message || message.type !== PROVIDER_AI_MESSAGE) return false;
+    if (!message || (message.type !== AI_MESSAGE && message.type !== LEGACY_PROVIDER_AI_MESSAGE)) return false;
 
-    handleProviderAi(message.request)
+    handleAi(message.request)
       .then((data) => sendResponse({ ok: true, data }))
-      .catch((error) => sendResponse({ ok: false, error: normalizeProviderAiError(error) }));
+      .catch((error) => sendResponse({ ok: false, error: normalizeAiError(error) }));
     return true;
   });
 
-  extensionRuntime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (!message || message.type !== LOCAL_AI_MESSAGE) return false;
-
-    handleLocalAi(message.request)
-      .then((data) => sendResponse({ ok: true, data }))
-      .catch((error) => sendResponse({ ok: false, error: normalizeLocalAiError(error) }));
-    return true;
-  });
 })();

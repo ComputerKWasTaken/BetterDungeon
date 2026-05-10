@@ -19,13 +19,12 @@ const STORAGE_KEYS = {
   scriptureRiskLevel: 'frontier_mod_scripture_risk_level',
   scriptureWidgetDisplay: 'frontier_mod_scripture_widget_display',
   webfetchAllowlist: 'frontier_webfetch_allowlist',
-  providerAiOpenRouterKey: 'frontier_provider_ai_openrouter_api_key',
-  providerAiOpenRouterDefaultModel: 'frontier_provider_ai_openrouter_default_model',
-  localAiProvider: 'frontier_local_ai_provider',
-  localAiBaseUrl: 'frontier_local_ai_base_url',
-  localAiApiKey: 'frontier_local_ai_api_key',
-  localAiDefaultModel: 'frontier_local_ai_default_model',
-  localAiAllowLan: 'frontier_local_ai_allow_lan',
+  aiOpenRouterKey: 'frontier_ai_openrouter_api_key',
+  aiOpenRouterDefaultModel: 'frontier_ai_openrouter_default_model',
+  aiCostControls: 'frontier_ai_cost_controls',
+  legacyAiBudget: 'frontier_ai_budget',
+  legacyProviderAiOpenRouterKey: 'frontier_provider_ai_openrouter_api_key',
+  legacyProviderAiOpenRouterDefaultModel: 'frontier_provider_ai_openrouter_default_model',
   customHotkeys: 'betterDungeon_customHotkeys',
   customModeColors: 'betterDungeon_customModeColors',
   commandSubMode: 'betterDungeon_commandSubMode',
@@ -102,8 +101,7 @@ const FRONTIER_PUBLIC_MODULES = [
   'weather',
   'network',
   'system',
-  'providerAI',
-  'localAI'
+  'ai'
 ];
 
 const DEFAULT_SETTINGS = {
@@ -114,6 +112,16 @@ const DEFAULT_SCRIPTURE_WIDGET_DISPLAY = {
   size: 'normal',
   maxHeight: 'medium',
   layout: 'balanced'
+};
+
+const DEFAULT_AI_COST_CONTROLS = {
+  freeModelsOnly: true,
+  advancedOpen: false,
+  maxPromptPricePerMillion: 0,
+  maxCompletionPricePerMillion: 0,
+  perCallEstimateCap: 0,
+  dailySpendCap: 0,
+  monthlySpendCap: 0,
 };
 
 const SCRIPTURE_RISK_SUMMARIES = {
@@ -310,8 +318,7 @@ function initFrontierSettings() {
   loadScriptureRiskLevel();
   loadScriptureWidgetDisplay();
   loadWebFetchConsentList();
-  loadProviderAiSettings();
-  loadLocalAiSettings();
+  loadAiSettings();
   refreshFrontierState();
 
   document.querySelectorAll('[data-frontier-module-toggle]').forEach(toggle => {
@@ -328,32 +335,53 @@ function initFrontierSettings() {
   document.getElementById('scripture-widget-layout')?.addEventListener('change', saveScriptureWidgetDisplay);
   document.getElementById('webfetch-consent-refresh')?.addEventListener('click', loadWebFetchConsentList);
   document.getElementById('webfetch-consent-save')?.addEventListener('click', saveWebFetchConsentFromForm);
-  document.getElementById('provider-ai-save')?.addEventListener('click', saveProviderAiSettings);
-  document.getElementById('provider-ai-clear-key')?.addEventListener('click', clearProviderAiKey);
-  document.getElementById('provider-ai-test')?.addEventListener('click', testProviderAiConnection);
-  document.getElementById('local-ai-provider')?.addEventListener('change', updateLocalAiProviderFields);
-  document.getElementById('local-ai-save')?.addEventListener('click', saveLocalAiSettings);
-  document.getElementById('local-ai-clear-key')?.addEventListener('click', clearLocalAiKey);
-  document.getElementById('local-ai-test')?.addEventListener('click', testLocalAiConnection);
-  document.getElementById('local-ai-pull')?.addEventListener('click', pullLocalAiModel);
+  document.getElementById('ai-save')?.addEventListener('click', saveAiSettings);
+  document.getElementById('ai-clear-key')?.addEventListener('click', clearAiKey);
+  document.getElementById('ai-test')?.addEventListener('click', testAiConnection);
+  document.getElementById('ai-cost-advanced-toggle')?.addEventListener('click', () => {
+    const controls = getAiCostControlsFromForm();
+    const advancedOpen = !controls.advancedOpen;
+    setAiCostAdvancedOpen(advancedOpen);
+    localStorageSet({
+      [STORAGE_KEYS.aiCostControls]: {
+        ...controls,
+        advancedOpen,
+      }
+    });
+  });
 }
 
 function defaultFrontierModuleState() {
   return FRONTIER_PUBLIC_MODULES.reduce((out, id) => {
-    out[id] = id !== 'localAI';
+    out[id] = true;
     return out;
   }, {});
+}
+
+function normalizeFrontierModuleState(saved = {}) {
+  const raw = saved && typeof saved === 'object' ? saved : {};
+  const modules = { ...defaultFrontierModuleState(), ...raw };
+  if (Object.prototype.hasOwnProperty.call(raw, 'providerAI')) {
+    if (!Object.prototype.hasOwnProperty.call(raw, 'ai')) {
+      modules.ai = !!raw.providerAI;
+    }
+    delete modules.providerAI;
+  }
+  return modules;
 }
 
 function loadFrontierModuleToggles() {
   chrome.storage.sync.get(STORAGE_KEYS.frontierModules, (result) => {
     const saved = (result || {})[STORAGE_KEYS.frontierModules] || {};
-    const modules = { ...defaultFrontierModuleState(), ...saved };
+    const modules = normalizeFrontierModuleState(saved);
 
     document.querySelectorAll('[data-frontier-module-toggle]').forEach(toggle => {
       const moduleId = toggle.dataset.frontierModuleToggle;
       toggle.checked = modules[moduleId] !== false;
     });
+    if (Object.prototype.hasOwnProperty.call(saved, 'providerAI')) {
+      chrome.storage.sync.set({ [STORAGE_KEYS.frontierModules]: modules });
+    }
     updateFrontierSectionCounts();
   });
 }
@@ -363,7 +391,7 @@ function saveFrontierModuleState(moduleId, enabled) {
 
   chrome.storage.sync.get(STORAGE_KEYS.frontierModules, (result) => {
     const saved = (result || {})[STORAGE_KEYS.frontierModules] || {};
-    const modules = { ...defaultFrontierModuleState(), ...saved, [moduleId]: !!enabled };
+    const modules = { ...normalizeFrontierModuleState(saved), [moduleId]: !!enabled };
 
     chrome.storage.sync.set({ [STORAGE_KEYS.frontierModules]: modules }, () => {
       sendToActiveAIDungeon('SET_FRONTIER_MODULE_ENABLED', { moduleId, enabled: !!enabled })
@@ -614,17 +642,44 @@ function localStorageRemove(keys) {
   });
 }
 
-async function loadProviderAiSettings() {
-  const keyInput = document.getElementById('provider-ai-openrouter-key');
-  const modelInput = document.getElementById('provider-ai-default-model');
-  if (!keyInput && !modelInput) return;
+async function loadAiSettings() {
+  const keyInput = document.getElementById('ai-openrouter-key');
+  const modelInput = document.getElementById('ai-default-model');
+  const freeOnlyInput = document.getElementById('ai-cost-free-only');
+  const advancedToggle = document.getElementById('ai-cost-advanced-toggle');
+  const advancedPanel = document.getElementById('ai-cost-advanced');
+  const maxInputPriceInput = document.getElementById('ai-cost-max-input');
+  const maxOutputPriceInput = document.getElementById('ai-cost-max-output');
+  const perCallCapInput = document.getElementById('ai-cost-per-call-cap');
+  const dailyCapInput = document.getElementById('ai-cost-daily-cap');
+  const monthlyCapInput = document.getElementById('ai-cost-monthly-cap');
+  if (!keyInput && !modelInput && !freeOnlyInput) return;
 
   const result = await localStorageGet([
-    STORAGE_KEYS.providerAiOpenRouterKey,
-    STORAGE_KEYS.providerAiOpenRouterDefaultModel
+    STORAGE_KEYS.aiOpenRouterKey,
+    STORAGE_KEYS.aiOpenRouterDefaultModel,
+    STORAGE_KEYS.aiCostControls,
+    STORAGE_KEYS.legacyAiBudget,
+    STORAGE_KEYS.legacyProviderAiOpenRouterKey,
+    STORAGE_KEYS.legacyProviderAiOpenRouterDefaultModel
   ]);
-  const hasKey = !!String(result[STORAGE_KEYS.providerAiOpenRouterKey] || '').trim();
-  const model = String(result[STORAGE_KEYS.providerAiOpenRouterDefaultModel] || '').trim();
+  const savedKey = String(result[STORAGE_KEYS.aiOpenRouterKey] || '').trim();
+  const legacyKey = String(result[STORAGE_KEYS.legacyProviderAiOpenRouterKey] || '').trim();
+  const savedModel = String(result[STORAGE_KEYS.aiOpenRouterDefaultModel] || '').trim();
+  const legacyModel = String(result[STORAGE_KEYS.legacyProviderAiOpenRouterDefaultModel] || '').trim();
+  const hasKey = !!(savedKey || legacyKey);
+  const model = savedModel || legacyModel;
+
+  if ((!savedKey && legacyKey) || (!savedModel && legacyModel)) {
+    const updates = {};
+    if (!savedKey && legacyKey) updates[STORAGE_KEYS.aiOpenRouterKey] = legacyKey;
+    if (!savedModel && legacyModel) updates[STORAGE_KEYS.aiOpenRouterDefaultModel] = legacyModel;
+    await localStorageSet(updates);
+    await localStorageRemove([
+      STORAGE_KEYS.legacyProviderAiOpenRouterKey,
+      STORAGE_KEYS.legacyProviderAiOpenRouterDefaultModel
+    ]);
+  }
 
   if (keyInput) {
     keyInput.value = '';
@@ -633,47 +688,104 @@ async function loadProviderAiSettings() {
   if (modelInput) {
     modelInput.value = model;
   }
+  const controls = normalizeAiCostControls(result[STORAGE_KEYS.aiCostControls] || result[STORAGE_KEYS.legacyAiBudget]);
+  if (freeOnlyInput) freeOnlyInput.checked = controls.freeModelsOnly;
+  if (advancedToggle || advancedPanel) setAiCostAdvancedOpen(controls.advancedOpen);
+  if (maxInputPriceInput) maxInputPriceInput.value = String(controls.maxPromptPricePerMillion);
+  if (maxOutputPriceInput) maxOutputPriceInput.value = String(controls.maxCompletionPricePerMillion);
+  if (perCallCapInput) perCallCapInput.value = String(controls.perCallEstimateCap);
+  if (dailyCapInput) dailyCapInput.value = String(controls.dailySpendCap);
+  if (monthlyCapInput) monthlyCapInput.value = String(controls.monthlySpendCap);
 
-  updateProviderAiStatus(hasKey, hasKey ? 'OpenRouter key saved locally.' : 'Add an OpenRouter key to enable hosted model calls.', hasKey ? 'ok' : 'idle');
+  updateAiStatus(hasKey, hasKey ? 'OpenRouter key saved locally.' : 'Add an OpenRouter key to enable hosted model calls.', hasKey ? 'ok' : 'idle');
 }
 
-function updateProviderAiStatus(configured, detail, tone = 'idle') {
-  const status = document.getElementById('provider-ai-status');
+function clampMoney(value, fallback, min, max) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(n * 1000000) / 1000000));
+}
+
+function normalizeAiCostControls(value = {}) {
+  const raw = value && typeof value === 'object' ? value : {};
+  return {
+    freeModelsOnly: raw.freeModelsOnly !== false,
+    advancedOpen: raw.advancedOpen === true,
+    maxPromptPricePerMillion: clampMoney(raw.maxPromptPricePerMillion, DEFAULT_AI_COST_CONTROLS.maxPromptPricePerMillion, 0, 1000),
+    maxCompletionPricePerMillion: clampMoney(raw.maxCompletionPricePerMillion, DEFAULT_AI_COST_CONTROLS.maxCompletionPricePerMillion, 0, 1000),
+    perCallEstimateCap: clampMoney(raw.perCallEstimateCap, DEFAULT_AI_COST_CONTROLS.perCallEstimateCap, 0, 1000),
+    dailySpendCap: clampMoney(raw.dailySpendCap, DEFAULT_AI_COST_CONTROLS.dailySpendCap, 0, 1000),
+    monthlySpendCap: clampMoney(raw.monthlySpendCap, DEFAULT_AI_COST_CONTROLS.monthlySpendCap, 0, 1000),
+  };
+}
+
+function getAiCostControlsFromForm() {
+  return normalizeAiCostControls({
+    freeModelsOnly: document.getElementById('ai-cost-free-only')?.checked !== false,
+    advancedOpen: document.getElementById('ai-cost-advanced-toggle')?.getAttribute('aria-expanded') === 'true',
+    maxPromptPricePerMillion: document.getElementById('ai-cost-max-input')?.value,
+    maxCompletionPricePerMillion: document.getElementById('ai-cost-max-output')?.value,
+    perCallEstimateCap: document.getElementById('ai-cost-per-call-cap')?.value,
+    dailySpendCap: document.getElementById('ai-cost-daily-cap')?.value,
+    monthlySpendCap: document.getElementById('ai-cost-monthly-cap')?.value,
+  });
+}
+
+function setAiCostAdvancedOpen(open) {
+  const expanded = !!open;
+  const toggle = document.getElementById('ai-cost-advanced-toggle');
+  const panel = document.getElementById('ai-cost-advanced');
+  if (toggle) toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  if (panel) panel.classList.toggle('hidden', !expanded);
+}
+
+function updateAiStatus(configured, detail, tone = 'idle') {
+  const status = document.getElementById('ai-status');
   if (!status) return;
   status.classList.remove('ok', 'error', 'idle');
   status.classList.add(tone);
   status.textContent = configured ? detail : detail;
 }
 
-async function saveProviderAiSettings() {
-  const keyInput = document.getElementById('provider-ai-openrouter-key');
-  const modelInput = document.getElementById('provider-ai-default-model');
+async function saveAiSettings(options = {}) {
+  const keyInput = document.getElementById('ai-openrouter-key');
+  const modelInput = document.getElementById('ai-default-model');
   const key = String(keyInput?.value || '').trim();
   const model = String(modelInput?.value || '').trim();
+  const costControls = getAiCostControlsFromForm();
   const updates = {
-    [STORAGE_KEYS.providerAiOpenRouterDefaultModel]: model
+    [STORAGE_KEYS.aiOpenRouterDefaultModel]: model,
+    [STORAGE_KEYS.aiCostControls]: costControls,
   };
 
   if (key) {
-    updates[STORAGE_KEYS.providerAiOpenRouterKey] = key;
+    updates[STORAGE_KEYS.aiOpenRouterKey] = key;
   }
 
   await localStorageSet(updates);
+  await localStorageRemove(STORAGE_KEYS.legacyAiBudget);
+  if (key) {
+    await localStorageRemove(STORAGE_KEYS.legacyProviderAiOpenRouterKey);
+  }
+  await localStorageRemove(STORAGE_KEYS.legacyProviderAiOpenRouterDefaultModel);
   if (keyInput) keyInput.value = '';
-  await loadProviderAiSettings();
-  showToast('Provider AI settings saved', 'success');
+  await loadAiSettings();
+  if (!options.silent) showToast('AI settings saved', 'success');
 }
 
-async function clearProviderAiKey() {
-  await localStorageRemove(STORAGE_KEYS.providerAiOpenRouterKey);
-  await loadProviderAiSettings();
+async function clearAiKey() {
+  await localStorageRemove([
+    STORAGE_KEYS.aiOpenRouterKey,
+    STORAGE_KEYS.legacyProviderAiOpenRouterKey
+  ]);
+  await loadAiSettings();
   showToast('OpenRouter key cleared', 'success');
 }
 
-function sendProviderAiBackgroundRequest(request) {
+function sendAiBackgroundRequest(request) {
   return new Promise((resolve, reject) => {
     try {
-      chrome.runtime.sendMessage({ type: 'FRONTIER_PROVIDER_AI_REQUEST', request }, (response) => {
+      chrome.runtime.sendMessage({ type: 'FRONTIER_AI_REQUEST', request }, (response) => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
           reject(new Error(lastError.message));
@@ -683,7 +795,7 @@ function sendProviderAiBackgroundRequest(request) {
           resolve(response.data);
           return;
         }
-        reject(response?.error || new Error('Provider AI request failed'));
+        reject(response?.error || new Error('AI request failed'));
       });
     } catch (error) {
       reject(error);
@@ -691,186 +803,28 @@ function sendProviderAiBackgroundRequest(request) {
   });
 }
 
-async function testProviderAiConnection() {
-  const btn = document.getElementById('provider-ai-test');
+async function testAiConnection() {
+  const btn = document.getElementById('ai-test');
   if (btn) btn.disabled = true;
-  updateProviderAiStatus(false, 'Testing OpenRouter...', 'idle');
+  updateAiStatus(false, 'Testing OpenRouter...', 'idle');
 
   try {
-    const result = await sendProviderAiBackgroundRequest({
+    await saveAiSettings({ silent: true });
+    const result = await sendAiBackgroundRequest({
       provider: 'openrouter',
       op: 'testConnection',
       timeoutMs: 30000
     });
     const count = typeof result?.modelCount === 'number' ? result.modelCount : 0;
-    updateProviderAiStatus(true, `OpenRouter connected. ${count} models visible.`, 'ok');
-    showToast('Provider AI connection verified', 'success');
+    updateAiStatus(true, `OpenRouter connected. ${count} models visible.`, 'ok');
+    showToast('AI connection verified', 'success');
   } catch (error) {
-    const message = error?.message || 'Provider AI connection failed';
-    updateProviderAiStatus(false, message, 'error');
+    const message = error?.message || 'AI connection failed';
+    updateAiStatus(false, message, 'error');
     showToast(message, 'error');
   } finally {
     if (btn) btn.disabled = false;
   }
-}
-
-function defaultLocalAiBaseUrl(provider) {
-  return provider === 'openaiCompatible' ? 'http://127.0.0.1:1234' : 'http://127.0.0.1:11434';
-}
-
-function updateLocalAiProviderFields() {
-  const provider = document.getElementById('local-ai-provider')?.value || 'ollama';
-  const baseUrlInput = document.getElementById('local-ai-base-url');
-  const modelInput = document.getElementById('local-ai-default-model');
-  const pullRow = document.getElementById('local-ai-pull-row');
-
-  if (baseUrlInput) {
-    const previousProvider = baseUrlInput.dataset.localAiProvider || provider;
-    const previousDefault = defaultLocalAiBaseUrl(previousProvider);
-    baseUrlInput.placeholder = provider === 'openaiCompatible'
-      ? 'http://127.0.0.1:1234'
-      : 'http://127.0.0.1:11434';
-    if (!baseUrlInput.value.trim() || baseUrlInput.value.trim() === previousDefault) {
-      baseUrlInput.value = defaultLocalAiBaseUrl(provider);
-    }
-    baseUrlInput.dataset.localAiProvider = provider;
-  }
-
-  if (modelInput) {
-    modelInput.placeholder = provider === 'openaiCompatible'
-      ? 'Default model, e.g. local-model'
-      : 'Default model, e.g. llama3.2:3b';
-  }
-
-  if (pullRow) {
-    pullRow.classList.toggle('hidden', provider !== 'ollama');
-  }
-}
-
-async function loadLocalAiSettings() {
-  const providerSelect = document.getElementById('local-ai-provider');
-  const baseUrlInput = document.getElementById('local-ai-base-url');
-  const keyInput = document.getElementById('local-ai-api-key');
-  const modelInput = document.getElementById('local-ai-default-model');
-  const allowLanInput = document.getElementById('local-ai-allow-lan');
-  if (!providerSelect && !baseUrlInput && !keyInput && !modelInput) return;
-
-  const result = await localStorageGet([
-    STORAGE_KEYS.localAiProvider,
-    STORAGE_KEYS.localAiBaseUrl,
-    STORAGE_KEYS.localAiApiKey,
-    STORAGE_KEYS.localAiDefaultModel,
-    STORAGE_KEYS.localAiAllowLan
-  ]);
-  const provider = String(result[STORAGE_KEYS.localAiProvider] || 'ollama');
-  const baseUrl = String(result[STORAGE_KEYS.localAiBaseUrl] || defaultLocalAiBaseUrl(provider)).trim();
-  const hasKey = !!String(result[STORAGE_KEYS.localAiApiKey] || '').trim();
-  const model = String(result[STORAGE_KEYS.localAiDefaultModel] || '').trim();
-
-  if (providerSelect) providerSelect.value = provider === 'openaiCompatible' ? 'openaiCompatible' : 'ollama';
-  if (baseUrlInput) baseUrlInput.value = baseUrl;
-  if (keyInput) {
-    keyInput.value = '';
-    keyInput.placeholder = hasKey ? 'Saved API key - leave blank to keep' : 'Optional API key';
-  }
-  if (modelInput) modelInput.value = model;
-  if (allowLanInput) allowLanInput.checked = result[STORAGE_KEYS.localAiAllowLan] === true;
-
-  updateLocalAiProviderFields();
-  renderLocalAiModels([]);
-  updateLocalAiStatus(true, 'Local AI scaffold is ready for implementation.', 'idle');
-}
-
-function updateLocalAiStatus(configured, detail, tone = 'idle') {
-  const status = document.getElementById('local-ai-status');
-  if (!status) return;
-  status.classList.remove('ok', 'error', 'idle');
-  status.classList.add(tone);
-  status.textContent = configured ? detail : detail;
-}
-
-function renderLocalAiModels(models) {
-  const list = document.getElementById('local-ai-model-list');
-  if (!list) return;
-
-  list.innerHTML = '';
-  if (!Array.isArray(models) || !models.length) {
-    const empty = document.createElement('div');
-    empty.className = 'frontier-local-model-empty';
-    empty.textContent = 'Model listing hook not implemented yet';
-    list.appendChild(empty);
-    return;
-  }
-
-  models.slice(0, 5).forEach((model) => {
-    const row = document.createElement('div');
-    row.className = 'frontier-local-model-row';
-
-    const name = document.createElement('span');
-    name.className = 'frontier-local-model-name';
-    name.title = model.id || model.name || '';
-    name.textContent = model.name || model.id || 'local model';
-
-    const meta = document.createElement('span');
-    meta.className = 'frontier-local-model-meta';
-    meta.textContent = model.parameterSize || model.quantizationLevel || model.ownedBy || '';
-
-    row.append(name, meta);
-    list.appendChild(row);
-  });
-}
-
-async function saveLocalAiSettings(options = {}) {
-  const provider = document.getElementById('local-ai-provider')?.value || 'ollama';
-  const baseUrl = String(document.getElementById('local-ai-base-url')?.value || defaultLocalAiBaseUrl(provider)).trim();
-  const keyInput = document.getElementById('local-ai-api-key');
-  const key = String(keyInput?.value || '').trim();
-  const model = String(document.getElementById('local-ai-default-model')?.value || '').trim();
-  const allowLan = document.getElementById('local-ai-allow-lan')?.checked === true;
-
-  try {
-    new URL(baseUrl);
-  } catch {
-    updateLocalAiStatus(false, 'Enter a valid Local AI endpoint URL.', 'error');
-    showToast('Enter a valid Local AI endpoint URL', 'error');
-    return false;
-  }
-
-  const updates = {
-    [STORAGE_KEYS.localAiProvider]: provider === 'openaiCompatible' ? 'openaiCompatible' : 'ollama',
-    [STORAGE_KEYS.localAiBaseUrl]: baseUrl,
-    [STORAGE_KEYS.localAiDefaultModel]: model,
-    [STORAGE_KEYS.localAiAllowLan]: allowLan,
-  };
-
-  if (key) {
-    updates[STORAGE_KEYS.localAiApiKey] = key;
-  }
-
-  await localStorageSet(updates);
-  if (keyInput) keyInput.value = '';
-  await loadLocalAiSettings();
-  if (!options.silent) showToast('Local AI settings saved', 'success');
-  return true;
-}
-
-async function clearLocalAiKey() {
-  await localStorageRemove(STORAGE_KEYS.localAiApiKey);
-  await loadLocalAiSettings();
-  showToast('Local AI key cleared', 'success');
-}
-
-async function testLocalAiConnection() {
-  await saveLocalAiSettings({ silent: true });
-  renderLocalAiModels([]);
-  updateLocalAiStatus(true, 'Local AI test hook is scaffolded for runtime implementation.', 'idle');
-  showToast('Local AI runtime is scaffolded', 'info');
-}
-
-async function pullLocalAiModel() {
-  await saveLocalAiSettings({ silent: true });
-  updateLocalAiStatus(true, 'Model download hook is scaffolded for runtime implementation.', 'idle');
-  showToast('Model download is scaffolded', 'info');
 }
 
 function saveFeatureState(featureId, enabled) {
@@ -892,7 +846,7 @@ function saveFeatureState(featureId, enabled) {
 }
 
 function setFrontierModuleControlsEnabled(enabled) {
-  document.querySelectorAll('[data-frontier-module-toggle], #frontier-debug, #scripture-risk-level, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #provider-ai-openrouter-key, #provider-ai-default-model, #provider-ai-save, #provider-ai-clear-key, #provider-ai-test, #local-ai-provider, #local-ai-base-url, #local-ai-api-key, #local-ai-default-model, #local-ai-allow-lan, #local-ai-save, #local-ai-clear-key, #local-ai-test, #local-ai-pull-model, #local-ai-pull')
+  document.querySelectorAll('[data-frontier-module-toggle], #frontier-debug, #scripture-risk-level, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #ai-openrouter-key, #ai-default-model, #ai-cost-free-only, #ai-cost-advanced-toggle, #ai-cost-max-input, #ai-cost-max-output, #ai-cost-per-call-cap, #ai-cost-daily-cap, #ai-cost-monthly-cap, #ai-save, #ai-clear-key, #ai-test')
     .forEach(control => {
       control.disabled = !enabled;
     });
@@ -2809,7 +2763,7 @@ function updateFrontierSectionCounts() {
   const sectionMap = {
     'frontier-script-surface': ['scripture', 'webfetch', 'clock'],
     'frontier-context': ['geolocation', 'weather', 'network', 'system'],
-    'frontier-ai': ['providerAI', 'localAI']
+    'frontier-ai': ['ai']
   };
 
   Object.entries(sectionMap).forEach(([sectionId, moduleIds]) => {
@@ -3268,4 +3222,3 @@ document.querySelectorAll('.feature-credit a').forEach(link => {
     chrome.tabs.create({ url: link.href });
   });
 });
-

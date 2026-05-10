@@ -189,20 +189,20 @@ class TutorialService {
         expandCard: true
       },
       {
-        id: 'provider-ai-card',
+        id: 'ai-card',
         type: 'spotlight',
-        target: '[data-frontier-module-card="providerAI"]',
-        title: 'Provider AI',
-        content: 'Provider AI is the main attraction for many scripts: it lets a script ask a hosted model for side tasks without interrupting the main story turn.',
+        target: '[data-frontier-module-card="ai"]',
+        title: 'AI',
+        content: 'AI is the main attraction for many scripts: it lets a script ask a hosted model for side tasks without interrupting the main story turn.',
         position: 'bottom',
         action: 'switchTab',
         actionTarget: 'frontier',
         expandCard: true
       },
       {
-        id: 'provider-ai-key',
+        id: 'ai-key',
         type: 'spotlight',
-        target: '#provider-ai-openrouter-key',
+        target: '#ai-openrouter-key',
         title: 'OpenRouter Key',
         content: 'Add your OpenRouter key here. BetterDungeon stores it in extension settings and keeps it out of Story Cards, so scripts never see the key.',
         position: 'top',
@@ -211,33 +211,44 @@ class TutorialService {
         expandCard: true
       },
       {
-        id: 'provider-ai-model',
+        id: 'ai-model',
         type: 'spotlight',
-        target: '#provider-ai-default-model',
+        target: '#ai-default-model',
         title: 'Default Model',
-        content: 'Set the model Provider AI should use by default. Scripts can still request a specific model, but a default keeps simple calls easy.',
+        content: 'Set the model AI should use by default. Scripts can still request a specific model, but a default keeps simple calls easy.',
         position: 'top',
         action: 'switchTab',
         actionTarget: 'frontier',
         expandCard: true
       },
       {
-        id: 'provider-ai-test',
+        id: 'ai-cost-controls',
         type: 'spotlight',
-        target: '#provider-ai-test',
+        target: '.frontier-ai-cost-panel',
+        title: 'AI Cost Controls',
+        content: 'Free models are the default path. If you intentionally use paid models, open the safeguards section to add optional price and spend caps.',
+        position: 'top',
+        action: 'switchTab',
+        actionTarget: 'frontier',
+        expandCard: true
+      },
+      {
+        id: 'ai-test',
+        type: 'spotlight',
+        target: '#ai-test',
         title: 'Test Connection',
-        content: 'After saving your key and model, use this plug button to verify the Provider AI connection before relying on it in a scenario.',
+        content: 'After saving your key and model, use this plug button to verify the AI connection before relying on it in a scenario.',
         position: 'top',
         action: 'switchTab',
         actionTarget: 'frontier',
         expandCard: true
       },
       {
-        id: 'provider-ai-script-usage',
+        id: 'ai-script-usage',
         type: 'spotlight',
-        target: '#provider-ai-status',
-        title: 'Using Provider AI in Scripts',
-        content: 'Send module providerAI, op chat, messages, and optional maxTokens or responseFormat. Read frontier:in:providerAI, then ack the request id.',
+        target: '#ai-status',
+        title: 'Using AI in Scripts',
+        content: 'Send module ai, op chat, messages, and optional maxTokens or responseFormat. responseFormat supports text, json_object, and json_schema for structured outputs.',
         position: 'top',
         action: 'switchTab',
         actionTarget: 'frontier',
@@ -300,11 +311,11 @@ class TutorialService {
         stepId: 'frontier-tab'
       },
       {
-        id: 'provider-ai',
-        title: 'Provider AI',
+        id: 'ai',
+        title: 'AI',
         description: 'OpenRouter and model calls',
         icon: 'icon-bot-message-square',
-        stepId: 'provider-ai-card'
+        stepId: 'ai-card'
       },
       {
         id: 'presets',

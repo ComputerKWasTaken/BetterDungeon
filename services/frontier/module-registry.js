@@ -37,7 +37,7 @@
   const TAG = '[Frontier/registry]';
   const STORAGE_KEY = 'frontier_enabled_modules';
 
-  const definitions = new Map();  // id -> module definition
+  const definitions = new Map();  // id/alias -> module definition
   const mounted = new Map();       // id -> { def, ctx }
   const enabledState = new Map();  // id -> boolean (persisted)
   let coreReady = false;
@@ -59,7 +59,7 @@
           const saved = result?.[STORAGE_KEY];
           if (saved && typeof saved === 'object') {
             for (const [id, enabled] of Object.entries(saved)) {
-              enabledState.set(id, !!enabled);
+              enabledState.set(id === 'providerAI' ? 'ai' : id, !!enabled);
             }
           }
           persistedLoaded = true;
@@ -143,8 +143,17 @@
     if (definitions.has(def.id)) {
       throw new Error(`${TAG} '${def.id}' is already registered`);
     }
+    const aliases = Array.isArray(def.aliases)
+      ? def.aliases.filter((alias) => typeof alias === 'string' && alias && alias !== def.id)
+      : [];
+    for (const alias of aliases) {
+      if (definitions.has(alias)) {
+        throw new Error(`${TAG} alias '${alias}' is already registered`);
+      }
+    }
 
     definitions.set(def.id, def);
+    for (const alias of aliases) definitions.set(alias, def);
     console.log(TAG, `registered '${def.id}'`);
 
     // If Core is already up and the module is enabled, mount immediately.
@@ -152,8 +161,13 @@
   }
 
   function unregister(id) {
-    unmountOne(id);
-    definitions.delete(id);
+    const def = definitions.get(id);
+    if (!def) return;
+    unmountOne(def.id);
+    definitions.delete(def.id);
+    if (Array.isArray(def.aliases)) {
+      for (const alias of def.aliases) definitions.delete(alias);
+    }
   }
 
   function enable(id) {
@@ -162,15 +176,17 @@
       console.warn(TAG, `enable('${id}'): module not registered`);
       return;
     }
-    enabledState.set(id, true);
+    enabledState.set(def.id, true);
     persistEnabledState();
-    if (coreReady && !mounted.has(id)) mountOne(def);
+    if (coreReady && !mounted.has(def.id)) mountOne(def);
   }
 
   function disable(id) {
-    enabledState.set(id, false);
+    const def = definitions.get(id);
+    const canonicalId = def?.id || id;
+    enabledState.set(canonicalId, false);
     persistEnabledState();
-    unmountOne(id);
+    unmountOne(canonicalId);
   }
 
   function setModuleEnabled(id, enabled) {
@@ -186,8 +202,9 @@
   }
 
   function list() {
-    return [...definitions.values()].map(d => ({
+    return [...new Set(definitions.values())].map(d => ({
       id: d.id,
+      aliases: Array.isArray(d.aliases) ? d.aliases.slice() : [],
       version: d.version || null,
       label: d.label || d.id,
       stateNames: Array.isArray(d.stateNames) ? d.stateNames.slice() : [],
@@ -210,7 +227,7 @@
     coreReady = true;
 
     // Mount all registered modules that are enabled.
-    for (const def of definitions.values()) {
+    for (const def of new Set(definitions.values())) {
       if (isEnabled(def.id)) mountOne(def);
     }
 
@@ -230,7 +247,8 @@
   }
 
   function _getMounted(id) {
-    const entry = mounted.get(id);
+    const def = definitions.get(id);
+    const entry = mounted.get(def?.id || id);
     return entry ? { def: entry.def, ctx: entry.ctx } : null;
   }
 
@@ -246,7 +264,10 @@
     _forEachMounted,
     _getMounted,
     inspect: () => ({
-      registered: [...definitions.keys()],
+      registered: [...new Set(definitions.values())].map((def) => def.id),
+      aliases: Object.fromEntries([...definitions.entries()]
+        .filter(([id, def]) => id !== def.id)
+        .map(([alias, def]) => [alias, def.id])),
       mounted: [...mounted.keys()],
       enabled: Object.fromEntries(enabledState),
       coreReady,

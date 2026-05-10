@@ -1,12 +1,12 @@
-// modules/provider-ai/module.js
+// modules/ai/module.js
 //
-// Frontier Provider AI module. Provides bounded, user-configured hosted model
+// Frontier AI module. Provides bounded, user-configured hosted model
 // calls through a background-worker bridge so scripts never see API keys.
 
 (function () {
-  if (window.FrontierProviderAIModule) return;
+  if (window.FrontierAIModule) return;
 
-  const PROVIDER_AI_MESSAGE = 'FRONTIER_PROVIDER_AI_REQUEST';
+  const AI_MESSAGE = 'FRONTIER_AI_REQUEST';
   const SUPPORTED_PROVIDER = 'openrouter';
 
   const DEFAULT_TIMEOUT_MS = 30000;
@@ -21,10 +21,12 @@
   const MAX_QUERY_CHARS = 120;
   const MAX_STOP_SEQUENCES = 4;
   const MAX_STOP_CHARS = 200;
+  const MAX_RESPONSE_FORMAT_NAME_CHARS = 64;
+  const MAX_JSON_SCHEMA_CHARS = 12000;
+  const MAX_JSON_SCHEMA_DEPTH = 10;
 
   const RATE_WINDOW_MS = 60000;
   const RATE_LIMITS = {
-    chat: 6,
     models: 12,
     testConnection: 12,
   };
@@ -110,10 +112,59 @@
       throw invalidArgs('responseFormat must be an object');
     }
     const type = String(value.type || '').trim();
-    if (type !== 'json_object' && type !== 'text') {
-      throw invalidArgs("responseFormat.type must be 'json_object' or 'text'");
+    if (type === 'text' || type === 'json_object') {
+      return { type };
     }
-    return { type };
+    if (type === 'json_schema') {
+      return {
+        type,
+        json_schema: normalizeJsonSchemaFormat(value.json_schema || value.jsonSchema),
+      };
+    }
+    throw invalidArgs("responseFormat.type must be 'text', 'json_object', or 'json_schema'");
+  }
+
+  function normalizeJsonSchemaFormat(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw invalidArgs('responseFormat.json_schema must be an object');
+    }
+    const name = String(value.name || '').trim();
+    if (!name) throw invalidArgs('responseFormat.json_schema.name is required');
+    if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+      throw invalidArgs('responseFormat.json_schema.name may only include letters, numbers, underscores, and hyphens');
+    }
+    if (name.length > MAX_RESPONSE_FORMAT_NAME_CHARS) {
+      throw invalidArgs(`responseFormat.json_schema.name must be ${MAX_RESPONSE_FORMAT_NAME_CHARS} characters or fewer`);
+    }
+    const schema = value.schema;
+    if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
+      throw invalidArgs('responseFormat.json_schema.schema must be an object');
+    }
+    let schemaJson;
+    try {
+      schemaJson = JSON.stringify(schema);
+    } catch {
+      throw invalidArgs('responseFormat.json_schema.schema must be JSON-serializable');
+    }
+    if (schemaJson.length > MAX_JSON_SCHEMA_CHARS) {
+      throw invalidArgs(`responseFormat.json_schema.schema must serialize to ${MAX_JSON_SCHEMA_CHARS} characters or fewer`);
+    }
+    if (jsonDepth(schema) > MAX_JSON_SCHEMA_DEPTH) {
+      throw invalidArgs(`responseFormat.json_schema.schema may be at most ${MAX_JSON_SCHEMA_DEPTH} levels deep`);
+    }
+    return {
+      name,
+      strict: value.strict !== false,
+      schema: JSON.parse(schemaJson),
+    };
+  }
+
+  function jsonDepth(value, depth = 0) {
+    if (!value || typeof value !== 'object') return depth;
+    if (Array.isArray(value)) {
+      return value.reduce((max, item) => Math.max(max, jsonDepth(item, depth + 1)), depth + 1);
+    }
+    return Object.values(value).reduce((max, item) => Math.max(max, jsonDepth(item, depth + 1)), depth + 1);
   }
 
   function normalizeStop(value) {
@@ -189,7 +240,7 @@
       rateBuckets.set(key, bucket);
       throw {
         code: 'rate_limit',
-        message: `Provider AI ${op} is limited to ${limit} requests per minute for this adventure`,
+        message: `AI ${op} metadata checks are limited to ${limit} requests per minute for this adventure`,
         retryAfterMs,
       };
     }
@@ -200,26 +251,26 @@
 
   function unwrapBackgroundResponse(response) {
     if (response?.ok) return response.data;
-    throw response?.error || { code: 'provider_ai_failed', message: 'Provider AI background request failed' };
+    throw response?.error || { code: 'ai_failed', message: 'AI background request failed' };
   }
 
   function backgroundRequest(request) {
     if (typeof browser !== 'undefined' && browser?.runtime?.sendMessage) {
       return browser.runtime
-        .sendMessage({ type: PROVIDER_AI_MESSAGE, request })
+        .sendMessage({ type: AI_MESSAGE, request })
         .then((response) => unwrapBackgroundResponse(response));
     }
 
     const runtime = typeof chrome !== 'undefined' ? chrome.runtime : null;
     if (!runtime?.sendMessage) {
-      return Promise.reject({ code: 'provider_ai_unavailable', message: 'Extension runtime is unavailable' });
+      return Promise.reject({ code: 'ai_unavailable', message: 'Extension runtime is unavailable' });
     }
 
     return new Promise((resolve, reject) => {
-      runtime.sendMessage({ type: PROVIDER_AI_MESSAGE, request }, (response) => {
+      runtime.sendMessage({ type: AI_MESSAGE, request }, (response) => {
         const lastError = typeof chrome !== 'undefined' ? chrome.runtime?.lastError : null;
         if (lastError) {
-          reject({ code: 'provider_ai_unavailable', message: lastError.message || 'Provider AI background request failed' });
+          reject({ code: 'ai_unavailable', message: lastError.message || 'AI background request failed' });
           return;
         }
         try {
@@ -245,7 +296,6 @@
       timeoutMs: normalizeTimeoutMs(normalized.timeoutMs),
     };
 
-    checkRateLimit(ctx, 'chat');
     return backgroundRequest(request);
   }
 
@@ -283,10 +333,11 @@
     }
   }
 
-  const FrontierProviderAIModule = {
-    id: 'providerAI',
+  const FrontierAIModule = {
+    id: 'ai',
+    aliases: ['providerAI'],
     version: '1.0.0',
-    label: 'Provider AI',
+    label: 'AI',
     description: 'Provides bounded hosted-model calls through user-configured OpenRouter credentials.',
 
     ops: {
@@ -309,7 +360,7 @@
 
     mount(ctx) {
       this._ctx = ctx;
-      ctx.log('debug', 'Provider AI mounted');
+      ctx.log('debug', 'AI mounted');
     },
 
     unmount() {
@@ -330,21 +381,22 @@
           maxMessageChars: MAX_MESSAGE_CHARS,
           maxTotalChars: MAX_TOTAL_CHARS,
           maxTokens: MAX_TOKENS,
-          chatPerMinute: RATE_LIMITS.chat,
+          maxJsonSchemaChars: MAX_JSON_SCHEMA_CHARS,
+          responseFormats: ['text', 'json_object', 'json_schema'],
         },
       };
     },
   };
 
-  window.FrontierProviderAIModule = FrontierProviderAIModule;
+  window.FrontierAIModule = FrontierAIModule;
 
   if (window.Frontier?.registry) {
-    window.Frontier.registry.register(FrontierProviderAIModule);
+    window.Frontier.registry.register(FrontierAIModule);
   } else {
-    console.warn('[ProviderAI] Frontier registry not available; Provider AI module not registered.');
+    console.warn('[FrontierAI] Frontier registry not available; AI module not registered.');
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = FrontierProviderAIModule;
+    module.exports = FrontierAIModule;
   }
 })();
