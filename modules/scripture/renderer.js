@@ -120,7 +120,7 @@
     _clearAffordanceIfPending(element) {
       if (element.dataset.state === 'pending') {
         delete element.dataset.state;
-        element.querySelectorAll('.bd-widget-skeleton,.bd-widget-error-msg,.bd-widget-empty-hint').forEach(el => el.remove());
+        element.querySelectorAll('.bd-widget-error-msg').forEach(el => el.remove());
       }
     }
 
@@ -132,9 +132,10 @@
     }
 
     // Core affordance state applier. Called after create/update and by module.
+    // Pure CSS handles loading, pending, stale, empty; only error needs a
+    // DOM injection because its message text is dynamic (from validators).
     applyAffordanceState(element, state, config) {
-      // Clean up helpers from a previous state before applying a new one
-      element.querySelectorAll('.bd-widget-error-msg,.bd-widget-empty-hint').forEach(el => el.remove());
+      element.querySelectorAll('.bd-widget-error-msg').forEach(el => el.remove());
 
       if (!state) {
         delete element.dataset.state;
@@ -148,11 +149,6 @@
         msg.className = 'bd-widget-error-msg';
         msg.textContent = config?._affordanceError || '⚠ Error';
         element.appendChild(msg);
-      } else if (state === 'empty') {
-        const hint = document.createElement('span');
-        hint.className = 'bd-widget-empty-hint';
-        hint.textContent = '—';
-        element.appendChild(hint);
       }
     }
 

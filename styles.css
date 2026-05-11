@@ -1492,72 +1492,26 @@ html.bd-story-card-dock-active > body {
 
 /* --- PENDING --------------------------------------------------
    The player just interacted with this widget but the change has
-   not yet been sent to the AI. This is the most important
-   affordance: it tells the player "your input was registered and
-   will be sent on the next turn". Amber ring + corner badge +
-   subtle pulse so the change is unmissable but not distracting. */
+   not yet been sent to the AI. The pulsing amber glow is the
+   entire affordance — no badge, no extra DOM — quiet but
+   unmistakable. */
 .bd-widget[data-state="pending"] {
   border-color: rgba(251, 191, 36, 0.55);
-  box-shadow:
-    0 0 0 1px rgba(251, 191, 36, 0.35),
-    0 0 12px rgba(251, 191, 36, 0.18),
-    0 8px 22px rgba(0, 0, 0, 0.26),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
   animation: bd-widget-pending-pulse 1.8s ease-in-out infinite;
-}
-
-.bd-widget[data-state="pending"]::after {
-  content: "Queued";
-  position: absolute;
-  top: -8px;
-  right: 8px;
-  padding: 2px 7px 2px 18px;
-  font-size: 9px;
-  font-weight: var(--bd-font-weight-bold);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: rgba(20, 15, 5, 0.92);
-  background: linear-gradient(180deg, rgba(252, 211, 77, 0.98) 0%, rgba(245, 158, 11, 0.98) 100%);
-  border: 1px solid rgba(180, 110, 10, 0.6);
-  border-radius: 10px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
-  pointer-events: none;
-  white-space: nowrap;
-  z-index: 2;
-}
-
-/* The small clock glyph inside the pending badge. Separate pseudo
-   element so we can position it independent of the label text. */
-.bd-widget[data-state="pending"]::before {
-  content: "";
-  position: absolute;
-  top: -5px;
-  right: 50px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: rgba(20, 15, 5, 0.85);
-  box-shadow:
-    inset 0 0 0 1px rgba(252, 211, 77, 0.98),
-    0 0 0 2px rgba(245, 158, 11, 0.35);
-  /* Reposition the dot over the badge's left side */
-  transform: translate(-3px, 0);
-  z-index: 3;
-  pointer-events: none;
 }
 
 @keyframes bd-widget-pending-pulse {
   0%, 100% {
     box-shadow:
-      0 0 0 1px rgba(251, 191, 36, 0.35),
-      0 0 12px rgba(251, 191, 36, 0.18),
+      0 0 0 1px rgba(251, 191, 36, 0.30),
+      0 0 10px rgba(251, 191, 36, 0.18),
       0 8px 22px rgba(0, 0, 0, 0.26),
       inset 0 1px 0 rgba(255, 255, 255, 0.06);
   }
   50% {
     box-shadow:
       0 0 0 1px rgba(251, 191, 36, 0.55),
-      0 0 18px rgba(251, 191, 36, 0.32),
+      0 0 18px rgba(251, 191, 36, 0.36),
       0 8px 22px rgba(0, 0, 0, 0.26),
       inset 0 1px 0 rgba(255, 255, 255, 0.06);
   }
@@ -1613,35 +1567,21 @@ html.bd-story-card-dock-active > body {
   border-style: dashed;
   border-color: rgba(255, 255, 255, 0.18);
 }
-.bd-widget[data-state="stale"]::after {
-  content: "Stale";
-  position: absolute;
-  top: -8px;
-  right: 8px;
-  padding: 2px 7px;
-  font-size: 9px;
-  font-weight: var(--bd-font-weight-semibold);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.7);
-  background: rgba(30, 30, 36, 0.96);
-  border: 1px dashed rgba(255, 255, 255, 0.25);
-  border-radius: 10px;
-  pointer-events: none;
-  z-index: 2;
-}
 
 /* --- EMPTY ----------------------------------------------------
    AI wrote an entry for this turn but intentionally left this
-   widget without a value. Mute and show the injected dash. */
+   widget without a value. Mute the content; the dash hint is
+   rendered via ::after so no DOM mutation is needed. */
 .bd-widget[data-state="empty"] {
   opacity: 0.55;
 }
-.bd-widget-empty-hint {
+.bd-widget[data-state="empty"]::after {
+  content: '—';
   margin-left: 6px;
   color: rgba(255, 255, 255, 0.4);
   font-style: italic;
   font-size: var(--bd-font-size-xs);
+  pointer-events: none;
 }
 
 /* --- ERROR ---------------------------------------------------- */
@@ -1651,23 +1591,6 @@ html.bd-story-card-dock-active > body {
     0 0 0 1px rgba(248, 113, 113, 0.3),
     0 8px 22px rgba(0, 0, 0, 0.26),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-.bd-widget[data-state="error"]::after {
-  content: "Error";
-  position: absolute;
-  top: -8px;
-  right: 8px;
-  padding: 2px 7px;
-  font-size: 9px;
-  font-weight: var(--bd-font-weight-bold);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #fff;
-  background: linear-gradient(180deg, rgba(248, 113, 113, 0.98) 0%, rgba(220, 38, 38, 0.98) 100%);
-  border: 1px solid rgba(127, 29, 29, 0.7);
-  border-radius: 10px;
-  pointer-events: none;
-  z-index: 2;
 }
 .bd-widget-error-msg {
   display: block;
