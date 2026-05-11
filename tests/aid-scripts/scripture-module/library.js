@@ -1,93 +1,237 @@
 // Frontier Scripture Module Test Suite — AI Dungeon Library
 //
-// Drives the BetterDungeon Scripture module through scenario walkthroughs
-// and an automated turn-by-turn checklist that verifies the heartbeat, the
-// mount/unmount lifecycle, and the pending widget affordance (the only
-// player-facing widget state). Pair with input-modifier.js + output-modifier.js.
+// Behavior-focused widget test suite. Loads curated manifests that exercise
+// every supported widget type, plus scenarios for invalid configs, value
+// transitions, and edge cases. Pair with input-modifier.js + output-modifier.js.
 //
 // Surfaces written:
 //   frontier:state:scripture   - widget manifest + history + ack envelope (script -> BD)
-//   frontier:in:scripture      - script's view of BD's inbox (read-only here, plus we
-//                                consume widgetEvents and advance ackSeq accordingly)
-//   frontier:test:scripture    - human-readable trace card with checklist results
+//   frontier:in:scripture      - script's view of BD's inbox (read-only here)
+//   frontier:test:scripture    - human-readable trace with scenario, values, events
 //
-// Before running:
-//   1. Open BetterDungeon -> Frontier and enable Frontier + the Scripture module.
-//   2. Start (or resume) an adventure on a scenario that has this script
-//      installed in Library + Input Modifier slots.
-//   3. Type "/scripture run" to start the auto checklist, or use individual
-//      commands listed in README.md to drive scenarios manually.
+// Commands:
+//   /scripture display      - stat/bar/counter/progress/taggroup/divider/icon/badge/text
+//   /scripture interactive  - radio/stepper/confirm/chipselect/button/toggle/select/slider/input/textarea
+//   /scripture containers   - accordion/tabs/dropdown/sortable
+//   /scripture invalid      - broken configs (module should skip with a warning)
+//   /scripture transitions  - animated value changes across turns
+//   /scripture edge         - empty lists, long labels, missing values, 0-width bars
+//   /scripture value <id> <val>  - manually set a widget's value
+//   /scripture ack          - force-ack all pending widget events
+//   /scripture clear        - unmount all widgets
+//   /scripture reset        - reset suite state
 
 // ---------- state ----------
 
 state.scriptureTest = state.scriptureTest || {
   runId: null,
   turn: 0,
-  liveKey: null,
-  scenario: null,           // 'smoke' | 'affordances' | null
-  ackSeq: 0,                // we advance this to ack widget events back to BD
+  scenario: null,           // 'display' | 'interactive' | 'containers' | 'invalid' | 'transitions' | 'edge'
+  ackSeq: 0,
   lastSeqSeen: 0,
-  observedEvents: [],       // tail of widgetEvents we've seen on frontier:in:scripture
-  consumedCommands: {},     // signature -> ts (so the same input doesn't fire twice)
-  events: [],               // suite-internal log
-  // auto-run plan state
-  auto: {
-    enabled: false,
-    stepIdx: 0,
-    stepStartedAt: null,
-    stepStartedTurn: null,
-    results: {},            // label -> { pass, reason, observed }
-  },
-  phase: 'boot',
+  observedEvents: [],
+  consumedCommands: {},
+  events: [],
+  // value overrides set by /scripture value <id> <val>
+  overrides: {},
+  // transition scenario phase
+  transitionIdx: 0,
 };
 
-// ---------- manifests ----------
-//
-// These are the canonical manifests we write to `frontier:state:scripture`.
-// Keep them small enough to render comfortably in the preview area but broad
-// enough to exercise the renderer's switch statement.
+// ---------- scenario manifests ----------
 
-var SCR_SMOKE_MANIFEST = {
+var SCR_DISPLAY_MANIFEST = {
   widgets: [
-    { id: 'hp',       type: 'stat',     align: 'left',   label: 'HP',      color: 'red'    },
-    { id: 'mp',       type: 'stat',     align: 'left',   label: 'MP',      color: 'blue'   },
-    { id: 'xp',       type: 'bar',      align: 'left',   label: 'XP',      max: 100, color: 'purple' },
-    { id: 'gold',     type: 'counter',  align: 'left',   label: 'Gold'     },
-    { id: 'tags',     type: 'taggroup', align: 'center', label: 'Status'   },
-    { id: 'timer',    type: 'timer',    align: 'center', label: 'Timer',   urgency: 'medium' },
-    { id: 'progress', type: 'progress', align: 'center', label: 'Quest',   max: 100 },
-    { id: 'choice',   type: 'radio',    align: 'right',  label: 'Stance',
-      options: [
-        { value: 'aggro',   label: 'Aggressive' },
-        { value: 'cautious',label: 'Cautious'   },
-        { value: 'sneaky',  label: 'Sneaky'     },
-      ] },
-    { id: 'level',    type: 'stepper',  align: 'right',  label: 'Level', min: 1, max: 99 },
-    { id: 'commit',   type: 'confirm',  align: 'right',  text: 'End turn' },
-    { id: 'tabs',     type: 'tabs',     align: 'center',
+    { id: 'hp',      type: 'stat',     align: 'left',   label: 'HP',       value: '87',  color: 'red'    },
+    { id: 'mp',      type: 'stat',     align: 'left',   label: 'MP',       value: '23',  color: 'blue'   },
+    { id: 'xp',      type: 'bar',      align: 'left',   label: 'XP',       value: 60,    max: 100, color: 'purple' },
+    { id: 'shield',  type: 'bar',      align: 'center', label: 'Shield',   value: 12,    max: 100, color: 'cyan', showValue: false },
+    { id: 'gold',    type: 'counter',  align: 'left',   label: 'Gold',     value: 137,   icon: '💰' },
+    { id: 'rep',     type: 'counter',  align: 'right',  label: 'Reputation', value: -3,  color: 'red' },
+    { id: 'quest',   type: 'progress', align: 'center', label: 'Quest',    value: 65,    max: 100 },
+    { id: 'loadout', type: 'progress', align: 'right',  label: 'Loadout',  value: 100,   max: 100, color: 'green' },
+    { id: 'status',  type: 'taggroup', align: 'center', label: 'Status',
       items: [
-        { id: 'inv',  label: 'Inventory', content: 'Sword, Potion x2, Map' },
-        { id: 'log',  label: 'Log',       content: 'You entered the cave.' },
+        { label: 'Poisoned', color: 'green', icon: '🩸' },
+        { label: 'Blessed',  color: 'yellow', icon: '✨' },
+        { label: 'Invisible', color: 'purple' },
       ] },
+    { id: 'sep1',    type: 'divider',  align: 'center' },
+    { id: 'sep2',    type: 'divider',  align: 'center', label: 'Section Break' },
+    { id: 'hero',    type: 'icon',     align: 'left',   icon: '⚔️', text: 'Warrior', color: 'orange' },
+    { id: 'rare',    type: 'badge',    align: 'right',  text: 'Rare Drop', variant: 'outline', color: 'purple' },
+    { id: 'note',    type: 'text',     align: 'center', text: 'The dungeon grows darker...' },
   ],
 };
 
-// Affordances scenario uses a smaller, focused widget set so the pending
-// affordance is easy to spot when you interact with widgets.
-var SCR_AFFORDANCE_MANIFEST = {
+var SCR_INTERACTIVE_MANIFEST = {
   widgets: [
-    { id: 'hp',     type: 'stat',     align: 'left',   label: 'HP',     color: 'red'    },
-    { id: 'mp',     type: 'stat',     align: 'left',   label: 'MP',     color: 'blue'   },
-    { id: 'shield', type: 'progress', align: 'center', label: 'Shield', max: 100 },
-    { id: 'pick',   type: 'radio',    align: 'right',  label: 'Pick',
+    { id: 'attack',  type: 'button',   align: 'left',   text: 'Attack',   value: 'strike' },
+    { id: 'defend',  type: 'toggle',   align: 'left',   label: 'Defend',   value: true },
+    { id: 'mode',    type: 'select',   align: 'center', label: 'Mode',
       options: [
-        { value: 'a', label: 'Option A' },
-        { value: 'b', label: 'Option B' },
-        { value: 'c', label: 'Option C' },
-      ] },
-    { id: 'fire',   type: 'confirm',  align: 'right',  text: 'Fire!' },
+        { value: 'auto',   label: 'Auto' },
+        { value: 'manual', label: 'Manual' },
+      ], value: 'manual' },
+    { id: 'volume',  type: 'slider',   align: 'right',  label: 'Volume',   value: 70 },
+    { id: 'name',    type: 'input',    align: 'center', label: 'Name',     value: 'Aldric' },
+    { id: 'bio',     type: 'textarea', align: 'center', label: 'Bio',      value: 'A knight from the northern reach.' },
+    { id: 'stance',  type: 'radio',    align: 'left',   label: 'Stance',
+      options: [
+        { value: 'aggro', label: 'Aggressive' },
+        { value: 'def',   label: 'Defensive' },
+        { value: 'sneak', label: 'Sneaky' },
+      ], value: 'def' },
+    { id: 'level',   type: 'stepper',  align: 'right',  label: 'Level',    value: 12, min: 1, max: 99 },
+    { id: 'rest',    type: 'confirm',  align: 'right',  text: 'Rest here' },
+    { id: 'party',   type: 'chipselect', align: 'center', label: 'Party',
+      options: [
+        { value: 'a', label: 'Aldric' },
+        { value: 'k', label: 'Kira' },
+        { value: 'l', label: 'Lyra' },
+        { value: 't', label: 'Thorne' },
+      ], value: ['a', 'k'] },
   ],
 };
+
+var SCR_CONTAINERS_MANIFEST = {
+  widgets: [
+    { id: 'inv',     type: 'accordion', align: 'left',
+      items: [
+        { id: 'weap',  label: 'Weapons',  content: 'Flame Blade, Oak Shield' },
+        { id: 'pot',   label: 'Potions',  content: 'Health x3, Mana x1' },
+        { id: 'scroll',label: 'Scrolls',  content: 'Fireball, Identify' },
+      ], value: 'weap' },
+    { id: 'info',    type: 'tabs',      align: 'center',
+      items: [
+        { id: 'stats', label: 'Stats',    content: 'HP 87/100 · MP 23/100 · Level 12' },
+        { id: 'skills',label: 'Skills',   content: 'Fireball Lv5 · Shield Lv4 · Heal Lv2' },
+        { id: 'perks', label: 'Perks',    content: 'Night Vision · Fire Affinity · Iron Will' },
+      ], value: 'stats' },
+    { id: 'actions', type: 'dropdown',  align: 'right', label: 'Actions',
+      items: [
+        { label: 'Inspect', icon: '🔍' },
+        { label: 'Talk',    icon: '💬' },
+        { divider: true },
+        { label: 'Attack',  icon: '🗡️', danger: true },
+      ] },
+    { id: 'prio',    type: 'sortable',  align: 'left',   label: 'Priority',
+      items: [
+        { id: 'atk', label: 'Attack' },
+        { id: 'def', label: 'Defend' },
+        { id: 'spell', label: 'Cast Spell' },
+        { id: 'item', label: 'Use Item' },
+      ], value: ['atk', 'def', 'spell', 'item'] },
+  ],
+};
+
+var SCR_INVALID_MANIFEST = {
+  widgets: [
+    // These should render
+    { id: 'ok',      type: 'stat',     align: 'left',   label: 'OK',       value: '42' },
+    { id: 'ok2',     type: 'progress', align: 'center', label: 'Quest',    value: 50, max: 100 },
+    // These should be skipped with a console warning
+    { id: 'badmax',  type: 'progress', align: 'center', label: 'BadMax',   value: 50, max: -1 },
+    { id: 'badtype', type: 'notatype', align: 'right',  label: 'BadType',  value: 'x' },
+    { id: 'nostep',  type: 'stepper',  align: 'right',  label: 'NoStep',   value: 'abc' },
+  ],
+};
+
+var SCR_TRANSITIONS_MANIFEST = {
+  widgets: [
+    { id: 'hp',      type: 'stat',     align: 'left',   label: 'HP' },
+    { id: 'xp',      type: 'bar',      align: 'center', label: 'XP',       max: 200 },
+    { id: 'gold',    type: 'counter',  align: 'right',  label: 'Gold' },
+    { id: 'quest',   type: 'progress', align: 'center', label: 'Quest',    max: 100 },
+  ],
+};
+
+// Phases for the transitions scenario. Each turn advances to the next phase.
+var SCR_TRANSITION_PHASES = [
+  { hp: '87',  xp: 20,   gold: 0,    quest: 5   },
+  { hp: '64',  xp: 60,   gold: 12,   quest: 33  },
+  { hp: '42',  xp: 120,  gold: 55,   quest: 67  },
+  { hp: '12',  xp: 180,  gold: 128,  quest: 92  },
+  { hp: '0',   xp: 200,  gold: 250,  quest: 100 },
+  { hp: '100', xp: 0,    gold: 0,    quest: 0   },
+];
+
+var SCR_EDGE_MANIFEST = {
+  widgets: [
+    { id: 'empty',   type: 'taggroup', align: 'left',   label: 'Empty Tags', items: [] },
+    { id: 'long',    type: 'stat',     align: 'center', label: 'Very Long Label That Might Overflow', value: '99' },
+    { id: 'zero',    type: 'bar',      align: 'center', label: 'Zero Bar', value: 0, max: 100 },
+    { id: 'full',    type: 'bar',      align: 'center', label: 'Full Bar', value: 100, max: 100 },
+    { id: 'neg',     type: 'bar',      align: 'right',  label: 'Negative', value: -20, max: 100 },
+    { id: 'over',    type: 'bar',      align: 'right',  label: 'Over Max', value: 150, max: 100 },
+    { id: 'noval',   type: 'stat',     align: 'left',   label: 'No Value' },
+    { id: 'nolabel', type: 'counter',  align: 'right',  value: 7 },
+    { id: 'onetag',  type: 'taggroup', align: 'center', items: [{ label: 'Solo' }] },
+    { id: 'plain',   type: 'divider',  align: 'center' },
+    { id: 'txt',     type: 'text',     align: 'center', text: '' },
+    { id: 'ico',     type: 'icon',     align: 'left' },
+  ],
+};
+
+function scrManifestFor(scenario) {
+  switch (scenario) {
+    case 'display':      return SCR_DISPLAY_MANIFEST;
+    case 'interactive':  return SCR_INTERACTIVE_MANIFEST;
+    case 'containers':   return SCR_CONTAINERS_MANIFEST;
+    case 'invalid':      return SCR_INVALID_MANIFEST;
+    case 'transitions':  return SCR_TRANSITIONS_MANIFEST;
+    case 'edge':         return SCR_EDGE_MANIFEST;
+  }
+  return null;
+}
+
+// ---------- value helpers ----------
+
+function scrDefaultValuesFor(manifest, scenario) {
+  if (!manifest || !Array.isArray(manifest.widgets)) return {};
+  var values = {};
+
+  if (scenario === 'transitions') {
+    var phase = SCR_TRANSITION_PHASES[0] || {};
+    for (var i = 0; i < manifest.widgets.length; i++) {
+      var w = manifest.widgets[i];
+      values[w.id] = phase[w.id] !== undefined ? phase[w.id] : null;
+    }
+    return values;
+  }
+
+  for (var i = 0; i < manifest.widgets.length; i++) {
+    var w = manifest.widgets[i];
+    // Prefer inline value if present, else type defaults
+    if (w.value !== undefined) {
+      values[w.id] = w.value;
+      continue;
+    }
+    switch (w.type) {
+      case 'stat':     values[w.id] = '42'; break;
+      case 'bar':      values[w.id] = 50; break;
+      case 'counter':  values[w.id] = 0; break;
+      case 'progress': values[w.id] = 0; break;
+      case 'taggroup': values[w.id] = { items: [] }; break;
+      case 'radio':    values[w.id] = (w.options && w.options[0] && w.options[0].value) || null; break;
+      case 'stepper':  values[w.id] = (typeof w.min === 'number' ? w.min : 0); break;
+      case 'confirm':  values[w.id] = false; break;
+      case 'chipselect': values[w.id] = []; break;
+      case 'toggle':   values[w.id] = false; break;
+      case 'select':   values[w.id] = (w.options && w.options[0] && w.options[0].value) || null; break;
+      case 'slider':   values[w.id] = 50; break;
+      case 'input':    values[w.id] = ''; break;
+      case 'textarea': values[w.id] = ''; break;
+      case 'button':   values[w.id] = null; break;
+      case 'accordion':values[w.id] = (w.items && w.items[0] && w.items[0].id) || 0; break;
+      case 'tabs':     values[w.id] = (w.items && w.items[0] && w.items[0].id) || 0; break;
+      case 'dropdown': values[w.id] = null; break;
+      case 'sortable': values[w.id] = (w.items || []).map(function(it) { return String(it.id || it.value || it.label); }); break;
+      default:         values[w.id] = null;
+    }
+  }
+  return values;
+}
 
 // ---------- helpers ----------
 
@@ -148,7 +292,7 @@ function scrLog(event, detail) {
     at: scrNow(), turn: s.turn, liveCount: scrLiveCount(),
     event: event, detail: detail || '',
   });
-  while (s.events.length > 80) s.events.shift();
+  while (s.events.length > 40) s.events.shift();
 }
 
 function scrHeartbeat() { return scrReadJson('frontier:heartbeat'); }
@@ -163,72 +307,19 @@ function scrScriptureAdvertised() {
   return false;
 }
 
-// ---------- state-card writer ----------
-//
-// The Scripture module reads `frontier:state:scripture` and renders the
-// manifest into widgets, then applies values from `history[liveCount]`.
-// We rebuild the envelope on every advance so the live entry reflects the
-// current scenario + forced state.
+// ---------- envelope builder ----------
 
-function scrCurrentManifest() {
+function scrCurrentValues(manifest, scenario) {
   var s = state.scriptureTest;
-  if (s.scenario === 'affordances') return SCR_AFFORDANCE_MANIFEST;
-  if (s.scenario === 'smoke')       return SCR_SMOKE_MANIFEST;
-  return null;
-}
-
-// Default valid values per widget id for the active manifest. Used when the
-// forced state is 'normal' or when a scenario first mounts.
-function scrDefaultValuesFor(manifest) {
-  if (!manifest || !Array.isArray(manifest.widgets)) return {};
+  var defaults = scrDefaultValuesFor(manifest, scenario);
+  var overrides = s.overrides || {};
   var values = {};
-  for (var i = 0; i < manifest.widgets.length; i++) {
-    var w = manifest.widgets[i];
-    switch (w.type) {
-      case 'stat':     values[w.id] = '42'; break;
-      case 'bar':      values[w.id] = 70;   break;
-      case 'counter':  values[w.id] = 137;  break;
-      case 'taggroup': values[w.id] = { items: [
-        { label: 'Poisoned', color: 'green' },
-        { label: 'Burning',  color: 'red'   },
-      ]}; break;
-      case 'timer':    values[w.id] = 125;  break;
-      case 'progress': values[w.id] = 65;   break;
-      case 'radio':    values[w.id] = (w.options && w.options[0] && w.options[0].value) || null; break;
-      case 'stepper':  values[w.id] = (typeof w.min === 'number' ? w.min : 0) + 1; break;
-      case 'confirm':  values[w.id] = false; break;
-      case 'tabs':     values[w.id] = (w.items && w.items[0] && w.items[0].id) || 0; break;
-      default:         values[w.id] = null;
-    }
-  }
-  return values;
-}
-
-// Intentionally invalid values designed to fail validateWidgetConfig. Used
-// by the manual /scripture invalid command to confirm the module silently
-// skips broken widgets (logs a warning instead of rendering them).
-function scrErrorValuesFor(manifest) {
-  if (!manifest || !Array.isArray(manifest.widgets)) return {};
-  var values = {};
-  for (var i = 0; i < manifest.widgets.length; i++) {
-    var w = manifest.widgets[i];
-    switch (w.type) {
-      case 'progress':
-        // Negative max -> validateWidgetConfig fails -> module logs warning
-        // and skips this widget on render.
-        values[w.id] = { value: 50, max: -1 };
-        break;
-      case 'stat':
-      case 'bar':
-      case 'counter':
-      case 'timer':
-        // Pass garbage objects through filterWidgetStatePatch; primitive
-        // expected for these types renders fine, but we want at least one
-        // visibly-broken widget per scenario, so leave the rest valid.
-        values[w.id] = '0';
-        break;
-      default:
-        values[w.id] = null;
+  for (var k in defaults) values[k] = overrides[k] !== undefined ? overrides[k] : defaults[k];
+  // Transitions scenario: apply current phase values (overrides still win)
+  if (scenario === 'transitions') {
+    var phase = SCR_TRANSITION_PHASES[s.transitionIdx % SCR_TRANSITION_PHASES.length] || {};
+    for (var k in phase) {
+      if (overrides[k] === undefined) values[k] = phase[k];
     }
   }
   return values;
@@ -236,18 +327,15 @@ function scrErrorValuesFor(manifest) {
 
 function scrBuildEnvelope() {
   var s = state.scriptureTest;
-  var manifest = scrCurrentManifest();
+  var manifest = scrManifestFor(s.scenario);
   var liveCount = scrLiveCount();
 
-  // No scenario => empty envelope (BD unmounts everything)
   if (!manifest) {
     return { v: 1, manifest: { widgets: [] }, history: {}, interactions: { ackSeq: s.ackSeq } };
   }
 
   var history = {};
-  history[String(liveCount)] = s._publishInvalid
-    ? scrErrorValuesFor(manifest)
-    : scrDefaultValuesFor(manifest);
+  history[String(liveCount)] = scrCurrentValues(manifest, s.scenario);
 
   return {
     v: 1,
@@ -264,14 +352,8 @@ function scrPublishState() {
 }
 
 // ---------- inbox poller ----------
-//
-// BD writes widget interactions to `frontier:in:scripture`. We read them so
-// the trace card shows what's flowing back, and we advance our local ackSeq
-// to acknowledge them on the next state publish (which clears BD's 'pending'
-// affordance).
 
-function scrPollInbox(opts) {
-  opts = opts || {};
+function scrPollInbox() {
   var s = state.scriptureTest;
   var card = scrReadJson('frontier:in:scripture');
   if (!card) return { latestSeq: 0, newEvents: [] };
@@ -290,20 +372,17 @@ function scrPollInbox(opts) {
 
   if (newEvents.length) {
     s.lastSeqSeen = Math.max.apply(null, newEvents.map(function (e) { return Number(e.seq || 0); }).concat([s.lastSeqSeen]));
-    // Keep rolling tail of recent events so the trace stays readable
     s.observedEvents = s.observedEvents.concat(newEvents.map(function (e) {
       return {
         seq: e.seq, widgetId: e.widgetId, widgetType: e.widgetType,
-        action: e.action, value: e.value, ts: e.ts || e.at, count: e.count || 1,
+        action: e.action, value: e.value, ts: e.ts || e.at,
       };
     }));
-    while (s.observedEvents.length > 40) s.observedEvents.shift();
-    scrLog('events', 'received ' + newEvents.length + ' (latestSeq=' + s.lastSeqSeen + ')');
+    while (s.observedEvents.length > 20) s.observedEvents.shift();
+    scrLog('events', 'received ' + newEvents.length + ' (seq=' + s.lastSeqSeen + ')');
   }
 
-  // Auto-ack new events unless the auto-run has explicitly asked us to hold
-  // them back so it can verify the 'pending' affordance.
-  if (!opts.holdAck && s.lastSeqSeen > s.ackSeq) {
+  if (s.lastSeqSeen > s.ackSeq) {
     s.ackSeq = s.lastSeqSeen;
     scrLog('ack', 'ackSeq -> ' + s.ackSeq);
   }
@@ -312,80 +391,87 @@ function scrPollInbox(opts) {
 }
 
 // ---------- command parser ----------
-//
-// Players type "/scripture <verb> [arg]" into normal input. The input
-// modifier reads the text, calls scrConsumeCommands, and consumed text is
-// stripped so the model never sees it.
 
 function scrParseCommand(line) {
   var m = String(line || '').match(/\/scripture\s+([^\n\r]+)/i);
   if (!m) return null;
   var parts = m[1].trim().split(/\s+/);
-  return { verb: (parts[0] || '').toLowerCase(), arg: (parts[1] || '').toLowerCase(), raw: m[0] };
+  return { verb: (parts[0] || '').toLowerCase(), args: parts.slice(1), raw: m[0] };
 }
 
 function scrApplyCommand(cmd) {
   if (!cmd || !cmd.verb) return false;
   var s = state.scriptureTest;
+  var args = cmd.args || [];
 
   switch (cmd.verb) {
     case 'reset':
-      scrResetSuite();
+      state.scriptureTest = {
+        runId: 'scripture-' + scrNow().toString(36),
+        turn: 0, scenario: null,
+        ackSeq: 0, lastSeqSeen: 0,
+        observedEvents: [], consumedCommands: {}, events: [],
+        overrides: {}, transitionIdx: 0,
+      };
+      scrWriteCard(
+        'frontier:state:scripture',
+        JSON.stringify({ v: 1, manifest: { widgets: [] }, history: {}, interactions: { ackSeq: 0 } }),
+        'Frontier'
+      );
+      scrLog('cmd', 'reset');
       return true;
 
-    case 'smoke':
-      s.scenario = 'smoke';
-      s.auto.enabled = false;
-      scrLog('cmd', 'smoke scenario');
-      return true;
-
-    case 'affordances':
-      s.scenario = 'affordances';
-      s.auto.enabled = false;
-      scrLog('cmd', 'affordances scenario');
-      return true;
-
+    case 'display':
+    case 'interactive':
+    case 'containers':
     case 'invalid':
-      // Manual probe: publish widgets with invalid values to confirm the
-      // module skips them with a console warning instead of rendering.
-      if (!s.scenario) s.scenario = 'affordances';
-      s._publishInvalid = true;
-      scrLog('cmd', 'publish invalid values');
+    case 'transitions':
+    case 'edge':
+      s.scenario = cmd.verb;
+      s.overrides = {};
+      scrLog('cmd', cmd.verb + ' scenario');
+      return true;
+
+    case 'value':
+      if (args.length >= 2) {
+        var id = args[0];
+        var raw = args.slice(1).join(' ');
+        var val = raw;
+        if (/^-?\d+$/.test(raw)) val = Number(raw);
+        else if (raw === 'true') val = true;
+        else if (raw === 'false') val = false;
+        else if (raw === 'null') val = null;
+        else if (raw.startsWith('[') && raw.endsWith(']')) {
+          try { val = JSON.parse(raw); } catch (e) {}
+        }
+        s.overrides[id] = val;
+        scrLog('cmd', 'set ' + id + ' = ' + JSON.stringify(val));
+      }
+      return true;
+
+    case 'next':
+      if (s.scenario === 'transitions') {
+        s.transitionIdx = (s.transitionIdx + 1) % SCR_TRANSITION_PHASES.length;
+        scrLog('cmd', 'transition phase -> ' + s.transitionIdx);
+      }
       return true;
 
     case 'ack':
-      // Force-advance ack past every event we've seen
       if (s.lastSeqSeen > s.ackSeq) {
         s.ackSeq = s.lastSeqSeen;
-        scrLog('cmd', 'ack force -> ' + s.ackSeq);
+        scrLog('cmd', 'ack -> ' + s.ackSeq);
       }
       return true;
 
     case 'clear':
       s.scenario = null;
+      s.overrides = {};
       scrLog('cmd', 'cleared');
-      return true;
-
-    case 'run':
-      scrAutoStart();
-      return true;
-
-    case 'next':
-      // Manually advance the auto-run to the next step (useful when a step
-      // is gated on user interaction).
-      if (s.auto.enabled) scrAutoForceNext();
-      return true;
-
-    case 'stop':
-      s.auto.enabled = false;
-      scrLog('cmd', 'auto stopped');
       return true;
   }
   return false;
 }
 
-// Returns { matched: bool, stripped: text } so the input modifier can
-// remove our commands from the text passed to the AI.
 function scrConsumeCommands(text) {
   var s = state.scriptureTest;
   var raw = String(text || '');
@@ -408,296 +494,66 @@ function scrConsumeCommands(text) {
   return { matched: matchedAny, stripped: stripped.trim() };
 }
 
-// ---------- reset ----------
-
-function scrResetSuite() {
-  state.scriptureTest = {
-    runId: 'scripture-' + scrNow().toString(36),
-    turn: 0, liveKey: null,
-    scenario: null,
-    ackSeq: 0, lastSeqSeen: 0,
-    observedEvents: [], consumedCommands: {}, events: [],
-    auto: { enabled: false, stepIdx: 0, stepStartedAt: null, stepStartedTurn: null, results: {} },
-    phase: 'reset',
-  };
-  // Wipe the published state card so BD sees an empty manifest.
-  scrWriteCard(
-    'frontier:state:scripture',
-    JSON.stringify({ v: 1, manifest: { widgets: [] }, history: {}, interactions: { ackSeq: 0 } }),
-    'Frontier'
-  );
-  scrLog('reset', 'suite reset');
-}
-
-// ---------- auto-run plan ----------
-//
-// Each step takes one turn (one generation). Steps modify state.scriptureTest
-// before scrPublishState runs, so the BD module sees the new envelope on the
-// next state-change cycle.
-//
-// pass/fail logic: most steps are protocol-observable (we wrote the envelope
-// we intended; BD echoed back into heartbeat or inbox; ack flow worked).
-// The visible affordance (skeleton, error msg, etc.) is up to the user to
-// eyeball — the trace explicitly tells them what to look for per step.
-
-var SCR_AUTO_PLAN = [
-  {
-    label: 'heartbeat',
-    note: 'Confirm BD advertises the scripture module',
-    setup: function () {},
-    validate: function () {
-      return scrScriptureAdvertised()
-        ? { pass: true }
-        : { pass: false, reason: 'scripture module not in heartbeat' };
-    },
-  },
-  {
-    label: 'mount-affordances',
-    note: 'Mount the affordance manifest. Look for 5 widgets with normal values.',
-    setup: function () {
-      var s = state.scriptureTest;
-      s.scenario = 'affordances';
-    },
-    validate: function () { return { pass: true, observed: 'Eyeball: 5 widgets visible.' }; },
-  },
-  {
-    label: 'pending-prompt',
-    note: 'Click any interactive widget (e.g., Pick: Option B). Suite holds the ack so you can see the amber pulse persist.',
-    setup: function () {
-      var s = state.scriptureTest;
-      s._pendingHold = true;     // tell scrPollInbox not to ack yet
-      s._pendingBaseline = s.lastSeqSeen;
-    },
-    advanceWhen: function () {
-      // Step completes once we observe a new event AT LEAST one full turn after the prompt
-      var s = state.scriptureTest;
-      var heard = s.lastSeqSeen > (s._pendingBaseline || 0);
-      var enoughTurns = (s.turn - (s.auto.stepStartedTurn || s.turn)) >= 1;
-      return heard && enoughTurns;
-    },
-    validate: function () {
-      var s = state.scriptureTest;
-      if (s.lastSeqSeen <= (s._pendingBaseline || 0)) {
-        return { pass: false, reason: 'no widget event observed; click a widget and take another turn' };
-      }
-      return { pass: true, observed: 'Pending widget showed pulse; event seq=' + s.lastSeqSeen };
-    },
-  },
-  {
-    label: 'pending-ack',
-    note: 'Releasing ack — BD should clear the pending pulse on the next render.',
-    setup: function () {
-      var s = state.scriptureTest;
-      s._pendingHold = false;
-      if (s.lastSeqSeen > s.ackSeq) s.ackSeq = s.lastSeqSeen;
-    },
-    validate: function () {
-      var s = state.scriptureTest;
-      return s.ackSeq >= s.lastSeqSeen
-        ? { pass: true, observed: 'ackSeq=' + s.ackSeq + ' caught up to lastSeqSeen=' + s.lastSeqSeen }
-        : { pass: false, reason: 'ackSeq still behind' };
-    },
-  },
-  {
-    label: 'mount-smoke',
-    note: 'Switch to the smoke manifest; broader widget mix should appear.',
-    setup: function () {
-      var s = state.scriptureTest;
-      s.scenario = 'smoke';
-    },
-    validate: function () { return { pass: true, observed: 'Eyeball: 11+ widgets across left/center/right zones.' }; },
-  },
-  {
-    label: 'unmount',
-    note: 'Clear the manifest; BD should unmount all widgets.',
-    setup: function () {
-      var s = state.scriptureTest;
-      s.scenario = null;
-    },
-    validate: function () { return { pass: true, observed: 'Eyeball: widget container is gone.' }; },
-  },
-];
-
-function scrAutoStart() {
-  var s = state.scriptureTest;
-  s.auto = { enabled: true, stepIdx: 0, stepStartedAt: scrNow(), stepStartedTurn: s.turn, results: {} };
-  scrLog('auto', 'started');
-}
-
-function scrAutoForceNext() {
-  var s = state.scriptureTest;
-  if (!s.auto.enabled) return;
-  var step = SCR_AUTO_PLAN[s.auto.stepIdx];
-  if (step) {
-    var v = (typeof step.validate === 'function') ? step.validate() : { pass: true };
-    s.auto.results[step.label] = v;
-  }
-  s.auto.stepIdx += 1;
-  s.auto.stepStartedAt = scrNow();
-  s.auto.stepStartedTurn = s.turn;
-}
-
-// One auto-run tick. Chains steps within a single turn whenever a step's
-// setup did not change observable state (no scenario mutation and no
-// advanceWhen gate). Observable steps wait one turn after setup so BD
-// has time to render the change before validation runs.
-function scrAutoTick() {
-  var s = state.scriptureTest;
-  if (!s.auto.enabled) return;
-
-  // Safety bound: each iteration either advances stepIdx or returns, so
-  // a small bound is plenty.
-  var safety = SCR_AUTO_PLAN.length + 2;
-
-  while (safety-- > 0 && s.auto.stepIdx < SCR_AUTO_PLAN.length) {
-    var step = SCR_AUTO_PLAN[s.auto.stepIdx];
-    var rec = s.auto.results[step.label];
-
-    // Phase 1: run setup once. Detect whether it changed envelope-relevant state.
-    if (!rec || !rec._setupRan) {
-      var prevScenario = s.scenario;
-      try { step.setup && step.setup(); } catch (e) { scrLog('auto-error', 'setup ' + step.label + ': ' + e); }
-
-      var observable = (s.scenario !== prevScenario) || !!step.advanceWhen;
-
-      s.auto.stepStartedTurn = s.turn;
-      s.auto.stepStartedAt = scrNow();
-      s.auto.results[step.label] = {
-        _setupRan: true,
-        _observable: observable,
-        pending: true,
-        note: step.note,
-      };
-      rec = s.auto.results[step.label];
-      s.phase = 'auto: ' + step.label;
-      scrLog('auto-step', step.label + (observable ? ' (waiting one turn)' : ''));
-
-      // Observable steps wait a turn so BD can render the new envelope before
-      // validation runs and the next step's setup fires. Non-observable steps
-      // (e.g. heartbeat) fall through and validate on the same tick.
-      if (observable) return;
-    }
-
-    // Phase 2: explicit advanceWhen gate (e.g., pending-prompt waits for an event)
-    if (typeof step.advanceWhen === 'function') {
-      var ready = false;
-      try { ready = !!step.advanceWhen(); } catch (e) { ready = false; }
-      if (!ready) {
-        s.phase = 'auto-wait: ' + step.label;
-        return;
-      }
-    } else if (rec._observable) {
-      // Default delay for observable steps: require at least one turn between
-      // setup and validate so the user actually sees the change on screen.
-      var elapsed = s.turn - (s.auto.stepStartedTurn || s.turn);
-      if (elapsed < 1) {
-        s.phase = 'auto-wait: ' + step.label;
-        return;
-      }
-    }
-
-    // Phase 3: validate.
-    var validation;
-    try { validation = step.validate ? step.validate() : { pass: true }; }
-    catch (e) { validation = { pass: false, reason: 'validate threw: ' + e }; }
-
-    s.auto.results[step.label] = {
-      _setupRan: true,
-      pending: false,
-      pass: !!validation.pass,
-      reason: validation.reason || '',
-      observed: validation.observed || '',
-      note: step.note,
-    };
-    scrLog('auto-result', step.label + ' -> ' + (validation.pass ? 'pass' : 'FAIL'));
-
-    s.auto.stepIdx += 1;
-    s.auto.stepStartedAt = scrNow();
-    s.auto.stepStartedTurn = s.turn;
-
-    // Loop continues so non-observable steps can chain in the same turn.
-  }
-
-  if (s.auto.stepIdx >= SCR_AUTO_PLAN.length) {
-    s.phase = 'auto-complete';
-    s.auto.enabled = false;
-  }
-}
-
 // ---------- trace ----------
-
-function scrCountAuto() {
-  var s = state.scriptureTest;
-  var counts = { total: SCR_AUTO_PLAN.length, pass: 0, fail: 0, pending: 0 };
-  for (var i = 0; i < SCR_AUTO_PLAN.length; i++) {
-    var label = SCR_AUTO_PLAN[i].label;
-    var r = s.auto.results[label];
-    if (!r || r.pending) counts.pending++;
-    else if (r.pass) counts.pass++;
-    else counts.fail++;
-  }
-  return counts;
-}
 
 function scrSummarizeEnvelope(env) {
   if (!env) return null;
   var widgetCount = (env.manifest && Array.isArray(env.manifest.widgets)) ? env.manifest.widgets.length : 0;
   var historyKeys = env.history ? Object.keys(env.history) : [];
+  var values = (env.history && historyKeys.length) ? env.history[historyKeys[0]] : {};
   return {
     widgetCount: widgetCount,
     historyKeys: historyKeys,
     ackSeq: env.interactions && env.interactions.ackSeq,
+    values: values,
   };
 }
 
 function scrWriteTrace(envelope) {
   var s = state.scriptureTest;
   var hb = scrHeartbeat();
-  var counts = scrCountAuto();
+  var summary = scrSummarizeEnvelope(envelope);
+  var manifest = scrManifestFor(s.scenario);
 
   var trace = {
-    v: 1,
+    v: 2,
     runId: scrRunId(),
     turn: s.turn,
     liveCount: scrLiveCount(),
-    phase: s.phase,
+    phase: s.scenario || 'idle',
     scenario: s.scenario,
+    transitionPhase: s.scenario === 'transitions'
+      ? { idx: s.transitionIdx, total: SCR_TRANSITION_PHASES.length }
+      : null,
     heartbeat: {
       present: !!hb,
-      profile: hb && hb.frontier && hb.frontier.profile,
-      protocol: hb && hb.frontier && hb.frontier.protocol,
       scriptureAdvertised: scrScriptureAdvertised(),
     },
-    publishedEnvelope: scrSummarizeEnvelope(envelope),
+    publishedEnvelope: summary,
     interactions: {
       ackSeq: s.ackSeq,
       lastSeqSeen: s.lastSeqSeen,
-      recentEvents: s.observedEvents.slice(-8),
+      recentEvents: s.observedEvents.slice(-6),
     },
-    auto: {
-      enabled: s.auto.enabled,
-      stepIdx: s.auto.stepIdx,
-      counts: counts,
-      checksPass: counts.pending === 0 && counts.fail === 0,
-      currentStep: SCR_AUTO_PLAN[s.auto.stepIdx]
-        ? { label: SCR_AUTO_PLAN[s.auto.stepIdx].label, note: SCR_AUTO_PLAN[s.auto.stepIdx].note }
-        : null,
-      results: s.auto.results,
-    },
-    commands: {
-      help: [
-        '/scripture run            - start the auto checklist',
-        '/scripture next           - skip current auto step',
-        '/scripture stop           - pause the auto run',
-        '/scripture smoke          - load smoke scenario',
-        '/scripture affordances    - load affordances scenario',
-        '/scripture invalid        - publish invalid values (module should skip them)',
-        '/scripture ack            - force-ack pending widget events',
-        '/scripture clear          - unmount all widgets',
-        '/scripture reset          - reset suite state',
-      ],
-    },
-    events: s.events,
+    widgets: manifest
+      ? manifest.widgets.map(function (w) {
+        return { id: w.id, type: w.type, currentValue: summary.values && summary.values[w.id] };
+      })
+      : [],
+    commands: [
+      '/scripture display      - stat / bar / counter / progress / taggroup / divider / icon / badge / text',
+      '/scripture interactive  - radio / stepper / confirm / chipselect / button / toggle / select / slider / input / textarea',
+      '/scripture containers   - accordion / tabs / dropdown / sortable',
+      '/scripture invalid      - broken configs (module should skip them)',
+      '/scripture transitions  - animated value changes across turns',
+      '/scripture edge         - empty lists, long labels, 0-width bars, etc.',
+      '/scripture value <id> <val>  - manually set a widget value',
+      '/scripture next         - advance transition to next phase',
+      '/scripture ack          - force-ack pending events',
+      '/scripture clear        - unmount all widgets',
+      '/scripture reset        - reset suite state',
+    ],
+    events: s.events.slice(-12),
   };
   scrWriteCard('frontier:test:scripture', JSON.stringify(trace, null, 2), 'Frontier Test');
 }
@@ -709,20 +565,14 @@ function frontierScriptureTestStep(text) {
   scrRunId();
   s.turn += 1;
 
-  // Inbox poller: respect the auto-run's hold flag so 'pending' is observable.
-  scrPollInbox({ holdAck: !!s._pendingHold });
+  scrPollInbox();
 
-  // Auto-run: tick before publish so its setup affects this turn's envelope.
-  scrAutoTick();
-
-  // Publish state envelope every turn (cheap; lets BD pick up scenario changes).
-  var env = scrPublishState();
-
-  // Update phase if not auto-driven.
-  if (!s.auto.enabled) {
-    s.phase = s.scenario ? s.scenario : 'idle';
+  // Auto-advance transition scenario each turn
+  if (s.scenario === 'transitions') {
+    s.transitionIdx = (s.transitionIdx + 1) % SCR_TRANSITION_PHASES.length;
   }
 
+  var env = scrPublishState();
   scrWriteTrace(env);
   return true;
 }

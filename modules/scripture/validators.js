@@ -26,7 +26,6 @@
     'input',
     'textarea',
     // --- new display ---
-    'timer',
     'progress',
     'taggroup',
     'divider',
@@ -39,7 +38,6 @@
     'accordion',
     'tabs',
     'dropdown',
-    'holdbutton',
     'sortable',
   ]);
 
@@ -47,7 +45,7 @@
   const INTERACTIVE_WIDGET_TYPES = new Set([
     'button', 'toggle', 'select', 'slider', 'input', 'textarea',
     'radio', 'stepper', 'confirm', 'chipselect',
-    'accordion', 'tabs', 'dropdown', 'holdbutton', 'sortable',
+    'accordion', 'tabs', 'dropdown', 'sortable',
   ]);
   const INPUT_TYPES = new Set(['text', 'search', 'number']);
   const MAX_WIDGETS = 40;
@@ -94,7 +92,6 @@
     input: new Set(['value', 'disabled', 'style']),
     textarea: new Set(['value', 'disabled', 'style']),
     // new display
-    timer: new Set(['value', 'urgency', 'color', 'style']),
     progress: new Set(['value', 'max', 'color', 'style']),
     taggroup: new Set(['items', 'style']),
     divider: new Set(['label', 'style']),
@@ -107,7 +104,6 @@
     accordion: new Set(['items', 'value', 'style']),
     tabs: new Set(['items', 'value', 'style']),
     dropdown: new Set(['items', 'value', 'disabled', 'style']),
-    holdbutton: new Set(['text', 'value', 'duration', 'disabled', 'style']),
     sortable: new Set(['items', 'value', 'disabled', 'style']),
   };
 
@@ -312,12 +308,6 @@
       }
     }
 
-    if (config.type === 'timer') {
-      if (config.value !== undefined && typeof config.value !== 'number') {
-        errors.push('Timer widget "value" must be a number (seconds)');
-      }
-    }
-
     if (config.type === 'progress') {
       if (config.max !== undefined && (typeof config.max !== 'number' || config.max <= 0)) {
         errors.push('Progress widget "max" must be a positive number');
@@ -373,12 +363,6 @@
         errors.push(`${config.type} widget "items" must be an array`);
       } else if (config.items.length > MAX_SELECT_OPTIONS) {
         errors.push(`${config.type} widget "items" may contain at most ${MAX_SELECT_OPTIONS} entries`);
-      }
-    }
-
-    if (config.type === 'holdbutton') {
-      if (config.duration !== undefined && (typeof config.duration !== 'number' || config.duration <= 0)) {
-        errors.push('Holdbutton widget "duration" must be a positive number (ms)');
       }
     }
 

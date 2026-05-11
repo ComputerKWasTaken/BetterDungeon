@@ -91,15 +91,16 @@
       return validators().INTERACTIVE_WIDGET_TYPES?.has?.(type);
     }
 
+    // Optimistically swap in the player's pending value so re-renders keep
+    // showing their change until the AI acks. UI-only pending records (button
+    // presses, dropdown picks, etc.) have no stored value, so the config
+    // passes through untouched — only the pulse signals the pending state.
     applyPendingInteractionValue(config) {
       if (!config?.id || !this.pendingInteractionValues.has(config.id)) return config;
       if (!this.isInteractiveType(config.type)) return config;
       const pending = this.pendingInteractionValues.get(config.id);
-      // UI-only pending records (from fire-and-forget interactions like
-      // button presses) have no stored value — don't overwrite the config's
-      // value in that case, just pass the config through.
-      if (pending.value === undefined) return { ...config, _optimisticSeq: pending.seq };
-      return { ...config, value: pending.value, _optimisticSeq: pending.seq };
+      if (pending.value === undefined) return config;
+      return { ...config, value: pending.value };
     }
 
     // Clear pending state for any interactions the AI has now acknowledged.
@@ -581,9 +582,6 @@
           widgetElement = this.createTextareaWidget(widgetId, config);
           break;
         // --- new display ---
-        case 'timer':
-          widgetElement = this.createTimerWidget(widgetId, config);
-          break;
         case 'progress':
           widgetElement = this.createProgressWidget(widgetId, config);
           break;
@@ -615,9 +613,6 @@
           break;
         case 'dropdown':
           widgetElement = this.createDropdownWidget(widgetId, config);
-          break;
-        case 'holdbutton':
-          widgetElement = this.createHoldbuttonWidget(widgetId, config);
           break;
         case 'sortable':
           widgetElement = this.createSortableWidget(widgetId, config);
@@ -1049,9 +1044,6 @@
           this.updateInteractiveWidget(element, widgetId, config, existingConfig);
           break;
         // --- new display ---
-        case 'timer':
-          this.updateTimerWidget(element, config);
-          break;
         case 'progress':
           this.updateProgressWidget(element, config);
           break;
@@ -1084,9 +1076,6 @@
         case 'dropdown':
           this.updateDropdownWidget(element, widgetId, config);
           break;
-        case 'holdbutton':
-          this.updateHoldbuttonWidget(element, config);
-          break;
         case 'sortable':
           this.updateSortableWidget(element, widgetId, config);
           break;
@@ -1103,11 +1092,53 @@
       this.emitWidget('updated', widgetId, config);
     }
 
+    // ---------------------------------------------------------------
+    // VALUE TRANSITIONS
+    // ---------------------------------------------------------------
+
+    _parseNumber(str) {
+      if (typeof str === 'number') return str;
+      if (typeof str !== 'string') return NaN;
+      const cleaned = str.replace(/,/g, '').match(/^-?\d+(?:\.\d+)?/);
+      return cleaned ? Number(cleaned[0]) : NaN;
+    }
+
+    _formatNumber(value, decimals = 0) {
+      const rounded = decimals > 0 ? Math.round(value * (10 ** decimals)) / (10 ** decimals) : Math.round(value);
+      return String(rounded).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+
+    _tweenTextValue(element, targetValue, duration = 280, formatter = null) {
+      if (!element) return;
+      const target = this._parseNumber(targetValue);
+      if (!Number.isFinite(target)) {
+        element.textContent = String(targetValue ?? '');
+        return;
+      }
+      const current = this._parseNumber(element.textContent);
+      if (!Number.isFinite(current) || current === target) {
+        element.textContent = formatter ? formatter(target) : this._formatNumber(target);
+        return;
+      }
+      if (element._tweenId) cancelAnimationFrame(element._tweenId);
+      const start = performance.now();
+      const delta = target - current;
+      const step = (now) => {
+        const t = Math.min(1, (now - start) / duration);
+        const eased = 1 - (1 - t) * (1 - t); // ease-out quad
+        const val = current + delta * eased;
+        element.textContent = formatter ? formatter(val) : this._formatNumber(val);
+        if (t < 1) element._tweenId = requestAnimationFrame(step);
+        else element._tweenId = null;
+      };
+      element._tweenId = requestAnimationFrame(step);
+    }
+
     updateStatWidget(element, config) {
       const labelEl = element.querySelector('.bd-widget-label');
       const valueEl = element.querySelector('.bd-widget-value');
       if (labelEl) labelEl.textContent = config.label ?? 'Stat';
-      if (valueEl) valueEl.textContent = config.value ?? '0';
+      if (valueEl) this._tweenTextValue(valueEl, config.value ?? 0);
       if (valueEl) this.applyPresetOrInlineColor(element, valueEl, config.color, 'color', true);
     }
 
@@ -1125,7 +1156,12 @@
       }
       if (barText) {
         const showValue = config.showValue !== false;
-        barText.textContent = showValue ? `${config.value ?? 0}/${config.max ?? 100}` : '';
+        const max = config.max ?? 100;
+        if (showValue) {
+          this._tweenTextValue(barText, config.value ?? 0, 280, v => `${Math.round(v)}/${max}`);
+        } else {
+          barText.textContent = '';
+        }
       }
       if (barFill) this.applyPresetOrInlineColor(element, barFill, config.color, 'background', true);
     }
@@ -1222,7 +1258,7 @@
         iconEl.remove();
       }
 
-      if (valueEl) valueEl.textContent = config.value ?? 0;
+      if (valueEl) this._tweenTextValue(valueEl, config.value ?? 0);
       if (valueEl) valueEl.style.color = config.color || '';
       this.applyCounterDelta(element, config.delta);
     }
@@ -1595,46 +1631,6 @@
     // NEW DISPLAY WIDGETS
     // ---------------------------------------------------------------
 
-    createTimerWidget(widgetId, config) {
-      const widget = this.createBaseWidget(widgetId, 'bd-widget-timer', config);
-
-      const label = document.createElement('span');
-      label.className = 'bd-widget-label';
-      label.textContent = config.label || 'Timer';
-
-      const display = document.createElement('span');
-      display.className = 'bd-widget-timer-display';
-      display.textContent = this._formatTimerValue(config.value ?? 0);
-
-      if (config.urgency) widget.dataset.urgency = config.urgency;
-      this.applyPresetOrInlineColor(widget, display, config.color, 'color');
-
-      widget.appendChild(label);
-      widget.appendChild(display);
-      return widget;
-    }
-
-    updateTimerWidget(element, config) {
-      const labelEl = element.querySelector('.bd-widget-label');
-      const displayEl = element.querySelector('.bd-widget-timer-display');
-      if (labelEl) labelEl.textContent = config.label || 'Timer';
-      if (displayEl) {
-        displayEl.textContent = this._formatTimerValue(config.value ?? 0);
-        this.applyPresetOrInlineColor(element, displayEl, config.color, 'color', true);
-      }
-      if (config.urgency !== undefined) element.dataset.urgency = config.urgency;
-      else delete element.dataset.urgency;
-    }
-
-    _formatTimerValue(totalSeconds) {
-      const s = Math.max(0, Math.round(totalSeconds));
-      const h = Math.floor(s / 3600);
-      const m = Math.floor((s % 3600) / 60);
-      const sec = s % 60;
-      const pad = n => String(n).padStart(2, '0');
-      return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
-    }
-
     createProgressWidget(widgetId, config) {
       const widget = this.createBaseWidget(widgetId, 'bd-widget-progress', config);
 
@@ -1672,7 +1668,7 @@
         const max = config.max ?? 100;
         const pct = Math.min(100, Math.max(0, ((config.value ?? 0) / max) * 100));
         fill.style.width = `${pct}%`;
-        if (valueText) valueText.textContent = `${Math.round(pct)}%`;
+        if (valueText) this._tweenTextValue(valueText, Math.round(pct), 280, v => `${Math.round(v)}%`);
         this.applyPresetOrInlineColor(element, fill, config.color, 'background', true);
       }
     }
@@ -2235,70 +2231,6 @@
         menu.innerHTML = '';
         this._buildDropdownItems(menu, widgetId, config);
       }
-      this.setInteractiveDisabled(element, config);
-    }
-
-    createHoldbuttonWidget(widgetId, config) {
-      const widget = this.createInteractiveShell(widgetId, 'bd-widget-holdbutton', config);
-      const label = this.createControlLabel(config, '');
-      widget.appendChild(label);
-
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'bd-widget-holdbutton-btn';
-
-      const fill = document.createElement('div');
-      fill.className = 'bd-widget-holdbutton-fill';
-
-      const btnText = document.createElement('span');
-      btnText.textContent = config.text ?? config.label ?? 'Hold';
-
-      btn.appendChild(fill);
-      btn.appendChild(btnText);
-
-      const duration = config.duration ?? 800;
-      let holdInterval = null;
-
-      const start = () => {
-        const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
-        if (currentConfig.disabled) return;
-        let progress = 0;
-        holdInterval = setInterval(() => {
-          progress += 16 / (currentConfig.duration ?? duration);
-          fill.style.width = `${Math.min(100, progress * 100)}%`;
-          if (progress >= 1) {
-            clearInterval(holdInterval);
-            holdInterval = null;
-            fill.style.width = '0%';
-            const value = currentConfig.value !== undefined ? currentConfig.value : true;
-            this.emitInteraction(currentConfig, 'hold', value, undefined, { coalesce: false });
-          }
-        }, 16);
-      };
-
-      const end = () => {
-        if (holdInterval) {
-          clearInterval(holdInterval);
-          holdInterval = null;
-          fill.style.width = '0%';
-        }
-      };
-
-      btn.addEventListener('mousedown', start);
-      btn.addEventListener('touchstart', start, { passive: true });
-      btn.addEventListener('mouseup', end);
-      btn.addEventListener('mouseleave', end);
-      btn.addEventListener('touchend', end);
-
-      widget.appendChild(btn);
-      this.setInteractiveDisabled(widget, config);
-      return widget;
-    }
-
-    updateHoldbuttonWidget(element, config) {
-      this.updateControlLabel(element, config, '');
-      const btnText = element.querySelector('.bd-widget-holdbutton-btn span:last-child');
-      if (btnText) btnText.textContent = config.text ?? config.label ?? 'Hold';
       this.setInteractiveDisabled(element, config);
     }
 
