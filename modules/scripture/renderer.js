@@ -35,6 +35,9 @@
       this.displayOptions = normalizeDisplayOptions(options.displayOptions);
       this.registeredWidgets = new Map();
       this.pendingInteractionValues = new Map();
+      // Tracks widgets that have received at least one real value from the AI,
+      // used to distinguish 'loading' (never had a value) from 'empty' (AI says no value).
+      this.everReceivedValue = new Set();
       this.widgetContainer = null;
       this.widgetWrapper = null;
       this.widgetZones = { left: null, center: null, right: null };
@@ -101,7 +104,51 @@
       for (const [widgetId, pending] of [...this.pendingInteractionValues.entries()]) {
         if (Number(pending.seq || 0) <= n) {
           this.pendingInteractionValues.delete(widgetId);
+          // Clear pending affordance now that the AI has acknowledged the interaction
+          const data = this.registeredWidgets.get(widgetId);
+          if (data?.element) this._clearAffordanceIfPending(data.element);
         }
+      }
+    }
+
+    // Remove the pending state only — whatever affordance the module set last
+    // (stale, empty, etc.) should remain if the ack came before a new render.
+    _clearAffordanceIfPending(element) {
+      if (element.dataset.state === 'pending') {
+        delete element.dataset.state;
+        element.querySelectorAll('.bd-widget-skeleton,.bd-widget-error-msg,.bd-widget-empty-hint').forEach(el => el.remove());
+      }
+    }
+
+    // Public: apply or clear affordance state on a mounted widget element.
+    setWidgetAffordance(widgetId, state) {
+      const data = this.registeredWidgets.get(widgetId);
+      if (!data?.element) return;
+      this.applyAffordanceState(data.element, state, data.config);
+    }
+
+    // Core affordance state applier. Called after create/update and by module.
+    applyAffordanceState(element, state, config) {
+      // Clean up helpers from a previous state before applying a new one
+      element.querySelectorAll('.bd-widget-error-msg,.bd-widget-empty-hint').forEach(el => el.remove());
+
+      if (!state) {
+        delete element.dataset.state;
+        return;
+      }
+
+      element.dataset.state = state;
+
+      if (state === 'error') {
+        const msg = document.createElement('span');
+        msg.className = 'bd-widget-error-msg';
+        msg.textContent = config?._affordanceError || '⚠ Error';
+        element.appendChild(msg);
+      } else if (state === 'empty') {
+        const hint = document.createElement('span');
+        hint.className = 'bd-widget-empty-hint';
+        hint.textContent = '—';
+        element.appendChild(hint);
       }
     }
 
@@ -111,6 +158,9 @@
         value,
         seq: Number(record.seq),
       });
+      // Immediately reflect the pending state on the element
+      const data = this.registeredWidgets.get(widgetId);
+      if (data?.element) this.applyAffordanceState(data.element, 'pending', data.config);
     }
 
     emitInteraction(config, action, value, previousValue, extra = {}) {
@@ -604,6 +654,10 @@
       else this.widgetContainer.appendChild(widgetElement);
       if (config.type === 'custom') this.activateCustomWidgetScripts(widgetElement);
 
+      // Determine initial affordance: loading if never received a value, else from module annotation
+      const affordance = config._affordance ?? (this.everReceivedValue.has(widgetId) ? null : 'loading');
+      this.applyAffordanceState(widgetElement, affordance, config);
+
       this.registeredWidgets.set(widgetId, { element: widgetElement, config: { ...config } });
       this.recalculateWidgetDensity();
       this.emitWidget('created', widgetId, config);
@@ -1068,6 +1122,16 @@
 
       if (config.order !== undefined) element.style.order = config.order;
       else element.style.order = '';
+
+      // Track that this widget has now received at least one real value from the AI
+      if (config._affordance !== 'empty' && config._affordance !== 'error') {
+        this.everReceivedValue.add(widgetId);
+      }
+
+      // Don't overwrite a pending state that the module applied after setWidgets
+      if (element.dataset.state !== 'pending') {
+        this.applyAffordanceState(element, config._affordance ?? null, config);
+      }
 
       this.registeredWidgets.set(widgetId, { element, config: { ...config } });
       this.recalculateWidgetDensity();
@@ -1541,6 +1605,7 @@
       widgetData.element.remove();
       this.registeredWidgets.delete(widgetId);
       this.pendingInteractionValues.delete(widgetId);
+      this.everReceivedValue.delete(widgetId);
       this.emitWidget('destroyed', widgetId);
 
       if (this.registeredWidgets.size === 0) this.removeWidgetContainer();
@@ -1553,6 +1618,7 @@
       });
       this.registeredWidgets.clear();
       this.pendingInteractionValues.clear();
+      this.everReceivedValue.clear();
       this._warnedMessages.clear();
       this.removeWidgetContainer();
       this.log('All widgets cleared');

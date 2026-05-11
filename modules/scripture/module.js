@@ -193,10 +193,18 @@
     const values = selectHistoryEntry(parsed.history, liveCount);
     const widgets = [];
 
+    // Stale detection: does the history have ANY entry for the current liveCount key?
+    const liveKey = String(liveCount);
+    const hasCurrentEntry = isObject(parsed.history) &&
+      Object.prototype.hasOwnProperty.call(parsed.history, liveKey) &&
+      isObject(parsed.history[liveKey]);
+
     for (const widget of manifestResult.widgets) {
       const config = cloneObject(widget);
       const primaryValue = getOwn(values, widget.id);
-      if (primaryValue !== undefined) {
+      const hasValue = primaryValue !== undefined;
+
+      if (hasValue) {
         applyValueToWidget(config, primaryValue);
       }
 
@@ -208,7 +216,22 @@
       const validation = validators.validateWidgetConfig(config.id, config);
       if (!validation.valid) {
         errors.push(`Widget "${config.id}" invalid after values: ${validation.errors.join('; ')}`);
+        // Pass widget through as an error affordance rather than dropping it silently
+        config._affordance = 'error';
+        config._affordanceError = validation.errors[0] || 'Invalid value';
+        widgets.push(config);
         continue;
+      }
+
+      // Mark affordance state for the renderer to apply
+      if (!hasValue) {
+        // No value for this widget at all — it may be truly empty or just loading
+        config._affordance = 'empty';
+      } else if (!hasCurrentEntry) {
+        // History exists but there's no entry for this liveCount yet — AI is mid-turn
+        config._affordance = 'stale';
+      } else {
+        config._affordance = null; // normal, clear any previous state
       }
 
       widgets.push(config);
@@ -317,6 +340,13 @@
       }
 
       this._renderer.setWidgets(result.widgets);
+
+      // Apply pending affordance to any widget with an unacknowledged interaction
+      for (const config of result.widgets) {
+        if (this._renderer.pendingInteractionValues.has(config.id)) {
+          this._renderer.setWidgetAffordance(config.id, 'pending');
+        }
+      }
     },
 
     warnOnce(ctx, key, message, details) {
