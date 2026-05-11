@@ -95,6 +95,10 @@
       if (!config?.id || !this.pendingInteractionValues.has(config.id)) return config;
       if (!this.isInteractiveType(config.type)) return config;
       const pending = this.pendingInteractionValues.get(config.id);
+      // UI-only pending records (from fire-and-forget interactions like
+      // button presses) have no stored value — don't overwrite the config's
+      // value in that case, just pass the config through.
+      if (pending.value === undefined) return { ...config, _optimisticSeq: pending.seq };
       return { ...config, value: pending.value, _optimisticSeq: pending.seq };
     }
 
@@ -152,13 +156,35 @@
       }
     }
 
+    // Mark a widget as pending (UI only) — the player just interacted with it
+    // but the AI hasn't acknowledged yet. Safe to call for any widget; no value
+    // override is stored, so applyPendingInteractionValue will pass through.
+    markPending(widgetId, record) {
+      if (!widgetId || !record?.seq) return;
+      const existing = this.pendingInteractionValues.get(widgetId);
+      const seq = Number(record.seq);
+      if (existing && Number(existing.seq || 0) >= seq) {
+        // Keep the richer record (e.g. one set by rememberPendingValue);
+        // still re-apply the affordance below.
+      } else {
+        this.pendingInteractionValues.set(widgetId, {
+          value: existing?.value,  // undefined for UI-only interactions
+          seq,
+        });
+      }
+      const data = this.registeredWidgets.get(widgetId);
+      if (data?.element) this.applyAffordanceState(data.element, 'pending', data.config);
+    }
+
+    // Remember an optimistic value AND mark the widget pending. Use this from
+    // handlers whose value should persist visually across re-renders until the
+    // AI acks the change (toggle, select, slider, stepper, radio, chips, …).
     rememberPendingValue(widgetId, value, record) {
       if (!widgetId || !record?.seq) return;
       this.pendingInteractionValues.set(widgetId, {
         value,
         seq: Number(record.seq),
       });
-      // Immediately reflect the pending state on the element
       const data = this.registeredWidgets.get(widgetId);
       if (data?.element) this.applyAffordanceState(data.element, 'pending', data.config);
     }
@@ -181,7 +207,19 @@
         coalesceKey: coalesce ? `${config.id}:${widgetType}:${config.event || action}` : null,
         ...extra,
       };
-      return this.onInteraction(detail);
+      const record = this.onInteraction(detail);
+
+      // Seamless pending affordance: every interaction on an interactive
+      // widget automatically shows the "Queued" badge until the AI acks.
+      // Handlers that also need optimistic value persistence call
+      // rememberPendingValue; this universal path handles the UI alone for
+      // fire-and-forget interactions (button press, confirm, dropdown pick,
+      // accordion toggle, etc.). Opt out with extra.skipPending if needed.
+      if (record && !extra.skipPending && this.isInteractiveType(widgetType)) {
+        this.markPending(config.id, record);
+      }
+
+      return record;
     }
 
     setInteractiveDisabled(element, config) {
