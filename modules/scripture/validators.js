@@ -8,6 +8,7 @@
   if (window.ScriptureValidators) return;
 
   const WIDGET_TYPES = new Set([
+    // --- existing display ---
     'stat',
     'bar',
     'text',
@@ -17,16 +18,37 @@
     'list',
     'icon',
     'counter',
+    // --- existing interactive ---
     'button',
     'toggle',
     'select',
     'slider',
     'input',
     'textarea',
+    // --- new display ---
+    'timer',
+    'progress',
+    'taggroup',
+    'divider',
+    // --- new interactive ---
+    'radio',
+    'stepper',
+    'confirm',
+    'chipselect',
+    // --- new container / action ---
+    'accordion',
+    'tabs',
+    'dropdown',
+    'holdbutton',
+    'sortable',
   ]);
 
   const VALID_ALIGNMENTS = new Set(['left', 'center', 'right']);
-  const INTERACTIVE_WIDGET_TYPES = new Set(['button', 'toggle', 'select', 'slider', 'input', 'textarea']);
+  const INTERACTIVE_WIDGET_TYPES = new Set([
+    'button', 'toggle', 'select', 'slider', 'input', 'textarea',
+    'radio', 'stepper', 'confirm', 'chipselect',
+    'accordion', 'tabs', 'dropdown', 'holdbutton', 'sortable',
+  ]);
   const INPUT_TYPES = new Set(['text', 'search', 'number']);
   const MAX_WIDGETS = 40;
   const MAX_WIDGET_ID_LENGTH = 64;
@@ -71,6 +93,22 @@
     slider: new Set(['value', 'disabled', 'style']),
     input: new Set(['value', 'disabled', 'style']),
     textarea: new Set(['value', 'disabled', 'style']),
+    // new display
+    timer: new Set(['value', 'urgency', 'color', 'style']),
+    progress: new Set(['value', 'max', 'color', 'style']),
+    taggroup: new Set(['items', 'style']),
+    divider: new Set(['label', 'style']),
+    // new interactive
+    radio: new Set(['value', 'options', 'disabled', 'style']),
+    stepper: new Set(['value', 'min', 'max', 'step', 'disabled', 'style']),
+    confirm: new Set(['text', 'value', 'disabled', 'style']),
+    chipselect: new Set(['value', 'options', 'disabled', 'style']),
+    // new container / action
+    accordion: new Set(['items', 'value', 'style']),
+    tabs: new Set(['items', 'value', 'style']),
+    dropdown: new Set(['items', 'value', 'disabled', 'style']),
+    holdbutton: new Set(['text', 'value', 'duration', 'disabled', 'style']),
+    sortable: new Set(['items', 'value', 'disabled', 'style']),
   };
 
   function isPlainObject(value) {
@@ -271,6 +309,76 @@
       }
       if (config.rows !== undefined && (!Number.isInteger(config.rows) || config.rows <= 0 || config.rows > 8)) {
         errors.push('Textarea widget "rows" must be an integer from 1 to 8');
+      }
+    }
+
+    if (config.type === 'timer') {
+      if (config.value !== undefined && typeof config.value !== 'number') {
+        errors.push('Timer widget "value" must be a number (seconds)');
+      }
+    }
+
+    if (config.type === 'progress') {
+      if (config.max !== undefined && (typeof config.max !== 'number' || config.max <= 0)) {
+        errors.push('Progress widget "max" must be a positive number');
+      }
+      if (config.value !== undefined && typeof config.value !== 'number') {
+        errors.push('Progress widget "value" must be a number');
+      }
+    }
+
+    if (config.type === 'taggroup') {
+      if (config.items !== undefined && !Array.isArray(config.items)) {
+        errors.push('Taggroup widget "items" must be an array');
+      } else if (Array.isArray(config.items) && config.items.length > MAX_LIST_ITEMS) {
+        errors.push(`Taggroup widget "items" may contain at most ${MAX_LIST_ITEMS} entries`);
+      }
+    }
+
+    if (config.type === 'radio' || config.type === 'chipselect') {
+      if (!Array.isArray(config.options)) {
+        errors.push(`${config.type} widget "options" must be an array`);
+      } else if (config.options.length > MAX_SELECT_OPTIONS) {
+        errors.push(`${config.type} widget "options" may contain at most ${MAX_SELECT_OPTIONS} entries`);
+      } else {
+        config.options.forEach((option, index) => validateOption(option, index, errors));
+      }
+    }
+
+    if (config.type === 'stepper') {
+      if (config.value !== undefined && typeof config.value !== 'number') {
+        errors.push('Stepper widget "value" must be a number');
+      }
+      if (config.min !== undefined && typeof config.min !== 'number') {
+        errors.push('Stepper widget "min" must be a number');
+      }
+      if (config.max !== undefined && typeof config.max !== 'number') {
+        errors.push('Stepper widget "max" must be a number');
+      }
+      if (config.step !== undefined && (typeof config.step !== 'number' || config.step <= 0)) {
+        errors.push('Stepper widget "step" must be a positive number');
+      }
+    }
+
+    if (config.type === 'accordion' || config.type === 'tabs') {
+      if (!Array.isArray(config.items)) {
+        errors.push(`${config.type} widget "items" must be an array`);
+      } else if (config.items.length > MAX_PANEL_ITEMS) {
+        errors.push(`${config.type} widget "items" may contain at most ${MAX_PANEL_ITEMS} entries`);
+      }
+    }
+
+    if (config.type === 'dropdown' || config.type === 'sortable') {
+      if (!Array.isArray(config.items)) {
+        errors.push(`${config.type} widget "items" must be an array`);
+      } else if (config.items.length > MAX_SELECT_OPTIONS) {
+        errors.push(`${config.type} widget "items" may contain at most ${MAX_SELECT_OPTIONS} entries`);
+      }
+    }
+
+    if (config.type === 'holdbutton') {
+      if (config.duration !== undefined && (typeof config.duration !== 'number' || config.duration <= 0)) {
+        errors.push('Holdbutton widget "duration" must be a positive number (ms)');
       }
     }
 

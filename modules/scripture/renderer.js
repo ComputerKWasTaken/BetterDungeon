@@ -549,6 +549,48 @@
         case 'textarea':
           widgetElement = this.createTextareaWidget(widgetId, config);
           break;
+        // --- new display ---
+        case 'timer':
+          widgetElement = this.createTimerWidget(widgetId, config);
+          break;
+        case 'progress':
+          widgetElement = this.createProgressWidget(widgetId, config);
+          break;
+        case 'taggroup':
+          widgetElement = this.createTaggroupWidget(widgetId, config);
+          break;
+        case 'divider':
+          widgetElement = this.createDividerWidget(widgetId, config);
+          break;
+        // --- new interactive ---
+        case 'radio':
+          widgetElement = this.createRadioWidget(widgetId, config);
+          break;
+        case 'stepper':
+          widgetElement = this.createStepperWidget(widgetId, config);
+          break;
+        case 'confirm':
+          widgetElement = this.createConfirmWidget(widgetId, config);
+          break;
+        case 'chipselect':
+          widgetElement = this.createChipselectWidget(widgetId, config);
+          break;
+        // --- new container / action ---
+        case 'accordion':
+          widgetElement = this.createAccordionWidget(widgetId, config);
+          break;
+        case 'tabs':
+          widgetElement = this.createTabsWidget(widgetId, config);
+          break;
+        case 'dropdown':
+          widgetElement = this.createDropdownWidget(widgetId, config);
+          break;
+        case 'holdbutton':
+          widgetElement = this.createHoldbuttonWidget(widgetId, config);
+          break;
+        case 'sortable':
+          widgetElement = this.createSortableWidget(widgetId, config);
+          break;
         default:
           this.warn('Unknown widget type:', config.type);
           return;
@@ -979,6 +1021,48 @@
         case 'input':
         case 'textarea':
           this.updateInteractiveWidget(element, widgetId, config, existingConfig);
+          break;
+        // --- new display ---
+        case 'timer':
+          this.updateTimerWidget(element, config);
+          break;
+        case 'progress':
+          this.updateProgressWidget(element, config);
+          break;
+        case 'taggroup':
+          this.updateTaggroupWidget(element, config);
+          break;
+        case 'divider':
+          this.updateDividerWidget(element, config);
+          break;
+        // --- new interactive ---
+        case 'radio':
+          this.updateRadioWidget(element, widgetId, config);
+          break;
+        case 'stepper':
+          this.updateStepperWidget(element, config);
+          break;
+        case 'confirm':
+          this.updateConfirmWidget(element, config);
+          break;
+        case 'chipselect':
+          this.updateChipselectWidget(element, widgetId, config);
+          break;
+        // --- new container / action ---
+        case 'accordion':
+          this.updateAccordionWidget(element, config);
+          break;
+        case 'tabs':
+          this.updateTabsWidget(element, widgetId, config);
+          break;
+        case 'dropdown':
+          this.updateDropdownWidget(element, widgetId, config);
+          break;
+        case 'holdbutton':
+          this.updateHoldbuttonWidget(element, config);
+          break;
+        case 'sortable':
+          this.updateSortableWidget(element, widgetId, config);
           break;
       }
 
@@ -1476,6 +1560,807 @@
 
     destroy() {
       this.clearAllWidgets();
+    }
+
+    // ---------------------------------------------------------------
+    // NEW DISPLAY WIDGETS
+    // ---------------------------------------------------------------
+
+    createTimerWidget(widgetId, config) {
+      const widget = this.createBaseWidget(widgetId, 'bd-widget-timer', config);
+
+      const label = document.createElement('span');
+      label.className = 'bd-widget-label';
+      label.textContent = config.label || 'Timer';
+
+      const display = document.createElement('span');
+      display.className = 'bd-widget-timer-display';
+      display.textContent = this._formatTimerValue(config.value ?? 0);
+
+      if (config.urgency) widget.dataset.urgency = config.urgency;
+      this.applyPresetOrInlineColor(widget, display, config.color, 'color');
+
+      widget.appendChild(label);
+      widget.appendChild(display);
+      return widget;
+    }
+
+    updateTimerWidget(element, config) {
+      const labelEl = element.querySelector('.bd-widget-label');
+      const displayEl = element.querySelector('.bd-widget-timer-display');
+      if (labelEl) labelEl.textContent = config.label || 'Timer';
+      if (displayEl) {
+        displayEl.textContent = this._formatTimerValue(config.value ?? 0);
+        this.applyPresetOrInlineColor(element, displayEl, config.color, 'color', true);
+      }
+      if (config.urgency !== undefined) element.dataset.urgency = config.urgency;
+      else delete element.dataset.urgency;
+    }
+
+    _formatTimerValue(totalSeconds) {
+      const s = Math.max(0, Math.round(totalSeconds));
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const sec = s % 60;
+      const pad = n => String(n).padStart(2, '0');
+      return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
+    }
+
+    createProgressWidget(widgetId, config) {
+      const widget = this.createBaseWidget(widgetId, 'bd-widget-progress', config);
+
+      const label = document.createElement('span');
+      label.className = 'bd-widget-label';
+      label.textContent = config.label || 'Progress';
+
+      const track = document.createElement('div');
+      track.className = 'bd-widget-progress-track';
+
+      const fill = document.createElement('div');
+      fill.className = 'bd-widget-progress-fill';
+      const max = config.max ?? 100;
+      const pct = Math.min(100, Math.max(0, ((config.value ?? 0) / max) * 100));
+      fill.style.width = `${pct}%`;
+      this.applyPresetOrInlineColor(widget, fill, config.color, 'background');
+
+      const valueText = document.createElement('span');
+      valueText.className = 'bd-widget-progress-value';
+      valueText.textContent = `${Math.round(pct)}%`;
+
+      track.appendChild(fill);
+      widget.appendChild(label);
+      widget.appendChild(track);
+      widget.appendChild(valueText);
+      return widget;
+    }
+
+    updateProgressWidget(element, config) {
+      const labelEl = element.querySelector('.bd-widget-label');
+      const fill = element.querySelector('.bd-widget-progress-fill');
+      const valueText = element.querySelector('.bd-widget-progress-value');
+      if (labelEl) labelEl.textContent = config.label || 'Progress';
+      if (fill) {
+        const max = config.max ?? 100;
+        const pct = Math.min(100, Math.max(0, ((config.value ?? 0) / max) * 100));
+        fill.style.width = `${pct}%`;
+        if (valueText) valueText.textContent = `${Math.round(pct)}%`;
+        this.applyPresetOrInlineColor(element, fill, config.color, 'background', true);
+      }
+    }
+
+    createTaggroupWidget(widgetId, config) {
+      const widget = this.createBaseWidget(widgetId, 'bd-widget-taggroup', config);
+      if (config.label) {
+        const label = document.createElement('span');
+        label.className = 'bd-widget-label';
+        label.textContent = config.label;
+        widget.appendChild(label);
+      }
+      const group = document.createElement('div');
+      group.className = 'bd-widget-taggroup-tags';
+      this._populateTags(group, config.items);
+      widget.appendChild(group);
+      return widget;
+    }
+
+    updateTaggroupWidget(element, config) {
+      const labelEl = element.querySelector('.bd-widget-label');
+      if (config.label) {
+        if (labelEl) labelEl.textContent = config.label;
+        else {
+          const l = document.createElement('span');
+          l.className = 'bd-widget-label';
+          l.textContent = config.label;
+          element.insertBefore(l, element.firstChild);
+        }
+      } else if (labelEl) {
+        labelEl.remove();
+      }
+      const group = element.querySelector('.bd-widget-taggroup-tags');
+      if (group) {
+        group.innerHTML = '';
+        this._populateTags(group, config.items);
+      }
+    }
+
+    _populateTags(container, items) {
+      if (!Array.isArray(items)) return;
+      items.forEach(item => {
+        const tag = document.createElement('span');
+        tag.className = 'bd-widget-tag';
+        if (typeof item === 'string') {
+          tag.textContent = item;
+        } else if (item && typeof item === 'object') {
+          if (item.icon) {
+            const icon = document.createElement('span');
+            icon.className = 'bd-widget-tag-icon';
+            icon.textContent = item.icon;
+            tag.appendChild(icon);
+          }
+          tag.appendChild(document.createTextNode(item.label ?? item.text ?? ''));
+          if (item.color) tag.dataset.color = item.color;
+        }
+        container.appendChild(tag);
+      });
+    }
+
+    createDividerWidget(widgetId, config) {
+      const widget = this.createBaseWidget(widgetId, 'bd-widget-divider', config);
+      widget.style.pointerEvents = 'none';
+      if (config.label) {
+        const wrap = document.createElement('div');
+        wrap.className = 'bd-widget-divider-labeled';
+        const text = document.createElement('span');
+        text.className = 'bd-widget-divider-text';
+        text.textContent = config.label;
+        wrap.appendChild(text);
+        widget.appendChild(wrap);
+      } else {
+        const hr = document.createElement('hr');
+        hr.className = 'bd-widget-divider-line';
+        widget.appendChild(hr);
+      }
+      return widget;
+    }
+
+    updateDividerWidget(element, config) {
+      element.innerHTML = '';
+      if (config.label) {
+        const wrap = document.createElement('div');
+        wrap.className = 'bd-widget-divider-labeled';
+        const text = document.createElement('span');
+        text.className = 'bd-widget-divider-text';
+        text.textContent = config.label;
+        wrap.appendChild(text);
+        element.appendChild(wrap);
+      } else {
+        const hr = document.createElement('hr');
+        hr.className = 'bd-widget-divider-line';
+        element.appendChild(hr);
+      }
+    }
+
+    // ---------------------------------------------------------------
+    // NEW INTERACTIVE WIDGETS
+    // ---------------------------------------------------------------
+
+    createRadioWidget(widgetId, config) {
+      const widget = this.createInteractiveShell(widgetId, 'bd-widget-radio', config);
+      const label = this.createControlLabel(config, 'Choose');
+      widget.appendChild(label);
+      const group = document.createElement('div');
+      group.className = 'bd-widget-radio-group';
+      this._buildRadioOptions(group, widgetId, config);
+      widget.appendChild(group);
+      this.setInteractiveDisabled(widget, config);
+      return widget;
+    }
+
+    _buildRadioOptions(group, widgetId, config) {
+      const options = Array.isArray(config.options) ? config.options : [];
+      options.forEach((opt, i) => {
+        const norm = this.normalizeSelectOption(opt);
+        const row = document.createElement('label');
+        row.className = 'bd-widget-radio-option';
+
+        const input = document.createElement('input');
+        input.type = 'radio';
+        input.name = `scripture-radio-${widgetId}`;
+        input.value = this.optionDomValue(norm.value);
+        input.dataset.type = typeof norm.value;
+        input.dataset.value = String(norm.value);
+        input.checked = norm.value === config.value;
+        input.disabled = norm.disabled;
+
+        input.addEventListener('change', () => {
+          if (!input.checked) return;
+          const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+          const nextValue = this.readSelectValue(input);
+          const previousValue = currentConfig.value;
+          const record = this.emitInteraction(currentConfig, 'change', nextValue, previousValue);
+          this.rememberPendingValue(widgetId, nextValue, record);
+        });
+
+        const dot = document.createElement('span');
+        dot.className = 'bd-widget-radio-dot';
+
+        const text = document.createElement('span');
+        text.className = 'bd-widget-radio-label';
+        text.textContent = norm.label;
+
+        row.appendChild(input);
+        row.appendChild(dot);
+        row.appendChild(text);
+        group.appendChild(row);
+      });
+    }
+
+    updateRadioWidget(element, widgetId, config) {
+      this.updateControlLabel(element, config, 'Choose');
+      const group = element.querySelector('.bd-widget-radio-group');
+      if (group) {
+        group.innerHTML = '';
+        this._buildRadioOptions(group, widgetId, config);
+      }
+      this.setInteractiveDisabled(element, config);
+    }
+
+    createStepperWidget(widgetId, config) {
+      const widget = this.createInteractiveShell(widgetId, 'bd-widget-stepper', config);
+      const label = this.createControlLabel(config, 'Value');
+
+      const controls = document.createElement('div');
+      controls.className = 'bd-widget-stepper-controls';
+
+      const btnDec = document.createElement('button');
+      btnDec.type = 'button';
+      btnDec.className = 'bd-widget-stepper-btn';
+      btnDec.dataset.dir = 'dec';
+      btnDec.textContent = '−';
+
+      const display = document.createElement('span');
+      display.className = 'bd-widget-stepper-value';
+      display.textContent = config.value ?? config.min ?? 0;
+
+      const btnInc = document.createElement('button');
+      btnInc.type = 'button';
+      btnInc.className = 'bd-widget-stepper-btn';
+      btnInc.dataset.dir = 'inc';
+      btnInc.textContent = '+';
+
+      const step = () => config.step ?? 1;
+      const clamp = (v, cfg) => {
+        const mn = cfg.min ?? -Infinity;
+        const mx = cfg.max ?? Infinity;
+        return Math.min(mx, Math.max(mn, v));
+      };
+
+      const handler = (dir) => () => {
+        const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+        if (currentConfig.disabled) return;
+        const prev = Number(currentConfig.value ?? currentConfig.min ?? 0);
+        const next = clamp(prev + (dir === 'inc' ? step() : -step()), currentConfig);
+        display.textContent = next;
+        const record = this.emitInteraction(currentConfig, 'change', next, prev, { coalesce: true });
+        this.rememberPendingValue(widgetId, next, record);
+      };
+
+      btnDec.addEventListener('click', handler('dec'));
+      btnInc.addEventListener('click', handler('inc'));
+
+      controls.appendChild(btnDec);
+      controls.appendChild(display);
+      controls.appendChild(btnInc);
+      widget.appendChild(label);
+      widget.appendChild(controls);
+      this.setInteractiveDisabled(widget, config);
+      return widget;
+    }
+
+    updateStepperWidget(element, config) {
+      this.updateControlLabel(element, config, 'Value');
+      const display = element.querySelector('.bd-widget-stepper-value');
+      if (display) display.textContent = config.value ?? config.min ?? 0;
+      this.setInteractiveDisabled(element, config);
+    }
+
+    createConfirmWidget(widgetId, config) {
+      const widget = this.createInteractiveShell(widgetId, 'bd-widget-confirm', config);
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'bd-widget-confirm-btn';
+      btn.dataset.confirmState = 'idle';
+
+      const icon = document.createElement('span');
+      icon.className = 'bd-widget-confirm-icon';
+      icon.textContent = '⚠️';
+
+      const text = document.createElement('span');
+      text.className = 'bd-widget-confirm-text';
+      text.textContent = config.text ?? config.label ?? 'Confirm';
+
+      btn.appendChild(icon);
+      btn.appendChild(text);
+
+      let confirmTimer = null;
+      btn.addEventListener('click', () => {
+        const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+        if (currentConfig.disabled) return;
+
+        if (btn.dataset.confirmState === 'idle') {
+          // First click — arm it
+          btn.dataset.confirmState = 'confirming';
+          text.textContent = 'Confirm?';
+          confirmTimer = setTimeout(() => {
+            btn.dataset.confirmState = 'idle';
+            text.textContent = currentConfig.text ?? currentConfig.label ?? 'Confirm';
+          }, 3000);
+        } else {
+          // Second click — fire
+          clearTimeout(confirmTimer);
+          btn.dataset.confirmState = 'idle';
+          text.textContent = currentConfig.text ?? currentConfig.label ?? 'Confirm';
+          const value = currentConfig.value !== undefined ? currentConfig.value : true;
+          this.emitInteraction(currentConfig, 'confirm', value, undefined, { coalesce: false });
+        }
+      });
+
+      widget.appendChild(btn);
+      this.setInteractiveDisabled(widget, config);
+      return widget;
+    }
+
+    updateConfirmWidget(element, config) {
+      const text = element.querySelector('.bd-widget-confirm-text');
+      const btn = element.querySelector('.bd-widget-confirm-btn');
+      if (text && btn && btn.dataset.confirmState === 'idle') {
+        text.textContent = config.text ?? config.label ?? 'Confirm';
+      }
+      this.setInteractiveDisabled(element, config);
+    }
+
+    createChipselectWidget(widgetId, config) {
+      const widget = this.createInteractiveShell(widgetId, 'bd-widget-chipselect', config);
+      const label = this.createControlLabel(config, 'Select');
+      widget.appendChild(label);
+      const group = document.createElement('div');
+      group.className = 'bd-widget-chipselect-group';
+      // value may be an array (multi) or single primitive
+      const selected = this._normalizeChipValue(config.value);
+      this._buildChips(group, widgetId, config, selected);
+      widget.appendChild(group);
+      this.setInteractiveDisabled(widget, config);
+      return widget;
+    }
+
+    _normalizeChipValue(value) {
+      if (Array.isArray(value)) return new Set(value.map(String));
+      if (value !== undefined && value !== null) return new Set([String(value)]);
+      return new Set();
+    }
+
+    _buildChips(group, widgetId, config, selectedSet) {
+      const options = Array.isArray(config.options) ? config.options : [];
+      options.forEach(opt => {
+        const norm = this.normalizeSelectOption(opt);
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'bd-widget-chip';
+        chip.dataset.value = String(norm.value);
+        chip.dataset.selected = selectedSet.has(String(norm.value)) ? 'true' : 'false';
+        chip.textContent = norm.label;
+
+        chip.addEventListener('click', () => {
+          const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+          if (currentConfig.disabled) return;
+          const currentSelected = this._normalizeChipValue(currentConfig.value);
+          const key = String(norm.value);
+          if (currentSelected.has(key)) {
+            currentSelected.delete(key);
+            chip.dataset.selected = 'false';
+          } else {
+            currentSelected.add(key);
+            chip.dataset.selected = 'true';
+          }
+          const nextValue = [...currentSelected];
+          const record = this.emitInteraction(currentConfig, 'change', nextValue, currentConfig.value);
+          this.rememberPendingValue(widgetId, nextValue, record);
+        });
+
+        group.appendChild(chip);
+      });
+    }
+
+    updateChipselectWidget(element, widgetId, config) {
+      this.updateControlLabel(element, config, 'Select');
+      const group = element.querySelector('.bd-widget-chipselect-group');
+      if (group) {
+        group.innerHTML = '';
+        const selected = this._normalizeChipValue(config.value);
+        this._buildChips(group, widgetId, config, selected);
+      }
+      this.setInteractiveDisabled(element, config);
+    }
+
+    // ---------------------------------------------------------------
+    // NEW CONTAINER / ACTION WIDGETS
+    // ---------------------------------------------------------------
+
+    createAccordionWidget(widgetId, config) {
+      const widget = this.createInteractiveShell(widgetId, 'bd-widget-accordion', config);
+      const items = Array.isArray(config.items) ? config.items : [];
+      items.forEach((item, i) => {
+        const section = this._buildAccordionSection(widgetId, item, i, config.value);
+        widget.appendChild(section);
+      });
+      return widget;
+    }
+
+    _buildAccordionSection(widgetId, item, index, openValue) {
+      const isOpen = item.id !== undefined ? item.id === openValue : index === openValue;
+      const section = document.createElement('div');
+      section.className = 'bd-widget-accordion-section';
+      section.dataset.open = String(isOpen);
+      if (item.id !== undefined) section.dataset.id = String(item.id);
+
+      const trigger = document.createElement('div');
+      trigger.className = 'bd-widget-accordion-trigger';
+
+      const triggerText = document.createElement('span');
+      triggerText.className = 'bd-widget-accordion-trigger-text';
+      triggerText.textContent = item.label ?? item.title ?? `Section ${index + 1}`;
+
+      const arrow = document.createElement('span');
+      arrow.className = 'bd-widget-accordion-trigger-icon';
+      arrow.textContent = '▶';
+
+      trigger.appendChild(triggerText);
+      trigger.appendChild(arrow);
+
+      trigger.addEventListener('click', () => {
+        const currentConfig = this.getCurrentWidgetConfig(widgetId, null);
+        const widget = section.closest('.bd-widget-accordion');
+        if (!widget) return;
+        const wasOpen = section.dataset.open === 'true';
+        widget.querySelectorAll('.bd-widget-accordion-section').forEach(s => s.dataset.open = 'false');
+        if (!wasOpen) section.dataset.open = 'true';
+        const newOpen = !wasOpen ? (item.id ?? index) : null;
+        this.emitInteraction(currentConfig || { id: widgetId, type: 'accordion' }, 'change', newOpen, currentConfig?.value);
+      });
+
+      const panel = document.createElement('div');
+      panel.className = 'bd-widget-accordion-panel';
+      panel.textContent = item.content ?? item.text ?? '';
+
+      section.appendChild(trigger);
+      section.appendChild(panel);
+      return section;
+    }
+
+    updateAccordionWidget(element, config) {
+      element.innerHTML = '';
+      const items = Array.isArray(config.items) ? config.items : [];
+      items.forEach((item, i) => {
+        const section = this._buildAccordionSection(config.id, item, i, config.value);
+        element.appendChild(section);
+      });
+    }
+
+    createTabsWidget(widgetId, config) {
+      const widget = this.createInteractiveShell(widgetId, 'bd-widget-tabs', config);
+      const items = Array.isArray(config.items) ? config.items : [];
+      const activeId = config.value ?? items[0]?.id ?? 0;
+
+      const bar = document.createElement('div');
+      bar.className = 'bd-widget-tabs-bar';
+
+      items.forEach((item, i) => {
+        const itemId = item.id ?? i;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'bd-widget-tab-btn';
+        btn.dataset.tab = String(itemId);
+        btn.dataset.active = String(itemId === activeId);
+        btn.textContent = item.label ?? item.title ?? `Tab ${i + 1}`;
+
+        btn.addEventListener('click', () => {
+          const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+          const prev = currentConfig.value ?? items[0]?.id ?? 0;
+          widget.querySelectorAll('.bd-widget-tab-btn').forEach(b => b.dataset.active = 'false');
+          widget.querySelectorAll('.bd-widget-tabs-panel').forEach(p => p.dataset.active = 'false');
+          btn.dataset.active = 'true';
+          const panel = widget.querySelector(`.bd-widget-tabs-panel[data-tab="${itemId}"]`);
+          if (panel) panel.dataset.active = 'true';
+          const record = this.emitInteraction(currentConfig, 'change', itemId, prev);
+          this.rememberPendingValue(widgetId, itemId, record);
+        });
+
+        bar.appendChild(btn);
+      });
+
+      widget.appendChild(bar);
+
+      items.forEach((item, i) => {
+        const itemId = item.id ?? i;
+        const panel = document.createElement('div');
+        panel.className = 'bd-widget-tabs-panel';
+        panel.dataset.tab = String(itemId);
+        panel.dataset.active = String(itemId === activeId);
+        panel.textContent = item.content ?? item.text ?? '';
+        widget.appendChild(panel);
+      });
+
+      return widget;
+    }
+
+    updateTabsWidget(element, widgetId, config) {
+      element.innerHTML = '';
+      const items = Array.isArray(config.items) ? config.items : [];
+      const activeId = config.value ?? items[0]?.id ?? 0;
+
+      const bar = document.createElement('div');
+      bar.className = 'bd-widget-tabs-bar';
+
+      items.forEach((item, i) => {
+        const itemId = item.id ?? i;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'bd-widget-tab-btn';
+        btn.dataset.tab = String(itemId);
+        btn.dataset.active = String(itemId === activeId);
+        btn.textContent = item.label ?? item.title ?? `Tab ${i + 1}`;
+
+        btn.addEventListener('click', () => {
+          const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+          const prev = currentConfig.value ?? items[0]?.id ?? 0;
+          element.querySelectorAll('.bd-widget-tab-btn').forEach(b => b.dataset.active = 'false');
+          element.querySelectorAll('.bd-widget-tabs-panel').forEach(p => p.dataset.active = 'false');
+          btn.dataset.active = 'true';
+          const panel = element.querySelector(`.bd-widget-tabs-panel[data-tab="${itemId}"]`);
+          if (panel) panel.dataset.active = 'true';
+          const record = this.emitInteraction(currentConfig, 'change', itemId, prev);
+          this.rememberPendingValue(widgetId, itemId, record);
+        });
+
+        bar.appendChild(btn);
+      });
+
+      element.appendChild(bar);
+
+      items.forEach((item, i) => {
+        const itemId = item.id ?? i;
+        const panel = document.createElement('div');
+        panel.className = 'bd-widget-tabs-panel';
+        panel.dataset.tab = String(itemId);
+        panel.dataset.active = String(itemId === activeId);
+        panel.textContent = item.content ?? item.text ?? '';
+        element.appendChild(panel);
+      });
+    }
+
+    createDropdownWidget(widgetId, config) {
+      const widget = this.createInteractiveShell(widgetId, 'bd-widget-dropdown', config);
+      widget.dataset.open = 'false';
+
+      const trigger = document.createElement('button');
+      trigger.type = 'button';
+      trigger.className = 'bd-widget-dropdown-trigger';
+      trigger.textContent = config.label ?? config.text ?? 'Actions';
+
+      const menu = document.createElement('div');
+      menu.className = 'bd-widget-dropdown-menu';
+      this._buildDropdownItems(menu, widgetId, config);
+
+      trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+        if (currentConfig.disabled) return;
+        const isOpen = widget.dataset.open === 'true';
+        // Close all other dropdowns
+        document.querySelectorAll('.bd-widget-dropdown').forEach(d => d.dataset.open = 'false');
+        widget.dataset.open = String(!isOpen);
+      });
+
+      widget.appendChild(trigger);
+      widget.appendChild(menu);
+      this.setInteractiveDisabled(widget, config);
+      return widget;
+    }
+
+    _buildDropdownItems(menu, widgetId, config) {
+      const items = Array.isArray(config.items) ? config.items : [];
+      items.forEach(item => {
+        if (item.divider) {
+          const div = document.createElement('div');
+          div.className = 'bd-widget-dropdown-divider';
+          menu.appendChild(div);
+          return;
+        }
+        const row = document.createElement('div');
+        row.className = 'bd-widget-dropdown-item';
+        if (item.danger) row.dataset.danger = 'true';
+
+        if (item.icon) {
+          const icon = document.createElement('span');
+          icon.className = 'bd-widget-dropdown-item-icon';
+          icon.textContent = item.icon;
+          row.appendChild(icon);
+        }
+        row.appendChild(document.createTextNode(item.label ?? item.text ?? ''));
+
+        row.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+          if (currentConfig.disabled) return;
+          const val = item.value ?? item.id ?? item.label ?? item.text;
+          this.emitInteraction(currentConfig, 'select', val, currentConfig.value, { coalesce: false });
+          const widgetEl = row.closest('.bd-widget-dropdown');
+          if (widgetEl) widgetEl.dataset.open = 'false';
+        });
+
+        menu.appendChild(row);
+      });
+    }
+
+    updateDropdownWidget(element, widgetId, config) {
+      const trigger = element.querySelector('.bd-widget-dropdown-trigger');
+      if (trigger) trigger.textContent = config.label ?? config.text ?? 'Actions';
+      const menu = element.querySelector('.bd-widget-dropdown-menu');
+      if (menu) {
+        menu.innerHTML = '';
+        this._buildDropdownItems(menu, widgetId, config);
+      }
+      this.setInteractiveDisabled(element, config);
+    }
+
+    createHoldbuttonWidget(widgetId, config) {
+      const widget = this.createInteractiveShell(widgetId, 'bd-widget-holdbutton', config);
+      const label = this.createControlLabel(config, '');
+      widget.appendChild(label);
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'bd-widget-holdbutton-btn';
+
+      const fill = document.createElement('div');
+      fill.className = 'bd-widget-holdbutton-fill';
+
+      const btnText = document.createElement('span');
+      btnText.textContent = config.text ?? config.label ?? 'Hold';
+
+      btn.appendChild(fill);
+      btn.appendChild(btnText);
+
+      const duration = config.duration ?? 800;
+      let holdInterval = null;
+
+      const start = () => {
+        const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+        if (currentConfig.disabled) return;
+        let progress = 0;
+        holdInterval = setInterval(() => {
+          progress += 16 / (currentConfig.duration ?? duration);
+          fill.style.width = `${Math.min(100, progress * 100)}%`;
+          if (progress >= 1) {
+            clearInterval(holdInterval);
+            holdInterval = null;
+            fill.style.width = '0%';
+            const value = currentConfig.value !== undefined ? currentConfig.value : true;
+            this.emitInteraction(currentConfig, 'hold', value, undefined, { coalesce: false });
+          }
+        }, 16);
+      };
+
+      const end = () => {
+        if (holdInterval) {
+          clearInterval(holdInterval);
+          holdInterval = null;
+          fill.style.width = '0%';
+        }
+      };
+
+      btn.addEventListener('mousedown', start);
+      btn.addEventListener('touchstart', start, { passive: true });
+      btn.addEventListener('mouseup', end);
+      btn.addEventListener('mouseleave', end);
+      btn.addEventListener('touchend', end);
+
+      widget.appendChild(btn);
+      this.setInteractiveDisabled(widget, config);
+      return widget;
+    }
+
+    updateHoldbuttonWidget(element, config) {
+      this.updateControlLabel(element, config, '');
+      const btnText = element.querySelector('.bd-widget-holdbutton-btn span:last-child');
+      if (btnText) btnText.textContent = config.text ?? config.label ?? 'Hold';
+      this.setInteractiveDisabled(element, config);
+    }
+
+    createSortableWidget(widgetId, config) {
+      const widget = this.createInteractiveShell(widgetId, 'bd-widget-sortable', config);
+      const label = this.createControlLabel(config, 'Order');
+      widget.appendChild(label);
+      this._buildSortableItems(widget, widgetId, config);
+      this.setInteractiveDisabled(widget, config);
+      return widget;
+    }
+
+    _buildSortableItems(widget, widgetId, config) {
+      const items = Array.isArray(config.items) ? [...config.items] : [];
+      // Respect saved order if config.value is an ordered array of ids
+      const orderedIds = Array.isArray(config.value) ? config.value : null;
+      const ordered = orderedIds
+        ? orderedIds.map(id => items.find(it => String(it.id ?? it.value) === String(id))).filter(Boolean)
+        : items;
+
+      ordered.forEach((item, i) => {
+        const row = document.createElement('div');
+        row.className = 'bd-widget-sortable-item';
+        row.dataset.id = String(item.id ?? item.value ?? i);
+
+        const handle = document.createElement('span');
+        handle.className = 'bd-widget-sortable-handle';
+        handle.textContent = '⠿';
+
+        const rank = document.createElement('span');
+        rank.className = 'bd-widget-sortable-rank';
+        rank.textContent = `${i + 1}.`;
+
+        const text = document.createElement('span');
+        text.textContent = item.label ?? item.text ?? String(item);
+
+        const arrows = document.createElement('div');
+        arrows.className = 'bd-widget-sortable-arrows';
+
+        const up = document.createElement('span');
+        up.className = 'bd-widget-sortable-arrow';
+        up.textContent = '▲';
+
+        const down = document.createElement('span');
+        down.className = 'bd-widget-sortable-arrow';
+        down.textContent = '▼';
+
+        const moveHandler = (dir) => () => {
+          const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+          if (currentConfig.disabled) return;
+          const allRows = Array.from(widget.querySelectorAll('.bd-widget-sortable-item'));
+          const idx = allRows.indexOf(row);
+          const target = idx + dir;
+          if (target < 0 || target >= allRows.length) return;
+          if (dir === -1) widget.insertBefore(row, allRows[target]);
+          else widget.insertBefore(allRows[target], row);
+          // Re-number and emit new order
+          const reordered = Array.from(widget.querySelectorAll('.bd-widget-sortable-item'));
+          reordered.forEach((r, n) => {
+            const rankEl = r.querySelector('.bd-widget-sortable-rank');
+            if (rankEl) rankEl.textContent = `${n + 1}.`;
+          });
+          const nextValue = reordered.map(r => r.dataset.id);
+          const record = this.emitInteraction(currentConfig, 'reorder', nextValue, currentConfig.value, { coalesce: true });
+          this.rememberPendingValue(widgetId, nextValue, record);
+        };
+
+        up.addEventListener('click', moveHandler(-1));
+        down.addEventListener('click', moveHandler(1));
+
+        arrows.appendChild(up);
+        arrows.appendChild(down);
+
+        row.appendChild(handle);
+        row.appendChild(rank);
+        row.appendChild(text);
+        row.appendChild(arrows);
+        widget.appendChild(row);
+      });
+    }
+
+    updateSortableWidget(element, widgetId, config) {
+      // Remove existing item rows but keep the label
+      element.querySelectorAll('.bd-widget-sortable-item').forEach(r => r.remove());
+      this._buildSortableItems(element, widgetId, config);
+      this.setInteractiveDisabled(element, config);
     }
 
     emitWidget(action, widgetId, config) {
