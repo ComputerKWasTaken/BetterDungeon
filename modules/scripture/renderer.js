@@ -1134,6 +1134,34 @@
       element._tweenId = requestAnimationFrame(step);
     }
 
+    _tweenStyleProperty(element, property, targetValue, duration = 280, unit = '') {
+      if (!element) return;
+      const target = this._parseNumber(targetValue);
+      if (!Number.isFinite(target)) {
+        element.style[property] = String(targetValue ?? '');
+        return;
+      }
+      const currentRaw = getComputedStyle(element)[property];
+      const current = this._parseNumber(currentRaw);
+      if (!Number.isFinite(current) || current === target) {
+        element.style[property] = this._formatNumber(target) + unit;
+        return;
+      }
+      const tweenKey = '_tweenId_' + property;
+      if (element[tweenKey]) cancelAnimationFrame(element[tweenKey]);
+      const start = performance.now();
+      const delta = target - current;
+      const step = (now) => {
+        const t = Math.min(1, (now - start) / duration);
+        const eased = 1 - (1 - t) * (1 - t); // ease-out quad
+        const val = current + delta * eased;
+        element.style[property] = this._formatNumber(val) + unit;
+        if (t < 1) element[tweenKey] = requestAnimationFrame(step);
+        else element[tweenKey] = null;
+      };
+      element[tweenKey] = requestAnimationFrame(step);
+    }
+
     updateStatWidget(element, config) {
       const labelEl = element.querySelector('.bd-widget-label');
       const valueEl = element.querySelector('.bd-widget-value');
@@ -1152,7 +1180,7 @@
         const value = config.value ?? 0;
         const max = config.max ?? 100;
         const percentage = Math.min(100, Math.max(0, (value / max) * 100));
-        barFill.style.width = `${percentage}%`;
+        this._tweenStyleProperty(barFill, 'width', percentage, 280, '%');
       }
       if (barText) {
         const showValue = config.showValue !== false;
@@ -1667,7 +1695,7 @@
       if (fill) {
         const max = config.max ?? 100;
         const pct = Math.min(100, Math.max(0, ((config.value ?? 0) / max) * 100));
-        fill.style.width = `${pct}%`;
+        this._tweenStyleProperty(fill, 'width', pct, 280, '%');
         if (valueText) this._tweenTextValue(valueText, Math.round(pct), 280, v => `${Math.round(v)}%`);
         this.applyPresetOrInlineColor(element, fill, config.color, 'background', true);
       }
