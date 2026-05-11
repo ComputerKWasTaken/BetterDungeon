@@ -34,10 +34,10 @@
       this.onInteraction = typeof options.onInteraction === 'function' ? options.onInteraction : null;
       this.displayOptions = normalizeDisplayOptions(options.displayOptions);
       this.registeredWidgets = new Map();
+      // Map<widgetId, { value?, seq }>. Any widget with an entry pulses amber
+      // until its seq is <= ackSeq. Optional `value` carries the player's
+      // optimistic change across re-renders.
       this.pendingInteractionValues = new Map();
-      // Tracks widgets that have received at least one real value from the AI,
-      // used to distinguish 'loading' (never had a value) from 'empty' (AI says no value).
-      this.everReceivedValue = new Set();
       this.widgetContainer = null;
       this.widgetWrapper = null;
       this.widgetZones = { left: null, center: null, right: null };
@@ -102,87 +102,36 @@
       return { ...config, value: pending.value, _optimisticSeq: pending.seq };
     }
 
+    // Clear pending state for any interactions the AI has now acknowledged.
+    // Pulls the amber pulse off the widget by removing the data-state.
     ackInteractions(ackSeq) {
       const n = Number(ackSeq || 0);
       if (!Number.isFinite(n)) return;
       for (const [widgetId, pending] of [...this.pendingInteractionValues.entries()]) {
         if (Number(pending.seq || 0) <= n) {
           this.pendingInteractionValues.delete(widgetId);
-          // Clear pending affordance now that the AI has acknowledged the interaction
           const data = this.registeredWidgets.get(widgetId);
-          if (data?.element) this._clearAffordanceIfPending(data.element);
+          if (data?.element && data.element.dataset.state === 'pending') {
+            delete data.element.dataset.state;
+          }
         }
       }
     }
 
-    // Remove the pending state only — whatever affordance the module set last
-    // (stale, empty, etc.) should remain if the ack came before a new render.
-    _clearAffordanceIfPending(element) {
-      if (element.dataset.state === 'pending') {
-        delete element.dataset.state;
-        element.querySelectorAll('.bd-widget-error-msg').forEach(el => el.remove());
-      }
-    }
-
-    // Public: apply or clear affordance state on a mounted widget element.
-    setWidgetAffordance(widgetId, state) {
-      const data = this.registeredWidgets.get(widgetId);
-      if (!data?.element) return;
-      this.applyAffordanceState(data.element, state, data.config);
-    }
-
-    // Core affordance state applier. Called after create/update and by module.
-    // Pure CSS handles loading, pending, stale, empty; only error needs a
-    // DOM injection because its message text is dynamic (from validators).
-    applyAffordanceState(element, state, config) {
-      element.querySelectorAll('.bd-widget-error-msg').forEach(el => el.remove());
-
-      if (!state) {
-        delete element.dataset.state;
-        return;
-      }
-
-      element.dataset.state = state;
-
-      if (state === 'error') {
-        const msg = document.createElement('span');
-        msg.className = 'bd-widget-error-msg';
-        msg.textContent = config?._affordanceError || '⚠ Error';
-        element.appendChild(msg);
-      }
-    }
-
-    // Mark a widget as pending (UI only) — the player just interacted with it
-    // but the AI hasn't acknowledged yet. Safe to call for any widget; no value
-    // override is stored, so applyPendingInteractionValue will pass through.
-    markPending(widgetId, record) {
+    // Mark a widget as pending. Optionally remembers an optimistic value so
+    // re-renders keep showing the player's change until the AI acks. Without
+    // a value (fire-and-forget interactions like button presses), the pulse
+    // still appears but no value override is stored.
+    setPending(widgetId, record, value) {
       if (!widgetId || !record?.seq) return;
-      const existing = this.pendingInteractionValues.get(widgetId);
       const seq = Number(record.seq);
-      if (existing && Number(existing.seq || 0) >= seq) {
-        // Keep the richer record (e.g. one set by rememberPendingValue);
-        // still re-apply the affordance below.
-      } else {
-        this.pendingInteractionValues.set(widgetId, {
-          value: existing?.value,  // undefined for UI-only interactions
-          seq,
-        });
-      }
-      const data = this.registeredWidgets.get(widgetId);
-      if (data?.element) this.applyAffordanceState(data.element, 'pending', data.config);
-    }
-
-    // Remember an optimistic value AND mark the widget pending. Use this from
-    // handlers whose value should persist visually across re-renders until the
-    // AI acks the change (toggle, select, slider, stepper, radio, chips, …).
-    rememberPendingValue(widgetId, value, record) {
-      if (!widgetId || !record?.seq) return;
+      const existing = this.pendingInteractionValues.get(widgetId);
       this.pendingInteractionValues.set(widgetId, {
-        value,
-        seq: Number(record.seq),
+        value: value !== undefined ? value : existing?.value,
+        seq: Math.max(seq, Number(existing?.seq || 0)),
       });
       const data = this.registeredWidgets.get(widgetId);
-      if (data?.element) this.applyAffordanceState(data.element, 'pending', data.config);
+      if (data?.element) data.element.dataset.state = 'pending';
     }
 
     emitInteraction(config, action, value, previousValue, extra = {}) {
@@ -206,13 +155,11 @@
       const record = this.onInteraction(detail);
 
       // Seamless pending affordance: every interaction on an interactive
-      // widget automatically shows the "Queued" badge until the AI acks.
-      // Handlers that also need optimistic value persistence call
-      // rememberPendingValue; this universal path handles the UI alone for
-      // fire-and-forget interactions (button press, confirm, dropdown pick,
-      // accordion toggle, etc.). Opt out with extra.skipPending if needed.
+      // widget pulses amber until the AI acks. Handlers that need the new
+      // value to persist visually across re-renders pass it via
+      // extra.optimisticValue. Opt out entirely with extra.skipPending.
       if (record && !extra.skipPending && this.isInteractiveType(widgetType)) {
-        this.markPending(config.id, record);
+        this.setPending(config.id, record, extra.optimisticValue);
       }
 
       return record;
@@ -688,10 +635,6 @@
       else this.widgetContainer.appendChild(widgetElement);
       if (config.type === 'custom') this.activateCustomWidgetScripts(widgetElement);
 
-      // Determine initial affordance: loading if never received a value, else from module annotation
-      const affordance = config._affordance ?? (this.everReceivedValue.has(widgetId) ? null : 'loading');
-      this.applyAffordanceState(widgetElement, affordance, config);
-
       this.registeredWidgets.set(widgetId, { element: widgetElement, config: { ...config } });
       this.recalculateWidgetDensity();
       this.emitWidget('created', widgetId, config);
@@ -926,8 +869,7 @@
         const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
         const previousValue = !!currentConfig.value;
         const nextValue = !!input.checked;
-        const record = this.emitInteraction(currentConfig, 'change', nextValue, previousValue);
-        this.rememberPendingValue(widgetId, nextValue, record);
+        this.emitInteraction(currentConfig, 'change', nextValue, previousValue, { optimisticValue: nextValue });
       });
 
       wrap.appendChild(input);
@@ -949,8 +891,7 @@
         const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
         const nextValue = this.readSelectValue(select);
         const previousValue = currentConfig.value;
-        const record = this.emitInteraction(currentConfig, 'change', nextValue, previousValue);
-        this.rememberPendingValue(widgetId, nextValue, record);
+        this.emitInteraction(currentConfig, 'change', nextValue, previousValue, { optimisticValue: nextValue });
       });
 
       widget.appendChild(label);
@@ -983,8 +924,7 @@
         const nextValue = Number(range.value);
         valueText.textContent = currentConfig.showValue === false ? '' : String(nextValue);
         const previousValue = currentConfig.value ?? currentConfig.min ?? min;
-        const record = this.emitInteraction(currentConfig, 'change', nextValue, previousValue);
-        this.rememberPendingValue(widgetId, nextValue, record);
+        this.emitInteraction(currentConfig, 'change', nextValue, previousValue, { optimisticValue: nextValue });
       });
 
       widget.appendChild(label);
@@ -1008,8 +948,7 @@
         const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
         const nextValue = currentConfig.inputType === 'number' ? Number(input.value) : input.value;
         const previousValue = currentConfig.value ?? '';
-        const record = this.emitInteraction(currentConfig, 'change', nextValue, previousValue);
-        this.rememberPendingValue(widgetId, nextValue, record);
+        this.emitInteraction(currentConfig, 'change', nextValue, previousValue, { optimisticValue: nextValue });
       });
 
       widget.appendChild(label);
@@ -1032,8 +971,7 @@
         const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
         const nextValue = textarea.value;
         const previousValue = currentConfig.value ?? '';
-        const record = this.emitInteraction(currentConfig, 'change', nextValue, previousValue);
-        this.rememberPendingValue(widgetId, nextValue, record);
+        this.emitInteraction(currentConfig, 'change', nextValue, previousValue, { optimisticValue: nextValue });
       });
 
       widget.appendChild(label);
@@ -1157,15 +1095,8 @@
       if (config.order !== undefined) element.style.order = config.order;
       else element.style.order = '';
 
-      // Track that this widget has now received at least one real value from the AI
-      if (config._affordance !== 'empty' && config._affordance !== 'error') {
-        this.everReceivedValue.add(widgetId);
-      }
-
-      // Don't overwrite a pending state that the module applied after setWidgets
-      if (element.dataset.state !== 'pending') {
-        this.applyAffordanceState(element, config._affordance ?? null, config);
-      }
+      // Pending state is owned exclusively by setPending/ackInteractions; we
+      // never touch data-state here so re-renders preserve any active pulse.
 
       this.registeredWidgets.set(widgetId, { element, config: { ...config } });
       this.recalculateWidgetDensity();
@@ -1639,7 +1570,6 @@
       widgetData.element.remove();
       this.registeredWidgets.delete(widgetId);
       this.pendingInteractionValues.delete(widgetId);
-      this.everReceivedValue.delete(widgetId);
       this.emitWidget('destroyed', widgetId);
 
       if (this.registeredWidgets.size === 0) this.removeWidgetContainer();
@@ -1652,7 +1582,6 @@
       });
       this.registeredWidgets.clear();
       this.pendingInteractionValues.clear();
-      this.everReceivedValue.clear();
       this._warnedMessages.clear();
       this.removeWidgetContainer();
       this.log('All widgets cleared');
@@ -1877,8 +1806,7 @@
           const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
           const nextValue = this.readSelectValue(input);
           const previousValue = currentConfig.value;
-          const record = this.emitInteraction(currentConfig, 'change', nextValue, previousValue);
-          this.rememberPendingValue(widgetId, nextValue, record);
+          this.emitInteraction(currentConfig, 'change', nextValue, previousValue, { optimisticValue: nextValue });
         });
 
         const dot = document.createElement('span');
@@ -1941,8 +1869,7 @@
         const prev = Number(currentConfig.value ?? currentConfig.min ?? 0);
         const next = clamp(prev + (dir === 'inc' ? step() : -step()), currentConfig);
         display.textContent = next;
-        const record = this.emitInteraction(currentConfig, 'change', next, prev, { coalesce: true });
-        this.rememberPendingValue(widgetId, next, record);
+        this.emitInteraction(currentConfig, 'change', next, prev, { coalesce: true, optimisticValue: next });
       };
 
       btnDec.addEventListener('click', handler('dec'));
@@ -2064,8 +1991,7 @@
             chip.dataset.selected = 'true';
           }
           const nextValue = [...currentSelected];
-          const record = this.emitInteraction(currentConfig, 'change', nextValue, currentConfig.value);
-          this.rememberPendingValue(widgetId, nextValue, record);
+          this.emitInteraction(currentConfig, 'change', nextValue, currentConfig.value, { optimisticValue: nextValue });
         });
 
         group.appendChild(chip);
@@ -2172,8 +2098,7 @@
           btn.dataset.active = 'true';
           const panel = widget.querySelector(`.bd-widget-tabs-panel[data-tab="${itemId}"]`);
           if (panel) panel.dataset.active = 'true';
-          const record = this.emitInteraction(currentConfig, 'change', itemId, prev);
-          this.rememberPendingValue(widgetId, itemId, record);
+          this.emitInteraction(currentConfig, 'change', itemId, prev, { optimisticValue: itemId });
         });
 
         bar.appendChild(btn);
@@ -2219,8 +2144,7 @@
           btn.dataset.active = 'true';
           const panel = element.querySelector(`.bd-widget-tabs-panel[data-tab="${itemId}"]`);
           if (panel) panel.dataset.active = 'true';
-          const record = this.emitInteraction(currentConfig, 'change', itemId, prev);
-          this.rememberPendingValue(widgetId, itemId, record);
+          this.emitInteraction(currentConfig, 'change', itemId, prev, { optimisticValue: itemId });
         });
 
         bar.appendChild(btn);
@@ -2438,8 +2362,7 @@
             if (rankEl) rankEl.textContent = `${n + 1}.`;
           });
           const nextValue = reordered.map(r => r.dataset.id);
-          const record = this.emitInteraction(currentConfig, 'reorder', nextValue, currentConfig.value, { coalesce: true });
-          this.rememberPendingValue(widgetId, nextValue, record);
+          this.emitInteraction(currentConfig, 'reorder', nextValue, currentConfig.value, { coalesce: true, optimisticValue: nextValue });
         };
 
         up.addEventListener('click', moveHandler(-1));

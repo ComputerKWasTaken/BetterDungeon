@@ -11,19 +11,17 @@ Use this suite when you change any of the following:
 - `modules/scripture/module.js`
 - `modules/scripture/renderer.js`
 - `modules/scripture/validators.js`
-- widget affordance behavior (`loading`, `pending`, `stale`, `error`, `empty`)
-- event ack / replay / history selection logic
+- the **pending** widget affordance (the only player-facing widget state)
+- the widget-event queue + ack / replay flow
 - manifest validation or state-patch filtering
 
 ## What it covers
 
-The suite gives you two main scenarios and one auto-run checklist.
-
 | Scenario | Purpose |
 | --- | --- |
-| `smoke` | Renders a broad dashboard with representative widget types and live interaction handling |
-| `affordances` | Lets you intentionally force `normal`, `empty`, `error`, `stale`, and `loading` turn states while also testing `pending` via real widget interactions |
-| `run` | Walks every step in `affordances` then `smoke` automatically, one step per turn, validating heartbeat + ack flow and prompting you to eyeball each affordance |
+| `smoke` | Renders a broad dashboard with representative widget types |
+| `affordances` | Smaller, focused widget set for exercising the pending pulse on real interactions |
+| `run` | Auto-walks heartbeat → mount → pending-prompt → pending-ack → smoke → unmount |
 
 The smoke scene includes representative coverage for:
 
@@ -55,7 +53,7 @@ The smoke scene includes representative coverage for:
 
 Type these into normal player input. They are stripped from the text before it reaches the model.
 
-> **Note:** AI Dungeon's `onInput` hook throws an error if a script returns empty text (`Unable to run scenario scripts`). If your entire input is a `/scripture` command and nothing else, the modifier substitutes a single `.` so the turn still advances. You can also append a command to regular input (e.g., `I look around. /scripture state empty`) and only the command portion is removed.
+> **Note:** AI Dungeon's `onInput` hook throws an error if a script returns empty text (`Unable to run scenario scripts`). If your entire input is a `/scripture` command and nothing else, the modifier substitutes a single `.` so the turn still advances. You can also append a command to regular input (e.g., `I look around. /scripture ack`) and only the command portion is removed.
 
 | Command | Effect |
 | --- | --- |
@@ -64,12 +62,8 @@ Type these into normal player input. They are stripped from the text before it r
 | `/scripture stop` | Pause the auto run |
 | `/scripture smoke` | Load smoke scenario manually |
 | `/scripture affordances` | Load affordance scenario manually |
-| `/scripture state normal` | Force normal values (clears affordance markers) |
-| `/scripture state empty` | History entry exists for `liveCount` but with no widget values |
-| `/scripture state stale` | History only has older entries; `liveCount` has no entry &mdash; renderer falls back |
-| `/scripture state error` | Inject an invalid value (e.g., `progress.max = -1`) so validation fails post-value |
-| `/scripture state loading` | Wipe history entirely so widgets render with no data |
-| `/scripture ack` | Force-advance `ackSeq` past every observed event (clears any held pending state) |
+| `/scripture invalid` | Publish intentionally invalid widget values to confirm the module silently skips them (check the dev console for warnings) |
+| `/scripture ack` | Force-advance `ackSeq` past every observed event (clears any pending pulse) |
 | `/scripture clear` | Unmount all widgets (publishes empty manifest) |
 | `/scripture reset` | Reset all suite state and republish empty envelope |
 
@@ -77,8 +71,8 @@ Type these into normal player input. They are stripped from the text before it r
 
 Open the `frontier:test:scripture` story card after a few turns. Top-level fields:
 
-- **`phase`** &mdash; current driver state (`auto: state-empty`, `auto-wait: pending-prompt`, `affordances:error`, `idle`, etc.).
-- **`scenario` / `forcedState`** &mdash; what the suite is currently asking BD to render.
+- **`phase`** &mdash; current driver state (`auto: mount-affordances`, `auto-wait: pending-prompt`, `idle`, etc.).
+- **`scenario`** &mdash; what the suite is currently asking BD to render.
 - **`heartbeat.scriptureAdvertised`** &mdash; whether BD is publishing the scripture module via heartbeat.
 - **`publishedEnvelope`** &mdash; widgets in the manifest, history keys present, current `ackSeq`. Quick sanity check that the envelope you wrote matches your intent.
 - **`interactions.recentEvents`** &mdash; tail of widget events received from BD (proves the interaction queue is alive).
@@ -89,19 +83,14 @@ Open the `frontier:test:scripture` story card after a few turns. Top-level field
 
 ## Auto-run flow
 
-`/scripture run` walks this plan, one step per turn:
+`/scripture run` walks this plan:
 
-1. **heartbeat** &mdash; protocol-level: BD must advertise the `scripture` module.
-2. **mount-affordances** &mdash; small affordance manifest with normal values; baseline render.
-3. **state-loading** &mdash; clear history; expect skeleton shimmer.
-4. **state-normal** &mdash; restore values; affordances clear.
-5. **state-empty** &mdash; entry exists but has no widget values; expect empty hint per widget.
-6. **state-stale** &mdash; only previous-turn history exists; expect dimmed/stale style.
-7. **state-error** &mdash; `shield` widget gets invalid `max=-1`; expect error overlay.
-8. **pending-prompt** &mdash; suite stops auto-acking. **Click any widget**; the suite advances once it observes the event.
-9. **pending-ack** &mdash; suite releases ack; pending pulse should clear.
-10. **mount-smoke** &mdash; switch to broader smoke manifest.
-11. **unmount** &mdash; publish empty manifest; widget container should disappear.
+1. **heartbeat** &mdash; BD must advertise the `scripture` module.
+2. **mount-affordances** &mdash; 5-widget manifest renders cleanly.
+3. **pending-prompt** &mdash; suite holds the ack. **Click any interactive widget** (e.g. `Pick: Option B`); you should see the amber pulse appear and persist.
+4. **pending-ack** &mdash; suite releases ack; the pulse should clear within a turn.
+5. **mount-smoke** &mdash; switch to the broader smoke manifest.
+6. **unmount** &mdash; publish empty manifest; widget container disappears.
 
 A successful run ends with `phase: "auto-complete"` and `auto.checksPass: true`. Steps that fail leave a `reason` in their result.
 

@@ -1481,20 +1481,11 @@ html.bd-story-card-dock-active > body {
 }
 
 /* =============================================================
-   Widget affordance states (set via data-state by the renderer)
+   Pending affordance — the only widget state.
+   Set by the renderer (data-state="pending") when the player
+   interacts with an interactive widget; cleared when the AI
+   acknowledges the queued event.
    ------------------------------------------------------------- */
-
-/* Base: give all widgets relative positioning so affordance badges
-   rendered via ::after can be pinned in the corner. */
-.bd-widget {
-  position: relative;
-}
-
-/* --- PENDING --------------------------------------------------
-   The player just interacted with this widget but the change has
-   not yet been sent to the AI. The pulsing amber glow is the
-   entire affordance — no badge, no extra DOM — quiet but
-   unmistakable. */
 .bd-widget[data-state="pending"] {
   border-color: rgba(251, 191, 36, 0.55);
   animation: bd-widget-pending-pulse 1.8s ease-in-out infinite;
@@ -1517,90 +1508,8 @@ html.bd-story-card-dock-active > body {
   }
 }
 
-/* Honor reduced-motion preferences. */
 @media (prefers-reduced-motion: reduce) {
-  .bd-widget[data-state="pending"] {
-    animation: none;
-  }
-}
-
-/* --- LOADING --------------------------------------------------
-   Widget mounted but has never received a value. Show a shimmer
-   bar across the widget as a skeleton cue. */
-.bd-widget[data-state="loading"] {
-  border-color: rgba(255, 255, 255, 0.10);
-  color: transparent;
-}
-.bd-widget[data-state="loading"] > * {
-  opacity: 0.35;
-}
-.bd-widget[data-state="loading"]::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.08) 50%,
-    transparent 100%
-  );
-  background-size: 200% 100%;
-  animation: bd-widget-skeleton-shimmer 1.6s linear infinite;
-  pointer-events: none;
-}
-@keyframes bd-widget-skeleton-shimmer {
-  0%   { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .bd-widget[data-state="loading"]::after { animation: none; }
-}
-
-/* --- STALE ----------------------------------------------------
-   History has no entry for the current liveCount; the renderer is
-   showing values carried over from a previous turn. Dim the
-   widget and overlay a subtle diagonal hatch so it reads as
-   "not fresh". */
-.bd-widget[data-state="stale"] {
-  opacity: 0.62;
-  border-style: dashed;
-  border-color: rgba(255, 255, 255, 0.18);
-}
-
-/* --- EMPTY ----------------------------------------------------
-   AI wrote an entry for this turn but intentionally left this
-   widget without a value. Mute the content; the dash hint is
-   rendered via ::after so no DOM mutation is needed. */
-.bd-widget[data-state="empty"] {
-  opacity: 0.55;
-}
-.bd-widget[data-state="empty"]::after {
-  content: '—';
-  margin-left: 6px;
-  color: rgba(255, 255, 255, 0.4);
-  font-style: italic;
-  font-size: var(--bd-font-size-xs);
-  pointer-events: none;
-}
-
-/* --- ERROR ---------------------------------------------------- */
-.bd-widget[data-state="error"] {
-  border-color: rgba(248, 113, 113, 0.6);
-  box-shadow:
-    0 0 0 1px rgba(248, 113, 113, 0.3),
-    0 8px 22px rgba(0, 0, 0, 0.26),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-.bd-widget-error-msg {
-  display: block;
-  margin-top: 4px;
-  padding: 3px 6px;
-  font-size: var(--bd-font-size-xs);
-  color: rgba(254, 202, 202, 0.95);
-  background: rgba(127, 29, 29, 0.32);
-  border-left: 2px solid rgba(248, 113, 113, 0.75);
-  border-radius: 2px;
+  .bd-widget[data-state="pending"] { animation: none; }
 }
 
 .bd-betterscripts-container[data-widget-size="compact"] .bd-widget {

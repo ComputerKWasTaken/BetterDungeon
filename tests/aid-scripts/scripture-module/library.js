@@ -1,9 +1,9 @@
 // Frontier Scripture Module Test Suite — AI Dungeon Library
 //
-// Drives the BetterDungeon Scripture module through both scenario walkthroughs
-// and an automated turn-by-turn checklist that exercises every affordance state
-// (loading, empty, stale, error, normal, pending) plus the widget-event ack
-// flow. Pair with input-modifier.js.
+// Drives the BetterDungeon Scripture module through scenario walkthroughs
+// and an automated turn-by-turn checklist that verifies the heartbeat, the
+// mount/unmount lifecycle, and the pending widget affordance (the only
+// player-facing widget state). Pair with input-modifier.js + output-modifier.js.
 //
 // Surfaces written:
 //   frontier:state:scripture   - widget manifest + history + ack envelope (script -> BD)
@@ -25,7 +25,6 @@ state.scriptureTest = state.scriptureTest || {
   turn: 0,
   liveKey: null,
   scenario: null,           // 'smoke' | 'affordances' | null
-  forcedState: null,        // 'normal' | 'empty' | 'stale' | 'error' | 'loading' | null
   ackSeq: 0,                // we advance this to ack widget events back to BD
   lastSeqSeen: 0,
   observedEvents: [],       // tail of widgetEvents we've seen on frontier:in:scripture
@@ -73,8 +72,8 @@ var SCR_SMOKE_MANIFEST = {
   ],
 };
 
-// Affordances scenario uses a smaller, focused widget set so the affordance
-// markers (loading shimmer, empty hint, error message) are easy to spot.
+// Affordances scenario uses a smaller, focused widget set so the pending
+// affordance is easy to spot when you interact with widgets.
 var SCR_AFFORDANCE_MANIFEST = {
   widgets: [
     { id: 'hp',     type: 'stat',     align: 'left',   label: 'HP',     color: 'red'    },
@@ -205,9 +204,9 @@ function scrDefaultValuesFor(manifest) {
   return values;
 }
 
-// Intentionally invalid values designed to fail validateWidgetConfig and
-// trigger the 'error' affordance on the BD side. Keys must match widget ids
-// in the active manifest.
+// Intentionally invalid values designed to fail validateWidgetConfig. Used
+// by the manual /scripture invalid command to confirm the module silently
+// skips broken widgets (logs a warning instead of rendering them).
 function scrErrorValuesFor(manifest) {
   if (!manifest || !Array.isArray(manifest.widgets)) return {};
   var values = {};
@@ -215,7 +214,8 @@ function scrErrorValuesFor(manifest) {
     var w = manifest.widgets[i];
     switch (w.type) {
       case 'progress':
-        // Negative max -> validateWidgetConfig fails -> _affordance: 'error'
+        // Negative max -> validateWidgetConfig fails -> module logs warning
+        // and skips this widget on render.
         values[w.id] = { value: 50, max: -1 };
         break;
       case 'stat':
@@ -245,34 +245,9 @@ function scrBuildEnvelope() {
   }
 
   var history = {};
-  var defaults = scrDefaultValuesFor(manifest);
-
-  // Always seed the previous turn so 'stale' has something older to fall
-  // back to via selectHistoryEntry. Without this, 'stale' reads as 'empty'.
-  if (liveCount > 1) history[String(liveCount - 1)] = defaults;
-
-  switch (s.forcedState) {
-    case 'loading':
-      // No history at all -> renderer mounts widgets with no value -> 'loading'
-      history = {};
-      break;
-    case 'empty':
-      // History entry exists for liveCount but has no values for any widget id
-      history[String(liveCount)] = {};
-      break;
-    case 'stale':
-      // History has the previous-turn values but NO entry for liveCount.
-      // selectHistoryEntry falls back to the older one -> _affordance: 'stale'.
-      // (Already seeded above; intentionally do not write liveCount.)
-      break;
-    case 'error':
-      history[String(liveCount)] = scrErrorValuesFor(manifest);
-      break;
-    case 'normal':
-    default:
-      history[String(liveCount)] = defaults;
-      break;
-  }
+  history[String(liveCount)] = s._publishInvalid
+    ? scrErrorValuesFor(manifest)
+    : scrDefaultValuesFor(manifest);
 
   return {
     v: 1,
@@ -342,8 +317,6 @@ function scrPollInbox(opts) {
 // modifier reads the text, calls scrConsumeCommands, and consumed text is
 // stripped so the model never sees it.
 
-var SCR_VERB_FORCED_STATES = { normal: 1, empty: 1, stale: 1, error: 1, loading: 1 };
-
 function scrParseCommand(line) {
   var m = String(line || '').match(/\/scripture\s+([^\n\r]+)/i);
   if (!m) return null;
@@ -362,23 +335,22 @@ function scrApplyCommand(cmd) {
 
     case 'smoke':
       s.scenario = 'smoke';
-      s.forcedState = 'normal';
       s.auto.enabled = false;
       scrLog('cmd', 'smoke scenario');
       return true;
 
     case 'affordances':
       s.scenario = 'affordances';
-      s.forcedState = 'normal';
       s.auto.enabled = false;
       scrLog('cmd', 'affordances scenario');
       return true;
 
-    case 'state':
-      if (!SCR_VERB_FORCED_STATES[cmd.arg]) return false;
+    case 'invalid':
+      // Manual probe: publish widgets with invalid values to confirm the
+      // module skips them with a console warning instead of rendering.
       if (!s.scenario) s.scenario = 'affordances';
-      s.forcedState = cmd.arg;
-      scrLog('cmd', 'state -> ' + cmd.arg);
+      s._publishInvalid = true;
+      scrLog('cmd', 'publish invalid values');
       return true;
 
     case 'ack':
@@ -391,7 +363,6 @@ function scrApplyCommand(cmd) {
 
     case 'clear':
       s.scenario = null;
-      s.forcedState = null;
       scrLog('cmd', 'cleared');
       return true;
 
@@ -443,7 +414,7 @@ function scrResetSuite() {
   state.scriptureTest = {
     runId: 'scripture-' + scrNow().toString(36),
     turn: 0, liveKey: null,
-    scenario: null, forcedState: null,
+    scenario: null,
     ackSeq: 0, lastSeqSeen: 0,
     observedEvents: [], consumedCommands: {}, events: [],
     auto: { enabled: false, stepIdx: 0, stepStartedAt: null, stepStartedTurn: null, results: {} },
@@ -482,50 +453,18 @@ var SCR_AUTO_PLAN = [
   },
   {
     label: 'mount-affordances',
-    note: 'Mount the small affordance manifest with normal values. Look for 5 widgets.',
+    note: 'Mount the affordance manifest. Look for 5 widgets with normal values.',
     setup: function () {
       var s = state.scriptureTest;
       s.scenario = 'affordances';
-      s.forcedState = 'normal';
     },
-    validate: function () { return { pass: true, observed: 'Eyeball: 5 widgets visible, no skeletons.' }; },
-  },
-  {
-    label: 'state-loading',
-    note: 'Force loading: history is empty, widgets show shimmer skeletons.',
-    setup: function () { state.scriptureTest.forcedState = 'loading'; },
-    validate: function () { return { pass: true, observed: 'Eyeball: skeleton shimmer on widgets.' }; },
-  },
-  {
-    label: 'state-normal',
-    note: 'Restore normal values; affordances should clear.',
-    setup: function () { state.scriptureTest.forcedState = 'normal'; },
-    validate: function () { return { pass: true, observed: 'Eyeball: clean widgets, no markers.' }; },
-  },
-  {
-    label: 'state-empty',
-    note: 'Force empty: AI wrote an entry for liveCount but no values for any widget.',
-    setup: function () { state.scriptureTest.forcedState = 'empty'; },
-    validate: function () { return { pass: true, observed: "Eyeball: '—' empty hint on each widget." }; },
-  },
-  {
-    label: 'state-stale',
-    note: 'Force stale: history has previous-turn values only; no entry for liveCount.',
-    setup: function () { state.scriptureTest.forcedState = 'stale'; },
-    validate: function () { return { pass: true, observed: 'Eyeball: faded/dimmed widgets (stale CSS).' }; },
-  },
-  {
-    label: 'state-error',
-    note: 'Force error: shield widget gets an invalid max=-1, should show error affordance.',
-    setup: function () { state.scriptureTest.forcedState = 'error'; },
-    validate: function () { return { pass: true, observed: "Eyeball: shield widget shows '⚠ Error' overlay." }; },
+    validate: function () { return { pass: true, observed: 'Eyeball: 5 widgets visible.' }; },
   },
   {
     label: 'pending-prompt',
-    note: 'Click any widget (e.g., Pick: Option B). Suite holds the ack so you can see the pending state.',
+    note: 'Click any interactive widget (e.g., Pick: Option B). Suite holds the ack so you can see the amber pulse persist.',
     setup: function () {
       var s = state.scriptureTest;
-      s.forcedState = 'normal';
       s._pendingHold = true;     // tell scrPollInbox not to ack yet
       s._pendingBaseline = s.lastSeqSeen;
     },
@@ -565,7 +504,6 @@ var SCR_AUTO_PLAN = [
     setup: function () {
       var s = state.scriptureTest;
       s.scenario = 'smoke';
-      s.forcedState = 'normal';
     },
     validate: function () { return { pass: true, observed: 'Eyeball: 11+ widgets across left/center/right zones.' }; },
   },
@@ -575,7 +513,6 @@ var SCR_AUTO_PLAN = [
     setup: function () {
       var s = state.scriptureTest;
       s.scenario = null;
-      s.forcedState = null;
     },
     validate: function () { return { pass: true, observed: 'Eyeball: widget container is gone.' }; },
   },
@@ -601,9 +538,9 @@ function scrAutoForceNext() {
 }
 
 // One auto-run tick. Chains steps within a single turn whenever a step's
-// setup did not change observable state (no scenario / forcedState mutation
-// and no advanceWhen gate). Observable steps wait one turn after setup so
-// BD has time to render the change before validation runs.
+// setup did not change observable state (no scenario mutation and no
+// advanceWhen gate). Observable steps wait one turn after setup so BD
+// has time to render the change before validation runs.
 function scrAutoTick() {
   var s = state.scriptureTest;
   if (!s.auto.enabled) return;
@@ -619,12 +556,9 @@ function scrAutoTick() {
     // Phase 1: run setup once. Detect whether it changed envelope-relevant state.
     if (!rec || !rec._setupRan) {
       var prevScenario = s.scenario;
-      var prevForced = s.forcedState;
       try { step.setup && step.setup(); } catch (e) { scrLog('auto-error', 'setup ' + step.label + ': ' + e); }
 
-      var observable = (s.scenario !== prevScenario)
-        || (s.forcedState !== prevForced)
-        || !!step.advanceWhen;
+      var observable = (s.scenario !== prevScenario) || !!step.advanceWhen;
 
       s.auto.stepStartedTurn = s.turn;
       s.auto.stepStartedAt = scrNow();
@@ -728,7 +662,6 @@ function scrWriteTrace(envelope) {
     liveCount: scrLiveCount(),
     phase: s.phase,
     scenario: s.scenario,
-    forcedState: s.forcedState,
     heartbeat: {
       present: !!hb,
       profile: hb && hb.frontier && hb.frontier.profile,
@@ -758,7 +691,7 @@ function scrWriteTrace(envelope) {
         '/scripture stop           - pause the auto run',
         '/scripture smoke          - load smoke scenario',
         '/scripture affordances    - load affordances scenario',
-        '/scripture state <name>   - normal | empty | stale | error | loading',
+        '/scripture invalid        - publish invalid values (module should skip them)',
         '/scripture ack            - force-ack pending widget events',
         '/scripture clear          - unmount all widgets',
         '/scripture reset          - reset suite state',
@@ -787,8 +720,7 @@ function frontierScriptureTestStep(text) {
 
   // Update phase if not auto-driven.
   if (!s.auto.enabled) {
-    if (!s.scenario) s.phase = 'idle';
-    else s.phase = s.scenario + (s.forcedState ? ':' + s.forcedState : '');
+    s.phase = s.scenario ? s.scenario : 'idle';
   }
 
   scrWriteTrace(env);
