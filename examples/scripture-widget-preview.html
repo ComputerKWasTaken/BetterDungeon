@@ -144,6 +144,881 @@
       width: 100% !important;
       z-index: auto !important;
     }
+
+    /* Concept label badge shown on new widget proposals */
+    .concept-tag {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #000;
+      background: var(--bd-amber);
+      border-radius: 4px;
+      padding: 2px 6px;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+
+    /* =======================================================
+       AFFORDANCE STATES — async feedback for Scripture widgets
+       These would live in styles.css once approved.
+       ======================================================= */
+
+    /* Skeleton shimmer keyframe */
+    @keyframes bd-shimmer {
+      0%   { background-position: -200% center; }
+      100% { background-position:  200% center; }
+    }
+
+    /* --- Loading state (value not yet received from AI) --- */
+    .bd-widget[data-state="loading"] {
+      pointer-events: none;
+    }
+
+    .bd-widget[data-state="loading"] .bd-widget-value,
+    .bd-widget[data-state="loading"] .bd-widget-label,
+    .bd-widget[data-state="loading"] .bd-widget-bar-fill,
+    .bd-widget[data-state="loading"] .bd-widget-badge-text,
+    .bd-widget[data-state="loading"] .bd-widget-list-title,
+    .bd-widget[data-state="loading"] .bd-widget-panel-title {
+      visibility: hidden;
+    }
+
+    /* Skeleton placeholder blocks */
+    .bd-widget-skeleton {
+      display: inline-block;
+      border-radius: 4px;
+      background: linear-gradient(
+        90deg,
+        rgba(255,255,255,0.06) 25%,
+        rgba(255,255,255,0.13) 50%,
+        rgba(255,255,255,0.06) 75%
+      );
+      background-size: 200% 100%;
+      animation: bd-shimmer 1.4s ease-in-out infinite;
+    }
+
+    /* Skeleton bar fill */
+    .bd-widget[data-state="loading"] .bd-widget-bar-container {
+      position: relative;
+    }
+    .bd-widget[data-state="loading"] .bd-widget-bar-container::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(
+        90deg,
+        rgba(255,255,255,0.06) 25%,
+        rgba(255,255,255,0.13) 50%,
+        rgba(255,255,255,0.06) 75%
+      );
+      background-size: 200% 100%;
+      animation: bd-shimmer 1.4s ease-in-out infinite;
+    }
+
+    /* --- Pending state (interaction sent, awaiting AI ack) --- */
+    .bd-widget[data-state="pending"] {
+      opacity: 0.7;
+      pointer-events: none;
+    }
+
+    .bd-widget[data-state="pending"] .bd-widget-button-control,
+    .bd-widget[data-state="pending"] .bd-widget-confirm-btn,
+    .bd-widget[data-state="pending"] .bd-widget-holdbutton-btn,
+    .bd-widget[data-state="pending"] .bd-widget-dropdown-trigger {
+      cursor: wait;
+    }
+
+    /* Spinning dots indicator on pending interactive widgets */
+    .bd-widget[data-state="pending"]::after {
+      content: '';
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--bd-accent-primary);
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      animation: bd-pending-pulse 1s ease-in-out infinite;
+    }
+
+    @keyframes bd-pending-pulse {
+      0%, 100% { opacity: 1;   transform: scale(1); }
+      50%       { opacity: 0.3; transform: scale(0.7); }
+    }
+
+    /* --- Stale state (value is outdated — AI hasn't refreshed it) --- */
+    .bd-widget[data-state="stale"] {
+      opacity: 0.6;
+    }
+
+    .bd-widget[data-state="stale"] .bd-widget-value,
+    .bd-widget[data-state="stale"] .bd-widget-bar-fill,
+    .bd-widget[data-state="stale"] .bd-widget-badge-text {
+      filter: grayscale(0.5);
+    }
+
+    /* Dashed border hint */
+    .bd-widget[data-state="stale"] {
+      border-style: dashed !important;
+    }
+
+    /* --- Error state (fetch failed or value invalid) --- */
+    .bd-widget[data-state="error"] {
+      border-color: rgba(239, 68, 68, 0.4) !important;
+      background: rgba(239, 68, 68, 0.07) !important;
+    }
+
+    .bd-widget-error-msg {
+      font-size: 10px;
+      color: var(--bd-error-light);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 2px;
+    }
+
+    /* --- Empty state (widget has no value yet, not loading) --- */
+    .bd-widget[data-state="empty"] .bd-widget-value {
+      color: var(--bd-text-muted);
+      font-style: italic;
+    }
+
+    .bd-widget[data-state="empty"] .bd-widget-bar-fill {
+      width: 0% !important;
+      opacity: 0.3;
+    }
+
+    .bd-widget-empty-hint {
+      font-size: 10px;
+      color: var(--bd-text-muted);
+      font-style: italic;
+      margin-top: 1px;
+    }
+
+    /* =======================================================
+       CONCEPT WIDGET STYLES — proposed new widget types
+       These live here for preview only; once approved they
+       would move into styles.css alongside the existing rules.
+       ======================================================= */
+
+    /* --- Timer / Countdown --- */
+    .bd-widget-timer {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .bd-widget-timer-icon {
+      font-size: 1.1em;
+      line-height: 1;
+      opacity: 0.9;
+    }
+
+    .bd-widget-timer-display {
+      font-size: var(--bd-font-size-md);
+      font-weight: var(--bd-font-weight-bold);
+      font-variant-numeric: tabular-nums;
+      color: var(--bd-text-primary);
+      letter-spacing: 0.5px;
+    }
+
+    .bd-widget-timer-label {
+      font-size: var(--bd-font-size-xs);
+      font-weight: var(--bd-font-weight-semibold);
+      color: rgba(255, 255, 255, 0.62);
+      text-transform: uppercase;
+    }
+
+    .bd-widget-timer[data-urgency="low"] .bd-widget-timer-display { color: var(--bd-success); }
+    .bd-widget-timer[data-urgency="medium"] .bd-widget-timer-display { color: var(--bd-warning); }
+    .bd-widget-timer[data-urgency="high"] .bd-widget-timer-display { color: var(--bd-error); }
+
+    @keyframes bd-timer-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .bd-widget-timer[data-urgency="high"] .bd-widget-timer-display {
+      animation: bd-timer-pulse 1s ease-in-out infinite;
+    }
+
+    /* --- Progress (stepped) --- */
+    .bd-widget-progress {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: min(200px, 100%);
+    }
+
+    .bd-widget-progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .bd-widget-progress-label {
+      font-size: var(--bd-font-size-xs);
+      font-weight: var(--bd-font-weight-semibold);
+      color: rgba(255, 255, 255, 0.72);
+      text-transform: uppercase;
+    }
+
+    .bd-widget-progress-count {
+      font-size: var(--bd-font-size-xs);
+      font-weight: var(--bd-font-weight-bold);
+      color: var(--bd-text-primary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .bd-widget-progress-steps {
+      display: flex;
+      gap: 3px;
+    }
+
+    .bd-widget-progress-step {
+      flex: 1;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.1);
+      transition: background 0.2s ease;
+    }
+
+    .bd-widget-progress-step[data-state="complete"] {
+      background: var(--bd-success);
+      box-shadow: 0 0 6px rgba(34, 197, 94, 0.3);
+    }
+
+    .bd-widget-progress-step[data-state="current"] {
+      background: linear-gradient(90deg, var(--bd-accent-primary), var(--bd-accent-light));
+      box-shadow: 0 0 6px rgba(255, 149, 0, 0.3);
+    }
+
+    /* --- Divider --- */
+    .bd-widget-divider {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+      padding: 4px 0 !important;
+      min-height: auto !important;
+      width: 100%;
+      pointer-events: none;
+    }
+
+    .bd-widget-divider-line {
+      border: none;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      margin: 0;
+    }
+
+    .bd-widget-divider-labeled {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .bd-widget-divider-labeled::before,
+    .bd-widget-divider-labeled::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .bd-widget-divider-text {
+      font-size: 10px;
+      font-weight: var(--bd-font-weight-semibold);
+      color: var(--bd-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      white-space: nowrap;
+    }
+
+    /* --- Radio --- */
+    .bd-widget-radio {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: min(200px, 100%);
+    }
+
+    .bd-widget-radio-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+      font-size: var(--bd-font-size-xs);
+      color: rgba(255, 255, 255, 0.72);
+    }
+
+    .bd-widget-radio-option:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .bd-widget-radio-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.24);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 0.15s ease;
+    }
+
+    .bd-widget-radio-dot::after {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: transparent;
+      transition: background 0.15s ease;
+    }
+
+    .bd-widget-radio-option[data-selected="true"] {
+      color: var(--bd-text-primary);
+    }
+
+    .bd-widget-radio-option[data-selected="true"] .bd-widget-radio-dot {
+      border-color: var(--bd-accent-primary);
+    }
+
+    .bd-widget-radio-option[data-selected="true"] .bd-widget-radio-dot::after {
+      background: var(--bd-accent-primary);
+    }
+
+    .bd-widget-radio-text {
+      line-height: 1.3;
+    }
+
+    /* --- Stepper --- */
+    .bd-widget-stepper {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .bd-widget-stepper-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--bd-text-primary);
+      font-size: 16px;
+      font-weight: var(--bd-font-weight-bold);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: var(--bd-transition-fast);
+      line-height: 1;
+    }
+
+    .bd-widget-stepper-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.24);
+    }
+
+    .bd-widget-stepper-value {
+      min-width: 32px;
+      text-align: center;
+      font-size: var(--bd-font-size-md);
+      font-weight: var(--bd-font-weight-bold);
+      font-variant-numeric: tabular-nums;
+      color: var(--bd-text-primary);
+    }
+
+    /* --- Confirm --- */
+    .bd-widget-confirm-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 12px;
+      min-height: 32px;
+      border-radius: 7px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--bd-text-primary);
+      font: inherit;
+      font-size: var(--bd-font-size-sm);
+      cursor: pointer;
+      transition: var(--bd-transition-fast);
+    }
+
+    .bd-widget-confirm-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.24);
+    }
+
+    .bd-widget-confirm[data-state="confirming"] .bd-widget-confirm-btn {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: var(--bd-error);
+      color: var(--bd-error-light);
+    }
+
+    .bd-widget-confirm[data-state="confirming"] .bd-widget-confirm-btn:hover {
+      background: rgba(239, 68, 68, 0.35);
+    }
+
+    /* --- Chip Select (multi-select) --- */
+    .bd-widget-chipselect {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: min(200px, 100%);
+    }
+
+    .bd-widget-chipselect-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .bd-widget-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: var(--bd-font-size-xs);
+      font-weight: var(--bd-font-weight-semibold);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.05);
+      color: rgba(255, 255, 255, 0.6);
+      cursor: pointer;
+      transition: var(--bd-transition-fast);
+      user-select: none;
+    }
+
+    .bd-widget-chip:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.22);
+    }
+
+    .bd-widget-chip[data-selected="true"] {
+      background: color-mix(in srgb, var(--bd-accent-primary) 18%, rgba(255, 255, 255, 0.04));
+      border-color: color-mix(in srgb, var(--bd-accent-primary) 48%, rgba(255, 255, 255, 0.12));
+      color: var(--bd-accent-light);
+    }
+
+    .bd-widget-chip-check {
+      font-size: 10px;
+      line-height: 1;
+    }
+
+    /* --- Tag Group --- */
+    .bd-widget-taggroup {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .bd-widget-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: var(--bd-font-weight-semibold);
+      letter-spacing: 0.2px;
+      background: rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .bd-widget-tag[data-color="red"]    { background: rgba(239, 68, 68, 0.15); color: var(--bd-error-light); border-color: rgba(239, 68, 68, 0.25); }
+    .bd-widget-tag[data-color="green"]  { background: rgba(34, 197, 94, 0.15); color: var(--bd-success-light); border-color: rgba(34, 197, 94, 0.25); }
+    .bd-widget-tag[data-color="blue"]   { background: rgba(59, 130, 246, 0.15); color: var(--bd-info-light); border-color: rgba(59, 130, 246, 0.25); }
+    .bd-widget-tag[data-color="yellow"] { background: rgba(245, 158, 11, 0.15); color: var(--bd-warning-light); border-color: rgba(245, 158, 11, 0.25); }
+    .bd-widget-tag[data-color="purple"] { background: rgba(168, 85, 247, 0.15); color: var(--bd-purple-light); border-color: rgba(168, 85, 247, 0.25); }
+    .bd-widget-tag[data-color="cyan"]   { background: rgba(6, 182, 212, 0.15); color: var(--bd-cyan-light); border-color: rgba(6, 182, 212, 0.25); }
+
+    .bd-widget-tag-icon {
+      font-size: 10px;
+      line-height: 1;
+    }
+
+    /* --- Accordion --- */
+    .bd-widget-accordion {
+      display: flex;
+      flex-direction: column;
+      min-width: min(220px, 100%);
+      max-width: 320px;
+    }
+
+    .bd-widget-accordion-section {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .bd-widget-accordion-section:last-child { border-bottom: none; }
+
+    .bd-widget-accordion-trigger {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 6px 2px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .bd-widget-accordion-trigger-text {
+      font-size: var(--bd-font-size-xs);
+      font-weight: var(--bd-font-weight-semibold);
+      color: var(--bd-text-primary);
+    }
+
+    .bd-widget-accordion-trigger-icon {
+      font-size: 10px;
+      color: var(--bd-text-muted);
+      transition: transform 0.2s ease;
+      display: inline-block;
+    }
+
+    .bd-widget-accordion-section[data-open="true"] .bd-widget-accordion-trigger-icon {
+      transform: rotate(90deg);
+    }
+
+    .bd-widget-accordion-panel {
+      display: none;
+      padding: 4px 2px 8px;
+      font-size: var(--bd-font-size-xs);
+      color: var(--bd-text-secondary);
+      line-height: 1.4;
+    }
+
+    .bd-widget-accordion-section[data-open="true"] .bd-widget-accordion-panel {
+      display: block;
+    }
+
+    /* --- Tabs --- */
+    .bd-widget-tabs {
+      display: flex;
+      flex-direction: column;
+      min-width: min(220px, 100%);
+      max-width: 340px;
+    }
+
+    .bd-widget-tabs-bar {
+      display: flex;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      gap: 0;
+    }
+
+    .bd-widget-tab-btn {
+      padding: 5px 12px;
+      font-size: var(--bd-font-size-xs);
+      font-weight: var(--bd-font-weight-semibold);
+      color: var(--bd-text-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+      user-select: none;
+      background: none;
+      border-top: none;
+      border-left: none;
+      border-right: none;
+      font-family: inherit;
+    }
+
+    .bd-widget-tab-btn:hover { color: var(--bd-text-secondary); }
+
+    .bd-widget-tab-btn[data-active="true"] {
+      color: var(--bd-accent-light);
+      border-bottom-color: var(--bd-accent-primary);
+    }
+
+    .bd-widget-tabs-panel {
+      display: none;
+      padding: 8px 2px;
+      font-size: var(--bd-font-size-xs);
+      color: var(--bd-text-secondary);
+      line-height: 1.4;
+    }
+
+    .bd-widget-tabs-panel[data-active="true"] { display: block; }
+
+    /* --- Popover --- */
+    .bd-widget-popover {
+      position: relative;
+      display: inline-flex;
+    }
+
+    .bd-widget-popover-trigger {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--bd-text-primary);
+      font-size: var(--bd-font-size-xs);
+      font-weight: var(--bd-font-weight-semibold);
+      cursor: pointer;
+      transition: var(--bd-transition-fast);
+      font-family: inherit;
+    }
+
+    .bd-widget-popover-trigger:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.22);
+    }
+
+    .bd-widget-popover-panel {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 0;
+      min-width: 180px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: var(--bd-bg-elevated);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+      font-size: var(--bd-font-size-xs);
+      color: var(--bd-text-secondary);
+      line-height: 1.4;
+      z-index: 10;
+      animation: bd-popover-in 0.15s ease;
+    }
+
+    .bd-widget-popover[data-open="true"] .bd-widget-popover-panel { display: block; }
+
+    @keyframes bd-popover-in {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* --- Dropdown Menu --- */
+    .bd-widget-dropdown {
+      position: relative;
+      display: inline-flex;
+    }
+
+    .bd-widget-dropdown-trigger {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      min-height: 28px;
+      border-radius: 7px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--bd-text-primary);
+      font-size: var(--bd-font-size-xs);
+      font-weight: var(--bd-font-weight-semibold);
+      cursor: pointer;
+      transition: var(--bd-transition-fast);
+      font-family: inherit;
+    }
+
+    .bd-widget-dropdown-trigger:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.24);
+    }
+
+    .bd-widget-dropdown-menu {
+      display: none;
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      min-width: 160px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: var(--bd-bg-elevated);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+      padding: 4px;
+      z-index: 10;
+      animation: bd-popover-in 0.15s ease;
+    }
+
+    .bd-widget-dropdown[data-open="true"] .bd-widget-dropdown-menu { display: block; }
+
+    .bd-widget-dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 8px;
+      border-radius: 5px;
+      font-size: var(--bd-font-size-xs);
+      color: var(--bd-text-primary);
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+
+    .bd-widget-dropdown-item:hover { background: rgba(255, 255, 255, 0.08); }
+
+    .bd-widget-dropdown-item-icon {
+      font-size: 1em;
+      line-height: 1;
+      width: 16px;
+      text-align: center;
+    }
+
+    .bd-widget-dropdown-divider {
+      height: 1px;
+      background: rgba(255, 255, 255, 0.08);
+      margin: 3px 4px;
+    }
+
+    /* --- Hold Button --- */
+    .bd-widget-holdbutton {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .bd-widget-holdbutton-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 14px;
+      min-height: 32px;
+      border-radius: 7px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--bd-text-primary);
+      font: inherit;
+      font-size: var(--bd-font-size-sm);
+      cursor: pointer;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    .bd-widget-holdbutton-fill {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 0%;
+      background: rgba(239, 68, 68, 0.25);
+      transition: width 0.05s linear;
+      pointer-events: none;
+    }
+
+    .bd-widget-holdbutton-btn span { position: relative; z-index: 1; }
+
+    /* --- Dice --- */
+    .bd-widget-dice {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .bd-widget-dice-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--bd-text-primary);
+      font-size: 18px;
+      font-weight: var(--bd-font-weight-bold);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: var(--bd-transition-fast);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .bd-widget-dice-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.28);
+    }
+
+    @keyframes bd-dice-roll {
+      0%   { transform: rotate(0deg) scale(1); }
+      25%  { transform: rotate(-12deg) scale(1.1); }
+      50%  { transform: rotate(8deg) scale(1.05); }
+      75%  { transform: rotate(-4deg) scale(1.02); }
+      100% { transform: rotate(0deg) scale(1); }
+    }
+
+    .bd-widget-dice-btn.rolling {
+      animation: bd-dice-roll 0.4s ease;
+    }
+
+    .bd-widget-dice-label {
+      font-size: var(--bd-font-size-xs);
+      color: var(--bd-text-muted);
+      font-weight: var(--bd-font-weight-semibold);
+    }
+
+    .bd-widget-dice-result {
+      font-size: var(--bd-font-size-md);
+      font-weight: var(--bd-font-weight-bold);
+      color: var(--bd-accent-light);
+      font-variant-numeric: tabular-nums;
+      min-width: 24px;
+    }
+
+    /* --- Sortable List --- */
+    .bd-widget-sortable {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: min(200px, 100%);
+      max-width: 280px;
+    }
+
+    .bd-widget-sortable-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: var(--bd-font-size-xs);
+      color: var(--bd-text-primary);
+    }
+
+    .bd-widget-sortable-handle {
+      color: var(--bd-text-muted);
+      font-size: 12px;
+      cursor: grab;
+      user-select: none;
+      line-height: 1;
+    }
+
+    .bd-widget-sortable-arrows {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin-left: auto;
+    }
+
+    .bd-widget-sortable-arrow {
+      font-size: 10px;
+      color: var(--bd-text-muted);
+      cursor: pointer;
+      padding: 0 2px;
+      line-height: 1;
+      transition: color 0.1s;
+    }
+
+    .bd-widget-sortable-arrow:hover { color: var(--bd-accent-light); }
+
+    .bd-widget-sortable-rank {
+      font-size: 10px;
+      color: var(--bd-text-muted);
+      font-variant-numeric: tabular-nums;
+      min-width: 14px;
+    }
   </style>
 </head>
 <body>
@@ -152,7 +1027,7 @@
     <!-- ========== HEADER ========== -->
     <div class="preview-header">
       <h1>Scripture — Widget Design Preview</h1>
-      <p>All 15 widget types rendered with the live BetterDungeon theme &amp; styles.</p>
+      <p>Existing widget types + proposed new concepts — rendered with the live BetterDungeon theme &amp; styles.</p>
     </div>
 
     <!-- ========== CONTROLS ========== -->
@@ -182,6 +1057,151 @@
         <label>Container Width</label>
         <input type="range" id="ctrl-width" min="320" max="1200" value="900" />
         <span class="width-value" id="ctrl-width-value">900px</span>
+      </div>
+    </div>
+
+    <!-- ================================================================
+         SECTION 0 — AFFORDANCE STATES
+         (loading, pending, stale, error, empty)
+         ================================================================ -->
+    <div class="preview-section">
+      <h2>Affordance States <span class="concept-tag">Concept</span></h2>
+      <p class="desc">
+        Visual feedback for the async gap between Scripture sending a value and the AI acknowledging an interaction.
+        All states are driven by a single <code style="font-size:11px;color:var(--bd-accent-light)">data-state</code> attribute on the widget root.
+      </p>
+
+      <div class="game-area">
+        <div class="bd-betterscripts-wrapper bd-scripture-wrapper">
+          <div class="bd-betterscripts-container bd-scripture-container"
+               data-widget-size="normal" data-widget-height="tall" data-widget-layout="balanced">
+
+            <!-- LEFT — Loading & Empty -->
+            <div class="bd-bar-zone bd-bar-left bd-scripture-zone">
+
+              <!-- Loading: stat (value not received yet) -->
+              <div class="bd-widget bd-widget-stat" data-color="green" data-state="loading" style="position:relative">
+                <span class="bd-widget-label">HP</span>
+                <span class="bd-widget-value">87</span>
+                <!-- skeleton overlays the hidden value -->
+                <span class="bd-widget-skeleton" style="width:28px;height:14px;position:absolute;right:10px;top:50%;transform:translateY(-50%)"></span>
+              </div>
+
+              <!-- Loading: bar -->
+              <div class="bd-widget bd-widget-bar" data-color="blue" data-state="loading">
+                <span class="bd-widget-label">Mana</span>
+                <div class="bd-widget-bar-container">
+                  <div class="bd-widget-bar-fill" style="width:60%"></div>
+                  <span class="bd-widget-bar-text">—</span>
+                </div>
+              </div>
+
+              <!-- Empty: stat (widget exists but no value assigned yet) -->
+              <div class="bd-widget bd-widget-stat" data-state="empty" style="pointer-events:auto">
+                <span class="bd-widget-label">Bounty</span>
+                <span class="bd-widget-value">—</span>
+                <span class="bd-widget-empty-hint">Awaiting value…</span>
+              </div>
+
+              <!-- Empty: bar -->
+              <div class="bd-widget bd-widget-bar" data-color="red" data-state="empty">
+                <span class="bd-widget-label">Threat</span>
+                <div class="bd-widget-bar-container">
+                  <div class="bd-widget-bar-fill" style="width:0%"></div>
+                  <span class="bd-widget-bar-text">—/—</span>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- CENTER — Pending & Stale -->
+            <div class="bd-bar-zone bd-bar-center bd-scripture-zone">
+
+              <!-- Pending: button (interaction sent, waiting for AI ack) -->
+              <div class="bd-widget bd-widget-button bd-widget-interactive" data-state="pending" style="position:relative;pointer-events:auto">
+                <button type="button" class="bd-widget-control bd-widget-button-control" data-variant="primary">
+                  <span class="bd-widget-control-icon">⚔️</span>
+                  <span class="bd-widget-button-text">Attack</span>
+                </button>
+              </div>
+
+              <!-- Pending: confirm -->
+              <div class="bd-widget bd-widget-confirm bd-widget-interactive" data-state="pending" data-confirm-state="confirming" style="position:relative;pointer-events:auto">
+                <button class="bd-widget-confirm-btn">
+                  <span>⚠️</span>
+                  <span>Confirm Rest?</span>
+                </button>
+              </div>
+
+              <!-- Pending: toggle -->
+              <div class="bd-widget bd-widget-toggle bd-widget-interactive" data-state="pending" style="position:relative;pointer-events:auto">
+                <label class="bd-widget-toggle-control">
+                  <input type="checkbox" checked disabled />
+                  <span class="bd-widget-toggle-slider"></span>
+                </label>
+                <span class="bd-widget-control-label">Stealth Mode</span>
+              </div>
+
+              <!-- Stale: stat (AI hasn't pushed a fresh value) -->
+              <div class="bd-widget bd-widget-stat" data-color="yellow" data-state="stale" style="pointer-events:auto">
+                <span class="bd-widget-label">Gold</span>
+                <span class="bd-widget-value">350</span>
+              </div>
+
+              <!-- Stale: bar -->
+              <div class="bd-widget bd-widget-bar" data-color="purple" data-state="stale">
+                <span class="bd-widget-label">XP</span>
+                <div class="bd-widget-bar-container">
+                  <div class="bd-widget-bar-fill" style="width:45%"></div>
+                  <span class="bd-widget-bar-text">450/1000</span>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- RIGHT — Error -->
+            <div class="bd-bar-zone bd-bar-right bd-scripture-zone">
+
+              <!-- Error: stat (value failed to parse / out of range) -->
+              <div class="bd-widget bd-widget-stat" data-state="error" style="pointer-events:auto;position:relative">
+                <span class="bd-widget-label">Armor</span>
+                <span class="bd-widget-value" style="color:var(--bd-error-light)">ERR</span>
+                <span class="bd-widget-error-msg">⚠ Invalid value</span>
+              </div>
+
+              <!-- Error: bar -->
+              <div class="bd-widget bd-widget-bar" data-state="error">
+                <span class="bd-widget-label">Corruption</span>
+                <div class="bd-widget-bar-container">
+                  <div class="bd-widget-bar-fill" style="width:0%"></div>
+                  <span class="bd-widget-bar-text" style="color:var(--bd-error-light)">Failed</span>
+                </div>
+                <span class="bd-widget-error-msg">⚠ Script timeout</span>
+              </div>
+
+              <!-- Error: button -->
+              <div class="bd-widget bd-widget-button bd-widget-interactive" data-state="error" style="pointer-events:auto;position:relative">
+                <button type="button" class="bd-widget-control bd-widget-button-control">
+                  <span class="bd-widget-button-text">Use Item</span>
+                </button>
+                <span class="bd-widget-error-msg">⚠ No response</span>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- State toggle demo -->
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <span style="font-size:12px;color:var(--bd-text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.4px">Live demo:</span>
+        <button onclick="demoAffordance('loading')" style="padding:4px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.07);color:var(--bd-text-primary);font-size:12px;cursor:pointer">Loading</button>
+        <button onclick="demoAffordance('pending')" style="padding:4px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.07);color:var(--bd-text-primary);font-size:12px;cursor:pointer">Pending</button>
+        <button onclick="demoAffordance('stale')"   style="padding:4px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.07);color:var(--bd-text-primary);font-size:12px;cursor:pointer">Stale</button>
+        <button onclick="demoAffordance('error')"   style="padding:4px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.07);color:var(--bd-text-primary);font-size:12px;cursor:pointer">Error</button>
+        <button onclick="demoAffordance('empty')"   style="padding:4px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.07);color:var(--bd-text-primary);font-size:12px;cursor:pointer">Empty</button>
+        <button onclick="demoAffordance(null)"      style="padding:4px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.07);color:var(--bd-text-secondary);font-size:12px;cursor:pointer">Clear</button>
+        <span id="demo-affordance-target" style="font-size:11px;color:var(--bd-text-muted);margin-left:4px">→ applies to HP stat in Section 1</span>
       </div>
     </div>
 
@@ -678,6 +1698,405 @@
       </div>
     </div>
 
+    <!-- ================================================================
+         SECTION 6 — CONCEPT: Timer & Progress (display)
+         ================================================================ -->
+    <div class="preview-section">
+      <h2>Timer &amp; Progress <span class="concept-tag">Concept</span></h2>
+      <p class="desc">Autonomous countdown timers and step-based progress indicators.</p>
+
+      <div class="game-area">
+        <div class="bd-betterscripts-wrapper bd-scripture-wrapper">
+          <div class="bd-betterscripts-container bd-scripture-container"
+               data-widget-size="normal" data-widget-height="medium" data-widget-layout="balanced">
+
+            <div class="bd-bar-zone bd-bar-left bd-scripture-zone">
+
+              <!-- Timer (low urgency — plenty of time) -->
+              <div class="bd-widget bd-widget-timer" data-urgency="low" style="pointer-events:auto">
+                <span class="bd-widget-timer-icon">⏳</span>
+                <span class="bd-widget-timer-label">Potion</span>
+                <span class="bd-widget-timer-display">4:32</span>
+              </div>
+
+              <!-- Timer (medium urgency) -->
+              <div class="bd-widget bd-widget-timer" data-urgency="medium" style="pointer-events:auto">
+                <span class="bd-widget-timer-icon">🔥</span>
+                <span class="bd-widget-timer-label">Torch</span>
+                <span class="bd-widget-timer-display">1:15</span>
+              </div>
+
+              <!-- Timer (high urgency — pulsing) -->
+              <div class="bd-widget bd-widget-timer" data-urgency="high" style="pointer-events:auto">
+                <span class="bd-widget-timer-icon">💀</span>
+                <span class="bd-widget-timer-label">Poison</span>
+                <span class="bd-widget-timer-display">0:08</span>
+              </div>
+
+            </div>
+
+            <div class="bd-bar-zone bd-bar-center bd-scripture-zone">
+
+              <!-- Progress (3 of 5 steps) -->
+              <div class="bd-widget bd-widget-progress" style="pointer-events:auto">
+                <div class="bd-widget-progress-header">
+                  <span class="bd-widget-progress-label">Main Quest</span>
+                  <span class="bd-widget-progress-count">3 / 5</span>
+                </div>
+                <div class="bd-widget-progress-steps">
+                  <div class="bd-widget-progress-step" data-state="complete"></div>
+                  <div class="bd-widget-progress-step" data-state="complete"></div>
+                  <div class="bd-widget-progress-step" data-state="current"></div>
+                  <div class="bd-widget-progress-step"></div>
+                  <div class="bd-widget-progress-step"></div>
+                </div>
+              </div>
+
+              <!-- Progress (1 of 3 steps) -->
+              <div class="bd-widget bd-widget-progress" style="pointer-events:auto">
+                <div class="bd-widget-progress-header">
+                  <span class="bd-widget-progress-label">Dungeon Floor</span>
+                  <span class="bd-widget-progress-count">1 / 3</span>
+                </div>
+                <div class="bd-widget-progress-steps">
+                  <div class="bd-widget-progress-step" data-state="current"></div>
+                  <div class="bd-widget-progress-step"></div>
+                  <div class="bd-widget-progress-step"></div>
+                </div>
+              </div>
+
+            </div>
+
+            <div class="bd-bar-zone bd-bar-right bd-scripture-zone">
+
+              <!-- Tag Group (status effects) -->
+              <div class="bd-widget bd-widget-taggroup" style="pointer-events:auto">
+                <span class="bd-widget-tag" data-color="red"><span class="bd-widget-tag-icon">🩸</span> Poisoned</span>
+                <span class="bd-widget-tag" data-color="green"><span class="bd-widget-tag-icon">✨</span> Blessed</span>
+                <span class="bd-widget-tag" data-color="purple"><span class="bd-widget-tag-icon">👁️</span> Invisible</span>
+                <span class="bd-widget-tag" data-color="blue"><span class="bd-widget-tag-icon">🛡️</span> Shielded</span>
+              </div>
+
+              <!-- Tag Group (resistances) -->
+              <div class="bd-widget bd-widget-taggroup" style="pointer-events:auto">
+                <span class="bd-widget-tag" data-color="cyan">Ice Resist</span>
+                <span class="bd-widget-tag" data-color="yellow">Fire Resist</span>
+                <span class="bd-widget-tag">Neutral</span>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================================
+         SECTION 7 — CONCEPT: Divider (layout helper)
+         ================================================================ -->
+    <div class="preview-section">
+      <h2>Divider <span class="concept-tag">Concept</span></h2>
+      <p class="desc">Lightweight visual separator — plain line or labeled break.</p>
+
+      <div class="game-area">
+        <div class="bd-betterscripts-wrapper bd-scripture-wrapper">
+          <div class="bd-betterscripts-container bd-scripture-container"
+               data-widget-size="normal" data-widget-height="medium" data-widget-layout="stacked">
+            <div class="bd-bar-zone bd-bar-center bd-scripture-zone">
+
+              <div class="bd-widget bd-widget-stat" data-color="green" style="pointer-events:auto">
+                <span class="bd-widget-label">HP</span>
+                <span class="bd-widget-value">87</span>
+              </div>
+
+              <!-- Divider (plain) -->
+              <div class="bd-widget bd-widget-divider">
+                <hr class="bd-widget-divider-line" />
+              </div>
+
+              <div class="bd-widget bd-widget-stat" data-color="blue" style="pointer-events:auto">
+                <span class="bd-widget-label">MP</span>
+                <span class="bd-widget-value">23</span>
+              </div>
+
+              <!-- Divider (labeled) -->
+              <div class="bd-widget bd-widget-divider">
+                <div class="bd-widget-divider-labeled">
+                  <span class="bd-widget-divider-text">Section Break</span>
+                </div>
+              </div>
+
+              <div class="bd-widget bd-widget-stat" data-color="yellow" style="pointer-events:auto">
+                <span class="bd-widget-label">Stamina</span>
+                <span class="bd-widget-value">62</span>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================================
+         SECTION 8 — CONCEPT: Interactive (radio, stepper, confirm, chip-select)
+         ================================================================ -->
+    <div class="preview-section">
+      <h2>New Interactive Widgets <span class="concept-tag">Concept</span></h2>
+      <p class="desc">Radio groups, numeric steppers, confirmation buttons, and multi-select chips.</p>
+
+      <div class="game-area">
+        <div class="bd-betterscripts-wrapper bd-scripture-wrapper">
+          <div class="bd-betterscripts-container bd-scripture-container"
+               data-widget-size="normal" data-widget-height="tall" data-widget-layout="balanced">
+
+            <div class="bd-bar-zone bd-bar-left bd-scripture-zone">
+
+              <!-- Radio group -->
+              <div class="bd-widget bd-widget-radio bd-widget-interactive" style="pointer-events:auto">
+                <span class="bd-widget-control-label" style="margin-bottom:2px">Dialogue</span>
+                <div class="bd-widget-radio-option" data-selected="false" onclick="selectRadio(this)">
+                  <span class="bd-widget-radio-dot"></span>
+                  <span class="bd-widget-radio-text">"Tell me about the curse."</span>
+                </div>
+                <div class="bd-widget-radio-option" data-selected="true" onclick="selectRadio(this)">
+                  <span class="bd-widget-radio-dot"></span>
+                  <span class="bd-widget-radio-text">"I'll help you, old man."</span>
+                </div>
+                <div class="bd-widget-radio-option" data-selected="false" onclick="selectRadio(this)">
+                  <span class="bd-widget-radio-dot"></span>
+                  <span class="bd-widget-radio-text">"Not my problem." (Leave)</span>
+                </div>
+              </div>
+
+            </div>
+
+            <div class="bd-bar-zone bd-bar-center bd-scripture-zone">
+
+              <!-- Stepper (stat allocation) -->
+              <div class="bd-widget bd-widget-stepper bd-widget-interactive" style="pointer-events:auto">
+                <span class="bd-widget-control-label">Strength</span>
+                <button class="bd-widget-stepper-btn" onclick="stepValue(this,-1)">−</button>
+                <span class="bd-widget-stepper-value">16</span>
+                <button class="bd-widget-stepper-btn" onclick="stepValue(this,1)">+</button>
+              </div>
+
+              <!-- Stepper (quantity) -->
+              <div class="bd-widget bd-widget-stepper bd-widget-interactive" style="pointer-events:auto">
+                <span class="bd-widget-control-label">Buy Potions</span>
+                <button class="bd-widget-stepper-btn" onclick="stepValue(this,-1)">−</button>
+                <span class="bd-widget-stepper-value">3</span>
+                <button class="bd-widget-stepper-btn" onclick="stepValue(this,1)">+</button>
+              </div>
+
+              <!-- Confirm (idle state) -->
+              <div class="bd-widget bd-widget-confirm bd-widget-interactive" data-state="idle" style="pointer-events:auto">
+                <button class="bd-widget-confirm-btn" onclick="toggleConfirm(this)">
+                  <span>🏕️</span>
+                  <span>Rest Here</span>
+                </button>
+              </div>
+
+              <!-- Confirm (confirming state) -->
+              <div class="bd-widget bd-widget-confirm bd-widget-interactive" data-state="confirming" style="pointer-events:auto">
+                <button class="bd-widget-confirm-btn" onclick="toggleConfirm(this)">
+                  <span>⚠️</span>
+                  <span>Confirm Rest?</span>
+                </button>
+              </div>
+
+            </div>
+
+            <div class="bd-bar-zone bd-bar-right bd-scripture-zone">
+
+              <!-- Chip Select (party members) -->
+              <div class="bd-widget bd-widget-chipselect bd-widget-interactive" style="pointer-events:auto">
+                <span class="bd-widget-control-label" style="margin-bottom:2px">Select Party</span>
+                <div class="bd-widget-chipselect-chips">
+                  <span class="bd-widget-chip" data-selected="true" onclick="toggleChip(this)">
+                    <span class="bd-widget-chip-check">✓</span> Aldric
+                  </span>
+                  <span class="bd-widget-chip" data-selected="true" onclick="toggleChip(this)">
+                    <span class="bd-widget-chip-check">✓</span> Kira
+                  </span>
+                  <span class="bd-widget-chip" data-selected="false" onclick="toggleChip(this)">
+                    Lyra
+                  </span>
+                  <span class="bd-widget-chip" data-selected="false" onclick="toggleChip(this)">
+                    Thorne
+                  </span>
+                </div>
+              </div>
+
+              <!-- Chip Select (skills) -->
+              <div class="bd-widget bd-widget-chipselect bd-widget-interactive" style="pointer-events:auto">
+                <span class="bd-widget-control-label" style="margin-bottom:2px">Active Skills</span>
+                <div class="bd-widget-chipselect-chips">
+                  <span class="bd-widget-chip" data-selected="true" onclick="toggleChip(this)">
+                    <span class="bd-widget-chip-check">✓</span> 🔥 Fireball
+                  </span>
+                  <span class="bd-widget-chip" data-selected="false" onclick="toggleChip(this)">
+                    ❄️ Ice Shard
+                  </span>
+                  <span class="bd-widget-chip" data-selected="true" onclick="toggleChip(this)">
+                    <span class="bd-widget-chip-check">✓</span> 🛡️ Shield
+                  </span>
+                  <span class="bd-widget-chip" data-selected="false" onclick="toggleChip(this)">
+                    ⚡ Lightning
+                  </span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================================
+         SECTION 9 — CONCEPT: Container & Action Widgets
+         (accordion, tabs, hold-button, sortable-list, dropdown-menu)
+         ================================================================ -->
+    <div class="preview-section">
+      <h2>Container &amp; Action Widgets <span class="concept-tag">Concept</span></h2>
+      <p class="desc">Accordion sections, tabbed views, hold-to-confirm, sortable priority lists, and action menus.</p>
+
+      <div class="game-area">
+        <div class="bd-betterscripts-wrapper bd-scripture-wrapper">
+          <div class="bd-betterscripts-container bd-scripture-container"
+               data-widget-size="normal" data-widget-height="tall" data-widget-layout="balanced">
+
+            <div class="bd-bar-zone bd-bar-left bd-scripture-zone">
+
+              <!-- Accordion -->
+              <div class="bd-widget bd-widget-accordion" style="pointer-events:auto">
+                <div class="bd-widget-accordion-section" data-open="true">
+                  <div class="bd-widget-accordion-trigger" onclick="toggleAccordion(this)">
+                    <span class="bd-widget-accordion-trigger-text">⚔️ Attributes</span>
+                    <span class="bd-widget-accordion-trigger-icon">▶</span>
+                  </div>
+                  <div class="bd-widget-accordion-panel">
+                    STR 16 · DEX 14 · CON 18<br>INT 20 · WIS 12 · CHA 10
+                  </div>
+                </div>
+                <div class="bd-widget-accordion-section" data-open="false">
+                  <div class="bd-widget-accordion-trigger" onclick="toggleAccordion(this)">
+                    <span class="bd-widget-accordion-trigger-text">🎒 Inventory</span>
+                    <span class="bd-widget-accordion-trigger-icon">▶</span>
+                  </div>
+                  <div class="bd-widget-accordion-panel">
+                    Flame Blade · Oak Shield · Mage Robes<br>Health Potion ×3 · Scroll of Fireball
+                  </div>
+                </div>
+                <div class="bd-widget-accordion-section" data-open="false">
+                  <div class="bd-widget-accordion-trigger" onclick="toggleAccordion(this)">
+                    <span class="bd-widget-accordion-trigger-text">📜 Quests</span>
+                    <span class="bd-widget-accordion-trigger-icon">▶</span>
+                  </div>
+                  <div class="bd-widget-accordion-panel">
+                    <strong style="color:var(--bd-warning)">The Dark Keep</strong> — Defeat the Shadow Lord<br>
+                    <strong style="color:var(--bd-text-muted)">Lost Relic</strong> — Find the Crystal of Dawn
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tabs -->
+              <div class="bd-widget bd-widget-tabs" style="pointer-events:auto" id="demo-tabs-1">
+                <div class="bd-widget-tabs-bar">
+                  <button class="bd-widget-tab-btn" data-active="true" data-tab="stats" onclick="switchTab(this)">Stats</button>
+                  <button class="bd-widget-tab-btn" data-active="false" data-tab="skills" onclick="switchTab(this)">Skills</button>
+                  <button class="bd-widget-tab-btn" data-active="false" data-tab="perks" onclick="switchTab(this)">Perks</button>
+                </div>
+                <div class="bd-widget-tabs-panel" data-tab="stats" data-active="true">
+                  HP: 87/100 · MP: 23/100<br>Level 12 · XP: 1,240/2,000
+                </div>
+                <div class="bd-widget-tabs-panel" data-tab="skills" data-active="false">
+                  Fireball (Lv 5) · Ice Shard (Lv 3)<br>Shield (Lv 4) · Heal (Lv 2)
+                </div>
+                <div class="bd-widget-tabs-panel" data-tab="perks" data-active="false">
+                  Night Vision · Fire Affinity<br>Quick Reflexes · Iron Will
+                </div>
+              </div>
+
+            </div>
+
+            <div class="bd-bar-zone bd-bar-center bd-scripture-zone">
+
+              <!-- Dropdown Menu -->
+              <div class="bd-widget bd-widget-dropdown bd-widget-interactive" data-open="false" style="pointer-events:auto">
+                <button class="bd-widget-dropdown-trigger" onclick="toggleDropdown(this)">
+                  ⋯ Actions <span style="font-size:10px;opacity:0.6">▾</span>
+                </button>
+                <div class="bd-widget-dropdown-menu">
+                  <div class="bd-widget-dropdown-item"><span class="bd-widget-dropdown-item-icon">🔍</span> Inspect</div>
+                  <div class="bd-widget-dropdown-item"><span class="bd-widget-dropdown-item-icon">💬</span> Talk</div>
+                  <div class="bd-widget-dropdown-item"><span class="bd-widget-dropdown-item-icon">🤝</span> Trade</div>
+                  <div class="bd-widget-dropdown-divider"></div>
+                  <div class="bd-widget-dropdown-item" style="color:var(--bd-error-light)"><span class="bd-widget-dropdown-item-icon">🗡️</span> Attack</div>
+                  <div class="bd-widget-dropdown-item"><span class="bd-widget-dropdown-item-icon">🏃</span> Flee</div>
+                </div>
+              </div>
+
+              <!-- Hold Button -->
+              <div class="bd-widget bd-widget-holdbutton bd-widget-interactive" style="pointer-events:auto">
+                <span class="bd-widget-control-label">Disenchant</span>
+                <button class="bd-widget-holdbutton-btn"
+                        onmousedown="holdStart(this)" onmouseup="holdEnd(this)" onmouseleave="holdEnd(this)">
+                  <div class="bd-widget-holdbutton-fill"></div>
+                  <span>🔥</span>
+                  <span>Hold to Destroy</span>
+                </button>
+              </div>
+
+            </div>
+
+            <div class="bd-bar-zone bd-bar-right bd-scripture-zone">
+
+              <!-- Sortable List -->
+              <div class="bd-widget bd-widget-sortable bd-widget-interactive" style="pointer-events:auto">
+                <span class="bd-widget-control-label" style="margin-bottom:2px">Action Priority</span>
+                <div class="bd-widget-sortable-item">
+                  <span class="bd-widget-sortable-handle">⠿</span>
+                  <span class="bd-widget-sortable-rank">1.</span>
+                  <span>⚔️ Attack</span>
+                  <div class="bd-widget-sortable-arrows">
+                    <span class="bd-widget-sortable-arrow" onclick="sortMove(this,-1)">▲</span>
+                    <span class="bd-widget-sortable-arrow" onclick="sortMove(this,1)">▼</span>
+                  </div>
+                </div>
+                <div class="bd-widget-sortable-item">
+                  <span class="bd-widget-sortable-handle">⠿</span>
+                  <span class="bd-widget-sortable-rank">2.</span>
+                  <span>🛡️ Defend</span>
+                  <div class="bd-widget-sortable-arrows">
+                    <span class="bd-widget-sortable-arrow" onclick="sortMove(this,-1)">▲</span>
+                    <span class="bd-widget-sortable-arrow" onclick="sortMove(this,1)">▼</span>
+                  </div>
+                </div>
+                <div class="bd-widget-sortable-item">
+                  <span class="bd-widget-sortable-handle">⠿</span>
+                  <span class="bd-widget-sortable-rank">3.</span>
+                  <span>🔥 Cast Spell</span>
+                  <div class="bd-widget-sortable-arrows">
+                    <span class="bd-widget-sortable-arrow" onclick="sortMove(this,-1)">▲</span>
+                    <span class="bd-widget-sortable-arrow" onclick="sortMove(this,1)">▼</span>
+                  </div>
+                </div>
+                <div class="bd-widget-sortable-item">
+                  <span class="bd-widget-sortable-handle">⠿</span>
+                  <span class="bd-widget-sortable-rank">4.</span>
+                  <span>🧪 Use Item</span>
+                  <div class="bd-widget-sortable-arrows">
+                    <span class="bd-widget-sortable-arrow" onclick="sortMove(this,-1)">▲</span>
+                    <span class="bd-widget-sortable-arrow" onclick="sortMove(this,1)">▼</span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div><!-- /.preview-page -->
 
   <!-- ================================================================
@@ -722,6 +2141,167 @@
         }
       });
     })();
+
+    /* --- Concept widget interactivity --- */
+
+    // Radio: select one option, deselect siblings
+    function selectRadio(option) {
+      const group = option.closest('.bd-widget-radio');
+      group.querySelectorAll('.bd-widget-radio-option').forEach(o => o.dataset.selected = 'false');
+      option.dataset.selected = 'true';
+    }
+
+    // Stepper: increment/decrement the sibling value
+    function stepValue(btn, delta) {
+      const widget = btn.closest('.bd-widget-stepper');
+      const valueEl = widget.querySelector('.bd-widget-stepper-value');
+      const current = parseInt(valueEl.textContent, 10) || 0;
+      valueEl.textContent = Math.max(0, current + delta);
+    }
+
+    // Confirm: toggle between idle and confirming states
+    function toggleConfirm(btn) {
+      const widget = btn.closest('.bd-widget-confirm');
+      const isConfirming = widget.dataset.state === 'confirming';
+      widget.dataset.state = isConfirming ? 'idle' : 'confirming';
+      const spans = btn.querySelectorAll('span');
+      if (isConfirming) {
+        spans[0].textContent = '🏕️';
+        spans[1].textContent = 'Rest Here';
+      } else {
+        spans[0].textContent = '⚠️';
+        spans[1].textContent = 'Confirm Rest?';
+      }
+    }
+
+    // Chip: toggle selection on/off
+    function toggleChip(chip) {
+      const selected = chip.dataset.selected === 'true';
+      chip.dataset.selected = selected ? 'false' : 'true';
+      let check = chip.querySelector('.bd-widget-chip-check');
+      if (!selected) {
+        if (!check) {
+          check = document.createElement('span');
+          check.className = 'bd-widget-chip-check';
+          check.textContent = '✓';
+          chip.insertBefore(check, chip.firstChild);
+        }
+      } else if (check) {
+        check.remove();
+      }
+    }
+
+    // Accordion: toggle section, close siblings
+    function toggleAccordion(trigger) {
+      const section = trigger.closest('.bd-widget-accordion-section');
+      const accordion = section.closest('.bd-widget-accordion');
+      const wasOpen = section.dataset.open === 'true';
+      accordion.querySelectorAll('.bd-widget-accordion-section').forEach(s => s.dataset.open = 'false');
+      if (!wasOpen) section.dataset.open = 'true';
+    }
+
+    // Tabs: switch active tab
+    function switchTab(btn) {
+      const tabs = btn.closest('.bd-widget-tabs');
+      const tabName = btn.dataset.tab;
+      tabs.querySelectorAll('.bd-widget-tab-btn').forEach(b => b.dataset.active = 'false');
+      tabs.querySelectorAll('.bd-widget-tabs-panel').forEach(p => p.dataset.active = 'false');
+      btn.dataset.active = 'true';
+      tabs.querySelector(`.bd-widget-tabs-panel[data-tab="${tabName}"]`).dataset.active = 'true';
+    }
+
+    // Dropdown Menu: toggle open/closed
+    function toggleDropdown(trigger) {
+      const widget = trigger.closest('.bd-widget-dropdown');
+      const isOpen = widget.dataset.open === 'true';
+      document.querySelectorAll('.bd-widget-dropdown').forEach(d => d.dataset.open = 'false');
+      if (!isOpen) widget.dataset.open = 'true';
+    }
+
+    // Hold Button: press-and-hold to fill, release to reset
+    let holdInterval = null;
+    function holdStart(btn) {
+      const fill = btn.querySelector('.bd-widget-holdbutton-fill');
+      let pct = 0;
+      fill.style.width = '0%';
+      holdInterval = setInterval(() => {
+        pct += 2;
+        fill.style.width = Math.min(pct, 100) + '%';
+        if (pct >= 100) {
+          clearInterval(holdInterval);
+          holdInterval = null;
+          fill.style.background = 'rgba(34, 197, 94, 0.3)';
+          setTimeout(() => { fill.style.width = '0%'; fill.style.background = ''; }, 800);
+        }
+      }, 30);
+    }
+    function holdEnd(btn) {
+      if (holdInterval) {
+        clearInterval(holdInterval);
+        holdInterval = null;
+        const fill = btn.querySelector('.bd-widget-holdbutton-fill');
+        fill.style.width = '0%';
+      }
+    }
+
+    // Sortable List: move item up/down
+    function sortMove(arrowBtn, direction) {
+      const item = arrowBtn.closest('.bd-widget-sortable-item');
+      const list = item.closest('.bd-widget-sortable');
+      const items = Array.from(list.querySelectorAll('.bd-widget-sortable-item'));
+      const index = items.indexOf(item);
+      const target = index + direction;
+      if (target < 0 || target >= items.length) return;
+      if (direction === -1) {
+        list.insertBefore(item, items[target]);
+      } else {
+        list.insertBefore(items[target], item);
+      }
+      // Re-number ranks
+      list.querySelectorAll('.bd-widget-sortable-item').forEach((it, i) => {
+        it.querySelector('.bd-widget-sortable-rank').textContent = (i + 1) + '.';
+      });
+    }
+
+    // Affordance demo: apply a state to the HP stat in Section 1
+    function demoAffordance(state) {
+      const target = document.getElementById('bd-widget-hp');
+      if (!target) return;
+      if (state === null) {
+        target.removeAttribute('data-state');
+        // remove skeleton if present
+        target.querySelectorAll('.bd-widget-skeleton').forEach(s => s.remove());
+        target.querySelectorAll('.bd-widget-error-msg,.bd-widget-empty-hint').forEach(s => s.remove());
+        return;
+      }
+      target.dataset.state = state;
+      // Clean up extra elements from previous runs
+      target.querySelectorAll('.bd-widget-skeleton,.bd-widget-error-msg,.bd-widget-empty-hint').forEach(s => s.remove());
+      if (state === 'loading') {
+        const sk = document.createElement('span');
+        sk.className = 'bd-widget-skeleton';
+        sk.style.cssText = 'width:28px;height:14px;position:absolute;right:10px;top:50%;transform:translateY(-50%)';
+        target.style.position = 'relative';
+        target.appendChild(sk);
+      } else if (state === 'error') {
+        const msg = document.createElement('span');
+        msg.className = 'bd-widget-error-msg';
+        msg.textContent = '⚠ Invalid value';
+        target.appendChild(msg);
+      } else if (state === 'empty') {
+        const hint = document.createElement('span');
+        hint.className = 'bd-widget-empty-hint';
+        hint.textContent = 'Awaiting value…';
+        target.appendChild(hint);
+      }
+    }
+
+    // Close dropdown menus on outside click
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.bd-widget-dropdown')) {
+        document.querySelectorAll('.bd-widget-dropdown').forEach(d => d.dataset.open = 'false');
+      }
+    });
   </script>
 </body>
 </html>
