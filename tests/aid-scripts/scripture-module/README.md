@@ -24,6 +24,7 @@ Use this suite when you change any of the following:
 | `/scripture transitions` | stat, bar, counter, progress | Values change every turn. Watch numbers count up/down and bars/progress fills smoothly animate. |
 | `/scripture edge` | taggroup, stat, bar, divider, text, icon, counter | Edge cases: empty tag list, missing value, 0-width bar, over-max bar, negative bar, missing label, empty text, empty icon. |
 | `/scripture custom` | custom (HTML), divider | Exercises the custom widget renderer: tables, lists, code blocks, formatted text, blockquotes, links, images, and inline CSS layouts. Verify that HTML is sanitized and styled correctly. |
+| `/scripture panels` | panel, divider | Panel widgets with titles and item lists (label/value pairs with optional colors), plus a plain content panel. Verify layout and color styling. |
 
 ## Surfaces written
 
@@ -60,6 +61,7 @@ Type these into normal player input. They are stripped from the text before it r
 | `/scripture transitions` | Load animated value-change scenario |
 | `/scripture edge` | Load edge-case scenario |
 | `/scripture custom` | Load custom HTML widget scenario |
+| `/scripture panels` | Load panel widget scenario |
 | `/scripture value <id> <val>` | Manually set a widget's value (e.g., `/scripture value hp 100`) |
 | `/scripture next` | Advance transition scenario to the next phase manually |
 | `/scripture ack` | Force-ack all pending widget events |
@@ -139,6 +141,23 @@ Check that:
 - CSS Grid layouts (e.g., the stat grid) align properly
 
 > **Note on `<script>`:** Custom widgets intentionally do **not** execute inline scripts. AI Dungeon's CSP blocks `unsafe-inline`, and our sanitizer strips `<script>` tags and `on*` event handlers. Custom widgets are for **static HTML/CSS only**.
+
+### Panel widgets
+```
+/scripture panels
+```
+Check that:
+- Panels render with titles and item lists aligned properly
+- Item labels and values are spaced with `justify-content: space-between`
+- Colored values use the correct CSS variables
+- The plain content panel renders raw text without items or title
+
+### Entrance & exit animations
+All widgets animate when they appear or disappear:
+- **Entrance**: fade in + slight translateY(8px → 0) + scale(0.97 → 1), 240ms ease-out
+- **Exit**: fade out + translateY(0 → -6px) + scale(1 → 0.96), 180ms ease-in
+
+Switch scenarios (e.g., `/scripture display` → `/scripture interactive`) to watch widgets exit and new ones enter. The animations should feel snappy, not sluggish.
 
 ### Manual override
 ```

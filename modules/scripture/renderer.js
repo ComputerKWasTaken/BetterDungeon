@@ -628,6 +628,14 @@
       const zone = this.widgetZones[align];
       if (zone) zone.appendChild(widgetElement);
       else this.widgetContainer.appendChild(widgetElement);
+
+      widgetElement.classList.add('bd-widget-entering');
+      const onEnterEnd = () => {
+        widgetElement.classList.remove('bd-widget-entering');
+        widgetElement.removeEventListener('animationend', onEnterEnd);
+      };
+      widgetElement.addEventListener('animationend', onEnterEnd);
+
       this.registeredWidgets.set(widgetId, { element: widgetElement, config: { ...config } });
       this.recalculateWidgetDensity();
       this.emitWidget('created', widgetId, config);
@@ -1615,24 +1623,43 @@
       const widgetData = this.registeredWidgets.get(widgetId);
       if (!widgetData) return;
 
-      widgetData.element.remove();
-      this.registeredWidgets.delete(widgetId);
-      this.pendingInteractionValues.delete(widgetId);
-      this.emitWidget('destroyed', widgetId);
+      const el = widgetData.element;
+      if (el.classList.contains('bd-widget-entering')) {
+        el.classList.remove('bd-widget-entering');
+      }
+      el.classList.add('bd-widget-exiting');
 
-      if (this.registeredWidgets.size === 0) this.removeWidgetContainer();
-      else this.recalculateWidgetDensity();
+      const onExitEnd = () => {
+        el.removeEventListener('animationend', onExitEnd);
+        if (!el.parentNode) return;
+        this.registeredWidgets.delete(widgetId);
+        this.pendingInteractionValues.delete(widgetId);
+        el.remove();
+        this.emitWidget('destroyed', widgetId);
+        if (this.registeredWidgets.size === 0) this.removeWidgetContainer();
+        else this.recalculateWidgetDensity();
+      };
+      el.addEventListener('animationend', onExitEnd);
+      // Safety: force removal if animation doesn't fire (e.g. display:none)
+      setTimeout(onExitEnd, 300);
     }
 
     clearAllWidgets() {
       this.registeredWidgets.forEach((data) => {
-        data.element.remove();
+        const el = data.element;
+        el.classList.remove('bd-widget-entering');
+        el.classList.add('bd-widget-exiting');
       });
-      this.registeredWidgets.clear();
-      this.pendingInteractionValues.clear();
-      this._warnedMessages.clear();
-      this.removeWidgetContainer();
-      this.log('All widgets cleared');
+      setTimeout(() => {
+        this.registeredWidgets.forEach((data) => {
+          data.element.remove();
+        });
+        this.registeredWidgets.clear();
+        this.pendingInteractionValues.clear();
+        this._warnedMessages.clear();
+        this.removeWidgetContainer();
+        this.log('All widgets cleared');
+      }, 240);
     }
 
     destroy() {

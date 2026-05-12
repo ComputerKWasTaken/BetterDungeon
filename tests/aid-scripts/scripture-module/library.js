@@ -17,6 +17,7 @@
 //   /scripture transitions  - animated value changes across turns
 //   /scripture edge         - empty lists, long labels, missing values, 0-width bars
 //   /scripture custom       - raw HTML widgets (tables, lists, code, formatted text, images, grids)
+//   /scripture panels       - panel widgets with title/items/content layouts
 //   /scripture value <id> <val>  - manually set a widget's value
 //   /scripture ack          - force-ack all pending widget events
 //   /scripture clear        - unmount all widgets
@@ -27,7 +28,7 @@
 state.scriptureTest = state.scriptureTest || {
   runId: null,
   turn: 0,
-  scenario: null,           // 'display' | 'interactive' | 'containers' | 'invalid' | 'transitions' | 'edge' | 'custom'
+  scenario: null,           // 'display' | 'interactive' | 'containers' | 'invalid' | 'transitions' | 'edge' | 'custom' | 'panels'
   ackSeq: 0,
   lastSeqSeen: 0,
   observedEvents: [],
@@ -187,6 +188,36 @@ var SCR_CUSTOM_MANIFEST = {
   ],
 };
 
+var SCR_PANELS_MANIFEST = {
+  widgets: [
+    { id: 'stats',   type: 'panel', align: 'left',   title: 'Character Stats',
+      items: [
+        { label: 'Strength',     value: 18, color: 'var(--bd-accent-light)' },
+        { label: 'Dexterity',    value: 14, color: 'var(--bd-success-light)' },
+        { label: 'Constitution', value: 16, color: 'var(--bd-info-light)' },
+        { label: 'Intelligence', value: 12 },
+        { label: 'Wisdom',       value: 10 },
+        { label: 'Charisma',     value: 8,  color: 'var(--bd-error-light)' },
+      ] },
+    { id: 'inv',     type: 'panel', align: 'center', title: 'Inventory',
+      items: [
+        { label: 'Health Potion', value: 'x3' },
+        { label: 'Iron Sword',    value: 'Equipped' },
+        { label: 'Torch',         value: 'x5' },
+        { label: 'Rope (50ft)',   value: 'x1' },
+        { label: 'Gold',          value: 1337, color: 'var(--bd-warning-light)' },
+      ] },
+    { id: 'spells',  type: 'panel', align: 'right',  title: 'Spell Slots',
+      items: [
+        { label: '1st Level', value: '2 / 3' },
+        { label: '2nd Level', value: '1 / 2' },
+        { label: '3rd Level', value: '0 / 1' },
+      ] },
+    { id: 'plain',   type: 'divider', align: 'center' },
+    { id: 'simple',  type: 'panel', align: 'left',   content: 'A plain text panel with no title or items. Useful for flavor text or short descriptions.' },
+  ],
+};
+
 function scrManifestFor(scenario) {
   switch (scenario) {
     case 'display':      return SCR_DISPLAY_MANIFEST;
@@ -196,6 +227,7 @@ function scrManifestFor(scenario) {
     case 'transitions':  return SCR_TRANSITIONS_MANIFEST;
     case 'edge':         return SCR_EDGE_MANIFEST;
     case 'custom':       return SCR_CUSTOM_MANIFEST;
+    case 'panels':       return SCR_PANELS_MANIFEST;
   }
   return null;
 }
@@ -443,6 +475,7 @@ function scrApplyCommand(cmd) {
     case 'transitions':
     case 'edge':
     case 'custom':
+    case 'panels':
       s.scenario = cmd.verb;
       s.overrides = {};
       scrLog('cmd', cmd.verb + ' scenario');
