@@ -774,7 +774,7 @@
         <div class="section-header">
           <span class="section-icon icon-layers" style="color: var(--bd-section-formatting);"></span>
           <h2 class="section-title">Script Surface</h2>
-          <span class="section-count" id="count-frontier-script-surface">3/3</span>
+          <span class="section-count" id="count-frontier-script-surface">4/4</span>
         </div>
         <div class="section-body">
           <div class="frontier-module-list">
@@ -899,6 +899,28 @@
               <div class="feature-details">
                 <p>Clock gives scripts the user's current local time, IANA time-zone conversion, ISO timestamps, offsets, and deterministic formatted dates.</p>
                 <p class="feature-hint"><span class="icon-clock"></span> Useful for daily events, timed encounters, schedules, cooldowns, holidays, and world clocks.</p>
+              </div>
+            </article>
+
+            <article class="feature-card frontier-module-card" data-frontier-module-card="sdk">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--accent);">
+                      <span class="icon-layers"></span>
+                    </span>
+                    <h3 class="feature-title">SDK</h3>
+                  </div>
+                  <p class="feature-desc">BetterDungeon runtime and capability introspection</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-frontier-module-toggle="sdk" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>SDK gives scripts one official place to ask what BetterDungeon and Frontier support is available right now, including module inventory, runtime metadata, and version information.</p>
+                <p class="feature-hint"><span class="icon-layers"></span> Useful for graceful capability detection, cleaner progressive enhancement, and avoiding custom heartbeat parsing in every script.</p>
               </div>
             </article>
           </div>

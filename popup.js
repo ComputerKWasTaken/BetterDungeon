@@ -96,6 +96,7 @@ const FRONTIER_PUBLIC_MODULES = [
   'scripture',
   'webfetch',
   'clock',
+  'sdk',
   'geolocation',
   'weather',
   'network',
@@ -2724,7 +2725,7 @@ function updateFrontierSectionCounts() {
   }
 
   const sectionMap = {
-    'frontier-script-surface': ['scripture', 'webfetch', 'clock'],
+    'frontier-script-surface': ['scripture', 'webfetch', 'clock', 'sdk'],
     'frontier-context': ['geolocation', 'weather', 'network', 'system'],
     'frontier-ai': ['ai']
   };

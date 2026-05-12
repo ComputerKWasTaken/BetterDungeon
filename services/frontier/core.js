@@ -21,7 +21,7 @@
 //
 // See:
 //   - Project Management/frontier/01-architecture.md (Core layer)
-//   - Project Management/frontier/03-modules.md (module contract)
+//   - Project Management/frontier/02-modules.md (module contract)
 
 (function () {
   if (window.Frontier?.core) return;
@@ -497,6 +497,9 @@
       emit('livecount:change', e.detail);
       // Re-dispatch cached state to tracksLiveCount modules.
       dispatchLiveCountRefresh();
+      // Keep heartbeat turn metadata aligned with the current live count so
+      // SDK/runtime consumers can treat freshness as meaningful during play.
+      if (state.adventureId) scheduleHeartbeat();
     });
 
     // --- Template events ---
@@ -574,7 +577,7 @@
   //
   // Each module's mount(ctx) receives one of these. The context is scoped
   // per-module so Core can scope logs and auto-clean listeners on unmount.
-  // Full interface per 03-modules.md FrontierContext.
+  // Full interface per 02-modules.md FrontierContext.
 
   function makeModuleCtx(moduleDef) {
     const moduleListeners = [];
@@ -668,6 +671,9 @@
     getAdventureId: () => state.adventureId,
     getTail: () => state.tail,
     getLiveCount: () => state.liveCount,
+    getProtocolVersion: () => PROTOCOL_VERSION,
+    getClientName: () => 'BetterDungeon',
+    isEnabled: () => state.enabled,
     writeCard,
     setAIService,
     setEnabled,
@@ -681,6 +687,8 @@
     inspect: () => ({
       started: state.started,
       enabled: state.enabled,
+      protocolVersion: PROTOCOL_VERSION,
+      clientName: 'BetterDungeon',
       adventureId: state.adventureId,
       tail: state.tail,
       liveCount: state.liveCount,

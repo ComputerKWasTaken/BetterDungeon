@@ -29,7 +29,7 @@
 //
 // See:
 //   - Project Management/frontier/01-architecture.md (module layer)
-//   - Project Management/frontier/03-modules.md (module contract)
+//   - Project Management/frontier/02-modules.md (module contract)
 
 (function () {
   if (window.Frontier?.registry) return;
