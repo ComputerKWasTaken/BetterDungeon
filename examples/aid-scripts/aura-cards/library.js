@@ -370,7 +370,7 @@ function auraHeartbeat() {
 
 function auraHasOp(moduleId, opName) {
   var hb = auraHeartbeat();
-  if (!hb || !hb.frontier || hb.frontier.protocol !== 1 || hb.frontier.profile !== 'full') {
+  if (!hb || !hb.frontier || hb.frontier.protocol !== 1) {
     return false;
   }
   var modules = Array.isArray(hb.modules) ? hb.modules : [];

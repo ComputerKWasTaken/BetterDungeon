@@ -956,7 +956,7 @@ function chronosHasStateModule(moduleId) {
 
 function chronosHasOp(moduleId, op) {
   var hb = chronosHeartbeat();
-  if (!hb || !hb.frontier || hb.frontier.protocol !== 1 || hb.frontier.profile !== 'full') return false;
+  if (!hb || !hb.frontier || hb.frontier.protocol !== 1) return false;
   var modules = Array.isArray(hb.modules) ? hb.modules : [];
   for (var i = 0; i < modules.length; i++) {
     var m = modules[i];

@@ -391,7 +391,6 @@
     const heartbeat = {
       frontier: {
         protocol: PROTOCOL_VERSION,
-        profile: 'full',
         enabled: state.enabled,
         client: 'BetterDungeon',
         clientVersion: (chrome?.runtime?.getManifest?.() || {}).version || 'unknown',

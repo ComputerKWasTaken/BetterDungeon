@@ -253,7 +253,7 @@ function faiHeartbeat() { return faiReadJson('frontier:heartbeat'); }
 
 function faiHasOp(moduleId, opName) {
   var hb = faiHeartbeat();
-  if (!hb || !hb.frontier || hb.frontier.protocol !== 1 || hb.frontier.profile !== 'full') return false;
+  if (!hb || !hb.frontier || hb.frontier.protocol !== 1) return false;
   var mods = Array.isArray(hb.modules) ? hb.modules : [];
   for (var i = 0; i < mods.length; i++) {
     var m = mods[i];
@@ -666,7 +666,6 @@ function faiWriteTrace() {
     phase: s.phase,
     heartbeat: {
       present: !!hb,
-      profile: hb && hb.frontier && hb.frontier.profile,
       protocol: hb && hb.frontier && hb.frontier.protocol,
       aiAdvertised: faiHasOp('ai', 'chat') && faiHasOp('ai', 'models') && faiHasOp('ai', 'testConnection')
     },

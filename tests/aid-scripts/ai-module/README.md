@@ -1,7 +1,7 @@
 # Frontier AI Module — AI Dungeon Test Suite
 
 End-to-end test scripts that exercise the BetterDungeon Frontier AI module
-(`modules/ai/module.js`) over the live Full Frontier protocol from inside an
+(`modules/ai/module.js`) over the live Frontier protocol from inside an
 AI Dungeon scenario. Use this any time you change the AI module, the
 `ops-dispatcher`, the registry, the envelope helpers, or any other Frontier
 plumbing — if the system is healthy this suite turns green; if it isn't, the
@@ -29,8 +29,7 @@ The suite runs a fixed plan of requests, one per turn, in order:
 
 It also verifies:
 
-- The `frontier:heartbeat` card exists, advertises `profile: "full"`, and
-  lists `ai` with all three real ops.
+- The `frontier:heartbeat` card exists and lists `ai` with all three real ops.
 - Pending → terminal response transitions on `frontier:in:ai` and
   `frontier:in:providerAI`.
 - Ack-driven cleanup of response cards (the script removes its own ids from
