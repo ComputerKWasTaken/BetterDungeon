@@ -25,7 +25,8 @@ state.frontierSdkTest = state.frontierSdkTest || {
 };
 
 var FSDK_STEPS = [
-  { label: 'version', module: 'sdk', op: 'version', args: function () { return {}; } }
+  { label: 'version', module: 'sdk', op: 'version', args: function () { return {}; } },
+  { label: 'config', module: 'sdk', op: 'config', args: function () { return {}; } }
 ];
 
 function fsdkNow() {
@@ -227,7 +228,7 @@ function fsdkCurrentStepIndex() {
 function fsdkAdvance() {
   var s = fsdkState();
 
-  if (!fsdkHasOp('sdk', 'version')) {
+  if (!fsdkHasOp('sdk', 'version') || !fsdkHasOp('sdk', 'config')) {
     s.phase = 'waiting for sdk heartbeat';
     return;
   }
@@ -354,7 +355,11 @@ function fsdkRenderStoryBlock() {
   lines.push('[Frontier SDK Test]');
   lines.push('phase: ' + s.phase);
   lines.push('heartbeat: ' + (hb ? 'present' : 'missing'));
-  lines.push('sdk version op advertised: ' + (fsdkHasOp('sdk', 'version') ? 'yes' : 'no'));
+  lines.push('sdk ops advertised: ' + (
+    fsdkHasOp('sdk', 'version') && fsdkHasOp('sdk', 'config')
+      ? 'version, config'
+      : (fsdkHasOp('sdk', 'version') ? 'version only' : 'missing')
+  ));
 
   for (var i = 0; i < FSDK_STEPS.length; i++) {
     var step = FSDK_STEPS[i];

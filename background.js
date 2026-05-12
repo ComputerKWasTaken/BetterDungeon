@@ -21,6 +21,7 @@
   const WEBFETCH_MESSAGE = 'FRONTIER_WEBFETCH_FETCH';
   const AI_MESSAGE = 'FRONTIER_AI_REQUEST';
   const LEGACY_PROVIDER_AI_MESSAGE = 'FRONTIER_PROVIDER_AI_REQUEST';
+  const SDK_MESSAGE = 'FRONTIER_SDK_REQUEST';
   const DEFAULT_TIMEOUT_MS = 15000;
   const MAX_TIMEOUT_MS = 30000;
   const DEFAULT_MAX_BODY_BYTES = 50000;
@@ -45,11 +46,51 @@
   const AI_MAX_MODEL_LIMIT = 100;
   const AI_DEFAULT_COST_CONTROLS = {
     freeModelsOnly: true,
+    advancedOpen: false,
     maxPromptPricePerMillion: 0,
     maxCompletionPricePerMillion: 0,
     perCallEstimateCap: 0,
     dailySpendCap: 0,
     monthlySpendCap: 0,
+  };
+  const SDK_SYNC_STORAGE_KEYS = {
+    features: 'betterDungeonFeatures',
+    frontierModules: 'frontier_enabled_modules',
+    frontierDebug: 'frontier_debug',
+    scriptureWidgetDisplay: 'frontier_mod_scripture_widget_display',
+    webfetchAllowlist: 'frontier_webfetch_allowlist',
+  };
+  const SDK_DEFAULT_FEATURES = {
+    frontier: true,
+    markdown: true,
+    command: true,
+    try: true,
+    triggerHighlight: true,
+    hotkey: true,
+    favoriteInstructions: true,
+    inputModeColor: true,
+    characterPreset: true,
+    autoSee: false,
+    notes: true,
+    storyCardModalDock: true,
+    inputHistory: true,
+    textToSpeech: false,
+  };
+  const SDK_FRONTIER_MODULES = [
+    'scripture',
+    'webfetch',
+    'clock',
+    'sdk',
+    'geolocation',
+    'weather',
+    'network',
+    'system',
+    'ai',
+  ];
+  const SDK_DEFAULT_SCRIPTURE_WIDGET_DISPLAY = {
+    size: 'normal',
+    maxHeight: 'medium',
+    layout: 'balanced',
   };
 
   const BLOCKED_RESPONSE_HEADERS = new Set([
@@ -324,12 +365,88 @@
     const raw = value && typeof value === 'object' ? value : {};
     return {
       freeModelsOnly: raw.freeModelsOnly !== false,
+      advancedOpen: raw.advancedOpen === true,
       maxPromptPricePerMillion: clampMoney(raw.maxPromptPricePerMillion, AI_DEFAULT_COST_CONTROLS.maxPromptPricePerMillion, 0, 1000),
       maxCompletionPricePerMillion: clampMoney(raw.maxCompletionPricePerMillion, AI_DEFAULT_COST_CONTROLS.maxCompletionPricePerMillion, 0, 1000),
       perCallEstimateCap: clampMoney(raw.perCallEstimateCap, AI_DEFAULT_COST_CONTROLS.perCallEstimateCap, 0, 1000),
       dailySpendCap: clampMoney(raw.dailySpendCap, AI_DEFAULT_COST_CONTROLS.dailySpendCap, 0, 1000),
       monthlySpendCap: clampMoney(raw.monthlySpendCap, AI_DEFAULT_COST_CONTROLS.monthlySpendCap, 0, 1000),
     };
+  }
+
+  function normalizeSdkFeatures(raw) {
+    return { ...SDK_DEFAULT_FEATURES, ...(raw && typeof raw === 'object' ? raw : {}) };
+  }
+
+  function normalizeSdkFrontierModules(raw) {
+    const out = {};
+    const saved = raw && typeof raw === 'object' ? raw : {};
+    for (let i = 0; i < SDK_FRONTIER_MODULES.length; i++) {
+      out[SDK_FRONTIER_MODULES[i]] = true;
+    }
+    for (const [key, value] of Object.entries(saved)) {
+      const normalizedKey = key === 'providerAI' ? 'ai' : key;
+      if (SDK_FRONTIER_MODULES.includes(normalizedKey)) out[normalizedKey] = !!value;
+    }
+    return out;
+  }
+
+  function normalizeSdkScriptureDisplay(raw) {
+    const display = raw && typeof raw === 'object' ? raw : {};
+    const size = ['compact', 'normal', 'comfortable', 'large'].includes(String(display.size || '').toLowerCase())
+      ? String(display.size).toLowerCase()
+      : SDK_DEFAULT_SCRIPTURE_WIDGET_DISPLAY.size;
+    const maxHeight = ['short', 'medium', 'tall'].includes(String(display.maxHeight || '').toLowerCase())
+      ? String(display.maxHeight).toLowerCase()
+      : SDK_DEFAULT_SCRIPTURE_WIDGET_DISPLAY.maxHeight;
+    const layout = ['balanced', 'stacked'].includes(String(display.layout || '').toLowerCase())
+      ? String(display.layout).toLowerCase()
+      : SDK_DEFAULT_SCRIPTURE_WIDGET_DISPLAY.layout;
+    return { size, maxHeight, layout };
+  }
+
+  function summarizeSdkWebFetchAllowlist(raw) {
+    const entries = raw && typeof raw === 'object' ? Object.entries(raw) : [];
+    let allowCount = 0;
+    let denyCount = 0;
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i][1];
+      if (!entry || typeof entry !== 'object') continue;
+      if (entry.decision === 'allow') allowCount++;
+      else if (entry.decision === 'deny') denyCount++;
+    }
+    return {
+      savedOriginCount: allowCount + denyCount,
+      allowCount,
+      denyCount,
+    };
+  }
+
+  async function getSdkConfigSnapshot() {
+    const syncResult = await storageGet('sync', Object.values(SDK_SYNC_STORAGE_KEYS));
+    const aiConfig = await getAiConfig();
+    return {
+      features: normalizeSdkFeatures(syncResult[SDK_SYNC_STORAGE_KEYS.features]),
+      frontier: {
+        debug: !!syncResult[SDK_SYNC_STORAGE_KEYS.frontierDebug],
+        modulePreferences: normalizeSdkFrontierModules(syncResult[SDK_SYNC_STORAGE_KEYS.frontierModules]),
+        scriptureDisplay: normalizeSdkScriptureDisplay(syncResult[SDK_SYNC_STORAGE_KEYS.scriptureWidgetDisplay]),
+        webfetch: summarizeSdkWebFetchAllowlist(syncResult[SDK_SYNC_STORAGE_KEYS.webfetchAllowlist]),
+        ai: {
+          configured: !!aiConfig.openrouterKey,
+          defaultModel: aiConfig.openrouterDefaultModel || null,
+          costControls: normalizeAiCostControls(aiConfig.costControls),
+        },
+      },
+    };
+  }
+
+  async function handleSdk(request = {}) {
+    const op = String(request.op || '').trim();
+    if (op !== 'config') {
+      throw { code: 'invalid_args', message: `SDK op '${op || '(empty)'}' is not supported` };
+    }
+    return getSdkConfigSnapshot();
   }
 
   function requireOpenRouterKey(config) {
@@ -875,6 +992,15 @@
     handleAi(message.request)
       .then((data) => sendResponse({ ok: true, data }))
       .catch((error) => sendResponse({ ok: false, error: normalizeAiError(error) }));
+    return true;
+  });
+
+  extensionRuntime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (!message || message.type !== SDK_MESSAGE) return false;
+
+    handleSdk(message.request)
+      .then((data) => sendResponse({ ok: true, data }))
+      .catch((error) => sendResponse({ ok: false, error: normalizeError(error) }));
     return true;
   });
 

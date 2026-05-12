@@ -7,16 +7,17 @@ can watch the module work live without opening DevTools first.
 
 ## What it covers
 
-The suite currently queues the one shipped SDK op:
+The suite currently queues the shipped SDK ops:
 
 | Step | Module | Op | Expect |
 | --- | --- | --- | --- |
 | `version` | `sdk` | `version` | ok + SDK / BetterDungeon / Frontier version data |
+| `config` | `sdk` | `config` | ok + curated BetterDungeon configuration snapshot |
 
 It also verifies:
 
 - the `frontier:heartbeat` card exists
-- the heartbeat advertises `sdk` with its `version` op
+- the heartbeat advertises `sdk` with both `version` and `config`
 - `frontier:in:sdk` receives terminal responses
 - ack cleanup runs after responses are seen
 
@@ -43,11 +44,12 @@ Each generated story output gets a block appended like:
 [Frontier SDK Test]
 phase: awaiting capabilities
 heartbeat: present
-sdk version op advertised: yes
+sdk ops advertised: version, config
 version: ok
 {
   ...
 }
+config: waiting
 ...
 ```
 
