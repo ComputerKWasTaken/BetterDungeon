@@ -16,6 +16,7 @@
 //   /scripture invalid      - broken configs (module should skip with a warning)
 //   /scripture transitions  - animated value changes across turns
 //   /scripture edge         - empty lists, long labels, missing values, 0-width bars
+//   /scripture custom       - raw HTML widgets (tables, lists, code, formatted text)
 //   /scripture value <id> <val>  - manually set a widget's value
 //   /scripture ack          - force-ack all pending widget events
 //   /scripture clear        - unmount all widgets
@@ -26,7 +27,7 @@
 state.scriptureTest = state.scriptureTest || {
   runId: null,
   turn: 0,
-  scenario: null,           // 'display' | 'interactive' | 'containers' | 'invalid' | 'transitions' | 'edge'
+  scenario: null,           // 'display' | 'interactive' | 'containers' | 'invalid' | 'transitions' | 'edge' | 'custom'
   ackSeq: 0,
   lastSeqSeen: 0,
   observedEvents: [],
@@ -173,6 +174,17 @@ var SCR_EDGE_MANIFEST = {
   ],
 };
 
+var SCR_CUSTOM_MANIFEST = {
+  widgets: [
+    { id: 'loot',    type: 'custom', align: 'left',   html: '<h3>Loot Table</h3><table><tr><th>Item</th><th>Rarity</th><th>Qty</th></tr><tr><td>Iron Sword</td><td>Common</td><td>1</td></tr><tr><td>Health Potion</td><td>Uncommon</td><td>3</td></tr><tr><td>Ancient Relic</td><td><mark>Legendary</mark></td><td>1</td></tr></table>' },
+    { id: 'notes',   type: 'custom', align: 'center', html: '<p><strong>Quest Update:</strong> The <em>Seal of Valor</em> has been recovered.</p><blockquote>"Beware the shadows beneath the cathedral." — <a href="#">Old Man Hemlock</a></blockquote><hr><p>Current objective: <u>Find the hidden vault</u></p>' },
+    { id: 'rules',   type: 'custom', align: 'right',  html: '<h4>Combat Rules</h4><ol><li>Roll <code>1d20</code> for initiative</li><li>Apply <strong>flanking</strong> bonus if adjacent</li><li><s>Critical fails heal enemies</s> <em>(house-ruled out)</em></li></ol>' },
+    { id: 'spell',   type: 'custom', align: 'center', html: '<pre><code>function castFireball() {\n  return dmg(8d6, "fire");\n}</code></pre>' },
+    { id: 'plaindiv', type: 'divider', align: 'center' },
+    { id: 'summary', type: 'custom', align: 'left',   html: '<ul><li>HP: <strong>87/100</strong></li><li>MP: <strong>23/50</strong></li><li>Gold: <strong>1,337</strong></li></ul>' },
+  ],
+};
+
 function scrManifestFor(scenario) {
   switch (scenario) {
     case 'display':      return SCR_DISPLAY_MANIFEST;
@@ -181,6 +193,7 @@ function scrManifestFor(scenario) {
     case 'invalid':      return SCR_INVALID_MANIFEST;
     case 'transitions':  return SCR_TRANSITIONS_MANIFEST;
     case 'edge':         return SCR_EDGE_MANIFEST;
+    case 'custom':       return SCR_CUSTOM_MANIFEST;
   }
   return null;
 }
@@ -427,6 +440,7 @@ function scrApplyCommand(cmd) {
     case 'invalid':
     case 'transitions':
     case 'edge':
+    case 'custom':
       s.scenario = cmd.verb;
       s.overrides = {};
       scrLog('cmd', cmd.verb + ' scenario');

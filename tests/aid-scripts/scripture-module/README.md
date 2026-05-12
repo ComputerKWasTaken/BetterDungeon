@@ -22,6 +22,7 @@ Use this suite when you change any of the following:
 | `/scripture invalid` | stat, progress, plus intentionally broken configs | The module should skip `badmax` (negative max), `badtype` (unknown type), and `nostep` (string value for stepper) with console warnings. `ok` and `ok2` should still render. |
 | `/scripture transitions` | stat, bar, counter, progress | Values change every turn. Watch numbers count up/down and bars/progress fills smoothly animate. |
 | `/scripture edge` | taggroup, stat, bar, divider, text, icon, counter | Edge cases: empty tag list, missing value, 0-width bar, over-max bar, negative bar, missing label, empty text, empty icon. |
+| `/scripture custom` | custom (HTML), divider | Exercises the custom widget renderer: tables, lists, code blocks, formatted text, blockquotes, links, and inline styles. Verify that HTML is sanitized and styled correctly. |
 
 ## Surfaces written
 
