@@ -410,7 +410,12 @@
   }
 
   function sanitizeHTML(html) {
-    return typeof html === 'string' ? html : '';
+    if (typeof html !== 'string') return '';
+    // Strip <script> tags and their contents
+    html = html.replace(/<script[\s\S]*?>?[\s\S]*?<\/script>/gi, '');
+    // Strip on* event handlers (e.g., onclick, onload)
+    html = html.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi, '');
+    return html;
   }
 
   function sanitizeStyleString(styleString) {

@@ -11,6 +11,7 @@ Use this suite when you change any of the following:
 - `styles.css` — widget appearance, colors, or transitions
 - Smooth value transitions or animation behavior
 - New widget types or promoted concept widgets
+- Custom widget HTML rendering and sanitization
 
 ## Scenarios
 
@@ -22,7 +23,7 @@ Use this suite when you change any of the following:
 | `/scripture invalid` | stat, progress, plus intentionally broken configs | The module should skip `badmax` (negative max), `badtype` (unknown type), and `nostep` (string value for stepper) with console warnings. `ok` and `ok2` should still render. |
 | `/scripture transitions` | stat, bar, counter, progress | Values change every turn. Watch numbers count up/down and bars/progress fills smoothly animate. |
 | `/scripture edge` | taggroup, stat, bar, divider, text, icon, counter | Edge cases: empty tag list, missing value, 0-width bar, over-max bar, negative bar, missing label, empty text, empty icon. |
-| `/scripture custom` | custom (HTML), divider | Exercises the custom widget renderer: tables, lists, code blocks, formatted text, blockquotes, links, and inline styles. Verify that HTML is sanitized and styled correctly. |
+| `/scripture custom` | custom (HTML), divider | Exercises the custom widget renderer: tables, lists, code blocks, formatted text, blockquotes, links, images, and inline CSS layouts. Verify that HTML is sanitized and styled correctly. |
 
 ## Surfaces written
 
@@ -58,6 +59,7 @@ Type these into normal player input. They are stripped from the text before it r
 | `/scripture invalid` | Load broken configs (module should skip bad widgets) |
 | `/scripture transitions` | Load animated value-change scenario |
 | `/scripture edge` | Load edge-case scenario |
+| `/scripture custom` | Load custom HTML widget scenario |
 | `/scripture value <id> <val>` | Manually set a widget's value (e.g., `/scripture value hp 100`) |
 | `/scripture next` | Advance transition scenario to the next phase manually |
 | `/scripture ack` | Force-ack all pending widget events |
@@ -123,6 +125,20 @@ Take several turns. Each turn advances through a preset sequence:
 - Quest progress: 5% &rarr; 33% &rarr; 67% &rarr; 92% &rarr; 100% &rarr; 0%
 
 Numbers should count smoothly. Bar and progress widths should animate with CSS transitions.
+
+### Custom widgets
+```
+/scripture custom
+```
+Check that:
+- Tables render with headers, borders, and colored `<mark>` tags
+- Blockquotes have the left accent border and italic text
+- Inline code (`<code>`) and code blocks (`<pre><code>`) have dark backgrounds
+- Ordered and unordered lists are indented and spaced correctly
+- Data URI images render without external network requests
+- CSS Grid layouts (e.g., the stat grid) align properly
+
+> **Note on `<script>`:** Custom widgets intentionally do **not** execute inline scripts. AI Dungeon's CSP blocks `unsafe-inline`, and our sanitizer strips `<script>` tags and `on*` event handlers. Custom widgets are for **static HTML/CSS only**.
 
 ### Manual override
 ```

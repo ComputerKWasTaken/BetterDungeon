@@ -16,7 +16,7 @@
 //   /scripture invalid      - broken configs (module should skip with a warning)
 //   /scripture transitions  - animated value changes across turns
 //   /scripture edge         - empty lists, long labels, missing values, 0-width bars
-//   /scripture custom       - raw HTML widgets (tables, lists, code, formatted text)
+//   /scripture custom       - raw HTML widgets (tables, lists, code, formatted text, images, grids)
 //   /scripture value <id> <val>  - manually set a widget's value
 //   /scripture ack          - force-ack all pending widget events
 //   /scripture clear        - unmount all widgets
@@ -182,6 +182,8 @@ var SCR_CUSTOM_MANIFEST = {
     { id: 'spell',   type: 'custom', align: 'center', html: '<pre><code>function castFireball() {\n  return dmg(8d6, "fire");\n}</code></pre>' },
     { id: 'plaindiv', type: 'divider', align: 'center' },
     { id: 'summary', type: 'custom', align: 'left',   html: '<ul><li>HP: <strong>87/100</strong></li><li>MP: <strong>23/50</strong></li><li>Gold: <strong>1,337</strong></li></ul>' },
+    { id: 'diceimg', type: 'custom', align: 'center', html: '<p style="margin:0 0 6px;font-size:10px;color:var(--bd-text-muted);text-transform:uppercase;letter-spacing:0.5px;">Embedded Image</p><img src="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2764%27 height=%2764%27%3E%3Crect width=%2764%27 height=%2764%27 fill=%27%238b5cf6%27 rx=%2712%27/%3E%3Ctext x=%2750%25%27 y=%2750%25%27 dominant-baseline=%27central%27 text-anchor=%27middle%27 fill=%27white%27 font-size=%2728%27%3E%F0%9F%8E%B2%3C/text%3E%3C/svg%3E" alt="Dice" style="max-width:64px;border-radius:8px;display:block;margin:0 auto;">' },
+    { id: 'stylegrid', type: 'custom', align: 'right',  html: '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px;"><div style="background:rgba(139,92,246,0.15);padding:4px 8px;border-radius:6px;text-align:center;"><strong>STR</strong><br>18</div><div style="background:rgba(34,197,94,0.15);padding:4px 8px;border-radius:6px;text-align:center;"><strong>DEX</strong><br>14</div><div style="background:rgba(59,130,246,0.15);padding:4px 8px;border-radius:6px;text-align:center;"><strong>CON</strong><br>16</div><div style="background:rgba(239,68,68,0.15);padding:4px 8px;border-radius:6px;text-align:center;"><strong>INT</strong><br>12</div></div>' },
   ],
 };
 

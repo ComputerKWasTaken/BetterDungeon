@@ -628,8 +628,6 @@
       const zone = this.widgetZones[align];
       if (zone) zone.appendChild(widgetElement);
       else this.widgetContainer.appendChild(widgetElement);
-      if (config.type === 'custom') this.activateCustomWidgetScripts(widgetElement);
-
       this.registeredWidgets.set(widgetId, { element: widgetElement, config: { ...config } });
       this.recalculateWidgetDensity();
       this.emitWidget('created', widgetId, config);
@@ -717,20 +715,6 @@
 
     setCustomWidgetHTML(element, html) {
       element.innerHTML = validators().sanitizeHTML(html);
-      this.activateCustomWidgetScripts(element);
-    }
-
-    activateCustomWidgetScripts(element) {
-      if (!element.isConnected) return;
-      const scripts = Array.from(element.querySelectorAll('script'));
-      for (const oldScript of scripts) {
-        const script = document.createElement('script');
-        for (const attr of Array.from(oldScript.attributes)) {
-          script.setAttribute(attr.name, attr.value);
-        }
-        script.textContent = oldScript.textContent;
-        oldScript.replaceWith(script);
-      }
     }
 
     createBadgeWidget(widgetId, config) {
