@@ -1,7 +1,8 @@
 // Frontier SDK Module Test Suite - AI Dungeon Library
 //
-// Drives the BetterDungeon Frontier SDK module through its public v1 ops and
-// appends the returned data to story text through the paired output modifier.
+// Drives the BetterDungeon Frontier SDK module through its current public op
+// and appends the returned data to story text through the paired output
+// modifier.
 //
 // Surfaces written:
 //   frontier:out       - request envelope queue (script -> BD)
@@ -24,10 +25,7 @@ state.frontierSdkTest = state.frontierSdkTest || {
 };
 
 var FSDK_STEPS = [
-  { label: 'version', module: 'sdk', op: 'version', args: function () { return {}; } },
-  { label: 'capabilities', module: 'sdk', op: 'capabilities', args: function () { return {}; } },
-  { label: 'modules', module: 'sdk', op: 'modules', args: function () { return {}; } },
-  { label: 'frontier', module: 'sdk', op: 'frontier', args: function () { return {}; } }
+  { label: 'version', module: 'sdk', op: 'version', args: function () { return {}; } }
 ];
 
 function fsdkNow() {
@@ -229,12 +227,7 @@ function fsdkCurrentStepIndex() {
 function fsdkAdvance() {
   var s = fsdkState();
 
-  if (
-    !fsdkHasOp('sdk', 'version') ||
-    !fsdkHasOp('sdk', 'capabilities') ||
-    !fsdkHasOp('sdk', 'modules') ||
-    !fsdkHasOp('sdk', 'frontier')
-  ) {
+  if (!fsdkHasOp('sdk', 'version')) {
     s.phase = 'waiting for sdk heartbeat';
     return;
   }
@@ -361,14 +354,7 @@ function fsdkRenderStoryBlock() {
   lines.push('[Frontier SDK Test]');
   lines.push('phase: ' + s.phase);
   lines.push('heartbeat: ' + (hb ? 'present' : 'missing'));
-  lines.push('sdk advertised: ' + (
-    fsdkHasOp('sdk', 'version') &&
-    fsdkHasOp('sdk', 'capabilities') &&
-    fsdkHasOp('sdk', 'modules') &&
-    fsdkHasOp('sdk', 'frontier')
-      ? 'yes'
-      : 'no'
-  ));
+  lines.push('sdk version op advertised: ' + (fsdkHasOp('sdk', 'version') ? 'yes' : 'no'));
 
   for (var i = 0; i < FSDK_STEPS.length; i++) {
     var step = FSDK_STEPS[i];

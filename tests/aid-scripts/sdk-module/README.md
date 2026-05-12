@@ -2,24 +2,21 @@
 
 End-to-end test scripts that exercise the BetterDungeon Frontier `sdk` module
 from inside an AI Dungeon scenario. This suite is intentionally simple and
-visible: it appends the returned SDK payloads directly into story text so you
+visible: it appends the returned SDK payload directly into story text so you
 can watch the module work live without opening DevTools first.
 
 ## What it covers
 
-The suite queues the four shipped SDK ops in order:
+The suite currently queues the one shipped SDK op:
 
 | Step | Module | Op | Expect |
 | --- | --- | --- | --- |
 | `version` | `sdk` | `version` | ok + SDK / BetterDungeon / Frontier version data |
-| `capabilities` | `sdk` | `capabilities` | ok + module/capability summary |
-| `modules` | `sdk` | `modules` | ok + registry-style module inventory |
-| `frontier` | `sdk` | `frontier` | ok + runtime snapshot |
 
 It also verifies:
 
 - the `frontier:heartbeat` card exists
-- the heartbeat advertises `sdk` with all four ops
+- the heartbeat advertises `sdk` with its `version` op
 - `frontier:in:sdk` receives terminal responses
 - ack cleanup runs after responses are seen
 
@@ -46,12 +43,11 @@ Each generated story output gets a block appended like:
 [Frontier SDK Test]
 phase: awaiting capabilities
 heartbeat: present
-sdk advertised: yes
+sdk version op advertised: yes
 version: ok
 {
   ...
 }
-capabilities: waiting
 ...
 ```
 
