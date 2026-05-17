@@ -274,7 +274,7 @@
 
   function heartbeatScore(card) {
     let score = 0;
-    if (card?.type === 'frontier') score += 1000;
+    if (card?.type === 'Frontier') score += 1000;
     if (typeof card?.value === 'string') {
       try {
         const parsed = JSON.parse(card.value);
@@ -344,7 +344,7 @@
           makeArchivedHeartbeatValue(card, canonicalId),
           {
             id,
-            type: 'frontier',
+            type: 'Frontier',
             keys: '',
             description: 'Archived duplicate Frontier heartbeat card.',
           },
@@ -409,7 +409,7 @@
 
     state.heartbeatPending = true;
     try {
-      const opts = { type: 'frontier' };
+      const opts = { type: 'Frontier' };
       if (heartbeatPlan.canonical?.id != null) {
         opts.id = String(heartbeatPlan.canonical.id);
       }
