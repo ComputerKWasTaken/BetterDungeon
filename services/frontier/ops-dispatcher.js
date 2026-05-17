@@ -189,7 +189,7 @@
     const responseEnvelope = getResponseEnvelope(moduleId);
     env.pruneTerminalResponses(responseEnvelope, { maxBytes: RESPONSE_CARD_MAX_BYTES });
     const title = env.responseCardTitle(moduleId);
-    await state.core.writeCard(title, JSON.stringify(responseEnvelope), { type: 'frontier' });
+    await state.core.writeCard(title, JSON.stringify(responseEnvelope), { type: 'Frontier' });
   }
 
   async function setResponse(moduleId, requestId, response, writeKind) {

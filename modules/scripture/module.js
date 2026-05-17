@@ -474,7 +474,7 @@
       };
 
       await ctx.writeCard(IN_CARD_TITLE, JSON.stringify(envelope), {
-        type: 'frontier',
+        type: 'Frontier',
         description: 'Scripture widget interaction queue.',
       });
     },
