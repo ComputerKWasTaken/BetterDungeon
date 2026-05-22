@@ -1,10 +1,10 @@
 // modules/geolocation/module.js
 //
-// Frontier geolocation module. Gives AI Dungeon scripts a guarded way to ask
+// Ultrascripts geolocation module. Gives AI Dungeon scripts a guarded way to ask
 // for the user's current location through the browser's native geolocation API.
 
 (function () {
-  if (window.FrontierGeolocationModule) return;
+  if (window.UltrascriptsGeolocationModule) return;
 
   const DEFAULT_TIMEOUT_MS = 15000;
   const MAX_TIMEOUT_MS = 30000;
@@ -154,11 +154,11 @@
     return payload;
   }
 
-  const FrontierGeolocationModule = {
+  const UltrascriptsGeolocationModule = {
     id: 'geolocation',
     version: '1.0.0',
     label: 'Geolocation',
-    description: 'Provides current-location and geolocation-permission helpers for Frontier scripts.',
+    description: 'Provides current-location and geolocation-permission helpers for Ultrascripts scripts.',
 
     ops: {
       permission: {
@@ -192,15 +192,15 @@
     },
   };
 
-  window.FrontierGeolocationModule = FrontierGeolocationModule;
+  window.UltrascriptsGeolocationModule = UltrascriptsGeolocationModule;
 
-  if (window.Frontier?.registry) {
-    window.Frontier.registry.register(FrontierGeolocationModule);
+  if (window.Ultrascripts?.registry) {
+    window.Ultrascripts.registry.register(UltrascriptsGeolocationModule);
   } else {
-    console.warn('[Geolocation] Frontier registry not available; module not registered.');
+    console.warn('[Geolocation] Ultrascripts registry not available; module not registered.');
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = FrontierGeolocationModule;
+    module.exports = UltrascriptsGeolocationModule;
   }
 })();

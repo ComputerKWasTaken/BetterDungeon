@@ -1,13 +1,13 @@
-// Frontier Scripture Module Test Suite — AI Dungeon Library
+// Ultrascripts Scripture Module Test Suite — AI Dungeon Library
 //
 // Behavior-focused widget test suite. Loads curated manifests that exercise
 // every supported widget type, plus scenarios for invalid configs, value
 // transitions, and edge cases. Pair with input-modifier.js + output-modifier.js.
 //
 // Surfaces written:
-//   frontier:state:scripture   - widget manifest + history + ack envelope (script -> BD)
-//   frontier:in:scripture      - script's view of BD's inbox (read-only here)
-//   frontier:test:scripture    - human-readable trace with scenario, values, events
+//   ultrascripts:state:scripture   - widget manifest + history + ack envelope (script -> BD)
+//   ultrascripts:in:scripture      - script's view of BD's inbox (read-only here)
+//   ultrascripts:test:scripture    - human-readable trace with scenario, values, events
 //
 // Commands:
 //   /scripture display      - stat/bar/counter/progress/taggroup/divider/icon/badge/text
@@ -317,7 +317,7 @@ function scrReadJson(title) {
 
 function scrWriteCard(title, value, type) {
   var f = scrFindCard(title);
-  var cardType = type || 'Frontier';
+  var cardType = type || 'Ultrascripts';
   if (f.card && f.index >= 0 && typeof updateStoryCard === 'function') {
     updateStoryCard(f.index, f.card.keys || f.card.key || title, value, f.card.type || cardType);
     return true;
@@ -342,11 +342,11 @@ function scrLog(event, detail) {
   while (s.events.length > 40) s.events.shift();
 }
 
-function scrHeartbeat() { return scrReadJson('frontier:heartbeat'); }
+function scrHeartbeat() { return scrReadJson('ultrascripts:heartbeat'); }
 
 function scrScriptureAdvertised() {
   var hb = scrHeartbeat();
-  if (!hb || !hb.frontier || hb.frontier.protocol !== 1) return false;
+  if (!hb || !hb.ultrascripts || hb.ultrascripts.protocol !== 1) return false;
   var mods = Array.isArray(hb.modules) ? hb.modules : [];
   for (var i = 0; i < mods.length; i++) {
     if (mods[i] && mods[i].id === 'scripture') return true;
@@ -394,7 +394,7 @@ function scrBuildEnvelope() {
 
 function scrPublishState() {
   var env = scrBuildEnvelope();
-  scrWriteCard('frontier:state:scripture', JSON.stringify(env), 'Frontier');
+  scrWriteCard('ultrascripts:state:scripture', JSON.stringify(env), 'Ultrascripts');
   return env;
 }
 
@@ -402,7 +402,7 @@ function scrPublishState() {
 
 function scrPollInbox() {
   var s = state.scriptureTest;
-  var card = scrReadJson('frontier:in:scripture');
+  var card = scrReadJson('ultrascripts:in:scripture');
   if (!card) return { latestSeq: 0, newEvents: [] };
 
   var widgetEvents = card.widgetEvents || {};
@@ -461,9 +461,9 @@ function scrApplyCommand(cmd) {
         overrides: {}, transitionIdx: 0,
       };
       scrWriteCard(
-        'frontier:state:scripture',
+        'ultrascripts:state:scripture',
         JSON.stringify({ v: 1, manifest: { widgets: [] }, history: {}, interactions: { ackSeq: 0 } }),
-        'Frontier'
+        'Ultrascripts'
       );
       scrLog('cmd', 'reset');
       return true;
@@ -604,12 +604,12 @@ function scrWriteTrace(envelope) {
     ],
     events: s.events.slice(-12),
   };
-  scrWriteCard('frontier:test:scripture', JSON.stringify(trace, null, 2), 'Frontier Test');
+  scrWriteCard('ultrascripts:test:scripture', JSON.stringify(trace, null, 2), 'Ultrascripts Test');
 }
 
 // ---------- public entry point ----------
 
-function frontierScriptureTestStep(text) {
+function ultrascriptsScriptureTestStep(text) {
   var s = state.scriptureTest;
   scrRunId();
   s.turn += 1;

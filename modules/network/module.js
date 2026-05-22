@@ -1,10 +1,10 @@
 // modules/network/module.js
 //
-// Frontier network module. Exposes lightweight browser connectivity hints for
+// Ultrascripts network module. Exposes lightweight browser connectivity hints for
 // scripts that want graceful offline or low-bandwidth behavior.
 
 (function () {
-  if (window.FrontierNetworkModule) return;
+  if (window.UltrascriptsNetworkModule) return;
 
   function invalidArgs(message, extra = {}) {
     return { code: 'invalid_args', message, ...extra };
@@ -80,11 +80,11 @@
     return buildConnectionPayload();
   }
 
-  const FrontierNetworkModule = {
+  const UltrascriptsNetworkModule = {
     id: 'network',
     version: '1.0.0',
     label: 'Network',
-    description: 'Provides online/offline and connection-quality hints for Frontier scripts.',
+    description: 'Provides online/offline and connection-quality hints for Ultrascripts scripts.',
 
     ops: {
       status: {
@@ -112,15 +112,15 @@
     },
   };
 
-  window.FrontierNetworkModule = FrontierNetworkModule;
+  window.UltrascriptsNetworkModule = UltrascriptsNetworkModule;
 
-  if (window.Frontier?.registry) {
-    window.Frontier.registry.register(FrontierNetworkModule);
+  if (window.Ultrascripts?.registry) {
+    window.Ultrascripts.registry.register(UltrascriptsNetworkModule);
   } else {
-    console.warn('[Network] Frontier registry not available; network module not registered.');
+    console.warn('[Network] Ultrascripts registry not available; network module not registered.');
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = FrontierNetworkModule;
+    module.exports = UltrascriptsNetworkModule;
   }
 })();

@@ -1,10 +1,10 @@
 // modules/clock/module.js
 //
-// Frontier Phase 6 reference ops module. Exposes deterministic time helpers
+// Ultrascripts Phase 6 reference ops module. Exposes deterministic time helpers
 // that AI Dungeon scripts can call without any external permissions.
 
 (function () {
-  if (window.FrontierClockModule) return;
+  if (window.UltrascriptsClockModule) return;
 
   const DEFAULT_FORMAT_TIME_ZONE = 'UTC';
   const MAX_DATE_TS = 8640000000000000;
@@ -239,11 +239,11 @@
     return formatPattern(ts, timeZone, args.format);
   }
 
-  const FrontierClockModule = {
+  const UltrascriptsClockModule = {
     id: 'clock',
     version: '1.0.0',
     label: 'Clock',
-    description: 'Provides deterministic current-time, time-zone, and formatting helpers for Frontier scripts.',
+    description: 'Provides deterministic current-time, time-zone, and formatting helpers for Ultrascripts scripts.',
 
     ops: {
       now: {
@@ -281,15 +281,15 @@
     },
   };
 
-  window.FrontierClockModule = FrontierClockModule;
+  window.UltrascriptsClockModule = UltrascriptsClockModule;
 
-  if (window.Frontier?.registry) {
-    window.Frontier.registry.register(FrontierClockModule);
+  if (window.Ultrascripts?.registry) {
+    window.Ultrascripts.registry.register(UltrascriptsClockModule);
   } else {
-    console.warn('[Clock] Frontier registry not available; clock module not registered.');
+    console.warn('[Clock] Ultrascripts registry not available; clock module not registered.');
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = FrontierClockModule;
+    module.exports = UltrascriptsClockModule;
   }
 })();

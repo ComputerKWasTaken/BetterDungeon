@@ -1,16 +1,16 @@
-// Frontier Clock Module Test Suite — AI Dungeon Library
+// Ultrascripts Clock Module Test Suite — AI Dungeon Library
 //
-// Drives the BetterDungeon Frontier Clock module through every public op and a
+// Drives the BetterDungeon Ultrascripts Clock module through every public op and a
 // representative set of error paths. Pair with output-modifier.js.
 //
 // Surfaces written:
-//   frontier:out                  - request envelope queue (script -> BD)
-//   frontier:in:clock             - response envelope (BD -> script)
-//   frontier:test:clock           - human-readable trace card with results
+//   ultrascripts:out                  - request envelope queue (script -> BD)
+//   ultrascripts:in:clock             - response envelope (BD -> script)
+//   ultrascripts:test:clock           - human-readable trace card with results
 
 // ---------- state ----------
 
-state.frontierClockTest = state.frontierClockTest || {
+state.ultrascriptsClockTest = state.ultrascriptsClockTest || {
   runId: null,
   turn: 0,
   seq: 0,
@@ -133,11 +133,11 @@ var FCLK_STEPS = [
 
 function fclkNow() { return Date.now ? Date.now() : new Date().getTime(); }
 
-function fclkState() { return state.frontierClockTest; }
+function fclkState() { return state.ultrascriptsClockTest; }
 
 function fclkRunId() {
   var s = fclkState();
-  if (!s.runId) s.runId = 'frontier-clock-' + fclkNow().toString(36);
+  if (!s.runId) s.runId = 'ultrascripts-clock-' + fclkNow().toString(36);
   return s.runId;
 }
 
@@ -168,7 +168,7 @@ function fclkReadJson(title) {
 
 function fclkWriteCard(title, value, type) {
   var f = fclkFindCard(title);
-  var cardType = type || 'Frontier';
+  var cardType = type || 'Ultrascripts';
   if (f.card && f.index >= 0 && typeof updateStoryCard === 'function') {
     updateStoryCard(f.index, f.card.keys || f.card.key || title, value, f.card.type || cardType);
     return true;
@@ -190,11 +190,11 @@ function fclkLog(event, detail) {
   while (s.events.length > 60) s.events.shift();
 }
 
-function fclkHeartbeat() { return fclkReadJson('frontier:heartbeat'); }
+function fclkHeartbeat() { return fclkReadJson('ultrascripts:heartbeat'); }
 
 function fclkHasOp(moduleId, opName) {
   var hb = fclkHeartbeat();
-  if (!hb || !hb.frontier || hb.frontier.protocol !== 1) return false;
+  if (!hb || !hb.ultrascripts || hb.ultrascripts.protocol !== 1) return false;
   var mods = Array.isArray(hb.modules) ? hb.modules : [];
   for (var i = 0; i < mods.length; i++) {
     var m = mods[i];
@@ -223,7 +223,7 @@ function fclkWriteOut() {
     debugWrittenAt: fclkNow()
   };
   s._acks = [];
-  fclkWriteCard('frontier:out', JSON.stringify(payload), 'Frontier');
+  fclkWriteCard('ultrascripts:out', JSON.stringify(payload), 'Ultrascripts');
 }
 
 function fclkQueueAck(requestId, reason) {
@@ -267,7 +267,7 @@ function fclkPollResponses() {
   }
   var found = false;
   for (var m = 0; m < modules.length; m++) {
-    var card = fclkReadJson('frontier:in:' + modules[m]);
+    var card = fclkReadJson('ultrascripts:in:' + modules[m]);
     if (!card || !card.responses) continue;
     for (var rid in card.responses) {
       if (!Object.prototype.hasOwnProperty.call(card.responses, rid)) continue;
@@ -395,7 +395,7 @@ function fclkWriteTrace() {
     phase: s.phase,
     heartbeat: {
       present: !!hb,
-      protocol: hb && hb.frontier && hb.frontier.protocol,
+      protocol: hb && hb.ultrascripts && hb.ultrascripts.protocol,
       clockAdvertised: fclkHasOp('clock', 'now') && fclkHasOp('clock', 'tz') && fclkHasOp('clock', 'format')
     },
     counts: counts,
@@ -405,7 +405,7 @@ function fclkWriteTrace() {
     ackAttempts: s.ackAttempts,
     events: s.events
   };
-  fclkWriteCard('frontier:test:clock', JSON.stringify(trace, null, 2), 'Frontier Test');
+  fclkWriteCard('ultrascripts:test:clock', JSON.stringify(trace, null, 2), 'Ultrascripts Test');
 }
 
 // ---------- reset / commands ----------
@@ -445,25 +445,25 @@ function fclkConsumeCommand(kind, outputText, needles) {
 }
 
 function fclkResetSuite() {
-  state.frontierClockTest = {
-    runId: 'frontier-clock-' + fclkNow().toString(36),
+  state.ultrascriptsClockTest = {
+    runId: 'ultrascripts-clock-' + fclkNow().toString(36),
     turn: 0, seq: 0, outSeq: 0,
     pending: {}, completed: {}, acked: {}, ackAttempts: {},
     steps: {}, events: [], consumedCommands: {},
     phase: 'reset'
   };
-  fclkWriteCard('frontier:out', JSON.stringify({ v: 1, requests: [], acks: [] }), 'Frontier');
+  fclkWriteCard('ultrascripts:out', JSON.stringify({ v: 1, requests: [], acks: [] }), 'Ultrascripts');
   fclkWriteTrace();
 }
 
 // ---------- public entry point ----------
 
-function frontierClockTestStep(outputText) {
+function ultrascriptsClockTestStep(outputText) {
   var s = fclkState();
   fclkRunId();
   s.turn += 1;
 
-  if (fclkConsumeCommand('reset', outputText, ['clock test reset', 'frontier clock reset', '[[clock-test:reset]]'])) {
+  if (fclkConsumeCommand('reset', outputText, ['clock test reset', 'ultrascripts clock reset', '[[clock-test:reset]]'])) {
     fclkResetSuite();
     return true;
   }

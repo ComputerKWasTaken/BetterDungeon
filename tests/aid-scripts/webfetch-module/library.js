@@ -1,12 +1,12 @@
-// Frontier WebFetch Module Test Suite — AI Dungeon Library
+// Ultrascripts WebFetch Module Test Suite — AI Dungeon Library
 //
-// Drives the BetterDungeon Frontier WebFetch module through every public op and
+// Drives the BetterDungeon Ultrascripts WebFetch module through every public op and
 // a representative set of error paths. Pair with output-modifier.js.
 //
 // Surfaces written:
-//   frontier:out                  - request envelope queue (script -> BD)
-//   frontier:in:webfetch          - response envelope (BD -> script)
-//   frontier:test:webfetch        - human-readable trace card with results
+//   ultrascripts:out                  - request envelope queue (script -> BD)
+//   ultrascripts:in:webfetch          - response envelope (BD -> script)
+//   ultrascripts:test:webfetch        - human-readable trace card with results
 //
 // Note: The webfetch module requires user consent for each origin. If consent
 // is denied, the suite validates the denial error shape. Steps that hit real
@@ -14,7 +14,7 @@
 
 // ---------- state ----------
 
-state.frontierWebFetchTest = state.frontierWebFetchTest || {
+state.ultrascriptsWebFetchTest = state.ultrascriptsWebFetchTest || {
   runId: null,
   turn: 0,
   seq: 0,
@@ -68,7 +68,7 @@ var FWEB_STEPS = [
     args: function () {
       return {
         url: 'https://httpbin.org/headers',
-        headers: { 'X-Test-Header': 'frontier-test' }
+        headers: { 'X-Test-Header': 'ultrascripts-test' }
       };
     },
     expect: 'ok-or-consent',
@@ -165,11 +165,11 @@ var FWEB_STEPS = [
 
 function fwebNow() { return Date.now ? Date.now() : new Date().getTime(); }
 
-function fwebState() { return state.frontierWebFetchTest; }
+function fwebState() { return state.ultrascriptsWebFetchTest; }
 
 function fwebRunId() {
   var s = fwebState();
-  if (!s.runId) s.runId = 'frontier-webfetch-' + fwebNow().toString(36);
+  if (!s.runId) s.runId = 'ultrascripts-webfetch-' + fwebNow().toString(36);
   return s.runId;
 }
 
@@ -200,7 +200,7 @@ function fwebReadJson(title) {
 
 function fwebWriteCard(title, value, type) {
   var f = fwebFindCard(title);
-  var cardType = type || 'Frontier';
+  var cardType = type || 'Ultrascripts';
   if (f.card && f.index >= 0 && typeof updateStoryCard === 'function') {
     updateStoryCard(f.index, f.card.keys || f.card.key || title, value, f.card.type || cardType);
     return true;
@@ -222,11 +222,11 @@ function fwebLog(event, detail) {
   while (s.events.length > 60) s.events.shift();
 }
 
-function fwebHeartbeat() { return fwebReadJson('frontier:heartbeat'); }
+function fwebHeartbeat() { return fwebReadJson('ultrascripts:heartbeat'); }
 
 function fwebHasOp(moduleId, opName) {
   var hb = fwebHeartbeat();
-  if (!hb || !hb.frontier || hb.frontier.protocol !== 1) return false;
+  if (!hb || !hb.ultrascripts || hb.ultrascripts.protocol !== 1) return false;
   var mods = Array.isArray(hb.modules) ? hb.modules : [];
   for (var i = 0; i < mods.length; i++) {
     var m = mods[i];
@@ -255,7 +255,7 @@ function fwebWriteOut() {
     debugWrittenAt: fwebNow()
   };
   s._acks = [];
-  fwebWriteCard('frontier:out', JSON.stringify(payload), 'Frontier');
+  fwebWriteCard('ultrascripts:out', JSON.stringify(payload), 'Ultrascripts');
 }
 
 function fwebQueueAck(requestId, reason) {
@@ -299,7 +299,7 @@ function fwebPollResponses() {
   }
   var found = false;
   for (var m = 0; m < modules.length; m++) {
-    var card = fwebReadJson('frontier:in:' + modules[m]);
+    var card = fwebReadJson('ultrascripts:in:' + modules[m]);
     if (!card || !card.responses) continue;
     for (var rid in card.responses) {
       if (!Object.prototype.hasOwnProperty.call(card.responses, rid)) continue;
@@ -449,7 +449,7 @@ function fwebWriteTrace() {
     phase: s.phase,
     heartbeat: {
       present: !!hb,
-      protocol: hb && hb.frontier && hb.frontier.protocol,
+      protocol: hb && hb.ultrascripts && hb.ultrascripts.protocol,
       webfetchAdvertised: fwebHasOp('webfetch', 'fetch') && fwebHasOp('webfetch', 'search')
     },
     counts: counts,
@@ -459,7 +459,7 @@ function fwebWriteTrace() {
     ackAttempts: s.ackAttempts,
     events: s.events
   };
-  fwebWriteCard('frontier:test:webfetch', JSON.stringify(trace, null, 2), 'Frontier Test');
+  fwebWriteCard('ultrascripts:test:webfetch', JSON.stringify(trace, null, 2), 'Ultrascripts Test');
 }
 
 // ---------- reset / commands ----------
@@ -499,25 +499,25 @@ function fwebConsumeCommand(kind, outputText, needles) {
 }
 
 function fwebResetSuite() {
-  state.frontierWebFetchTest = {
-    runId: 'frontier-webfetch-' + fwebNow().toString(36),
+  state.ultrascriptsWebFetchTest = {
+    runId: 'ultrascripts-webfetch-' + fwebNow().toString(36),
     turn: 0, seq: 0, outSeq: 0,
     pending: {}, completed: {}, acked: {}, ackAttempts: {},
     steps: {}, events: [], consumedCommands: {},
     phase: 'reset'
   };
-  fwebWriteCard('frontier:out', JSON.stringify({ v: 1, requests: [], acks: [] }), 'Frontier');
+  fwebWriteCard('ultrascripts:out', JSON.stringify({ v: 1, requests: [], acks: [] }), 'Ultrascripts');
   fwebWriteTrace();
 }
 
 // ---------- public entry point ----------
 
-function frontierWebFetchTestStep(outputText) {
+function ultrascriptsWebFetchTestStep(outputText) {
   var s = fwebState();
   fwebRunId();
   s.turn += 1;
 
-  if (fwebConsumeCommand('reset', outputText, ['webfetch test reset', 'frontier webfetch reset', '[[webfetch-test:reset]]'])) {
+  if (fwebConsumeCommand('reset', outputText, ['webfetch test reset', 'ultrascripts webfetch reset', '[[webfetch-test:reset]]'])) {
     fwebResetSuite();
     return true;
   }

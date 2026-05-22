@@ -1102,14 +1102,14 @@ class AIDungeonService {
     }
   }
 
-  // ==================== GRAPHQL MUTATIONS (FRONTIER) ====================
+  // ==================== GRAPHQL MUTATIONS (ULTRASCRIPTS) ====================
   //
-  // Frontier's programmatic write path for story cards. Rather than guess at
+  // Ultrascripts's programmatic write path for story cards. Rather than guess at
   // AID's GraphQL schema and auth scheme (both of which drift), we replay
-  // templates captured by the Frontier WS interceptor. The interceptor snoops
+  // templates captured by the Ultrascripts WS interceptor. The interceptor snoops
   // on AID's own outbound mutations (ws-interceptor.js fetch shim) and stashes
   // the most recent specimen of each op name under
-  // window.Frontier.ws.getMutationTemplate(opName).
+  // window.Ultrascripts.ws.getMutationTemplate(opName).
   //
   // Priming: a template must be captured for a given op before it can be
   // replayed. Any AID-initiated card edit primes updateStoryCard; any create
@@ -1117,7 +1117,7 @@ class AIDungeonService {
   // happens, the mutation helpers throw with a clear actionable error.
 
   _getMutationTemplate(opName) {
-    const ws = (typeof window !== 'undefined') ? window.Frontier?.ws : null;
+    const ws = (typeof window !== 'undefined') ? window.Ultrascripts?.ws : null;
     return ws?.getMutationTemplate ? ws.getMutationTemplate(opName) : null;
   }
 
@@ -1168,7 +1168,7 @@ class AIDungeonService {
     const template = this._getMutationTemplate(opName);
     if (!template) {
       throw new Error(
-        `[AIDungeonService] Frontier mutation template for '${opName}' not yet ` +
+        `[AIDungeonService] Ultrascripts mutation template for '${opName}' not yet ` +
         `captured. Prime it by editing or creating any story card once via the ` +
         `AI Dungeon UI, then retry.`
       );
@@ -1288,7 +1288,7 @@ class AIDungeonService {
   //
   //   The `shortId` field is the ADVENTURE's URL slug (e.g. "nGgG3mHvbLrp"
   //   for aidungeon.com/adventure/nGgG3mHvbLrp). Every card in one adventure
-  //   shares the same shortId — we resolve it via Frontier.ws.getAdventureShortId.
+  //   shares the same shortId — we resolve it via Ultrascripts.ws.getAdventureShortId.
   //
   // UseAutoSaveStoryCard also ends in "StoryCard" and is captured by our wide
   // filter, but it's a toggle op and not suitable for content writes, so it's
@@ -1307,27 +1307,27 @@ class AIDungeonService {
   }
 
   // Returns { shortId, contentType } for the write — shortId comes from
-  // Frontier.ws (per-adventure, shared across all cards in the adventure),
+  // Ultrascripts.ws (per-adventure, shared across all cards in the adventure),
   // contentType is constant ("adventure") for all story-card mutations.
   _getAdventureEnrichment() {
-    if (typeof window === 'undefined' || !window.Frontier?.ws) return null;
-    const shortId = window.Frontier.ws.getAdventureShortId?.();
+    if (typeof window === 'undefined' || !window.Ultrascripts?.ws) return null;
+    const shortId = window.Ultrascripts.ws.getAdventureShortId?.();
     if (!shortId) return null;
     return { shortId, contentType: 'adventure' };
   }
 
   _findExistingCardByTitle(title) {
-    if (typeof window === 'undefined' || !window.Frontier?.ws?.getCards) return null;
-    for (const card of window.Frontier.ws.getCards().values()) {
+    if (typeof window === 'undefined' || !window.Ultrascripts?.ws?.getCards) return null;
+    for (const card of window.Ultrascripts.ws.getCards().values()) {
       if (card?.title === title) return card;
     }
     return null;
   }
 
   _findExistingCardById(id) {
-    if (id == null || typeof window === 'undefined' || !window.Frontier?.ws?.getCards) return null;
+    if (id == null || typeof window === 'undefined' || !window.Ultrascripts?.ws?.getCards) return null;
     const target = String(id);
-    for (const card of window.Frontier.ws.getCards().values()) {
+    for (const card of window.Ultrascripts.ws.getCards().values()) {
       if (String(card?.id) === target) return card;
     }
     return null;
@@ -1346,7 +1346,7 @@ class AIDungeonService {
   // over _findTemplate when the caller knows which card it's writing to —
   // guarantees shortId/contentType alignment without needing the safety check.
   _findTemplateForCard(cardId, candidateOpNames) {
-    const ws = (typeof window !== 'undefined') ? window.Frontier?.ws : null;
+    const ws = (typeof window !== 'undefined') ? window.Ultrascripts?.ws : null;
     if (!ws?.getMutationTemplateForCard) return null;
     for (const op of candidateOpNames) {
       const t = ws.getMutationTemplateForCard(cardId, op);
@@ -1373,7 +1373,7 @@ class AIDungeonService {
   }
 
   // Upsert a story card by title. If a card with this title exists in the
-  // current Frontier snapshot, updates it in place; otherwise creates a new
+  // current Ultrascripts snapshot, updates it in place; otherwise creates a new
   // card. Returns the AID mutation response's `storyCard` object.
   //
   // Prerequisites (both usually satisfied automatically by a live AID session):
@@ -1389,7 +1389,7 @@ class AIDungeonService {
   //   description - optional description
   //   id          - force-update a specific card id, skipping title lookup.
   //                 Pass an arbitrary string to create with a fixed id (useful
-  //                 for idempotent writes from modules, e.g. 'frontier:state').
+  //                 for idempotent writes from modules, e.g. 'ultrascripts:state').
   //   useForCharacterCreation - defaults to false
   async upsertStoryCard(title, value, opts = {}) {
     const {
@@ -1449,7 +1449,7 @@ class AIDungeonService {
     const card = result.storyCard || result;
     // Annotate the returned object so callers can distinguish create vs update
     // without re-checking the snapshot themselves.
-    if (card && typeof card === 'object') card.__frontierCreated = isCreate;
+    if (card && typeof card === 'object') card.__ultrascriptsCreated = isCreate;
     return card;
   }
 

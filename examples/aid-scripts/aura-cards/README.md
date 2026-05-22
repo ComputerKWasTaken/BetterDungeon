@@ -1,27 +1,27 @@
 # Aura Cards
 
 Aura Cards is an example AI Dungeon scenario script that rebuilds the core
-Auto-Cards idea on top of Frontier's AI module.
+Auto-Cards idea on top of Ultrascripts's AI module.
 
 Instead of hijacking the story model and asking the player to press Continue
 while card text is generated, Aura Cards sends a sidecar `ai.chat` request
-through Frontier. Normal gameplay continues; the script polls the response on
+through Ultrascripts. Normal gameplay continues; the script polls the response on
 later turns and writes or updates story cards when the AI returns structured
 JSON.
 
 ## What It Demonstrates
 
-- Frontier `ai.chat` calls from an AI Dungeon script.
+- Ultrascripts `ai.chat` calls from an AI Dungeon script.
 - `responseFormat: json_schema` for reliable card operations.
 - Automatic story-card creation and updates.
 - Memory-bank accumulation and sidecar compression.
-- Graceful degradation when Frontier or the AI module is not enabled.
+- Graceful degradation when Ultrascripts or the AI module is not enabled.
 
 ## Setup
 
 1. Load BetterDungeon and open AI Dungeon.
-2. Open BetterDungeon -> Frontier and enable Frontier plus the AI module.
-3. In Frontier -> AI, save an OpenRouter API key and optionally a default model.
+2. Open BetterDungeon -> Ultrascripts and enable Ultrascripts plus the AI module.
+3. In Ultrascripts -> AI, save an OpenRouter API key and optionally a default model.
 4. Paste `library.js` into the scenario Library tab.
 5. Paste `output.js` into the Output Modifier tab.
 6. Start or resume the adventure.
@@ -36,8 +36,8 @@ for scenarios or docs that expect all four script tabs to exist.
 
 - `Configure Aura Cards` - editable JSON config.
 - `Aura Cards Trace` - status, pending request ids, stats, and recent events.
-- `frontier:out` - request queue consumed by BetterDungeon.
-- `frontier:in:ai` - AI responses written by BetterDungeon.
+- `ultrascripts:out` - request queue consumed by BetterDungeon.
+- `ultrascripts:in:ai` - AI responses written by BetterDungeon.
 
 Generated cards are ordinary story cards marked in their notes with
 `Aura Cards metadata:` so Aura can update only its own cards and avoid

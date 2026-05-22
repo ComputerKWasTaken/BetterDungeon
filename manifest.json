@@ -32,7 +32,7 @@
   "content_scripts": [
     {
       "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"],
-      "js": ["services/frontier/ws-interceptor.js"],
+      "js": ["services/ultrascripts/ws-interceptor.js"],
       "run_at": "document_start",
       "world": "MAIN"
     },
@@ -40,7 +40,7 @@
       "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"],
       "js": [
         "utils/browser-polyfill.js",
-        "services/frontier/ws-stream.js"
+        "services/ultrascripts/ws-stream.js"
       ],
       "run_at": "document_start"
     },
@@ -51,11 +51,11 @@
         "utils/dom.js",
         "utils/storage.js",
         "services/ai-dungeon-service.js",
-        "services/frontier/write-queue.js",
-        "services/frontier/envelope.js",
-        "services/frontier/core.js",
-        "services/frontier/module-registry.js",
-        "services/frontier/ops-dispatcher.js",
+        "services/ultrascripts/write-queue.js",
+        "services/ultrascripts/envelope.js",
+        "services/ultrascripts/core.js",
+        "services/ultrascripts/module-registry.js",
+        "services/ultrascripts/ops-dispatcher.js",
         "modules/webfetch/consent.js",
         "modules/webfetch/module.js",
         "modules/clock/module.js",
@@ -71,7 +71,7 @@
         "services/loading-screen.js",
         "services/story-card-cache.js",
         "services/story-card-scanner.js",
-        "features/frontier_feature.js",
+        "features/ultrascripts_feature.js",
         "core/feature-manager.js",
         "features/markdown_feature.js",
         "features/command_feature.js",
@@ -104,7 +104,7 @@
         "fonts/lucide/lucide.ttf",
         "fonts/lucide/lucide.woff",
         "fonts/lucide/lucide.woff2",
-        "services/frontier/ws-interceptor.js"
+        "services/ultrascripts/ws-interceptor.js"
       ],
       "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"]
     }

@@ -1,15 +1,15 @@
-// services/frontier/envelope.js
+// services/ultrascripts/envelope.js
 //
-// Pure helpers for the Full Frontier request/response envelope. This file
+// Pure helpers for the Full Ultrascripts request/response envelope. This file
 // intentionally has no Core or DOM dependencies so the dispatcher, tests, and
 // future modules can share one definition of v1 envelope behavior.
 
 (function () {
-  if (window.Frontier?.envelope) return;
+  if (window.Ultrascripts?.envelope) return;
 
   const PROTOCOL_VERSION = 1;
-  const OUT_CARD_TITLE = 'frontier:out';
-  const IN_CARD_PREFIX = 'frontier:in:';
+  const OUT_CARD_TITLE = 'ultrascripts:out';
+  const IN_CARD_PREFIX = 'ultrascripts:in:';
 
   const TERMINAL_STATUSES = new Set(['ok', 'err', 'timeout']);
   const RESERVED_ERROR_CODES = new Set([
@@ -229,8 +229,8 @@
     return envelope;
   }
 
-  window.Frontier = window.Frontier || {};
-  window.Frontier.envelope = {
+  window.Ultrascripts = window.Ultrascripts || {};
+  window.Ultrascripts.envelope = {
     PROTOCOL_VERSION,
     OUT_CARD_TITLE,
     IN_CARD_PREFIX,

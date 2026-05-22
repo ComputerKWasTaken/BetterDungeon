@@ -1,8 +1,8 @@
 // modules/scripture/validators.js
 //
-// Validation and compatibility helpers for the Frontier Scripture module.
+// Validation and compatibility helpers for the Ultrascripts Scripture module.
 // These are intentionally pure-ish utilities so the module can reject malformed
-// state without the renderer throwing during a Frontier dispatch tick.
+// state without the renderer throwing during a Ultrascripts dispatch tick.
 
 (function () {
   if (window.ScriptureValidators) return;

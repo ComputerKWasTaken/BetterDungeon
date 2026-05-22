@@ -1,9 +1,9 @@
-# Frontier Weather Module — AI Dungeon Test Suite
+# Ultrascripts Weather Module — AI Dungeon Test Suite
 
-End-to-end test scripts that exercise the BetterDungeon Frontier Weather module
-(`modules/weather/module.js`) over the live Frontier protocol from inside an
+End-to-end test scripts that exercise the BetterDungeon Ultrascripts Weather module
+(`modules/weather/module.js`) over the live Ultrascripts protocol from inside an
 AI Dungeon scenario. Use this any time you change the Weather module or any
-Frontier plumbing.
+Ultrascripts plumbing.
 
 ## What it covers
 
@@ -25,15 +25,15 @@ The suite runs a fixed plan of requests, one per turn, in order:
 
 It also verifies:
 
-- The `frontier:heartbeat` card exists and lists `weather` with `current`
+- The `ultrascripts:heartbeat` card exists and lists `weather` with `current`
   and `forecast` ops.
-- Pending → terminal response transitions on `frontier:in:weather`.
+- Pending → terminal response transitions on `ultrascripts:in:weather`.
 - Ack-driven cleanup of response cards after responses are seen.
 
 ## Setup
 
 1. Load the BetterDungeon extension and open AI Dungeon.
-2. Open BetterDungeon → **Frontier** and enable Frontier and the **Weather**
+2. Open BetterDungeon → **Ultrascripts** and enable Ultrascripts and the **Weather**
    module.
 
 ## Install in a scenario
@@ -46,7 +46,7 @@ It also verifies:
 
 ## Reading results
 
-Open the `frontier:test:weather` story card after several turns to see:
+Open the `ultrascripts:test:weather` story card after several turns to see:
 
 - `phase` — current driver state.
 - `counts` — pass/fail/pending tally.
@@ -66,5 +66,5 @@ A successful run ends with `phase: "complete"` and `checksPass: true`.
 To re-run from scratch without editing anything, type any of these phrases:
 
 - `weather test reset`
-- `frontier weather reset`
+- `ultrascripts weather reset`
 - `[[weather-test:reset]]`

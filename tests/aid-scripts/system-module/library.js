@@ -1,16 +1,16 @@
-// Frontier System Module Test Suite — AI Dungeon Library
+// Ultrascripts System Module Test Suite — AI Dungeon Library
 //
-// Drives the BetterDungeon Frontier System module through every public op and a
+// Drives the BetterDungeon Ultrascripts System module through every public op and a
 // representative set of error paths. Pair with output-modifier.js.
 //
 // Surfaces written:
-//   frontier:out                  - request envelope queue (script -> BD)
-//   frontier:in:system            - response envelope (BD -> script)
-//   frontier:test:system          - human-readable trace card with results
+//   ultrascripts:out                  - request envelope queue (script -> BD)
+//   ultrascripts:in:system            - response envelope (BD -> script)
+//   ultrascripts:test:system          - human-readable trace card with results
 
 // ---------- state ----------
 
-state.frontierSystemTest = state.frontierSystemTest || {
+state.ultrascriptsSystemTest = state.ultrascriptsSystemTest || {
   runId: null,
   turn: 0,
   seq: 0,
@@ -133,11 +133,11 @@ var FSYS_STEPS = [
 
 function fsysNow() { return Date.now ? Date.now() : new Date().getTime(); }
 
-function fsysState() { return state.frontierSystemTest; }
+function fsysState() { return state.ultrascriptsSystemTest; }
 
 function fsysRunId() {
   var s = fsysState();
-  if (!s.runId) s.runId = 'frontier-system-' + fsysNow().toString(36);
+  if (!s.runId) s.runId = 'ultrascripts-system-' + fsysNow().toString(36);
   return s.runId;
 }
 
@@ -168,7 +168,7 @@ function fsysReadJson(title) {
 
 function fsysWriteCard(title, value, type) {
   var f = fsysFindCard(title);
-  var cardType = type || 'Frontier';
+  var cardType = type || 'Ultrascripts';
   if (f.card && f.index >= 0 && typeof updateStoryCard === 'function') {
     updateStoryCard(f.index, f.card.keys || f.card.key || title, value, f.card.type || cardType);
     return true;
@@ -190,11 +190,11 @@ function fsysLog(event, detail) {
   while (s.events.length > 60) s.events.shift();
 }
 
-function fsysHeartbeat() { return fsysReadJson('frontier:heartbeat'); }
+function fsysHeartbeat() { return fsysReadJson('ultrascripts:heartbeat'); }
 
 function fsysHasOp(moduleId, opName) {
   var hb = fsysHeartbeat();
-  if (!hb || !hb.frontier || hb.frontier.protocol !== 1) return false;
+  if (!hb || !hb.ultrascripts || hb.ultrascripts.protocol !== 1) return false;
   var mods = Array.isArray(hb.modules) ? hb.modules : [];
   for (var i = 0; i < mods.length; i++) {
     var m = mods[i];
@@ -223,7 +223,7 @@ function fsysWriteOut() {
     debugWrittenAt: fsysNow()
   };
   s._acks = [];
-  fsysWriteCard('frontier:out', JSON.stringify(payload), 'Frontier');
+  fsysWriteCard('ultrascripts:out', JSON.stringify(payload), 'Ultrascripts');
 }
 
 function fsysQueueAck(requestId, reason) {
@@ -267,7 +267,7 @@ function fsysPollResponses() {
   }
   var found = false;
   for (var m = 0; m < modules.length; m++) {
-    var card = fsysReadJson('frontier:in:' + modules[m]);
+    var card = fsysReadJson('ultrascripts:in:' + modules[m]);
     if (!card || !card.responses) continue;
     for (var rid in card.responses) {
       if (!Object.prototype.hasOwnProperty.call(card.responses, rid)) continue;
@@ -397,7 +397,7 @@ function fsysWriteTrace() {
     phase: s.phase,
     heartbeat: {
       present: !!hb,
-      protocol: hb && hb.frontier && hb.frontier.protocol,
+      protocol: hb && hb.ultrascripts && hb.ultrascripts.protocol,
       systemAdvertised: fsysHasOp('system', 'info') && fsysHasOp('system', 'power')
     },
     counts: counts,
@@ -407,7 +407,7 @@ function fsysWriteTrace() {
     ackAttempts: s.ackAttempts,
     events: s.events
   };
-  fsysWriteCard('frontier:test:system', JSON.stringify(trace, null, 2), 'Frontier Test');
+  fsysWriteCard('ultrascripts:test:system', JSON.stringify(trace, null, 2), 'Ultrascripts Test');
 }
 
 // ---------- reset / commands ----------
@@ -447,25 +447,25 @@ function fsysConsumeCommand(kind, outputText, needles) {
 }
 
 function fsysResetSuite() {
-  state.frontierSystemTest = {
-    runId: 'frontier-system-' + fsysNow().toString(36),
+  state.ultrascriptsSystemTest = {
+    runId: 'ultrascripts-system-' + fsysNow().toString(36),
     turn: 0, seq: 0, outSeq: 0,
     pending: {}, completed: {}, acked: {}, ackAttempts: {},
     steps: {}, events: [], consumedCommands: {},
     phase: 'reset'
   };
-  fsysWriteCard('frontier:out', JSON.stringify({ v: 1, requests: [], acks: [] }), 'Frontier');
+  fsysWriteCard('ultrascripts:out', JSON.stringify({ v: 1, requests: [], acks: [] }), 'Ultrascripts');
   fsysWriteTrace();
 }
 
 // ---------- public entry point ----------
 
-function frontierSystemTestStep(outputText) {
+function ultrascriptsSystemTestStep(outputText) {
   var s = fsysState();
   fsysRunId();
   s.turn += 1;
 
-  if (fsysConsumeCommand('reset', outputText, ['system test reset', 'frontier system reset', '[[system-test:reset]]'])) {
+  if (fsysConsumeCommand('reset', outputText, ['system test reset', 'ultrascripts system reset', '[[system-test:reset]]'])) {
     fsysResetSuite();
     return true;
   }

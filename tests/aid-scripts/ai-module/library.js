@@ -1,25 +1,25 @@
-// Frontier AI Module Test Suite — AI Dungeon Library
+// Ultrascripts AI Module Test Suite — AI Dungeon Library
 //
-// Drives the BetterDungeon Frontier AI module through every public op and a
+// Drives the BetterDungeon Ultrascripts AI module through every public op and a
 // representative set of error paths. Pair with output-modifier.js.
 //
 // Surfaces written:
-//   frontier:out                  - request envelope queue (script -> BD)
-//   frontier:in:ai                - response envelope (BD -> script, canonical id)
-//   frontier:in:providerAI        - response envelope (BD -> script, alias path)
-//   frontier:test:ai              - human-readable trace card with results
+//   ultrascripts:out                  - request envelope queue (script -> BD)
+//   ultrascripts:in:ai                - response envelope (BD -> script, canonical id)
+//   ultrascripts:in:providerAI        - response envelope (BD -> script, alias path)
+//   ultrascripts:test:ai              - human-readable trace card with results
 //
 // Before running:
-//   1. Open BetterDungeon -> Frontier and enable Frontier + the AI module.
-//   2. In Frontier -> AI, save an OpenRouter API key.
-//   3. Optionally edit FRONTIER_AI_TEST_MODEL below; otherwise a free model
+//   1. Open BetterDungeon -> Ultrascripts and enable Ultrascripts + the AI module.
+//   2. In Ultrascripts -> AI, save an OpenRouter API key.
+//   3. Optionally edit ULTRASCRIPTS_AI_TEST_MODEL below; otherwise a free model
 //      is used.
 
-var FRONTIER_AI_TEST_MODEL = 'inclusionai/ring-2.6-1t:free';
+var ULTRASCRIPTS_AI_TEST_MODEL = 'inclusionai/ring-2.6-1t:free';
 
 // ---------- state ----------
 
-state.frontierAiTest = state.frontierAiTest || {
+state.ultrascriptsAiTest = state.ultrascriptsAiTest || {
   runId: null,
   turn: 0,
   seq: 0,
@@ -37,7 +37,7 @@ state.frontierAiTest = state.frontierAiTest || {
 
 // ---------- test plan ----------
 //
-// Each step queues one Frontier request and records it under a stable label
+// Each step queues one Ultrascripts request and records it under a stable label
 // so the trace can call out exactly what failed. `module` is either the
 // canonical id 'ai' or the alias 'providerAI' so we exercise alias routing.
 
@@ -186,8 +186,8 @@ var FAI_STEPS = [
 function faiNow() { return Date.now ? Date.now() : new Date().getTime(); }
 
 function faiRunId() {
-  var s = state.frontierAiTest;
-  if (!s.runId) s.runId = 'frontier-ai-' + faiNow().toString(36);
+  var s = state.ultrascriptsAiTest;
+  if (!s.runId) s.runId = 'ultrascripts-ai-' + faiNow().toString(36);
   return s.runId;
 }
 
@@ -218,7 +218,7 @@ function faiReadJson(title) {
 
 function faiWriteCard(title, value, type) {
   var f = faiFindCard(title);
-  var cardType = type || 'Frontier';
+  var cardType = type || 'Ultrascripts';
 
   if (f.card && f.index >= 0 && typeof updateStoryCard === 'function') {
     updateStoryCard(
@@ -241,7 +241,7 @@ function faiLiveKey() {
 }
 
 function faiLog(event, detail) {
-  var s = state.frontierAiTest;
+  var s = state.ultrascriptsAiTest;
   s.events.push({
     at: faiNow(), turn: s.turn, liveKey: faiLiveKey(),
     event: event, detail: detail || ''
@@ -249,11 +249,11 @@ function faiLog(event, detail) {
   while (s.events.length > 80) s.events.shift();
 }
 
-function faiHeartbeat() { return faiReadJson('frontier:heartbeat'); }
+function faiHeartbeat() { return faiReadJson('ultrascripts:heartbeat'); }
 
 function faiHasOp(moduleId, opName) {
   var hb = faiHeartbeat();
-  if (!hb || !hb.frontier || hb.frontier.protocol !== 1) return false;
+  if (!hb || !hb.ultrascripts || hb.ultrascripts.protocol !== 1) return false;
   var mods = Array.isArray(hb.modules) ? hb.modules : [];
   for (var i = 0; i < mods.length; i++) {
     var m = mods[i];
@@ -265,7 +265,7 @@ function faiHasOp(moduleId, opName) {
 }
 
 function faiPendingArray() {
-  var s = state.frontierAiTest, out = [];
+  var s = state.ultrascriptsAiTest, out = [];
   for (var id in s.pending) {
     if (Object.prototype.hasOwnProperty.call(s.pending, id)) out.push(s.pending[id]);
   }
@@ -273,7 +273,7 @@ function faiPendingArray() {
 }
 
 function faiWriteOut() {
-  var s = state.frontierAiTest;
+  var s = state.ultrascriptsAiTest;
   var payload = {
     v: 1,
     requests: faiPendingArray(),
@@ -282,11 +282,11 @@ function faiWriteOut() {
     debugWrittenAt: faiNow()
   };
   s._acks = [];
-  faiWriteCard('frontier:out', JSON.stringify(payload), 'Frontier');
+  faiWriteCard('ultrascripts:out', JSON.stringify(payload), 'Ultrascripts');
 }
 
 function faiQueueAck(requestId, reason) {
-  var s = state.frontierAiTest;
+  var s = state.ultrascriptsAiTest;
   s._acks = s._acks || [];
   var attempts = Number(s.ackAttempts[requestId] || 0);
   if (attempts >= 6) return false;
@@ -298,7 +298,7 @@ function faiQueueAck(requestId, reason) {
 }
 
 function faiQueueRequest(label, moduleId, opName, args) {
-  var s = state.frontierAiTest;
+  var s = state.ultrascriptsAiTest;
   var id = faiLiveKey() + '-' + label + '-' + (++s.seq);
   if (s.pending[id] || s.completed[id]) return id;
   s.pending[id] = {
@@ -317,8 +317,8 @@ function faiIsTerminal(r) {
 }
 
 function faiPollResponses() {
-  var s = state.frontierAiTest;
-  // Responses come back on `frontier:in:<request.module>`, where
+  var s = state.ultrascriptsAiTest;
+  // Responses come back on `ultrascripts:in:<request.module>`, where
   // `<request.module>` is whatever name the script sent — including the
   // intentionally bogus name in the unknown-module test. Build the poll set
   // from the plan so every step is reachable.
@@ -330,7 +330,7 @@ function faiPollResponses() {
   }
   var found = false;
   for (var m = 0; m < modules.length; m++) {
-    var card = faiReadJson('frontier:in:' + modules[m]);
+    var card = faiReadJson('ultrascripts:in:' + modules[m]);
     if (!card || !card.responses) continue;
     for (var rid in card.responses) {
       if (!Object.prototype.hasOwnProperty.call(card.responses, rid)) continue;
@@ -358,14 +358,14 @@ function faiRepeat(ch, count) {
   return out;
 }
 
-function faiTestModel() { return String(FRONTIER_AI_TEST_MODEL || '').trim(); }
+function faiTestModel() { return String(ULTRASCRIPTS_AI_TEST_MODEL || '').trim(); }
 
 // Pick a chat model dynamically: first prefer a `:free` model from the live
 // `models` response, then any model from that response, and finally the
 // configured default. This keeps the suite green as OpenRouter rotates its
 // free-tier inventory.
 function faiPickChatModel() {
-  var s = state.frontierAiTest;
+  var s = state.ultrascriptsAiTest;
   var rid = s.steps && s.steps['models'];
   var done = rid && s.completed[rid];
   var list = done && done.data && Array.isArray(done.data.models) ? done.data.models : [];
@@ -392,7 +392,7 @@ function faiChatArgs(model) {
     provider: 'openrouter',
     messages: [
       { role: 'system', content: 'Reply with one short plain sentence.' },
-      { role: 'user', content: 'Say that the Frontier AI module is online.' }
+      { role: 'user', content: 'Say that the Ultrascripts AI module is online.' }
     ],
     // Reasoning models can spend hundreds of tokens thinking before emitting
     // any visible content. Keep the budget high enough that a "say one short
@@ -420,12 +420,12 @@ function faiJsonSchemaArgs(model) {
   var args = faiChatArgs(model);
   args.messages = [
     { role: 'system', content: 'Reply only with JSON matching the requested schema.' },
-    { role: 'user', content: 'Report that Frontier AI is online.' }
+    { role: 'user', content: 'Report that Ultrascripts AI is online.' }
   ];
   args.responseFormat = {
     type: 'json_schema',
     json_schema: {
-      name: 'frontier_ai_status',
+      name: 'ultrascripts_ai_status',
       strict: true,
       schema: {
         type: 'object',
@@ -447,7 +447,7 @@ function faiJsonSchemaArgs(model) {
 // Reasoning models (e.g. inclusionai/ring-*) legitimately return empty
 // `text` / `message.content` when their reasoning budget exhausts maxTokens
 // before any visible content is emitted — that's a model-tuning concern,
-// not a Frontier transport or AI-module bug.
+// not a Ultrascripts transport or AI-module bug.
 function faiValidChat(r) {
   return !!(
     r && r.provider === 'openrouter' &&
@@ -483,7 +483,7 @@ function faiTextIncludes(text, needles) {
 }
 
 function faiRecentSources(outputText) {
-  var src = [{ id: 'output:' + state.frontierAiTest.turn, text: String(outputText || '') }];
+  var src = [{ id: 'output:' + state.ultrascriptsAiTest.turn, text: String(outputText || '') }];
   var entries = Array.isArray(history) ? history : [];
   var start = Math.max(0, entries.length - 6);
   for (var i = start; i < entries.length; i++) {
@@ -495,7 +495,7 @@ function faiRecentSources(outputText) {
 }
 
 function faiConsumeCommand(kind, outputText, needles) {
-  var s = state.frontierAiTest;
+  var s = state.ultrascriptsAiTest;
   var sources = faiRecentSources(outputText);
   for (var i = 0; i < sources.length; i++) {
     var src = sources[i];
@@ -509,14 +509,14 @@ function faiConsumeCommand(kind, outputText, needles) {
 }
 
 function faiResetSuite() {
-  state.frontierAiTest = {
-    runId: 'frontier-ai-' + faiNow().toString(36),
+  state.ultrascriptsAiTest = {
+    runId: 'ultrascripts-ai-' + faiNow().toString(36),
     turn: 0, seq: 0, outSeq: 0,
     pending: {}, completed: {}, acked: {}, ackAttempts: {},
     steps: {}, replayResets: {}, events: [], consumedCommands: {},
     phase: 'reset'
   };
-  faiWriteCard('frontier:out', JSON.stringify({ v: 1, requests: [], acks: [] }), 'Frontier');
+  faiWriteCard('ultrascripts:out', JSON.stringify({ v: 1, requests: [], acks: [] }), 'Ultrascripts');
   faiWriteTrace();
 }
 
@@ -527,7 +527,7 @@ function faiResetSuite() {
 // trivial and makes failures obvious in the trace.
 
 function faiCurrentStepIndex() {
-  var s = state.frontierAiTest;
+  var s = state.ultrascriptsAiTest;
   for (var i = 0; i < FAI_STEPS.length; i++) {
     var step = FAI_STEPS[i];
     var rid = s.steps[step.label];
@@ -546,7 +546,7 @@ function faiCurrentStepIndex() {
 var FAI_MAX_REPLAY_RESETS = 2;
 
 function faiRecoverReplayBlocked() {
-  var s = state.frontierAiTest;
+  var s = state.ultrascriptsAiTest;
   for (var i = 0; i < FAI_STEPS.length; i++) {
     var label = FAI_STEPS[i].label;
     var rid = s.steps[label];
@@ -566,7 +566,7 @@ function faiRecoverReplayBlocked() {
 }
 
 function faiAdvance() {
-  var s = state.frontierAiTest;
+  var s = state.ultrascriptsAiTest;
 
   // Heartbeat gate: AI module must advertise all three real ops.
   if (!faiHasOp('ai', 'chat') || !faiHasOp('ai', 'models') || !faiHasOp('ai', 'testConnection')) {
@@ -594,7 +594,7 @@ function faiAdvance() {
 }
 
 function faiStepResult(step) {
-  var s = state.frontierAiTest;
+  var s = state.ultrascriptsAiTest;
   var rid = s.steps[step.label];
   if (!rid) return { state: 'pending' };
   var done = s.completed[rid];
@@ -645,7 +645,7 @@ function faiAllChecksPass() {
 }
 
 function faiWriteTrace() {
-  var s = state.frontierAiTest;
+  var s = state.ultrascriptsAiTest;
   var results = {};
   var counts = { total: FAI_STEPS.length, pass: 0, fail: 0, pending: 0 };
   for (var i = 0; i < FAI_STEPS.length; i++) {
@@ -666,7 +666,7 @@ function faiWriteTrace() {
     phase: s.phase,
     heartbeat: {
       present: !!hb,
-      protocol: hb && hb.frontier && hb.frontier.protocol,
+      protocol: hb && hb.ultrascripts && hb.ultrascripts.protocol,
       aiAdvertised: faiHasOp('ai', 'chat') && faiHasOp('ai', 'models') && faiHasOp('ai', 'testConnection')
     },
     testModel: faiTestModel() || '(BetterDungeon default)',
@@ -679,17 +679,17 @@ function faiWriteTrace() {
     replayResets: s.replayResets || {},
     events: s.events
   };
-  faiWriteCard('frontier:test:ai', JSON.stringify(trace, null, 2), 'Frontier Test');
+  faiWriteCard('ultrascripts:test:ai', JSON.stringify(trace, null, 2), 'Ultrascripts Test');
 }
 
 // ---------- public entry point ----------
 
-function frontierAiTestStep(outputText) {
-  var s = state.frontierAiTest;
+function ultrascriptsAiTestStep(outputText) {
+  var s = state.ultrascriptsAiTest;
   faiRunId();
   s.turn += 1;
 
-  if (faiConsumeCommand('reset', outputText, ['ai test reset', 'frontier ai reset', '[[ai-test:reset]]'])) {
+  if (faiConsumeCommand('reset', outputText, ['ai test reset', 'ultrascripts ai reset', '[[ai-test:reset]]'])) {
     faiResetSuite();
     return true;
   }

@@ -1,4 +1,4 @@
-// Frontier Scripture Module Test Suite — AI Dungeon Input Modifier
+// Ultrascripts Scripture Module Test Suite — AI Dungeon Input Modifier
 //
 // Pair with library.js + output-modifier.js. This hook runs ONLY when the
 // player submits input, so it does not tick the suite — that would cause the

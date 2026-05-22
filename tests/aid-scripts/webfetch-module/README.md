@@ -1,9 +1,9 @@
-# Frontier WebFetch Module — AI Dungeon Test Suite
+# Ultrascripts WebFetch Module — AI Dungeon Test Suite
 
-End-to-end test scripts that exercise the BetterDungeon Frontier WebFetch module
-(`modules/webfetch/module.js`) over the live Frontier protocol from inside an
+End-to-end test scripts that exercise the BetterDungeon Ultrascripts WebFetch module
+(`modules/webfetch/module.js`) over the live Ultrascripts protocol from inside an
 AI Dungeon scenario. Use this any time you change the WebFetch module, consent
-broker, rate limiter, or any Frontier plumbing.
+broker, rate limiter, or any Ultrascripts plumbing.
 
 ## What it covers
 
@@ -40,7 +40,7 @@ should be rejected before any network call is made.
 ## Setup
 
 1. Load the BetterDungeon extension and open AI Dungeon.
-2. Open BetterDungeon → **Frontier** and enable Frontier and the **WebFetch**
+2. Open BetterDungeon → **Ultrascripts** and enable Ultrascripts and the **WebFetch**
    module.
 3. When consent prompts appear, approve them to exercise the full fetch path
    (or deny them to test the consent-denied path).
@@ -55,7 +55,7 @@ should be rejected before any network call is made.
 
 ## Reading results
 
-Open the `frontier:test:webfetch` story card after several turns to see:
+Open the `ultrascripts:test:webfetch` story card after several turns to see:
 
 - `phase` — current driver state.
 - `counts` — pass/fail/pending tally.
@@ -75,5 +75,5 @@ A successful run ends with `phase: "complete"` and `checksPass: true`.
 To re-run from scratch without editing anything, type any of these phrases:
 
 - `webfetch test reset`
-- `frontier webfetch reset`
+- `ultrascripts webfetch reset`
 - `[[webfetch-test:reset]]`

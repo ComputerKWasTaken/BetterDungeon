@@ -1,30 +1,30 @@
 // modules/sdk/module.js
 //
-// Frontier BetterDungeon SDK module. Exposes BetterDungeon-facing metadata
-// that does not belong in Frontier heartbeat discovery.
+// Ultrascripts BetterDungeon SDK module. Exposes BetterDungeon-facing metadata
+// that does not belong in Ultrascripts heartbeat discovery.
 
 (function () {
-  if (window.FrontierSdkModule) return;
+  if (window.UltrascriptsSdkModule) return;
 
   const SDK_VERSION = '1.0.0';
-  const FRONTIER_PROTOCOL = 1;
-  const FRONTIER_CLIENT = 'BetterDungeon';
-  const SDK_MESSAGE = 'FRONTIER_SDK_REQUEST';
+  const ULTRASCRIPTS_PROTOCOL = 1;
+  const ULTRASCRIPTS_CLIENT = 'BetterDungeon';
+  const SDK_MESSAGE = 'ULTRASCRIPTS_SDK_REQUEST';
   const STORAGE_KEYS = {
     features: 'betterDungeonFeatures',
-    frontierModules: 'frontier_enabled_modules',
-    frontierDebug: 'frontier_debug',
-    scriptureWidgetDisplay: 'frontier_mod_scripture_widget_display',
-    webfetchAllowlist: 'frontier_webfetch_allowlist',
-    aiOpenRouterKey: 'frontier_ai_openrouter_api_key',
-    aiOpenRouterDefaultModel: 'frontier_ai_openrouter_default_model',
-    aiCostControls: 'frontier_ai_cost_controls',
-    legacyAiBudget: 'frontier_ai_budget',
-    legacyProviderAiOpenRouterKey: 'frontier_provider_ai_openrouter_api_key',
-    legacyProviderAiOpenRouterDefaultModel: 'frontier_provider_ai_openrouter_default_model',
+    ultrascriptsModules: 'ultrascripts_enabled_modules',
+    ultrascriptsDebug: 'ultrascripts_debug',
+    scriptureWidgetDisplay: 'ultrascripts_mod_scripture_widget_display',
+    webfetchAllowlist: 'ultrascripts_webfetch_allowlist',
+    aiOpenRouterKey: 'ultrascripts_ai_openrouter_api_key',
+    aiOpenRouterDefaultModel: 'ultrascripts_ai_openrouter_default_model',
+    aiCostControls: 'ultrascripts_ai_cost_controls',
+    legacyAiBudget: 'ultrascripts_ai_budget',
+    legacyProviderAiOpenRouterKey: 'ultrascripts_provider_ai_openrouter_api_key',
+    legacyProviderAiOpenRouterDefaultModel: 'ultrascripts_provider_ai_openrouter_default_model',
   };
   const DEFAULT_FEATURES = {
-    frontier: true,
+    ultrascripts: true,
     markdown: true,
     command: true,
     try: true,
@@ -39,7 +39,7 @@
     inputHistory: true,
     textToSpeech: false,
   };
-  const FRONTIER_MODULES = [
+  const ULTRASCRIPTS_MODULES = [
     'scripture',
     'webfetch',
     'clock',
@@ -90,7 +90,7 @@
   }
 
   function getCore() {
-    return window.Frontier?.core || null;
+    return window.Ultrascripts?.core || null;
   }
 
   function getStorageArea() {
@@ -167,20 +167,20 @@
     });
   }
 
-  function getFrontierProtocol(ctx) {
+  function getUltrascriptsProtocol(ctx) {
     const core = getCore();
     if (typeof core?.getProtocolVersion === 'function') {
       return core.getProtocolVersion();
     }
-    return FRONTIER_PROTOCOL;
+    return ULTRASCRIPTS_PROTOCOL;
   }
 
-  function getFrontierClientName() {
+  function getUltrascriptsClientName() {
     const core = getCore();
     if (typeof core?.getClientName === 'function') {
       return core.getClientName();
     }
-    return FRONTIER_CLIENT;
+    return ULTRASCRIPTS_CLIENT;
   }
 
   function versionOp(args = {}) {
@@ -188,8 +188,8 @@
     return {
       sdkVersion: SDK_VERSION,
       betterDungeonVersion: getBetterDungeonVersion(),
-      frontierProtocol: getFrontierProtocol(),
-      frontierClient: getFrontierClientName(),
+      ultrascriptsProtocol: getUltrascriptsProtocol(),
+      ultrascriptsClient: getUltrascriptsClientName(),
     };
   }
 
@@ -197,15 +197,15 @@
     return { ...DEFAULT_FEATURES, ...(raw && typeof raw === 'object' ? raw : {}) };
   }
 
-  function normalizeFrontierModules(raw) {
+  function normalizeUltrascriptsModules(raw) {
     const out = {};
     const saved = raw && typeof raw === 'object' ? raw : {};
-    for (let i = 0; i < FRONTIER_MODULES.length; i++) {
-      out[FRONTIER_MODULES[i]] = true;
+    for (let i = 0; i < ULTRASCRIPTS_MODULES.length; i++) {
+      out[ULTRASCRIPTS_MODULES[i]] = true;
     }
     for (const [key, value] of Object.entries(saved)) {
       const normalizedKey = key === 'providerAI' ? 'ai' : key;
-      if (FRONTIER_MODULES.includes(normalizedKey)) out[normalizedKey] = !!value;
+      if (ULTRASCRIPTS_MODULES.includes(normalizedKey)) out[normalizedKey] = !!value;
     }
     return out;
   }
@@ -268,12 +268,12 @@
       return {
         sdkVersion: SDK_VERSION,
         betterDungeonVersion: getBetterDungeonVersion(),
-        frontierProtocol: getFrontierProtocol(ctx),
-        frontierClient: getFrontierClientName(),
+        ultrascriptsProtocol: getUltrascriptsProtocol(ctx),
+        ultrascriptsClient: getUltrascriptsClientName(),
         features: normalizeFeatures(backgroundConfig.features),
-        frontier: {
-          ...((backgroundConfig.frontier && typeof backgroundConfig.frontier === 'object') ? backgroundConfig.frontier : {}),
-          enabled: normalizeFeatures(backgroundConfig.features).frontier !== false,
+        ultrascripts: {
+          ...((backgroundConfig.ultrascripts && typeof backgroundConfig.ultrascripts === 'object') ? backgroundConfig.ultrascripts : {}),
+          enabled: normalizeFeatures(backgroundConfig.features).ultrascripts !== false,
           runtimeEnabled: typeof getCore()?.isEnabled === 'function' ? !!getCore().isEnabled() : !!getCore()?.inspect?.()?.enabled,
         },
       };
@@ -281,8 +281,8 @@
 
     const syncResult = await storageGet([
       STORAGE_KEYS.features,
-      STORAGE_KEYS.frontierModules,
-      STORAGE_KEYS.frontierDebug,
+      STORAGE_KEYS.ultrascriptsModules,
+      STORAGE_KEYS.ultrascriptsDebug,
       STORAGE_KEYS.scriptureWidgetDisplay,
       STORAGE_KEYS.webfetchAllowlist,
     ]);
@@ -296,7 +296,7 @@
     ]);
 
     const features = normalizeFeatures(syncResult[STORAGE_KEYS.features]);
-    const frontierModules = normalizeFrontierModules(syncResult[STORAGE_KEYS.frontierModules]);
+    const ultrascriptsModules = normalizeUltrascriptsModules(syncResult[STORAGE_KEYS.ultrascriptsModules]);
     const scriptureDisplay = normalizeScriptureDisplay(syncResult[STORAGE_KEYS.scriptureWidgetDisplay]);
     const aiCostControls = normalizeAiCostControls(
       localResult[STORAGE_KEYS.aiCostControls] || localResult[STORAGE_KEYS.legacyAiBudget]
@@ -309,14 +309,14 @@
     return {
       sdkVersion: SDK_VERSION,
       betterDungeonVersion: getBetterDungeonVersion(),
-      frontierProtocol: getFrontierProtocol(ctx),
-      frontierClient: getFrontierClientName(),
+      ultrascriptsProtocol: getUltrascriptsProtocol(ctx),
+      ultrascriptsClient: getUltrascriptsClientName(),
       features,
-      frontier: {
-        enabled: features.frontier !== false,
+      ultrascripts: {
+        enabled: features.ultrascripts !== false,
         runtimeEnabled: typeof getCore()?.isEnabled === 'function' ? !!getCore().isEnabled() : !!getCore()?.inspect?.()?.enabled,
-        debug: !!syncResult[STORAGE_KEYS.frontierDebug],
-        modulePreferences: frontierModules,
+        debug: !!syncResult[STORAGE_KEYS.ultrascriptsDebug],
+        modulePreferences: ultrascriptsModules,
         scriptureDisplay,
         webfetch: summarizeWebFetchAllowlist(syncResult[STORAGE_KEYS.webfetchAllowlist]),
         ai: {
@@ -328,7 +328,7 @@
     };
   }
 
-  const FrontierSdkModule = {
+  const UltrascriptsSdkModule = {
     id: 'sdk',
     version: SDK_VERSION,
     label: 'BetterDungeon SDK',
@@ -366,15 +366,15 @@
     },
   };
 
-  window.FrontierSdkModule = FrontierSdkModule;
+  window.UltrascriptsSdkModule = UltrascriptsSdkModule;
 
-  if (window.Frontier?.registry) {
-    window.Frontier.registry.register(FrontierSdkModule);
+  if (window.Ultrascripts?.registry) {
+    window.Ultrascripts.registry.register(UltrascriptsSdkModule);
   } else {
-    console.warn('[SDK] Frontier registry not available; SDK module not registered.');
+    console.warn('[SDK] Ultrascripts registry not available; SDK module not registered.');
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = FrontierSdkModule;
+    module.exports = UltrascriptsSdkModule;
   }
 })();

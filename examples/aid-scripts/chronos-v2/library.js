@@ -1,13 +1,13 @@
-// Chronos - Frontier multi-module example
+// Chronos - Ultrascripts multi-module example
 //
 // Chronos is a direct-tracking time and weather engine for AI Dungeon.
-// It showcases several Frontier modules working together:
+// It showcases several Ultrascripts modules working together:
 //   - Scripture: interactive dashboard widgets.
 //   - Clock: real-world time initialization and manual sync.
 //   - Weather: optional real current-weather lookups.
 //
 // Setup:
-//   1. Enable BetterDungeon -> Frontier.
+//   1. Enable BetterDungeon -> Ultrascripts.
 //   2. Enable Scripture, Clock, and Weather as desired.
 //   3. Paste this file into the AI Dungeon Library tab.
 //   4. Paste input.js, context.js, and output.js into their tabs.
@@ -17,7 +17,7 @@ var CHRONOS_CONFIG_CARD_TITLE = 'Configure Chronos';
 var CHRONOS_TRACE_CARD_TITLE = 'Chronos Trace';
 var CHRONOS_COMMANDS_CARD_TITLE = 'Chronos Commands';
 var CHRONOS_CARD_TYPE = 'Chronos';
-var CHRONOS_SCRIPTURE_STATE_CARD = 'frontier:state:scripture';
+var CHRONOS_SCRIPTURE_STATE_CARD = 'ultrascripts:state:scripture';
 
 var CHRONOS_DEFAULT_CONFIG = {
   // Master enable switch for Chronos functionality
@@ -44,7 +44,7 @@ var CHRONOS_DEFAULT_CONFIG = {
   weatherRefreshTurns: 30,
   // Minimum turns before simulated weather can change again
   weatherChangeCooldown: 15,
-  // Maximum turns to wait for Frontier module responses before timeout
+  // Maximum turns to wait for Ultrascripts module responses before timeout
   maxPendingTurns: 12,
   // IANA timezone string for clock sync (e.g., 'America/New_York')
   timeZone: '',
@@ -940,12 +940,12 @@ function chronosStatusLine(cfg) {
 }
 
 function chronosHeartbeat() {
-  return chronosReadJsonCard('frontier:heartbeat');
+  return chronosReadJsonCard('ultrascripts:heartbeat');
 }
 
 function chronosHasStateModule(moduleId) {
   var hb = chronosHeartbeat();
-  if (!hb || !hb.frontier || hb.frontier.protocol !== 1) return false;
+  if (!hb || !hb.ultrascripts || hb.ultrascripts.protocol !== 1) return false;
   var modules = Array.isArray(hb.modules) ? hb.modules : [];
   for (var i = 0; i < modules.length; i++) {
     var m = modules[i];
@@ -956,7 +956,7 @@ function chronosHasStateModule(moduleId) {
 
 function chronosHasOp(moduleId, op) {
   var hb = chronosHeartbeat();
-  if (!hb || !hb.frontier || hb.frontier.protocol !== 1) return false;
+  if (!hb || !hb.ultrascripts || hb.ultrascripts.protocol !== 1) return false;
   var modules = Array.isArray(hb.modules) ? hb.modules : [];
   for (var i = 0; i < modules.length; i++) {
     var m = modules[i];
@@ -986,7 +986,7 @@ function chronosWriteOut() {
     debugWrittenAt: chronosNow()
   };
   s._acks = [];
-  chronosWriteCard('frontier:out', JSON.stringify(payload), 'Frontier', 'frontier:out', '');
+  chronosWriteCard('ultrascripts:out', JSON.stringify(payload), 'Ultrascripts', 'ultrascripts:out', '');
 }
 
 function chronosQueueAck(requestId, reason) {
@@ -1044,7 +1044,7 @@ function chronosPollResponses(cfg) {
 
 function chronosPollModule(moduleId, cfg) {
   var s = chronosState();
-  var card = chronosReadJsonCard('frontier:in:' + moduleId);
+  var card = chronosReadJsonCard('ultrascripts:in:' + moduleId);
   if (!card || !card.responses) return;
   var wroteAck = false;
   for (var requestId in card.responses) {
@@ -1102,7 +1102,7 @@ function chronosReapStalePending(cfg) {
     changed = true;
     chronosLog('local-timeout', id);
   }
-  if (changed) s.status = 'Timed out waiting for Frontier response';
+  if (changed) s.status = 'Timed out waiting for Ultrascripts response';
 }
 
 function chronosMaybeInitializeClock(cfg) {
@@ -1200,7 +1200,7 @@ function chronosLocationLabel(location) {
 
 function chronosProcessWidgetEvents(cfg) {
   var s = chronosState();
-  var card = chronosReadJsonCard('frontier:in:scripture');
+  var card = chronosReadJsonCard('ultrascripts:in:scripture');
   var widgetEvents = card && card.widgetEvents && Array.isArray(card.widgetEvents.events)
     ? card.widgetEvents.events
     : [];
@@ -1363,7 +1363,7 @@ function chronosPublishScripture(cfg) {
     }
   };
 
-  chronosWriteCard(CHRONOS_SCRIPTURE_STATE_CARD, JSON.stringify(payload), 'Frontier', CHRONOS_SCRIPTURE_STATE_CARD, '');
+  chronosWriteCard(CHRONOS_SCRIPTURE_STATE_CARD, JSON.stringify(payload), 'Ultrascripts', CHRONOS_SCRIPTURE_STATE_CARD, '');
   return true;
 }
 

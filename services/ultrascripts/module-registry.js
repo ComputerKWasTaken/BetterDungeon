@@ -1,11 +1,11 @@
-// services/frontier/module-registry.js
+// services/ultrascripts/module-registry.js
 //
-// Frontier module lifecycle. Modules register a definition:
+// Ultrascripts module lifecycle. Modules register a definition:
 //   {
 //     id:              string   — unique identifier (e.g. 'scripture')
 //     version:         string?  — semver
 //     label:           string?  — human-readable label for popup UI
-//     stateNames:      string[] — which frontier:state:<name> cards it reads
+//     stateNames:      string[] — which ultrascripts:state:<name> cards it reads
 //     tracksLiveCount: boolean? — if true, re-dispatched on livecount change
 //     defaultEnabled:  boolean? — overrides the built-in default-on behavior
 //     ops:             object?  — ops handlers (Phase 4)
@@ -20,7 +20,7 @@
 // The registry:
 //   * Defers registrations received before Core is ready.
 //   * Persists enable/disable state in chrome.storage.sync under
-//     'frontier_enabled_modules' so the user's choices survive reloads.
+//     'ultrascripts_enabled_modules' so the user's choices survive reloads.
 //   * Calls mount() + onEnable() the first time the module is enabled.
 //   * Calls onDisable() + unmount() and tears down ctx listeners on disable.
 //   * On adventure boundary, calls onAdventureChange() on mounted modules
@@ -28,14 +28,14 @@
 //   * Replays cached state to freshly-enabled modules via Core.
 //
 // See:
-//   - Project Management/frontier/01-architecture.md (module layer)
-//   - Project Management/frontier/02-modules.md (module contract)
+//   - Project Management/ultrascripts/01-architecture.md (module layer)
+//   - Project Management/ultrascripts/02-modules.md (module contract)
 
 (function () {
-  if (window.Frontier?.registry) return;
+  if (window.Ultrascripts?.registry) return;
 
-  const TAG = '[Frontier/registry]';
-  const STORAGE_KEY = 'frontier_enabled_modules';
+  const TAG = '[Ultrascripts/registry]';
+  const STORAGE_KEY = 'ultrascripts_enabled_modules';
 
   const definitions = new Map();  // id/alias -> module definition
   const mounted = new Map();       // id -> { def, ctx }
@@ -44,8 +44,8 @@
   let persistedLoaded = false;
 
   function assertCore() {
-    const core = window.Frontier?.core;
-    if (!core) throw new Error(`${TAG} Frontier Core not loaded yet`);
+    const core = window.Ultrascripts?.core;
+    if (!core) throw new Error(`${TAG} Ultrascripts Core not loaded yet`);
     return core;
   }
 
@@ -275,6 +275,6 @@
     }),
   };
 
-  window.Frontier = window.Frontier || {};
-  window.Frontier.registry = registry;
+  window.Ultrascripts = window.Ultrascripts || {};
+  window.Ultrascripts.registry = registry;
 })();

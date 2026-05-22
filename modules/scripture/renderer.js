@@ -2,7 +2,7 @@
 //
 // DOM renderer for Scripture widgets. It intentionally keeps the legacy
 // BetterScripts CSS class names so existing widget styles remain pixel-stable
-// while the data source moves to Frontier state cards.
+// while the data source moves to Ultrascripts state cards.
 
 (function () {
   if (window.ScriptureWidgetRenderer) return;

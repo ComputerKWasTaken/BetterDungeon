@@ -1,13 +1,13 @@
 // modules/webfetch/consent.js
 //
-// Small consent broker for Frontier WebFetch. The module asks before a script
+// Small consent broker for Ultrascripts WebFetch. The module asks before a script
 // can access a new origin, then remembers allow/deny decisions in
 // chrome.storage.sync.
 
 (function () {
-  if (window.FrontierWebFetchConsent) return;
+  if (window.UltrascriptsWebFetchConsent) return;
 
-  const STORAGE_KEY = 'frontier_webfetch_allowlist';
+  const STORAGE_KEY = 'ultrascripts_webfetch_allowlist';
   const TAG = '[WebFetch/consent]';
 
   const sessionDecisions = new Map(); // origin -> 'allow' | 'deny'
@@ -104,13 +104,13 @@
   }
 
   function ensureStyles() {
-    if (document.getElementById('frontier-webfetch-consent-style')) return;
+    if (document.getElementById('ultrascripts-webfetch-consent-style')) return;
     const style = document.createElement('style');
-    style.id = 'frontier-webfetch-consent-style';
+    style.id = 'ultrascripts-webfetch-consent-style';
     // Values fall back to literal tokens from Project Management/design/theme-variables.css
     // because this style is injected into a third-party page where --bd-* may not exist.
     style.textContent = `
-      .frontier-webfetch-consent-backdrop {
+      .ultrascripts-webfetch-consent-backdrop {
         position: fixed;
         inset: 0;
         z-index: var(--bd-z-modal-backdrop, 9000);
@@ -121,7 +121,7 @@
         background: var(--bd-bg-overlay, rgba(0, 0, 0, 0.85));
         font-family: var(--bd-font-family-primary, 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
       }
-      .frontier-webfetch-consent-dialog {
+      .ultrascripts-webfetch-consent-dialog {
         width: min(520px, 100%);
         border: 1px solid var(--bd-border-default, rgba(255, 255, 255, 0.10));
         border-radius: var(--bd-radius-xl, 10px);
@@ -130,21 +130,21 @@
         box-shadow: var(--bd-shadow-2xl, 0 24px 80px rgba(0, 0, 0, 0.6));
         overflow: hidden;
       }
-      .frontier-webfetch-consent-body { padding: var(--bd-space-5, 20px); }
-      .frontier-webfetch-consent-title {
+      .ultrascripts-webfetch-consent-body { padding: var(--bd-space-5, 20px); }
+      .ultrascripts-webfetch-consent-title {
         margin: 0 0 var(--bd-space-2, 8px);
         color: var(--bd-text-primary, #e8e8ec);
         font-size: var(--bd-font-size-2xl, 18px);
         font-weight: var(--bd-font-weight-bold, 700);
         letter-spacing: var(--bd-tracking-tight, -0.3px);
       }
-      .frontier-webfetch-consent-copy {
+      .ultrascripts-webfetch-consent-copy {
         margin: 0 0 var(--bd-space-3, 12px);
         color: var(--bd-text-secondary, #a0a0a8);
         line-height: var(--bd-line-height-normal, 1.5);
         font-size: var(--bd-font-size-md, 13px);
       }
-      .frontier-webfetch-consent-origin {
+      .ultrascripts-webfetch-consent-origin {
         display: block;
         margin: 0 0 var(--bd-space-4, 16px);
         padding: var(--bd-space-3, 12px) var(--bd-space-3, 12px);
@@ -156,7 +156,7 @@
         font-size: var(--bd-font-size-base, 12px);
         overflow-wrap: anywhere;
       }
-      .frontier-webfetch-consent-actions {
+      .ultrascripts-webfetch-consent-actions {
         display: flex;
         gap: var(--bd-space-2, 8px);
         justify-content: flex-end;
@@ -165,7 +165,7 @@
         background: var(--bd-bg-primary, #0d0d0f);
         flex-wrap: wrap;
       }
-      .frontier-webfetch-consent-actions button {
+      .ultrascripts-webfetch-consent-actions button {
         min-height: 36px;
         border: 1px solid var(--bd-border-default, rgba(255, 255, 255, 0.10));
         border-radius: var(--bd-radius-md, 6px);
@@ -177,31 +177,31 @@
         cursor: pointer;
         transition: var(--bd-transition-fast, 0.15s ease);
       }
-      .frontier-webfetch-consent-actions button:hover {
+      .ultrascripts-webfetch-consent-actions button:hover {
         background: var(--bd-btn-secondary-hover, rgba(255, 255, 255, 0.12));
         border-color: var(--bd-border-strong, rgba(255, 255, 255, 0.15));
       }
-      .frontier-webfetch-consent-actions button:focus-visible {
+      .ultrascripts-webfetch-consent-actions button:focus-visible {
         outline: none;
         border-color: var(--bd-border-focus, #ff9500);
         box-shadow: var(--bd-input-focus-ring, 0 0 0 3px rgba(255, 149, 0, 0.12));
       }
-      .frontier-webfetch-consent-actions button[data-choice="allow"] {
+      .ultrascripts-webfetch-consent-actions button[data-choice="allow"] {
         background: var(--bd-btn-primary-bg, linear-gradient(135deg, #ff9500 0%, #e07800 100%));
         border-color: transparent;
         color: var(--bd-text-on-accent, #ffffff);
         box-shadow: var(--bd-shadow-glow-xl, 0 4px 12px rgba(255, 149, 0, 0.30));
       }
-      .frontier-webfetch-consent-actions button[data-choice="allow"]:hover {
+      .ultrascripts-webfetch-consent-actions button[data-choice="allow"]:hover {
         background: var(--bd-btn-primary-hover, linear-gradient(135deg, #ffb84d 0%, #ff9500 100%));
         border-color: transparent;
       }
-      .frontier-webfetch-consent-actions button[data-choice="deny"] {
+      .ultrascripts-webfetch-consent-actions button[data-choice="deny"] {
         background: var(--bd-error-bg, rgba(239, 68, 68, 0.15));
         border-color: var(--bd-error-border, rgba(239, 68, 68, 0.3));
         color: var(--bd-error-light, #f87171);
       }
-      .frontier-webfetch-consent-actions button[data-choice="deny"]:hover {
+      .ultrascripts-webfetch-consent-actions button[data-choice="deny"]:hover {
         background: rgba(239, 68, 68, 0.25);
         border-color: var(--bd-error, #ef4444);
       }
@@ -216,31 +216,31 @@
       ensureStyles();
 
       const backdrop = document.createElement('div');
-      backdrop.className = 'frontier-webfetch-consent-backdrop';
+      backdrop.className = 'ultrascripts-webfetch-consent-backdrop';
       backdrop.setAttribute('role', 'dialog');
       backdrop.setAttribute('aria-modal', 'true');
 
       const method = details.method || 'GET';
       backdrop.innerHTML = `
-        <div class="frontier-webfetch-consent-dialog">
-          <div class="frontier-webfetch-consent-body">
-            <h2 class="frontier-webfetch-consent-title">Allow Frontier web access?</h2>
-            <p class="frontier-webfetch-consent-copy">
+        <div class="ultrascripts-webfetch-consent-dialog">
+          <div class="ultrascripts-webfetch-consent-body">
+            <h2 class="ultrascripts-webfetch-consent-title">Allow Ultrascripts web access?</h2>
+            <p class="ultrascripts-webfetch-consent-copy">
               This AI Dungeon script wants BetterDungeon to make a ${method} request to:
             </p>
-            <code class="frontier-webfetch-consent-origin"></code>
-            <p class="frontier-webfetch-consent-copy">
-              Approve only origins you trust. Request and response data are written through Frontier story cards.
+            <code class="ultrascripts-webfetch-consent-origin"></code>
+            <p class="ultrascripts-webfetch-consent-copy">
+              Approve only origins you trust. Request and response data are written through Ultrascripts story cards.
             </p>
           </div>
-          <div class="frontier-webfetch-consent-actions">
+          <div class="ultrascripts-webfetch-consent-actions">
             <button type="button" data-choice="deny">Deny</button>
             <button type="button" data-choice="once">Allow once</button>
             <button type="button" data-choice="allow">Always allow</button>
           </div>
         </div>
       `;
-      backdrop.querySelector('.frontier-webfetch-consent-origin').textContent = origin;
+      backdrop.querySelector('.ultrascripts-webfetch-consent-origin').textContent = origin;
 
       function finish(choice) {
         backdrop.remove();
@@ -302,7 +302,7 @@
     };
   }
 
-  window.FrontierWebFetchConsent = {
+  window.UltrascriptsWebFetchConsent = {
     ensureAllowed,
     setOrigin,
     inspect,

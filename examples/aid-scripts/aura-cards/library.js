@@ -1,12 +1,12 @@
-// Aura Cards - Frontier AI Module example
+// Aura Cards - Ultrascripts AI Module example
 //
 // Aura Cards is a sidecar rebuild of the core Auto-Cards idea. It watches
-// normal gameplay, asks Frontier's AI module to extract durable lore as
+// normal gameplay, asks Ultrascripts's AI module to extract durable lore as
 // structured JSON, and then creates or updates story cards without making the
 // story model stop and write cards.
 //
 // Setup:
-//   1. Enable BetterDungeon -> Frontier.
+//   1. Enable BetterDungeon -> Ultrascripts.
 //   2. Enable the AI module and save an OpenRouter key.
 //   3. Paste this file into the AI Dungeon Library tab.
 //   4. Paste output.js into the Output Modifier tab.
@@ -28,7 +28,7 @@ var AURA_DEFAULT_BANNED_TITLES = [
   'You', 'Your', 'The Player', 'Player', 'Story', 'Recent Story',
   'World Lore', 'Memories', 'Author Note', 'Authors Note',
   'Configure Aura Cards', 'Aura Cards Trace',
-  'frontier:out', 'frontier:heartbeat', 'frontier:in:ai'
+  'ultrascripts:out', 'ultrascripts:heartbeat', 'ultrascripts:in:ai'
 ];
 
 var AURA_DEFAULT_CONFIG = {
@@ -267,9 +267,9 @@ function auraEnsureConfigCard() {
   var s = auraCardsState();
   var found = auraFindCard(AURA_CONFIG_CARD_TITLE);
   var description = [
-    'Aura Cards uses Frontier AI sidecar calls to maintain story cards.',
+    'Aura Cards uses Ultrascripts AI sidecar calls to maintain story cards.',
     'Edit the JSON entry to tune usage or set "enabled": false to pause.',
-    'The Output Modifier returns story text unchanged; all AI work happens through frontier:out.'
+    'The Output Modifier returns story text unchanged; all AI work happens through ultrascripts:out.'
   ].join('\n');
 
   if (!found.card) {
@@ -365,12 +365,12 @@ function auraBool(value, fallback) {
 }
 
 function auraHeartbeat() {
-  return auraReadJsonCard('frontier:heartbeat');
+  return auraReadJsonCard('ultrascripts:heartbeat');
 }
 
 function auraHasOp(moduleId, opName) {
   var hb = auraHeartbeat();
-  if (!hb || !hb.frontier || hb.frontier.protocol !== 1) {
+  if (!hb || !hb.ultrascripts || hb.ultrascripts.protocol !== 1) {
     return false;
   }
   var modules = Array.isArray(hb.modules) ? hb.modules : [];
@@ -403,7 +403,7 @@ function auraWriteOut() {
     debugWrittenAt: auraNow()
   };
   s._acks = [];
-  auraWriteCard('frontier:out', JSON.stringify(payload), 'Frontier', 'frontier:out', '');
+  auraWriteCard('ultrascripts:out', JSON.stringify(payload), 'Ultrascripts', 'ultrascripts:out', '');
 }
 
 function auraQueueAck(requestId, reason) {
@@ -445,7 +445,7 @@ function auraIsTerminal(response) {
 
 function auraPollResponses(cfg) {
   var s = auraCardsState();
-  var card = auraReadJsonCard('frontier:in:ai');
+  var card = auraReadJsonCard('ultrascripts:in:ai');
   var wroteAck = false;
   if (!card || !card.responses) return;
 
@@ -787,7 +787,7 @@ function auraMinorWords() {
 function auraIsBannedTitle(title, cfg) {
   var key = auraTitleKey(title);
   if (!key) return true;
-  if (key.indexOf('frontier:') === 0 || key.indexOf('aura cards') !== -1) return true;
+  if (key.indexOf('ultrascripts:') === 0 || key.indexOf('aura cards') !== -1) return true;
   var bans = cfg.bannedTitles || [];
   for (var i = 0; i < bans.length; i++) {
     if (auraTitleKey(bans[i]) === key) return true;
@@ -1049,7 +1049,7 @@ function auraExistingCardsBrief(cfg) {
   for (var i = 0; i < cards.length; i++) {
     var c = cards[i];
     if (!c || !c.title) continue;
-    if (String(c.title).indexOf('frontier:') === 0) continue;
+    if (String(c.title).indexOf('ultrascripts:') === 0) continue;
     if (c.title === AURA_CONFIG_CARD_TITLE || c.title === AURA_TRACE_CARD_TITLE) continue;
 
     var source = auraIsAuraCard(c) ? 'Aura' : 'User';
@@ -1344,7 +1344,7 @@ function auraDrive(outputText, cfg) {
   }
 
   if (!auraHasOp('ai', 'chat')) {
-    s.phase = 'waiting for Frontier AI heartbeat';
+    s.phase = 'waiting for Ultrascripts AI heartbeat';
     return;
   }
 

@@ -1,10 +1,10 @@
 // modules/weather/module.js
 //
-// Frontier weather module. Provides streamlined current weather and forecast
+// Ultrascripts weather module. Provides streamlined current weather and forecast
 // lookups without forcing scripts to hand-roll WebFetch calls.
 
 (function () {
-  if (window.FrontierWeatherModule) return;
+  if (window.UltrascriptsWeatherModule) return;
 
   const DEFAULT_TIMEOUT_MS = 15000;
   const MAX_TIMEOUT_MS = 30000;
@@ -95,7 +95,7 @@
   function backgroundFetch(request) {
     if (typeof browser !== 'undefined' && browser?.runtime?.sendMessage) {
       return browser.runtime
-        .sendMessage({ type: 'FRONTIER_WEBFETCH_FETCH', request })
+        .sendMessage({ type: 'ULTRASCRIPTS_WEBFETCH_FETCH', request })
         .then((response) => unwrapBackgroundResponse(response));
     }
 
@@ -104,7 +104,7 @@
       return Promise.reject({ code: 'weather_unavailable', message: 'Extension runtime is unavailable' });
     }
 
-    const message = { type: 'FRONTIER_WEBFETCH_FETCH', request };
+    const message = { type: 'ULTRASCRIPTS_WEBFETCH_FETCH', request };
     return new Promise((resolve, reject) => {
       runtime.sendMessage(message, (response) => {
         const lastError = typeof chrome !== 'undefined' ? chrome.runtime?.lastError : null;
@@ -316,11 +316,11 @@
     return result;
   }
 
-  const FrontierWeatherModule = {
+  const UltrascriptsWeatherModule = {
     id: 'weather',
     version: '1.0.0',
     label: 'Weather',
-    description: 'Provides streamlined current-weather and forecast lookups for Frontier scripts.',
+    description: 'Provides streamlined current-weather and forecast lookups for Ultrascripts scripts.',
 
     ops: {
       current: {
@@ -353,15 +353,15 @@
     },
   };
 
-  window.FrontierWeatherModule = FrontierWeatherModule;
+  window.UltrascriptsWeatherModule = UltrascriptsWeatherModule;
 
-  if (window.Frontier?.registry) {
-    window.Frontier.registry.register(FrontierWeatherModule);
+  if (window.Ultrascripts?.registry) {
+    window.Ultrascripts.registry.register(UltrascriptsWeatherModule);
   } else {
-    console.warn('[Weather] Frontier registry not available; weather module not registered.');
+    console.warn('[Weather] Ultrascripts registry not available; weather module not registered.');
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = FrontierWeatherModule;
+    module.exports = UltrascriptsWeatherModule;
   }
 })();
