@@ -23,8 +23,8 @@ class FeatureManager {
   }
 
   registerAvailableFeatures() {
-    if (typeof FrontierFeature !== 'undefined') {
-      this.featureClasses.set('frontier', FrontierFeature);
+    if (typeof UltrascriptsFeature !== 'undefined') {
+      this.featureClasses.set('ultrascripts', UltrascriptsFeature);
     }
 
     if (typeof MarkdownFeature !== 'undefined') {

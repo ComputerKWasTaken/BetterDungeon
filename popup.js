@@ -14,16 +14,16 @@ const STORAGE_KEYS = {
   characters: 'betterDungeon_characterPresets',
   autoScan: 'betterDungeon_autoScanTriggers',
   autoApply: 'betterDungeon_autoApplyInstructions',
-  frontierDebug: 'frontier_debug',
-  frontierModules: 'frontier_enabled_modules',
-  scriptureWidgetDisplay: 'frontier_mod_scripture_widget_display',
-  webfetchAllowlist: 'frontier_webfetch_allowlist',
-  aiOpenRouterKey: 'frontier_ai_openrouter_api_key',
-  aiOpenRouterDefaultModel: 'frontier_ai_openrouter_default_model',
-  aiCostControls: 'frontier_ai_cost_controls',
-  legacyAiBudget: 'frontier_ai_budget',
-  legacyProviderAiOpenRouterKey: 'frontier_provider_ai_openrouter_api_key',
-  legacyProviderAiOpenRouterDefaultModel: 'frontier_provider_ai_openrouter_default_model',
+  ultrascriptsDebug: 'ultrascripts_debug',
+  ultrascriptsModules: 'ultrascripts_enabled_modules',
+  scriptureWidgetDisplay: 'ultrascripts_mod_scripture_widget_display',
+  webfetchAllowlist: 'ultrascripts_webfetch_allowlist',
+  aiOpenRouterKey: 'ultrascripts_ai_openrouter_api_key',
+  aiOpenRouterDefaultModel: 'ultrascripts_ai_openrouter_default_model',
+  aiCostControls: 'ultrascripts_ai_cost_controls',
+  legacyAiBudget: 'ultrascripts_ai_budget',
+  legacyProviderAiOpenRouterKey: 'ultrascripts_provider_ai_openrouter_api_key',
+  legacyProviderAiOpenRouterDefaultModel: 'ultrascripts_provider_ai_openrouter_default_model',
   customHotkeys: 'betterDungeon_customHotkeys',
   customModeColors: 'betterDungeon_customModeColors',
   commandSubMode: 'betterDungeon_commandSubMode',
@@ -76,7 +76,7 @@ const DEFAULT_HOTKEY_BINDINGS = {
 };
 
 const DEFAULT_FEATURES = {
-  frontier: true,
+  ultrascripts: true,
   markdown: true,
   command: true,
   try: true,
@@ -92,7 +92,7 @@ const DEFAULT_FEATURES = {
   textToSpeech: false
 };
 
-const FRONTIER_PUBLIC_MODULES = [
+const ULTRASCRIPTS_PUBLIC_MODULES = [
   'scripture',
   'webfetch',
   'clock',
@@ -170,13 +170,13 @@ document.addEventListener('DOMContentLoaded', () => {
   initTextToSpeechSettings();
   initHotkeys();
   initModeColors();
-  initFrontierSettings();
+  initUltrascriptsSettings();
   initWhatsNew();
   initCollapsibleSections();
   initFeatureSearch();
   initQuickToggles();
   updateSectionCounts();
-  updateFrontierSectionCounts();
+  updateUltrascriptsSectionCounts();
   initTutorial();
 });
 
@@ -257,9 +257,9 @@ function initToggles() {
       }
     });
 
-    setFrontierModuleControlsEnabled(features.frontier !== false);
+    setUltrascriptsModuleControlsEnabled(features.ultrascripts !== false);
     updateSectionCounts();
-    updateFrontierSectionCounts();
+    updateUltrascriptsSectionCounts();
   });
 
   // Load auto-scan setting
@@ -294,34 +294,34 @@ function initToggles() {
     notifyContentScript('SET_AUTO_APPLY', { enabled: e.target.checked });
   });
 
-  // Frontier debug toggle
-  chrome.storage.sync.get(STORAGE_KEYS.frontierDebug, (result) => {
-    const toggle = document.getElementById('frontier-debug');
-    if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.frontierDebug] ?? false;
+  // Ultrascripts debug toggle
+  chrome.storage.sync.get(STORAGE_KEYS.ultrascriptsDebug, (result) => {
+    const toggle = document.getElementById('ultrascripts-debug');
+    if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.ultrascriptsDebug] ?? false;
   });
 
-  document.getElementById('frontier-debug')?.addEventListener('change', (e) => {
-    chrome.storage.sync.set({ [STORAGE_KEYS.frontierDebug]: e.target.checked });
-    notifyContentScript('SET_FRONTIER_DEBUG', { enabled: e.target.checked });
+  document.getElementById('ultrascripts-debug')?.addEventListener('change', (e) => {
+    chrome.storage.sync.set({ [STORAGE_KEYS.ultrascriptsDebug]: e.target.checked });
+    notifyContentScript('SET_ULTRASCRIPTS_DEBUG', { enabled: e.target.checked });
   });
 
 }
 
-function initFrontierSettings() {
-  loadFrontierModuleToggles();
+function initUltrascriptsSettings() {
+  loadUltrascriptsModuleToggles();
   loadScriptureWidgetDisplay();
   loadWebFetchConsentList();
   loadAiSettings();
-  refreshFrontierState();
+  refreshUltrascriptsState();
 
-  document.querySelectorAll('[data-frontier-module-toggle]').forEach(toggle => {
+  document.querySelectorAll('[data-ultrascripts-module-toggle]').forEach(toggle => {
     toggle.addEventListener('change', () => {
-      updateFrontierSectionCounts();
-      saveFrontierModuleState(toggle.dataset.frontierModuleToggle, toggle.checked);
+      updateUltrascriptsSectionCounts();
+      saveUltrascriptsModuleState(toggle.dataset.ultrascriptsModuleToggle, toggle.checked);
     });
   });
 
-  document.getElementById('frontier-refresh')?.addEventListener('click', refreshFrontierState);
+  document.getElementById('ultrascripts-refresh')?.addEventListener('click', refreshUltrascriptsState);
   document.getElementById('scripture-widget-size')?.addEventListener('change', saveScriptureWidgetDisplay);
   document.getElementById('scripture-widget-height')?.addEventListener('change', saveScriptureWidgetDisplay);
   document.getElementById('scripture-widget-layout')?.addEventListener('change', saveScriptureWidgetDisplay);
@@ -343,16 +343,16 @@ function initFrontierSettings() {
   });
 }
 
-function defaultFrontierModuleState() {
-  return FRONTIER_PUBLIC_MODULES.reduce((out, id) => {
+function defaultUltrascriptsModuleState() {
+  return ULTRASCRIPTS_PUBLIC_MODULES.reduce((out, id) => {
     out[id] = true;
     return out;
   }, {});
 }
 
-function normalizeFrontierModuleState(saved = {}) {
+function normalizeUltrascriptsModuleState(saved = {}) {
   const raw = saved && typeof saved === 'object' ? saved : {};
-  const modules = { ...defaultFrontierModuleState(), ...raw };
+  const modules = { ...defaultUltrascriptsModuleState(), ...raw };
   if (Object.prototype.hasOwnProperty.call(raw, 'providerAI')) {
     if (!Object.prototype.hasOwnProperty.call(raw, 'ai')) {
       modules.ai = !!raw.providerAI;
@@ -362,34 +362,34 @@ function normalizeFrontierModuleState(saved = {}) {
   return modules;
 }
 
-function loadFrontierModuleToggles() {
-  chrome.storage.sync.get(STORAGE_KEYS.frontierModules, (result) => {
-    const saved = (result || {})[STORAGE_KEYS.frontierModules] || {};
-    const modules = normalizeFrontierModuleState(saved);
+function loadUltrascriptsModuleToggles() {
+  chrome.storage.sync.get(STORAGE_KEYS.ultrascriptsModules, (result) => {
+    const saved = (result || {})[STORAGE_KEYS.ultrascriptsModules] || {};
+    const modules = normalizeUltrascriptsModuleState(saved);
 
-    document.querySelectorAll('[data-frontier-module-toggle]').forEach(toggle => {
-      const moduleId = toggle.dataset.frontierModuleToggle;
+    document.querySelectorAll('[data-ultrascripts-module-toggle]').forEach(toggle => {
+      const moduleId = toggle.dataset.ultrascriptsModuleToggle;
       toggle.checked = modules[moduleId] !== false;
     });
     if (Object.prototype.hasOwnProperty.call(saved, 'providerAI')) {
-      chrome.storage.sync.set({ [STORAGE_KEYS.frontierModules]: modules });
+      chrome.storage.sync.set({ [STORAGE_KEYS.ultrascriptsModules]: modules });
     }
-    updateFrontierSectionCounts();
+    updateUltrascriptsSectionCounts();
   });
 }
 
-function saveFrontierModuleState(moduleId, enabled) {
-  if (!FRONTIER_PUBLIC_MODULES.includes(moduleId)) return;
+function saveUltrascriptsModuleState(moduleId, enabled) {
+  if (!ULTRASCRIPTS_PUBLIC_MODULES.includes(moduleId)) return;
 
-  chrome.storage.sync.get(STORAGE_KEYS.frontierModules, (result) => {
-    const saved = (result || {})[STORAGE_KEYS.frontierModules] || {};
-    const modules = { ...normalizeFrontierModuleState(saved), [moduleId]: !!enabled };
+  chrome.storage.sync.get(STORAGE_KEYS.ultrascriptsModules, (result) => {
+    const saved = (result || {})[STORAGE_KEYS.ultrascriptsModules] || {};
+    const modules = { ...normalizeUltrascriptsModuleState(saved), [moduleId]: !!enabled };
 
-    chrome.storage.sync.set({ [STORAGE_KEYS.frontierModules]: modules }, () => {
-      sendToActiveAIDungeon('SET_FRONTIER_MODULE_ENABLED', { moduleId, enabled: !!enabled })
-        .then(refreshFrontierState)
+    chrome.storage.sync.set({ [STORAGE_KEYS.ultrascriptsModules]: modules }, () => {
+      sendToActiveAIDungeon('SET_ULTRASCRIPTS_MODULE_ENABLED', { moduleId, enabled: !!enabled })
+        .then(refreshUltrascriptsState)
         .catch(() => {
-          updateFrontierStatus(null, 'Changes will apply next time Frontier starts.');
+          updateUltrascriptsStatus(null, 'Changes will apply next time Ultrascripts starts.');
         });
     });
   });
@@ -436,37 +436,37 @@ function saveScriptureWidgetDisplay() {
   });
 }
 
-async function refreshFrontierState() {
+async function refreshUltrascriptsState() {
   try {
-    const state = await sendToActiveAIDungeon('GET_FRONTIER_STATE');
-    updateFrontierStatus(state);
+    const state = await sendToActiveAIDungeon('GET_ULTRASCRIPTS_STATE');
+    updateUltrascriptsStatus(state);
   } catch {
-    updateFrontierStatus(null, 'Open AI Dungeon to inspect live module state.');
+    updateUltrascriptsStatus(null, 'Open AI Dungeon to inspect live module state.');
   }
 }
 
-function updateFrontierStatus(state, fallbackDetail = '') {
-  const dot = document.getElementById('frontier-status-dot');
-  const label = document.getElementById('frontier-status-label');
-  const detail = document.getElementById('frontier-status-detail');
+function updateUltrascriptsStatus(state, fallbackDetail = '') {
+  const dot = document.getElementById('ultrascripts-status-dot');
+  const label = document.getElementById('ultrascripts-status-label');
+  const detail = document.getElementById('ultrascripts-status-detail');
   if (!dot || !label || !detail) return;
 
   dot.classList.remove('online', 'offline');
 
   if (!state) {
     dot.classList.add('offline');
-    label.textContent = 'Frontier not connected';
+    label.textContent = 'Ultrascripts not connected';
     detail.textContent = fallbackDetail || 'Open AI Dungeon to inspect live module state.';
     return;
   }
 
-  const mounted = (state.modules || []).filter(module => module.mounted && FRONTIER_PUBLIC_MODULES.includes(module.id));
-  const enabled = (state.modules || []).filter(module => module.enabled && FRONTIER_PUBLIC_MODULES.includes(module.id));
-  const frontierOn = state.frontierEnabled !== false && state.core?.enabled !== false;
+  const mounted = (state.modules || []).filter(module => module.mounted && ULTRASCRIPTS_PUBLIC_MODULES.includes(module.id));
+  const enabled = (state.modules || []).filter(module => module.enabled && ULTRASCRIPTS_PUBLIC_MODULES.includes(module.id));
+  const ultrascriptsOn = state.ultrascriptsEnabled !== false && state.core?.enabled !== false;
 
-  dot.classList.add(frontierOn ? 'online' : 'offline');
-  label.textContent = frontierOn ? 'Frontier online' : 'Frontier off';
-  detail.textContent = `${mounted.length}/${FRONTIER_PUBLIC_MODULES.length} modules mounted, ${enabled.length} enabled.`;
+  dot.classList.add(ultrascriptsOn ? 'online' : 'offline');
+  label.textContent = ultrascriptsOn ? 'Ultrascripts online' : 'Ultrascripts off';
+  detail.textContent = `${mounted.length}/${ULTRASCRIPTS_PUBLIC_MODULES.length} modules mounted, ${enabled.length} enabled.`;
 }
 
 function normalizeWebFetchStore(value) {
@@ -498,7 +498,7 @@ function renderWebFetchConsentList(store) {
   const entries = Object.entries(store).sort(([a], [b]) => a.localeCompare(b));
   if (!entries.length) {
     const empty = document.createElement('div');
-    empty.className = 'frontier-consent-empty';
+    empty.className = 'ultrascripts-consent-empty';
     empty.textContent = 'No saved origins';
     list.appendChild(empty);
     return;
@@ -506,15 +506,15 @@ function renderWebFetchConsentList(store) {
 
   entries.forEach(([origin, entry]) => {
     const row = document.createElement('div');
-    row.className = 'frontier-consent-row';
+    row.className = 'ultrascripts-consent-row';
 
     const originEl = document.createElement('span');
-    originEl.className = 'frontier-consent-origin';
+    originEl.className = 'ultrascripts-consent-origin';
     originEl.title = origin;
     originEl.textContent = origin;
 
     const badge = document.createElement('span');
-    badge.className = `frontier-consent-badge ${entry.decision}`;
+    badge.className = `ultrascripts-consent-badge ${entry.decision}`;
     badge.textContent = entry.decision;
 
     const clearBtn = document.createElement('button');
@@ -749,7 +749,7 @@ async function clearAiKey() {
 function sendAiBackgroundRequest(request) {
   return new Promise((resolve, reject) => {
     try {
-      chrome.runtime.sendMessage({ type: 'FRONTIER_AI_REQUEST', request }, (response) => {
+      chrome.runtime.sendMessage({ type: 'ULTRASCRIPTS_AI_REQUEST', request }, (response) => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
           reject(new Error(lastError.message));
@@ -800,17 +800,17 @@ function saveFeatureState(featureId, enabled) {
     
     chrome.storage.sync.set({ [STORAGE_KEYS.features]: features }, () => {
       notifyContentScript('FEATURE_TOGGLE', { featureId, enabled });
-      if (featureId === 'frontier') {
-        setFrontierModuleControlsEnabled(enabled);
-        updateFrontierSectionCounts();
-        setTimeout(refreshFrontierState, 300);
+      if (featureId === 'ultrascripts') {
+        setUltrascriptsModuleControlsEnabled(enabled);
+        updateUltrascriptsSectionCounts();
+        setTimeout(refreshUltrascriptsState, 300);
       }
     });
   });
 }
 
-function setFrontierModuleControlsEnabled(enabled) {
-  document.querySelectorAll('[data-frontier-module-toggle], #frontier-debug, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #ai-openrouter-key, #ai-default-model, #ai-cost-free-only, #ai-cost-advanced-toggle, #ai-cost-max-input, #ai-cost-max-output, #ai-cost-per-call-cap, #ai-cost-daily-cap, #ai-cost-monthly-cap, #ai-save, #ai-clear-key, #ai-test')
+function setUltrascriptsModuleControlsEnabled(enabled) {
+  document.querySelectorAll('[data-ultrascripts-module-toggle], #ultrascripts-debug, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #ai-openrouter-key, #ai-default-model, #ai-cost-free-only, #ai-cost-advanced-toggle, #ai-cost-max-input, #ai-cost-max-output, #ai-cost-per-call-cap, #ai-cost-daily-cap, #ai-cost-monthly-cap, #ai-save, #ai-clear-key, #ai-test')
     .forEach(control => {
       control.disabled = !enabled;
     });
@@ -2686,7 +2686,7 @@ function initQuickToggles() {
       const qt = document.querySelector(`[data-quick-toggle="${featureId}"]`);
       if (qt) qt.checked = mainToggle.checked;
       updateSectionCounts();
-      updateFrontierSectionCounts();
+      updateUltrascriptsSectionCounts();
     });
   });
 }
@@ -2717,17 +2717,17 @@ function updateSectionCounts() {
   });
 }
 
-function updateFrontierSectionCounts() {
-  const runtimeCount = document.getElementById('count-frontier-runtime');
-  const frontierToggle = document.getElementById('feature-frontier');
+function updateUltrascriptsSectionCounts() {
+  const runtimeCount = document.getElementById('count-ultrascripts-runtime');
+  const ultrascriptsToggle = document.getElementById('feature-ultrascripts');
   if (runtimeCount) {
-    runtimeCount.textContent = `${frontierToggle?.checked ? 1 : 0}/1`;
+    runtimeCount.textContent = `${ultrascriptsToggle?.checked ? 1 : 0}/1`;
   }
 
   const sectionMap = {
-    'frontier-script-surface': ['scripture', 'webfetch', 'clock', 'sdk'],
-    'frontier-context': ['geolocation', 'weather', 'network', 'system'],
-    'frontier-ai': ['ai']
+    'ultrascripts-script-surface': ['scripture', 'webfetch', 'clock', 'sdk'],
+    'ultrascripts-context': ['geolocation', 'weather', 'network', 'system'],
+    'ultrascripts-ai': ['ai']
   };
 
   Object.entries(sectionMap).forEach(([sectionId, moduleIds]) => {
@@ -2735,7 +2735,7 @@ function updateFrontierSectionCounts() {
     if (!countEl) return;
 
     const enabled = moduleIds.filter(id => {
-      const toggle = document.querySelector(`[data-frontier-module-toggle="${id}"]`);
+      const toggle = document.querySelector(`[data-ultrascripts-module-toggle="${id}"]`);
       return toggle && toggle.checked;
     }).length;
 

@@ -1,9 +1,9 @@
-# Frontier System Module — AI Dungeon Test Suite
+# Ultrascripts System Module — AI Dungeon Test Suite
 
-End-to-end test scripts that exercise the BetterDungeon Frontier System module
-(`modules/system/module.js`) over the live Frontier protocol from inside an
+End-to-end test scripts that exercise the BetterDungeon Ultrascripts System module
+(`modules/system/module.js`) over the live Ultrascripts protocol from inside an
 AI Dungeon scenario. Use this any time you change the System module or any
-Frontier plumbing — if the system is healthy this suite turns green; if it
+Ultrascripts plumbing — if the system is healthy this suite turns green; if it
 isn't, the trace card pinpoints what broke.
 
 ## What it covers
@@ -22,15 +22,15 @@ The suite runs a fixed plan of requests, one per turn, in order:
 
 It also verifies:
 
-- The `frontier:heartbeat` card exists and lists `system` with both `info`
+- The `ultrascripts:heartbeat` card exists and lists `system` with both `info`
   and `power` ops.
-- Pending → terminal response transitions on `frontier:in:system`.
+- Pending → terminal response transitions on `ultrascripts:in:system`.
 - Ack-driven cleanup of response cards after responses are seen.
 
 ## Setup
 
 1. Load the BetterDungeon extension and open AI Dungeon.
-2. Open BetterDungeon → **Frontier** and enable Frontier and the **System**
+2. Open BetterDungeon → **Ultrascripts** and enable Ultrascripts and the **System**
    module.
 
 ## Install in a scenario
@@ -43,7 +43,7 @@ It also verifies:
 
 ## Reading results
 
-Open the `frontier:test:system` story card after a few turns to see:
+Open the `ultrascripts:test:system` story card after a few turns to see:
 
 - `phase` — current driver state.
 - `counts` — pass/fail/pending tally.
@@ -59,5 +59,5 @@ A successful run ends with `phase: "complete"` and `checksPass: true`.
 To re-run from scratch without editing anything, type any of these phrases:
 
 - `system test reset`
-- `frontier system reset`
+- `ultrascripts system reset`
 - `[[system-test:reset]]`

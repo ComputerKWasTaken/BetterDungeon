@@ -1,7 +1,7 @@
 // BetterDungeon background worker.
 //
 // Hosts privileged operations that content scripts should not perform inside
-// the page context. Phase 5 uses this for WebFetch so Frontier ops can access
+// the page context. Phase 5 uses this for WebFetch so Ultrascripts ops can access
 // http/https URLs without inheriting AI Dungeon page CORS.
 
 (function () {
@@ -18,10 +18,10 @@
     return;
   }
 
-  const WEBFETCH_MESSAGE = 'FRONTIER_WEBFETCH_FETCH';
-  const AI_MESSAGE = 'FRONTIER_AI_REQUEST';
-  const LEGACY_PROVIDER_AI_MESSAGE = 'FRONTIER_PROVIDER_AI_REQUEST';
-  const SDK_MESSAGE = 'FRONTIER_SDK_REQUEST';
+  const WEBFETCH_MESSAGE = 'ULTRASCRIPTS_WEBFETCH_FETCH';
+  const AI_MESSAGE = 'ULTRASCRIPTS_AI_REQUEST';
+  const LEGACY_PROVIDER_AI_MESSAGE = 'ULTRASCRIPTS_PROVIDER_AI_REQUEST';
+  const SDK_MESSAGE = 'ULTRASCRIPTS_SDK_REQUEST';
   const DEFAULT_TIMEOUT_MS = 15000;
   const MAX_TIMEOUT_MS = 30000;
   const DEFAULT_MAX_BODY_BYTES = 50000;
@@ -29,16 +29,16 @@
   const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
   const AI_STORAGE_KEYS = {
-    openrouterKey: 'frontier_ai_openrouter_api_key',
-    openrouterDefaultModel: 'frontier_ai_openrouter_default_model',
-    costControls: 'frontier_ai_cost_controls',
-    legacyBudget: 'frontier_ai_budget',
-    costUsage: 'frontier_ai_cost_usage',
-    legacyOpenrouterKey: 'frontier_provider_ai_openrouter_api_key',
-    legacyOpenrouterDefaultModel: 'frontier_provider_ai_openrouter_default_model',
+    openrouterKey: 'ultrascripts_ai_openrouter_api_key',
+    openrouterDefaultModel: 'ultrascripts_ai_openrouter_default_model',
+    costControls: 'ultrascripts_ai_cost_controls',
+    legacyBudget: 'ultrascripts_ai_budget',
+    costUsage: 'ultrascripts_ai_cost_usage',
+    legacyOpenrouterKey: 'ultrascripts_provider_ai_openrouter_api_key',
+    legacyOpenrouterDefaultModel: 'ultrascripts_provider_ai_openrouter_default_model',
   };
   const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
-  const OPENROUTER_TITLE = 'BetterDungeon Frontier';
+  const OPENROUTER_TITLE = 'BetterDungeon Ultrascripts';
   const AI_DEFAULT_TIMEOUT_MS = 30000;
   const AI_MAX_TIMEOUT_MS = 60000;
   const AI_MAX_RESPONSE_BYTES = 1500000;
@@ -55,13 +55,13 @@
   };
   const SDK_SYNC_STORAGE_KEYS = {
     features: 'betterDungeonFeatures',
-    frontierModules: 'frontier_enabled_modules',
-    frontierDebug: 'frontier_debug',
-    scriptureWidgetDisplay: 'frontier_mod_scripture_widget_display',
-    webfetchAllowlist: 'frontier_webfetch_allowlist',
+    ultrascriptsModules: 'ultrascripts_enabled_modules',
+    ultrascriptsDebug: 'ultrascripts_debug',
+    scriptureWidgetDisplay: 'ultrascripts_mod_scripture_widget_display',
+    webfetchAllowlist: 'ultrascripts_webfetch_allowlist',
   };
   const SDK_DEFAULT_FEATURES = {
-    frontier: true,
+    ultrascripts: true,
     markdown: true,
     command: true,
     try: true,
@@ -76,7 +76,7 @@
     inputHistory: true,
     textToSpeech: false,
   };
-  const SDK_FRONTIER_MODULES = [
+  const SDK_ULTRASCRIPTS_MODULES = [
     'scripture',
     'webfetch',
     'clock',
@@ -378,15 +378,15 @@
     return { ...SDK_DEFAULT_FEATURES, ...(raw && typeof raw === 'object' ? raw : {}) };
   }
 
-  function normalizeSdkFrontierModules(raw) {
+  function normalizeSdkUltrascriptsModules(raw) {
     const out = {};
     const saved = raw && typeof raw === 'object' ? raw : {};
-    for (let i = 0; i < SDK_FRONTIER_MODULES.length; i++) {
-      out[SDK_FRONTIER_MODULES[i]] = true;
+    for (let i = 0; i < SDK_ULTRASCRIPTS_MODULES.length; i++) {
+      out[SDK_ULTRASCRIPTS_MODULES[i]] = true;
     }
     for (const [key, value] of Object.entries(saved)) {
       const normalizedKey = key === 'providerAI' ? 'ai' : key;
-      if (SDK_FRONTIER_MODULES.includes(normalizedKey)) out[normalizedKey] = !!value;
+      if (SDK_ULTRASCRIPTS_MODULES.includes(normalizedKey)) out[normalizedKey] = !!value;
     }
     return out;
   }
@@ -427,9 +427,9 @@
     const aiConfig = await getAiConfig();
     return {
       features: normalizeSdkFeatures(syncResult[SDK_SYNC_STORAGE_KEYS.features]),
-      frontier: {
-        debug: !!syncResult[SDK_SYNC_STORAGE_KEYS.frontierDebug],
-        modulePreferences: normalizeSdkFrontierModules(syncResult[SDK_SYNC_STORAGE_KEYS.frontierModules]),
+      ultrascripts: {
+        debug: !!syncResult[SDK_SYNC_STORAGE_KEYS.ultrascriptsDebug],
+        modulePreferences: normalizeSdkUltrascriptsModules(syncResult[SDK_SYNC_STORAGE_KEYS.ultrascriptsModules]),
         scriptureDisplay: normalizeSdkScriptureDisplay(syncResult[SDK_SYNC_STORAGE_KEYS.scriptureWidgetDisplay]),
         webfetch: summarizeSdkWebFetchAllowlist(syncResult[SDK_SYNC_STORAGE_KEYS.webfetchAllowlist]),
         ai: {

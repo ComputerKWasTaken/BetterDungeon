@@ -1,6 +1,6 @@
 // modules/scripture/module.js
 //
-// Frontier Scripture module. Consumes `frontier:state:scripture` and renders
+// Ultrascripts Scripture module. Consumes `ultrascripts:state:scripture` and renders
 // widget state from the live-count history entry matching the current action
 // window.
 
@@ -9,7 +9,7 @@
 
   const MODULE_ID = 'scripture';
   const STATE_NAME = 'scripture';
-  const IN_CARD_TITLE = 'frontier:in:scripture';
+  const IN_CARD_TITLE = 'ultrascripts:in:scripture';
   const MAX_WIDGET_EVENTS = 100;
   const MAX_EVENT_STRING_LENGTH = 1200;
   const MAX_EVENT_OBJECT_KEYS = 20;
@@ -223,7 +223,7 @@
     id: MODULE_ID,
     version: '1.0.0',
     label: 'Scripture',
-    description: 'Renders Frontier widget state from scripture state cards.',
+    description: 'Renders Ultrascripts widget state from scripture state cards.',
     stateNames: [STATE_NAME],
     tracksLiveCount: true,
     _renderer: null,
@@ -474,7 +474,7 @@
       };
 
       await ctx.writeCard(IN_CARD_TITLE, JSON.stringify(envelope), {
-        type: 'Frontier',
+        type: 'Ultrascripts',
         description: 'Scripture widget interaction queue.',
       });
     },
@@ -493,10 +493,10 @@
 
   window.ScriptureModule = ScriptureModule;
 
-  if (window.Frontier?.registry) {
-    window.Frontier.registry.register(ScriptureModule);
+  if (window.Ultrascripts?.registry) {
+    window.Ultrascripts.registry.register(ScriptureModule);
   } else {
-    console.warn('[Scripture] Frontier registry not available; Scripture module not registered.');
+    console.warn('[Scripture] Ultrascripts registry not available; Scripture module not registered.');
   }
 
   if (typeof module !== 'undefined' && module.exports) {

@@ -1,8 +1,8 @@
-// services/frontier/ws-interceptor.js
+// services/ultrascripts/ws-interceptor.js
 //
-// Frontier page-world WebSocket shim. Runs at document-start in the MAIN world,
+// Ultrascripts page-world WebSocket shim. Runs at document-start in the MAIN world,
 // BEFORE AI Dungeon's bundle constructs its Apollo subscription socket. Captures
-// the three subscription payloads Frontier cares about and forwards them to the
+// the three subscription payloads Ultrascripts cares about and forwards them to the
 // content-script side via window.postMessage.
 //
 // Correctness-critical constraints:
@@ -14,17 +14,17 @@
 //     Client (graphql-ws) uses `instanceof WebSocket` internally; a function
 //     wrapper fails those checks silently and produces zero subscription frames.
 //   * MUST be idempotent. ws-stream.js may also inject us via <script> tag as a
-//     fallback path; the window.__frontierWsInstalled guard prevents double-install.
+//     fallback path; the window.__ultrascriptsWsInstalled guard prevents double-install.
 //   * MUST NOT leak references to the content-script side's objects. Everything
 //     posted is plain JSON (structured-clonable primitives + arrays + objects).
 //
 // See:
-//   - Project Management/frontier/01-architecture.md (transport layer)
-//   - BetterDungeon/services/frontier/ACTION_IDS.md (payload shapes)
+//   - Project Management/ultrascripts/01-architecture.md (transport layer)
+//   - BetterDungeon/services/ultrascripts/ACTION_IDS.md (payload shapes)
 
 (function () {
-  if (window.__frontierWsInstalled) return;
-  window.__frontierWsInstalled = true;
+  if (window.__ultrascriptsWsInstalled) return;
+  window.__ultrascriptsWsInstalled = true;
 
   const NativeWebSocket = window.WebSocket;
   const ORIGIN = window.location.origin;
@@ -45,8 +45,8 @@
     opKeys: Object.create(null),  // subscription op name -> frame count
     sampleFrames: Object.create(null), // op name -> first payload (for shape inspection)
   };
-  window.__Frontier = window.__Frontier || {};
-  window.__Frontier.shim = debug;
+  window.__Ultrascripts = window.__Ultrascripts || {};
+  window.__Ultrascripts.shim = debug;
   // Phase 1 diagnostic: captures the key set of any response node that
   // contains adventureId. Lets us discover the exact field names AID uses
   // for actions in HTTP responses (e.g. `actionWindow` vs `actions`).
@@ -54,16 +54,16 @@
 
   function post(kind, payload) {
     try {
-      window.postMessage({ source: 'BD_FRONTIER_WS', kind, payload }, ORIGIN);
+      window.postMessage({ source: 'BD_ULTRASCRIPTS_WS', kind, payload }, ORIGIN);
       if (kind in debug.frames) debug.frames[kind]++;
     } catch (err) {
       // postMessage throws only for non-structured-cloneable payloads. We feed
       // it parsed JSON, so this is a programmer error if it ever fires.
-      console.warn('[Frontier/ws-interceptor] postMessage failed', err);
+      console.warn('[Ultrascripts/ws-interceptor] postMessage failed', err);
     }
   }
 
-  class FrontierWebSocket extends NativeWebSocket {
+  class UltrascriptsWebSocket extends NativeWebSocket {
     constructor(url, protocols) {
       super(url, protocols);
 
@@ -127,7 +127,7 @@
               }
             }
           } catch (err) {
-            console.warn('[Frontier/ws-interceptor] outbound WS capture failed', err);
+            console.warn('[Ultrascripts/ws-interceptor] outbound WS capture failed', err);
           }
           return nativeSend(data);
         };
@@ -174,11 +174,11 @@
   // that may share the page) read WebSocket.OPEN etc. as numeric literals.
   for (const key of ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED']) {
     if (NativeWebSocket[key] !== undefined) {
-      FrontierWebSocket[key] = NativeWebSocket[key];
+      UltrascriptsWebSocket[key] = NativeWebSocket[key];
     }
   }
 
-  window.WebSocket = FrontierWebSocket;
+  window.WebSocket = UltrascriptsWebSocket;
 
   // ---------- fetch shim for GraphQL mutation template capture ----------
   //
@@ -199,7 +199,7 @@
   //   - response:    the parsed response body (for shape validation)
   //   - capturedAt:  timestamp of the capture
   //
-  // The data is exposed via window.__Frontier.shim.mutations AND posted to
+  // The data is exposed via window.__Ultrascripts.shim.mutations AND posted to
   // ws-stream.js via a 'mutation' kind so the isolated world can build its
   // own template cache without having to cross-world-read the MAIN state.
 
@@ -487,7 +487,7 @@
     return out;
   }
 
-  window.fetch = function frontierFetch(input, init) {
+  window.fetch = function ultrascriptsFetch(input, init) {
     debug.http.fetch.total++;
     const url = typeof input === 'string' ? input : (input?.url || '');
     const isGraphQL = typeof url === 'string' && url.includes('/graphql');
@@ -540,7 +540,7 @@
         // AbortError is expected during SPA navigation — AID cancels in-flight
         // fetches when the user navigates away. Silence it.
         if (err?.name !== 'AbortError') {
-          console.warn('[Frontier/ws-interceptor] fetch post-processing failed', err);
+          console.warn('[Ultrascripts/ws-interceptor] fetch post-processing failed', err);
         }
       }
       return response;
@@ -566,8 +566,8 @@
   const nativeXHRSend = XHRProto.send;
   const nativeXHRSetHeader = XHRProto.setRequestHeader;
 
-  XHRProto.open = function frontierXHROpen(method, url, ...rest) {
-    this.__frontier = {
+  XHRProto.open = function ultrascriptsXHROpen(method, url, ...rest) {
+    this.__ultrascripts = {
       method: typeof method === 'string' ? method.toUpperCase() : 'GET',
       url: typeof url === 'string' ? url : (url && url.toString ? url.toString() : ''),
       headers: Object.create(null),
@@ -576,14 +576,14 @@
     return nativeXHROpen.call(this, method, url, ...rest);
   };
 
-  XHRProto.setRequestHeader = function frontierXHRSetHeader(name, value) {
-    if (this.__frontier) this.__frontier.headers[name] = value;
+  XHRProto.setRequestHeader = function ultrascriptsXHRSetHeader(name, value) {
+    if (this.__ultrascripts) this.__ultrascripts.headers[name] = value;
     return nativeXHRSetHeader.call(this, name, value);
   };
 
-  XHRProto.send = function frontierXHRSend(body) {
+  XHRProto.send = function ultrascriptsXHRSend(body) {
     debug.http.xhr.total++;
-    const meta = this.__frontier;
+    const meta = this.__ultrascripts;
     if (!meta) return nativeXHRSend.call(this, body);
 
     const isGraphQL = meta.url.includes('/graphql');
@@ -630,7 +630,7 @@
             storeTemplate(template);
           }
         } catch (err) {
-          console.warn('[Frontier/ws-interceptor] XHR post-processing failed', err);
+          console.warn('[Ultrascripts/ws-interceptor] XHR post-processing failed', err);
         }
       };
       this.addEventListener('readystatechange', onDone);

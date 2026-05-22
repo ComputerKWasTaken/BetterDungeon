@@ -128,7 +128,7 @@ class TutorialService {
         type: 'spotlight',
         target: '[data-feature="scripture"]',
         title: 'Scripture',
-        content: 'Enables Frontier scripts to display dynamic UI widgets like HP bars, stats, and game state.',
+        content: 'Enables Ultrascripts scripts to display dynamic UI widgets like HP bars, stats, and game state.',
         position: 'top',
         expandCard: true
       },
@@ -144,59 +144,59 @@ class TutorialService {
         actionTarget: 'features',
         expandCard: true
       },
-      // Frontier Tab Navigation
+      // Ultrascripts Tab Navigation
       {
-        id: 'frontier-tab',
+        id: 'ultrascripts-tab',
         type: 'spotlight',
-        target: '[data-tab="frontier"]',
-        title: 'Frontier Tab',
-        content: 'Frontier is BetterDungeon\'s bridge for script superpowers: scripts ask for a capability, and BetterDungeon safely returns structured results.',
+        target: '[data-tab="ultrascripts"]',
+        title: 'Ultrascripts Tab',
+        content: 'Ultrascripts is BetterDungeon\'s bridge for script superpowers: scripts ask for a capability, and BetterDungeon safely returns structured results.',
         position: 'bottom',
         action: 'switchTab',
-        actionTarget: 'frontier'
+        actionTarget: 'ultrascripts'
       },
       {
-        id: 'frontier-runtime',
+        id: 'ultrascripts-runtime',
         type: 'spotlight',
-        target: '[data-feature="frontier"]',
-        title: 'Frontier Runtime',
-        content: 'Keep Frontier enabled when you want scripts to use BetterDungeon modules. The status panel shows whether the live adventure bridge is connected.',
+        target: '[data-feature="ultrascripts"]',
+        title: 'Ultrascripts Runtime',
+        content: 'Keep Ultrascripts enabled when you want scripts to use BetterDungeon modules. The status panel shows whether the live adventure bridge is connected.',
         position: 'bottom',
         action: 'switchTab',
-        actionTarget: 'frontier',
+        actionTarget: 'ultrascripts',
         expandCard: true
       },
       {
-        id: 'frontier-modules',
+        id: 'ultrascripts-modules',
         type: 'spotlight',
-        target: '[data-frontier-module-card="scripture"]',
+        target: '[data-ultrascripts-module-card="scripture"]',
         title: 'Modules',
         content: 'Each module is a focused capability for scripts, such as UI widgets, web lookups, time, device context, or AI. Toggle only the ones you want available.',
         position: 'bottom',
         action: 'switchTab',
-        actionTarget: 'frontier',
+        actionTarget: 'ultrascripts',
         expandCard: true
       },
       {
-        id: 'frontier-script-flow',
+        id: 'ultrascripts-script-flow',
         type: 'spotlight',
-        target: '[data-frontier-module-card="webfetch"]',
-        title: 'How Scripts Call Frontier',
-        content: 'Scripts write frontier:out requests with id, module, op, and args. BetterDungeon runs the operation and writes results to frontier:in:<module>.',
+        target: '[data-ultrascripts-module-card="webfetch"]',
+        title: 'How Scripts Call Ultrascripts',
+        content: 'Scripts write ultrascripts:out requests with id, module, op, and args. BetterDungeon runs the operation and writes results to ultrascripts:in:<module>.',
         position: 'bottom',
         action: 'switchTab',
-        actionTarget: 'frontier',
+        actionTarget: 'ultrascripts',
         expandCard: true
       },
       {
         id: 'ai-card',
         type: 'spotlight',
-        target: '[data-frontier-module-card="ai"]',
+        target: '[data-ultrascripts-module-card="ai"]',
         title: 'AI',
         content: 'AI is the main attraction for many scripts: it lets a script ask a hosted model for side tasks without interrupting the main story turn.',
         position: 'bottom',
         action: 'switchTab',
-        actionTarget: 'frontier',
+        actionTarget: 'ultrascripts',
         expandCard: true
       },
       {
@@ -207,7 +207,7 @@ class TutorialService {
         content: 'Add your OpenRouter key here. BetterDungeon stores it in extension settings and keeps it out of Story Cards, so scripts never see the key.',
         position: 'top',
         action: 'switchTab',
-        actionTarget: 'frontier',
+        actionTarget: 'ultrascripts',
         expandCard: true
       },
       {
@@ -218,18 +218,18 @@ class TutorialService {
         content: 'Set the model AI should use by default. Scripts can still request a specific model, but a default keeps simple calls easy.',
         position: 'top',
         action: 'switchTab',
-        actionTarget: 'frontier',
+        actionTarget: 'ultrascripts',
         expandCard: true
       },
       {
         id: 'ai-cost-controls',
         type: 'spotlight',
-        target: '.frontier-ai-cost-panel',
+        target: '.ultrascripts-ai-cost-panel',
         title: 'AI Cost Controls',
         content: 'Free models are the default path. If you intentionally use paid models, open the safeguards section to add optional price and spend caps.',
         position: 'top',
         action: 'switchTab',
-        actionTarget: 'frontier',
+        actionTarget: 'ultrascripts',
         expandCard: true
       },
       {
@@ -240,7 +240,7 @@ class TutorialService {
         content: 'After saving your key and model, use this plug button to verify the AI connection before relying on it in a scenario.',
         position: 'top',
         action: 'switchTab',
-        actionTarget: 'frontier',
+        actionTarget: 'ultrascripts',
         expandCard: true
       },
       {
@@ -251,18 +251,18 @@ class TutorialService {
         content: 'Send module ai, op chat, messages, and optional maxTokens or responseFormat. responseFormat supports text, json_object, and json_schema for structured outputs.',
         position: 'top',
         action: 'switchTab',
-        actionTarget: 'frontier',
+        actionTarget: 'ultrascripts',
         expandCard: true
       },
       {
-        id: 'frontier-examples',
+        id: 'ultrascripts-examples',
         type: 'spotlight',
-        target: '#tab-frontier .btn-action',
+        target: '#tab-ultrascripts .btn-action',
         title: 'Example Scripts',
-        content: 'Use the example scripts as starting points for Frontier request envelopes, response handling, and module-specific patterns.',
+        content: 'Use the example scripts as starting points for Ultrascripts request envelopes, response handling, and module-specific patterns.',
         position: 'top',
         action: 'switchTab',
-        actionTarget: 'frontier'
+        actionTarget: 'ultrascripts'
       },
       // Presets Tab Navigation
       {
@@ -304,11 +304,11 @@ class TutorialService {
         stepId: 'features-tab'
       },
       {
-        id: 'frontier',
-        title: 'Frontier',
+        id: 'ultrascripts',
+        title: 'Ultrascripts',
         description: 'Runtime, modules, and script flow',
         icon: 'icon-radio-tower',
-        stepId: 'frontier-tab'
+        stepId: 'ultrascripts-tab'
       },
       {
         id: 'ai',

@@ -1,15 +1,15 @@
-// Frontier SDK Module Test Suite - AI Dungeon Library
+// Ultrascripts SDK Module Test Suite - AI Dungeon Library
 //
-// Drives the BetterDungeon Frontier SDK module through its current public op
+// Drives the BetterDungeon Ultrascripts SDK module through its current public op
 // and appends the returned data to story text through the paired output
 // modifier.
 //
 // Surfaces written:
-//   frontier:out       - request envelope queue (script -> BD)
-//   frontier:in:sdk    - response envelope (BD -> script)
-//   frontier:test:sdk  - human-readable trace card with results
+//   ultrascripts:out       - request envelope queue (script -> BD)
+//   ultrascripts:in:sdk    - response envelope (BD -> script)
+//   ultrascripts:test:sdk  - human-readable trace card with results
 
-state.frontierSdkTest = state.frontierSdkTest || {
+state.ultrascriptsSdkTest = state.ultrascriptsSdkTest || {
   runId: null,
   turn: 0,
   seq: 0,
@@ -34,12 +34,12 @@ function fsdkNow() {
 }
 
 function fsdkState() {
-  return state.frontierSdkTest;
+  return state.ultrascriptsSdkTest;
 }
 
 function fsdkRunId() {
   var s = fsdkState();
-  if (!s.runId) s.runId = 'frontier-sdk-' + fsdkNow().toString(36);
+  if (!s.runId) s.runId = 'ultrascripts-sdk-' + fsdkNow().toString(36);
   return s.runId;
 }
 
@@ -72,7 +72,7 @@ function fsdkReadJson(title) {
 
 function fsdkWriteCard(title, value, type) {
   var found = fsdkFindCard(title);
-  var cardType = type || 'Frontier';
+  var cardType = type || 'Ultrascripts';
 
   if (found.card && found.index >= 0 && typeof updateStoryCard === 'function') {
     updateStoryCard(
@@ -109,7 +109,7 @@ function fsdkLog(event, detail) {
 }
 
 function fsdkHeartbeat() {
-  return fsdkReadJson('frontier:heartbeat');
+  return fsdkReadJson('ultrascripts:heartbeat');
 }
 
 function fsdkHeartbeatModule(moduleId) {
@@ -147,7 +147,7 @@ function fsdkWriteOut() {
     debugWrittenAt: fsdkNow()
   };
   s._acks = [];
-  fsdkWriteCard('frontier:out', JSON.stringify(payload), 'Frontier');
+  fsdkWriteCard('ultrascripts:out', JSON.stringify(payload), 'Ultrascripts');
 }
 
 function fsdkQueueAck(requestId, reason) {
@@ -185,7 +185,7 @@ function fsdkIsTerminal(response) {
 
 function fsdkPollResponses() {
   var s = fsdkState();
-  var card = fsdkReadJson('frontier:in:sdk');
+  var card = fsdkReadJson('ultrascripts:in:sdk');
   var found = false;
   if (!card || !card.responses) return;
 
@@ -292,7 +292,7 @@ function fsdkWriteTrace() {
     events: s.events
   };
 
-  fsdkWriteCard('frontier:test:sdk', JSON.stringify(trace, null, 2), 'Frontier Test');
+  fsdkWriteCard('ultrascripts:test:sdk', JSON.stringify(trace, null, 2), 'Ultrascripts Test');
 }
 
 function fsdkRecentSources(outputText) {
@@ -330,8 +330,8 @@ function fsdkConsumeCommand(kind, outputText, needles) {
 }
 
 function fsdkResetSuite() {
-  state.frontierSdkTest = {
-    runId: 'frontier-sdk-' + fsdkNow().toString(36),
+  state.ultrascriptsSdkTest = {
+    runId: 'ultrascripts-sdk-' + fsdkNow().toString(36),
     turn: 0,
     seq: 0,
     outSeq: 0,
@@ -344,7 +344,7 @@ function fsdkResetSuite() {
     events: [],
     consumedCommands: {}
   };
-  fsdkWriteCard('frontier:out', JSON.stringify({ v: 1, requests: [], acks: [] }), 'Frontier');
+  fsdkWriteCard('ultrascripts:out', JSON.stringify({ v: 1, requests: [], acks: [] }), 'Ultrascripts');
   fsdkWriteTrace();
 }
 
@@ -352,7 +352,7 @@ function fsdkRenderStoryBlock() {
   var s = fsdkState();
   var lines = [];
   var hb = fsdkHeartbeat();
-  lines.push('[Frontier SDK Test]');
+  lines.push('[Ultrascripts SDK Test]');
   lines.push('phase: ' + s.phase);
   lines.push('heartbeat: ' + (hb ? 'present' : 'missing'));
   lines.push('sdk ops advertised: ' + (
@@ -381,16 +381,16 @@ function fsdkRenderStoryBlock() {
     }
   }
 
-  lines.push('trace card: frontier:test:sdk');
+  lines.push('trace card: ultrascripts:test:sdk');
   return lines.join('\n');
 }
 
-function frontierSdkTestStep(outputText) {
+function ultrascriptsSdkTestStep(outputText) {
   var s = fsdkState();
   fsdkRunId();
   s.turn += 1;
 
-  if (fsdkConsumeCommand('reset', outputText, ['sdk test reset', 'frontier sdk reset', '[[sdk-test:reset]]'])) {
+  if (fsdkConsumeCommand('reset', outputText, ['sdk test reset', 'ultrascripts sdk reset', '[[sdk-test:reset]]'])) {
     fsdkResetSuite();
   }
 

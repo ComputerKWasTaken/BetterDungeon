@@ -1,36 +1,36 @@
-// services/frontier/core.js
+// services/ultrascripts/core.js
 //
-// Frontier Core — the public API surface that modules consume.
+// Ultrascripts Core — the public API surface that modules consume.
 //
 // Responsibilities:
 //   * Bridge DOM CustomEvents from ws-stream.js into a clean on/off listener API.
 //   * Maintain lightweight derived state (adventureId, tail, liveCount) for
 //     module consumption, with adventure-boundary events.
 //   * Dispatch state-card changes to modules via onStateChange (Phase 2).
-//   * Provide card lookup helpers (getCard, getState) that parse typed Frontier
+//   * Provide card lookup helpers (getCard, getState) that parse typed Ultrascripts
 //     state cards.
 //   * Provide a write helper (writeCard) that delegates to the write queue.
-//   * Emit the frontier:heartbeat card on adventure enter.
+//   * Emit the ultrascripts:heartbeat card on adventure enter.
 //   * Host the module registry and run the heartbeat on adventure enter.
 //
 // Exposure (per the Hybrid API decision):
-//   * window.Frontier.core   — read-only inspection surface for DevTools.
+//   * window.Ultrascripts.core   — read-only inspection surface for DevTools.
 //   * module.mount(ctx)      — ctx object passed to every registered module
 //                              with the full API. Modules should NOT reach
-//                              through window.Frontier; ctx is the contract.
+//                              through window.Ultrascripts; ctx is the contract.
 //
 // See:
-//   - Project Management/frontier/01-architecture.md (Core layer)
-//   - Project Management/frontier/02-modules.md (module contract)
+//   - Project Management/ultrascripts/01-architecture.md (Core layer)
+//   - Project Management/ultrascripts/02-modules.md (module contract)
 
 (function () {
-  if (window.Frontier?.core) return;
+  if (window.Ultrascripts?.core) return;
 
-  const TAG = '[Frontier/core]';
+  const TAG = '[Ultrascripts/core]';
   const HEARTBEAT_DELAY_MS = 750;
-  const STATE_CARD_PREFIX = 'frontier:state:';
-  const HEARTBEAT_CARD_TITLE = 'frontier:heartbeat';
-  const HEARTBEAT_ARCHIVE_PREFIX = 'frontier:archived:heartbeat:';
+  const STATE_CARD_PREFIX = 'ultrascripts:state:';
+  const HEARTBEAT_CARD_TITLE = 'ultrascripts:heartbeat';
+  const HEARTBEAT_ARCHIVE_PREFIX = 'ultrascripts:archived:heartbeat:';
   const PROTOCOL_VERSION = 1;
 
   // ---------- internal state ----------
@@ -49,24 +49,24 @@
     heartbeatCardId: null,
     cardsHydrated: false,
     aiService: null,       // AIDungeonService instance, injected by main.js
-    debugEnabled: false,   // gated by frontier_debug in chrome.storage.sync
-    stateCache: new Map(), // name -> parsed JSON from frontier:state:<name>
+    debugEnabled: false,   // gated by ultrascripts_debug in chrome.storage.sync
+    stateCache: new Map(), // name -> parsed JSON from ultrascripts:state:<name>
   };
 
-  const getRegistry = () => window.Frontier?.registry || null;
-  const getWs = () => window.Frontier?.ws || null;
+  const getRegistry = () => window.Ultrascripts?.registry || null;
+  const getWs = () => window.Ultrascripts?.ws || null;
 
   // ---------- debug mode (Phase 2) ----------
 
   function loadDebugSetting() {
     try {
       const api = typeof browser !== 'undefined' ? browser : chrome;
-      api?.storage?.sync?.get?.('frontier_debug', (result) => {
-        state.debugEnabled = !!result?.frontier_debug;
+      api?.storage?.sync?.get?.('ultrascripts_debug', (result) => {
+        state.debugEnabled = !!result?.ultrascripts_debug;
       });
       api?.storage?.onChanged?.addListener?.((changes, area) => {
-        if (area === 'sync' && changes.frontier_debug) {
-          state.debugEnabled = !!changes.frontier_debug.newValue;
+        if (area === 'sync' && changes.ultrascripts_debug) {
+          state.debugEnabled = !!changes.ultrascripts_debug.newValue;
         }
       });
     } catch { /* storage unavailable */ }
@@ -76,7 +76,7 @@
     state.debugEnabled = !!enabled;
     try {
       const api = typeof browser !== 'undefined' ? browser : chrome;
-      api?.storage?.sync?.set?.({ frontier_debug: state.debugEnabled });
+      api?.storage?.sync?.set?.({ ultrascripts_debug: state.debugEnabled });
     } catch { /* storage unavailable */ }
   }
 
@@ -117,7 +117,7 @@
     return null;
   }
 
-  // Parse a `frontier:state:<name>` card value as JSON. Returns null if the
+  // Parse a `ultrascripts:state:<name>` card value as JSON. Returns null if the
   // card is missing or its value is not valid JSON. Modules treat null as
   // "no state yet" and should render a default view.
   function getState(name) {
@@ -132,7 +132,7 @@
 
   // ---------- state-card dispatch (Phase 2) ----------
   //
-  // Scans card arrays for frontier:state:* titles, parses their values,
+  // Scans card arrays for ultrascripts:state:* titles, parses their values,
   // caches the parsed result, and dispatches onStateChange to modules whose
   // stateNames include the extracted name.
 
@@ -218,7 +218,7 @@
   // ---------- adventure-boundary detection ----------
   //
   // Phase 1: ws-stream.js handles boundary detection via HTTP hydration and
-  // URL polling, emitting frontier:adventure:change. Core subscribes here.
+  // URL polling, emitting ultrascripts:adventure:change. Core subscribes here.
   // Phase 2: also notifies mounted modules via onAdventureChange and clears
   // the stateCache so new adventure cards hydrate cleanly.
 
@@ -249,10 +249,10 @@
     });
   }
 
-  // ---------- heartbeat (Phase 2 — single frontier:heartbeat card) ----------
+  // ---------- heartbeat (Phase 2 — single ultrascripts:heartbeat card) ----------
   //
-  // Writes a single frontier:heartbeat card matching the protocol spec from
-  // 02-protocol.md. Contains frontier identity, turn counter for staleness
+  // Writes a single ultrascripts:heartbeat card matching the protocol spec from
+  // 02-protocol.md. Contains ultrascripts identity, turn counter for staleness
   // detection, and the list of currently mounted modules with their ops.
 
   function getHeartbeatCards() {
@@ -274,12 +274,12 @@
 
   function heartbeatScore(card) {
     let score = 0;
-    if (card?.type === 'Frontier') score += 1000;
+    if (card?.type === 'Ultrascripts') score += 1000;
     if (typeof card?.value === 'string') {
       try {
         const parsed = JSON.parse(card.value);
-        if (parsed?.frontier?.protocol === PROTOCOL_VERSION) score += 1000;
-        if (parsed?.frontier?.client === 'BetterDungeon') score += 500;
+        if (parsed?.ultrascripts?.protocol === PROTOCOL_VERSION) score += 1000;
+        if (parsed?.ultrascripts?.client === 'BetterDungeon') score += 500;
       } catch { /* not a heartbeat-shaped value */ }
     }
     return score;
@@ -320,7 +320,7 @@
 
   function makeArchivedHeartbeatValue(card, canonicalId) {
     return JSON.stringify({
-      frontier: {
+      ultrascripts: {
         protocol: PROTOCOL_VERSION,
         client: 'BetterDungeon',
         archived: true,
@@ -344,9 +344,9 @@
           makeArchivedHeartbeatValue(card, canonicalId),
           {
             id,
-            type: 'Frontier',
+            type: 'Ultrascripts',
             keys: '',
-            description: 'Archived duplicate Frontier heartbeat card.',
+            description: 'Archived duplicate Ultrascripts heartbeat card.',
           },
         );
       } catch (err) {
@@ -389,7 +389,7 @@
     const heartbeatPlan = refreshHeartbeatCardIndex();
 
     const heartbeat = {
-      frontier: {
+      ultrascripts: {
         protocol: PROTOCOL_VERSION,
         enabled: state.enabled,
         client: 'BetterDungeon',
@@ -409,7 +409,7 @@
 
     state.heartbeatPending = true;
     try {
-      const opts = { type: 'Frontier' };
+      const opts = { type: 'Ultrascripts' };
       if (heartbeatPlan.canonical?.id != null) {
         opts.id = String(heartbeatPlan.canonical.id);
       }
@@ -446,7 +446,7 @@
 
     // --- Card events ---
 
-    document.addEventListener('frontier:cards:full', (e) => {
+    document.addEventListener('ultrascripts:cards:full', (e) => {
       emit('cards:full', e.detail);
       state.cardsHydrated = true;
       refreshHeartbeatCardIndex();
@@ -464,7 +464,7 @@
       }
     });
 
-    document.addEventListener('frontier:cards:diff', (e) => {
+    document.addEventListener('ultrascripts:cards:diff', (e) => {
       emit('cards:diff', e.detail);
       const heartbeatChanges = [
         ...(e.detail?.added || []),
@@ -483,16 +483,16 @@
 
     // --- Action events ---
 
-    document.addEventListener('frontier:actions:change', (e) => {
+    document.addEventListener('ultrascripts:actions:change', (e) => {
       emit('actions:change', e.detail);
     });
 
-    document.addEventListener('frontier:tail:change', (e) => {
+    document.addEventListener('ultrascripts:tail:change', (e) => {
       state.tail = e.detail?.tail ?? null;
       emit('tail:change', e.detail);
     });
 
-    document.addEventListener('frontier:livecount:change', (e) => {
+    document.addEventListener('ultrascripts:livecount:change', (e) => {
       state.liveCount = e.detail?.liveCount ?? 0;
       emit('livecount:change', e.detail);
       // Re-dispatch cached state to tracksLiveCount modules.
@@ -504,14 +504,14 @@
 
     // --- Template events ---
 
-    document.addEventListener('frontier:mutation:template', (e) => {
+    document.addEventListener('ultrascripts:mutation:template', (e) => {
       emit('mutation:template', e.detail);
       if (state.adventureId) scheduleHeartbeat();
     });
 
     // --- Adventure boundary ---
 
-    document.addEventListener('frontier:adventure:change', (e) => {
+    document.addEventListener('ultrascripts:adventure:change', (e) => {
       onAdventureChange(e.detail);
     });
 
@@ -521,7 +521,7 @@
   // ---------- write helper ----------
 
   function getWriteQueue() {
-    return window.Frontier?.writeQueue || null;
+    return window.Ultrascripts?.writeQueue || null;
   }
 
   async function writeCard(title, value, opts = {}) {
@@ -577,7 +577,7 @@
   //
   // Each module's mount(ctx) receives one of these. The context is scoped
   // per-module so Core can scope logs and auto-clean listeners on unmount.
-  // Full interface per 02-modules.md FrontierContext.
+  // Full interface per 02-modules.md UltrascriptsContext.
 
   function makeModuleCtx(moduleDef) {
     const moduleListeners = [];
@@ -596,8 +596,8 @@
     }
 
     // Per-module storage backed by chrome.storage.sync. Keys are namespaced
-    // as `frontier_mod_<id>_<key>` to prevent collisions.
-    const storagePrefix = `frontier_mod_${moduleId}_`;
+    // as `ultrascripts_mod_<id>_<key>` to prevent collisions.
+    const storagePrefix = `ultrascripts_mod_${moduleId}_`;
     const api = typeof browser !== 'undefined' ? browser : chrome;
 
     const storage = {
@@ -642,13 +642,13 @@
       // exist for handlers that need to settle a request outside the call
       // stack that received it.
       respond(requestId, data) {
-        return window.Frontier?.opsDispatcher?.respond?.(requestId, data);
+        return window.Ultrascripts?.opsDispatcher?.respond?.(requestId, data);
       },
       respondError(requestId, err) {
-        return window.Frontier?.opsDispatcher?.respondError?.(requestId, err);
+        return window.Ultrascripts?.opsDispatcher?.respondError?.(requestId, err);
       },
 
-      // Structured logging. 'debug' level gated by frontier_debug toggle.
+      // Structured logging. 'debug' level gated by ultrascripts_debug toggle.
       log(level, ...args) {
         if (level === 'debug' && !state.debugEnabled) return;
         const method = level === 'debug' ? 'log' : (level === 'error' ? 'error' : (level === 'warn' ? 'warn' : 'log'));
@@ -701,12 +701,12 @@
       stateCacheKeys: [...state.stateCache.keys()],
       listeners: [...listeners.keys()].map(k => ({ event: k, count: listeners.get(k).size })),
       writeQueue: getWriteQueue()?.inspect?.() || null,
-      opsDispatcher: window.Frontier?.opsDispatcher?.inspect?.() || null,
+      opsDispatcher: window.Ultrascripts?.opsDispatcher?.inspect?.() || null,
     }),
   };
 
-  window.Frontier = window.Frontier || {};
-  window.Frontier.core = core;
+  window.Ultrascripts = window.Ultrascripts || {};
+  window.Ultrascripts.core = core;
 
   bootstrap();
 })();

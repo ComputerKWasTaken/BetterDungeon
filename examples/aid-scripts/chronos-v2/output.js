@@ -1,6 +1,6 @@
 // Chronos - Output Modifier
 //
-// Publishes widgets, polls Frontier module responses, and replaces generated
+// Publishes widgets, polls Ultrascripts module responses, and replaces generated
 // text with command output when the player uses a Chronos chat command.
 
 var modifier = function (text) {

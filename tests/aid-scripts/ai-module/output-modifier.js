@@ -1,11 +1,11 @@
-// Frontier AI Module Test Suite — AI Dungeon Output Modifier
+// Ultrascripts AI Module Test Suite — AI Dungeon Output Modifier
 //
 // Pair with library.js. Drives one suite step per generation so the test runs
 // turn-by-turn alongside normal play. The text is returned untouched.
 
 var modifier = function (text) {
-  if (typeof frontierAiTestStep === 'function') {
-    try { frontierAiTestStep(text); } catch (e) { /* never break gameplay */ }
+  if (typeof ultrascriptsAiTestStep === 'function') {
+    try { ultrascriptsAiTestStep(text); } catch (e) { /* never break gameplay */ }
   }
   return { text: text };
 };

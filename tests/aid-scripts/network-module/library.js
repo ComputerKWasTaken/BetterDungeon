@@ -1,16 +1,16 @@
-// Frontier Network Module Test Suite — AI Dungeon Library
+// Ultrascripts Network Module Test Suite — AI Dungeon Library
 //
-// Drives the BetterDungeon Frontier Network module through its public op and
+// Drives the BetterDungeon Ultrascripts Network module through its public op and
 // error paths. Pair with output-modifier.js.
 //
 // Surfaces written:
-//   frontier:out                  - request envelope queue (script -> BD)
-//   frontier:in:network           - response envelope (BD -> script)
-//   frontier:test:network         - human-readable trace card with results
+//   ultrascripts:out                  - request envelope queue (script -> BD)
+//   ultrascripts:in:network           - response envelope (BD -> script)
+//   ultrascripts:test:network         - human-readable trace card with results
 
 // ---------- state ----------
 
-state.frontierNetworkTest = state.frontierNetworkTest || {
+state.ultrascriptsNetworkTest = state.ultrascriptsNetworkTest || {
   runId: null,
   turn: 0,
   seq: 0,
@@ -87,11 +87,11 @@ var FNET_STEPS = [
 
 function fnetNow() { return Date.now ? Date.now() : new Date().getTime(); }
 
-function fnetState() { return state.frontierNetworkTest; }
+function fnetState() { return state.ultrascriptsNetworkTest; }
 
 function fnetRunId() {
   var s = fnetState();
-  if (!s.runId) s.runId = 'frontier-network-' + fnetNow().toString(36);
+  if (!s.runId) s.runId = 'ultrascripts-network-' + fnetNow().toString(36);
   return s.runId;
 }
 
@@ -122,7 +122,7 @@ function fnetReadJson(title) {
 
 function fnetWriteCard(title, value, type) {
   var f = fnetFindCard(title);
-  var cardType = type || 'Frontier';
+  var cardType = type || 'Ultrascripts';
   if (f.card && f.index >= 0 && typeof updateStoryCard === 'function') {
     updateStoryCard(f.index, f.card.keys || f.card.key || title, value, f.card.type || cardType);
     return true;
@@ -144,11 +144,11 @@ function fnetLog(event, detail) {
   while (s.events.length > 60) s.events.shift();
 }
 
-function fnetHeartbeat() { return fnetReadJson('frontier:heartbeat'); }
+function fnetHeartbeat() { return fnetReadJson('ultrascripts:heartbeat'); }
 
 function fnetHasOp(moduleId, opName) {
   var hb = fnetHeartbeat();
-  if (!hb || !hb.frontier || hb.frontier.protocol !== 1) return false;
+  if (!hb || !hb.ultrascripts || hb.ultrascripts.protocol !== 1) return false;
   var mods = Array.isArray(hb.modules) ? hb.modules : [];
   for (var i = 0; i < mods.length; i++) {
     var m = mods[i];
@@ -177,7 +177,7 @@ function fnetWriteOut() {
     debugWrittenAt: fnetNow()
   };
   s._acks = [];
-  fnetWriteCard('frontier:out', JSON.stringify(payload), 'Frontier');
+  fnetWriteCard('ultrascripts:out', JSON.stringify(payload), 'Ultrascripts');
 }
 
 function fnetQueueAck(requestId, reason) {
@@ -221,7 +221,7 @@ function fnetPollResponses() {
   }
   var found = false;
   for (var m = 0; m < modules.length; m++) {
-    var card = fnetReadJson('frontier:in:' + modules[m]);
+    var card = fnetReadJson('ultrascripts:in:' + modules[m]);
     if (!card || !card.responses) continue;
     for (var rid in card.responses) {
       if (!Object.prototype.hasOwnProperty.call(card.responses, rid)) continue;
@@ -349,7 +349,7 @@ function fnetWriteTrace() {
     phase: s.phase,
     heartbeat: {
       present: !!hb,
-      protocol: hb && hb.frontier && hb.frontier.protocol,
+      protocol: hb && hb.ultrascripts && hb.ultrascripts.protocol,
       networkAdvertised: fnetHasOp('network', 'status')
     },
     counts: counts,
@@ -359,7 +359,7 @@ function fnetWriteTrace() {
     ackAttempts: s.ackAttempts,
     events: s.events
   };
-  fnetWriteCard('frontier:test:network', JSON.stringify(trace, null, 2), 'Frontier Test');
+  fnetWriteCard('ultrascripts:test:network', JSON.stringify(trace, null, 2), 'Ultrascripts Test');
 }
 
 // ---------- reset / commands ----------
@@ -399,25 +399,25 @@ function fnetConsumeCommand(kind, outputText, needles) {
 }
 
 function fnetResetSuite() {
-  state.frontierNetworkTest = {
-    runId: 'frontier-network-' + fnetNow().toString(36),
+  state.ultrascriptsNetworkTest = {
+    runId: 'ultrascripts-network-' + fnetNow().toString(36),
     turn: 0, seq: 0, outSeq: 0,
     pending: {}, completed: {}, acked: {}, ackAttempts: {},
     steps: {}, events: [], consumedCommands: {},
     phase: 'reset'
   };
-  fnetWriteCard('frontier:out', JSON.stringify({ v: 1, requests: [], acks: [] }), 'Frontier');
+  fnetWriteCard('ultrascripts:out', JSON.stringify({ v: 1, requests: [], acks: [] }), 'Ultrascripts');
   fnetWriteTrace();
 }
 
 // ---------- public entry point ----------
 
-function frontierNetworkTestStep(outputText) {
+function ultrascriptsNetworkTestStep(outputText) {
   var s = fnetState();
   fnetRunId();
   s.turn += 1;
 
-  if (fnetConsumeCommand('reset', outputText, ['network test reset', 'frontier network reset', '[[network-test:reset]]'])) {
+  if (fnetConsumeCommand('reset', outputText, ['network test reset', 'ultrascripts network reset', '[[network-test:reset]]'])) {
     fnetResetSuite();
     return true;
   }

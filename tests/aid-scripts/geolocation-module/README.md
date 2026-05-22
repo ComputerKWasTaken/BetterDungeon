@@ -1,7 +1,7 @@
-# Frontier Geolocation Module — AI Dungeon Test Suite
+# Ultrascripts Geolocation Module — AI Dungeon Test Suite
 
-End-to-end test scripts that exercise the BetterDungeon Frontier Geolocation
-module (`modules/geolocation/module.js`) over the live Frontier protocol from
+End-to-end test scripts that exercise the BetterDungeon Ultrascripts Geolocation
+module (`modules/geolocation/module.js`) over the live Ultrascripts protocol from
 inside an AI Dungeon scenario.
 
 ## What it covers
@@ -28,7 +28,7 @@ long as the response shape is correct.
 ## Setup
 
 1. Load the BetterDungeon extension and open AI Dungeon.
-2. Open BetterDungeon → **Frontier** and enable Frontier and the
+2. Open BetterDungeon → **Ultrascripts** and enable Ultrascripts and the
    **Geolocation** module.
 3. Optionally grant location permission to AI Dungeon in your browser to
    exercise the full position path.
@@ -43,7 +43,7 @@ long as the response shape is correct.
 
 ## Reading results
 
-Open the `frontier:test:geolocation` story card after a few turns to see:
+Open the `ultrascripts:test:geolocation` story card after a few turns to see:
 
 - `phase` — current driver state.
 - `counts` — pass/fail/pending tally.
@@ -59,5 +59,5 @@ A successful run ends with `phase: "complete"` and `checksPass: true`.
 To re-run from scratch without editing anything, type any of these phrases:
 
 - `geo test reset`
-- `frontier geo reset`
+- `ultrascripts geo reset`
 - `[[geo-test:reset]]`

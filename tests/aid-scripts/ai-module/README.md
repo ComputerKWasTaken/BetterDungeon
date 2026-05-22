@@ -1,9 +1,9 @@
-# Frontier AI Module — AI Dungeon Test Suite
+# Ultrascripts AI Module — AI Dungeon Test Suite
 
-End-to-end test scripts that exercise the BetterDungeon Frontier AI module
-(`modules/ai/module.js`) over the live Frontier protocol from inside an
+End-to-end test scripts that exercise the BetterDungeon Ultrascripts AI module
+(`modules/ai/module.js`) over the live Ultrascripts protocol from inside an
 AI Dungeon scenario. Use this any time you change the AI module, the
-`ops-dispatcher`, the registry, the envelope helpers, or any other Frontier
+`ops-dispatcher`, the registry, the envelope helpers, or any other Ultrascripts
 plumbing — if the system is healthy this suite turns green; if it isn't, the
 trace card pinpoints what broke.
 
@@ -29,19 +29,19 @@ The suite runs a fixed plan of requests, one per turn, in order:
 
 It also verifies:
 
-- The `frontier:heartbeat` card exists and lists `ai` with all three real ops.
-- Pending → terminal response transitions on `frontier:in:ai` and
-  `frontier:in:providerAI`.
+- The `ultrascripts:heartbeat` card exists and lists `ai` with all three real ops.
+- Pending → terminal response transitions on `ultrascripts:in:ai` and
+  `ultrascripts:in:providerAI`.
 - Ack-driven cleanup of response cards (the script removes its own ids from
   the response envelope after acking).
 
 ## Setup
 
 1. Load the BetterDungeon extension and open AI Dungeon.
-2. Open BetterDungeon → **Frontier** and enable Frontier and the **AI**
+2. Open BetterDungeon → **Ultrascripts** and enable Ultrascripts and the **AI**
    module.
-3. Open Frontier → **AI**, save an OpenRouter API key.
-4. Optionally edit `FRONTIER_AI_TEST_MODEL` at the top of `library.js`.
+3. Open Ultrascripts → **AI**, save an OpenRouter API key.
+4. Optionally edit `ULTRASCRIPTS_AI_TEST_MODEL` at the top of `library.js`.
    The default is a free OpenRouter model.
 
 ## Install in a scenario
@@ -56,9 +56,9 @@ It also verifies:
 
 Two surfaces are written to the adventure's story cards:
 
-- `frontier:out` — the script's request queue. Useful for confirming requests
+- `ultrascripts:out` — the script's request queue. Useful for confirming requests
   reach the dispatcher.
-- `frontier:test:ai` — the **trace card**. Open it after a few turns to see:
+- `ultrascripts:test:ai` — the **trace card**. Open it after a few turns to see:
   - `phase` — current driver state (`queueing X`, `awaiting X`,
     `complete`, `complete-with-failures`).
   - `counts` — pass/fail/pending tally.
@@ -91,10 +91,10 @@ into your input on a turn (the suite consumes them once and then ignores
 duplicates):
 
 - `ai test reset`
-- `frontier ai reset`
+- `ultrascripts ai reset`
 - `[[ai-test:reset]]`
 
-The suite clears `frontier:out`, wipes its in-state, and starts over on the
+The suite clears `ultrascripts:out`, wipes its in-state, and starts over on the
 next turn.
 
 ## Manual missing-key check

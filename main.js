@@ -89,29 +89,29 @@ class BetterDungeon {
       } else if (message.type === 'OPEN_STORY_CARD_ANALYTICS') {
         this.handleOpenStoryCardAnalytics().then(sendResponse);
         return true;
-      } else if (message.type === 'SET_FRONTIER_DEBUG') {
-        window.Frontier?.core?.setDebug?.(message.enabled);
+      } else if (message.type === 'SET_ULTRASCRIPTS_DEBUG') {
+        window.Ultrascripts?.core?.setDebug?.(message.enabled);
         sendResponse({ success: true, debugEnabled: !!message.enabled });
         return true;
       } else if (message.type === 'SET_SCRIPTURE_WIDGET_DISPLAY') {
         const display = window.ScriptureModule?.setWidgetDisplayOptions?.(message.display, { persist: true }) || null;
         sendResponse({ success: true, display });
         return true;
-      } else if (message.type === 'SET_FRONTIER_MODULE_ENABLED') {
-        window.Frontier?.registry?.setModuleEnabled?.(message.moduleId, message.enabled);
+      } else if (message.type === 'SET_ULTRASCRIPTS_MODULE_ENABLED') {
+        window.Ultrascripts?.registry?.setModuleEnabled?.(message.moduleId, message.enabled);
         sendResponse({
           success: true,
           moduleId: message.moduleId,
           enabled: !!message.enabled,
-          registry: window.Frontier?.registry?.inspect?.() || null,
+          registry: window.Ultrascripts?.registry?.inspect?.() || null,
         });
         return true;
-      } else if (message.type === 'GET_FRONTIER_STATE') {
+      } else if (message.type === 'GET_ULTRASCRIPTS_STATE') {
         sendResponse({
-          frontierEnabled: this.featureManager.isFeatureEnabled('frontier'),
-          core: window.Frontier?.core?.inspect?.() || null,
-          registry: window.Frontier?.registry?.inspect?.() || null,
-          modules: window.Frontier?.registry?.list?.() || [],
+          ultrascriptsEnabled: this.featureManager.isFeatureEnabled('ultrascripts'),
+          core: window.Ultrascripts?.core?.inspect?.() || null,
+          registry: window.Ultrascripts?.registry?.inspect?.() || null,
+          modules: window.Ultrascripts?.registry?.list?.() || [],
         });
         return true;
       } else if (message.type === 'GET_WEBFETCH_CONSENT') {
@@ -126,7 +126,7 @@ class BetterDungeon {
 
   async handleGetWebFetchConsent() {
     try {
-      const consent = window.FrontierWebFetchConsent;
+      const consent = window.UltrascriptsWebFetchConsent;
       if (!consent?.inspect) return { success: false, error: 'WebFetch consent broker not available' };
       return { success: true, consent: await consent.inspect() };
     } catch (error) {
@@ -136,7 +136,7 @@ class BetterDungeon {
 
   async handleSetWebFetchConsent(origin, decision) {
     try {
-      const consent = window.FrontierWebFetchConsent;
+      const consent = window.UltrascriptsWebFetchConsent;
       if (!consent?.setOrigin) return { success: false, error: 'WebFetch consent broker not available' };
       return { success: true, result: await consent.setOrigin(origin, decision) };
     } catch (error) {

@@ -1,10 +1,10 @@
 // modules/webfetch/module.js
 //
-// Frontier Phase 5 reference ops module. Gives AI Dungeon scripts a guarded
+// Ultrascripts Phase 5 reference ops module. Gives AI Dungeon scripts a guarded
 // way to make real http/https requests through BetterDungeon.
 
 (function () {
-  if (window.FrontierWebFetchModule) return;
+  if (window.UltrascriptsWebFetchModule) return;
 
   const DEFAULT_TIMEOUT_MS = 15000;
   const MAX_TIMEOUT_MS = 30000;
@@ -198,7 +198,7 @@
   }
 
   function consentBroker() {
-    return window.FrontierWebFetchConsent;
+    return window.UltrascriptsWebFetchConsent;
   }
 
   async function ensureConsent(origin, details) {
@@ -224,7 +224,7 @@
   function backgroundFetch(request) {
     if (typeof browser !== 'undefined' && browser?.runtime?.sendMessage) {
       return browser.runtime
-        .sendMessage({ type: 'FRONTIER_WEBFETCH_FETCH', request })
+        .sendMessage({ type: 'ULTRASCRIPTS_WEBFETCH_FETCH', request })
         .then((response) => unwrapBackgroundResponse(response));
     }
 
@@ -233,7 +233,7 @@
       return Promise.reject({ code: 'webfetch_unavailable', message: 'Extension runtime is unavailable' });
     }
 
-    const message = { type: 'FRONTIER_WEBFETCH_FETCH', request };
+    const message = { type: 'ULTRASCRIPTS_WEBFETCH_FETCH', request };
     return new Promise((resolve, reject) => {
       runtime.sendMessage(message, (response) => {
         const lastError = typeof chrome !== 'undefined' ? chrome.runtime?.lastError : null;
@@ -344,11 +344,11 @@
     };
   }
 
-  const FrontierWebFetchModule = {
+  const UltrascriptsWebFetchModule = {
     id: 'webfetch',
     version: '1.0.0',
     label: 'WebFetch',
-    description: 'Fetches http/https URLs for Frontier scripts with consent, rate limits, and response shaping.',
+    description: 'Fetches http/https URLs for Ultrascripts scripts with consent, rate limits, and response shaping.',
 
     ops: {
       fetch: {
@@ -381,15 +381,15 @@
     },
   };
 
-  window.FrontierWebFetchModule = FrontierWebFetchModule;
+  window.UltrascriptsWebFetchModule = UltrascriptsWebFetchModule;
 
-  if (window.Frontier?.registry) {
-    window.Frontier.registry.register(FrontierWebFetchModule);
+  if (window.Ultrascripts?.registry) {
+    window.Ultrascripts.registry.register(UltrascriptsWebFetchModule);
   } else {
-    console.warn('[WebFetch] Frontier registry not available; module not registered.');
+    console.warn('[WebFetch] Ultrascripts registry not available; module not registered.');
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = FrontierWebFetchModule;
+    module.exports = UltrascriptsWebFetchModule;
   }
 })();

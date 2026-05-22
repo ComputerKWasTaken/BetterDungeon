@@ -1,4 +1,4 @@
-# Frontier Scripture Module — AI Dungeon Test Suite
+# Ultrascripts Scripture Module — AI Dungeon Test Suite
 
 Behavior-focused test scripts for the BetterDungeon Scripture module. Each scenario loads a curated manifest designed to exercise specific widget types so you can verify rendering, interactivity, value transitions, and graceful error handling.
 
@@ -18,7 +18,7 @@ Use this suite when you change any of the following:
 | Command | Widgets tested | What to verify |
 | --- | --- | --- |
 | `/scripture display` | stat, bar, counter, progress, taggroup, divider, icon, badge, text | All display widgets render with correct values, colors, alignment. Bars and progress fills animate smoothly. |
-| `/scripture interactive` | radio, stepper, confirm, chipselect, button, toggle, select, slider, input, textarea | Each widget is interactive. Click them and check `frontier:test:scripture` → `interactions.recentEvents` for the emitted events. |
+| `/scripture interactive` | radio, stepper, confirm, chipselect, button, toggle, select, slider, input, textarea | Each widget is interactive. Click them and check `ultrascripts:test:scripture` → `interactions.recentEvents` for the emitted events. |
 | `/scripture containers` | accordion, tabs, dropdown, sortable | Containers expand/collapse, switch tabs, open menus, and reorder items. Events carry the correct selected IDs. |
 | `/scripture invalid` | stat, progress, plus intentionally broken configs | The module should skip `badmax` (negative max), `badtype` (unknown type), and `nostep` (string value for stepper) with console warnings. `ok` and `ok2` should still render. |
 | `/scripture transitions` | stat, bar, counter, progress | Values change every turn. Watch numbers count up/down and bars/progress fills smoothly animate. |
@@ -30,14 +30,14 @@ Use this suite when you change any of the following:
 
 | Card | Direction | Purpose |
 | --- | --- | --- |
-| `frontier:state:scripture` | script &rarr; BD | Manifest + history values + `interactions.ackSeq`. Rebuilt every turn. |
-| `frontier:in:scripture` | BD &rarr; script | Read-only. We poll widget interaction events and accumulate them in the trace. |
-| `frontier:test:scripture` | script &rarr; you | Human-readable trace: current scenario, widget list with values, recent events, and command help. |
+| `ultrascripts:state:scripture` | script &rarr; BD | Manifest + history values + `interactions.ackSeq`. Rebuilt every turn. |
+| `ultrascripts:in:scripture` | BD &rarr; script | Read-only. We poll widget interaction events and accumulate them in the trace. |
+| `ultrascripts:test:scripture` | script &rarr; you | Human-readable trace: current scenario, widget list with values, recent events, and command help. |
 
 ## Setup
 
 1. Load the BetterDungeon extension and open AI Dungeon.
-2. Open BetterDungeon &rarr; **Frontier** and enable Frontier and the **Scripture** module.
+2. Open BetterDungeon &rarr; **Ultrascripts** and enable Ultrascripts and the **Scripture** module.
 3. In AI Dungeon, edit a scenario and open the **Scripting** panel.
 4. Paste the contents of `library.js` into the **Library** script.
 5. Paste the contents of `input-modifier.js` into the **Input Modifier**.
@@ -78,7 +78,7 @@ Type these into normal player input. They are stripped from the text before it r
 
 ## Reading the trace
 
-Open the `frontier:test:scripture` story card after a few turns:
+Open the `ultrascripts:test:scripture` story card after a few turns:
 
 - **`phase`** — current scenario (`display`, `interactive`, `transitions`, etc.) or `idle`.
 - **`scenario`** — same as phase.

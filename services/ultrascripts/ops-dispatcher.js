@@ -1,14 +1,14 @@
-// services/frontier/ops-dispatcher.js
+// services/ultrascripts/ops-dispatcher.js
 //
-// Full Frontier ops dispatcher. Consumes the script-written `frontier:out`
+// Full Ultrascripts ops dispatcher. Consumes the script-written `ultrascripts:out`
 // request queue, routes requests to mounted module ops, and writes responses
-// to `frontier:in:<module>` cards through Core's write queue.
+// to `ultrascripts:in:<module>` cards through Core's write queue.
 
 (function () {
-  if (window.Frontier?.opsDispatcher) return;
+  if (window.Ultrascripts?.opsDispatcher) return;
 
-  const TAG = '[Frontier/ops]';
-  const SESSION_KEY = 'frontier:ops:inflight';
+  const TAG = '[Ultrascripts/ops]';
+  const SESSION_KEY = 'ultrascripts:ops:inflight';
   const DEFAULT_TIMEOUT_MS = 30000;
   const RESPONSE_TTL_TURNS = 10;
   const RESPONSE_CARD_MAX_BYTES = 120000;
@@ -22,7 +22,7 @@
     responseCache: new Map(), // moduleId -> response envelope
     acked: new Set(),         // request ids the script has acked this session
     offFns: [],
-    lastOutValue: null,       // diagnostic only; `frontier:out` processing is idempotent
+    lastOutValue: null,       // diagnostic only; `ultrascripts:out` processing is idempotent
     metrics: {
       outCardsSeen: 0,
       requestsSeen: 0,
@@ -36,11 +36,11 @@
   };
 
   function envelope() {
-    return window.Frontier?.envelope;
+    return window.Ultrascripts?.envelope;
   }
 
   function registry() {
-    return window.Frontier?.registry;
+    return window.Ultrascripts?.registry;
   }
 
   function now() {
@@ -52,7 +52,7 @@
   }
 
   function currentAdventureShortId() {
-    return window.Frontier?.ws?.getAdventureShortId?.() || state.currentAdventureShortId || null;
+    return window.Ultrascripts?.ws?.getAdventureShortId?.() || state.currentAdventureShortId || null;
   }
 
   function cloneJson(value) {
@@ -189,7 +189,7 @@
     const responseEnvelope = getResponseEnvelope(moduleId);
     env.pruneTerminalResponses(responseEnvelope, { maxBytes: RESPONSE_CARD_MAX_BYTES });
     const title = env.responseCardTitle(moduleId);
-    await state.core.writeCard(title, JSON.stringify(responseEnvelope), { type: 'Frontier' });
+    await state.core.writeCard(title, JSON.stringify(responseEnvelope), { type: 'Ultrascripts' });
   }
 
   async function setResponse(moduleId, requestId, response, writeKind) {
@@ -222,7 +222,7 @@
     state.acked.add(requestId);
 
     const env = envelope();
-    const cards = window.Frontier?.ws?.getCards?.();
+    const cards = window.Ultrascripts?.ws?.getCards?.();
     if (cards && env) {
       for (const card of cards.values()) {
         const moduleId = env.moduleIdFromResponseTitle(card?.title);
@@ -423,7 +423,7 @@
 
     const parsed = env.normalizeRequestEnvelope(value);
     if (parsed.errors.length) {
-      log('warn', 'frontier:out contained envelope warnings:', parsed.errors);
+      log('warn', 'ultrascripts:out contained envelope warnings:', parsed.errors);
     }
     if (parsed.envelope.v !== env.PROTOCOL_VERSION) return;
 
@@ -439,7 +439,7 @@
       if (!card?.title) continue;
       if (card.title === envelope()?.OUT_CARD_TITLE && !removed) {
         handleOutCard(card);
-      } else if (card.title?.startsWith(envelope()?.IN_CARD_PREFIX || 'frontier:in:')) {
+      } else if (card.title?.startsWith(envelope()?.IN_CARD_PREFIX || 'ultrascripts:in:')) {
         if (removed) removeResponseCard(card);
         else syncResponseCard(card);
       }
@@ -475,7 +475,7 @@
   }
 
   function scanCurrentCards() {
-    const cards = window.Frontier?.ws?.getCards?.();
+    const cards = window.Ultrascripts?.ws?.getCards?.();
     if (!cards) return;
     processCards([...cards.values()]);
   }
@@ -483,10 +483,10 @@
   function start(core) {
     if (state.started) return;
     if (!core || typeof core.on !== 'function') {
-      throw new Error(`${TAG} start(core): Frontier Core is required`);
+      throw new Error(`${TAG} start(core): Ultrascripts Core is required`);
     }
     if (!envelope()) {
-      throw new Error(`${TAG} start(core): Frontier envelope helpers are required`);
+      throw new Error(`${TAG} start(core): Ultrascripts envelope helpers are required`);
     }
 
     state.core = core;
@@ -536,6 +536,6 @@
     }),
   };
 
-  window.Frontier = window.Frontier || {};
-  window.Frontier.opsDispatcher = opsDispatcher;
+  window.Ultrascripts = window.Ultrascripts || {};
+  window.Ultrascripts.opsDispatcher = opsDispatcher;
 })();

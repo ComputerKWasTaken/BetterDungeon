@@ -1,12 +1,12 @@
 // modules/ai/module.js
 //
-// Frontier AI module. Provides bounded, user-configured hosted model
+// Ultrascripts AI module. Provides bounded, user-configured hosted model
 // calls through a background-worker bridge so scripts never see API keys.
 
 (function () {
-  if (window.FrontierAIModule) return;
+  if (window.UltrascriptsAIModule) return;
 
-  const AI_MESSAGE = 'FRONTIER_AI_REQUEST';
+  const AI_MESSAGE = 'ULTRASCRIPTS_AI_REQUEST';
   const SUPPORTED_PROVIDER = 'openrouter';
 
   const DEFAULT_TIMEOUT_MS = 30000;
@@ -333,7 +333,7 @@
     }
   }
 
-  const FrontierAIModule = {
+  const UltrascriptsAIModule = {
     id: 'ai',
     aliases: ['providerAI'],
     version: '1.0.0',
@@ -388,15 +388,15 @@
     },
   };
 
-  window.FrontierAIModule = FrontierAIModule;
+  window.UltrascriptsAIModule = UltrascriptsAIModule;
 
-  if (window.Frontier?.registry) {
-    window.Frontier.registry.register(FrontierAIModule);
+  if (window.Ultrascripts?.registry) {
+    window.Ultrascripts.registry.register(UltrascriptsAIModule);
   } else {
-    console.warn('[FrontierAI] Frontier registry not available; AI module not registered.');
+    console.warn('[UltrascriptsAI] Ultrascripts registry not available; AI module not registered.');
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = FrontierAIModule;
+    module.exports = UltrascriptsAIModule;
   }
 })();

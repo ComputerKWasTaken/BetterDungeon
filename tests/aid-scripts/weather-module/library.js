@@ -1,12 +1,12 @@
-// Frontier Weather Module Test Suite — AI Dungeon Library
+// Ultrascripts Weather Module Test Suite — AI Dungeon Library
 //
-// Drives the BetterDungeon Frontier Weather module through every public op and
+// Drives the BetterDungeon Ultrascripts Weather module through every public op and
 // a representative set of error paths. Pair with output-modifier.js.
 //
 // Surfaces written:
-//   frontier:out                  - request envelope queue (script -> BD)
-//   frontier:in:weather           - response envelope (BD -> script)
-//   frontier:test:weather         - human-readable trace card with results
+//   ultrascripts:out                  - request envelope queue (script -> BD)
+//   ultrascripts:in:weather           - response envelope (BD -> script)
+//   ultrascripts:test:weather         - human-readable trace card with results
 //
 // Note: The weather module calls the Open-Meteo API. These tests exercise real
 // network calls, so they require an internet connection. Some steps may time
@@ -14,7 +14,7 @@
 
 // ---------- state ----------
 
-state.frontierWeatherTest = state.frontierWeatherTest || {
+state.ultrascriptsWeatherTest = state.ultrascriptsWeatherTest || {
   runId: null,
   turn: 0,
   seq: 0,
@@ -160,11 +160,11 @@ var FWEA_STEPS = [
 
 function fweaNow() { return Date.now ? Date.now() : new Date().getTime(); }
 
-function fweaState() { return state.frontierWeatherTest; }
+function fweaState() { return state.ultrascriptsWeatherTest; }
 
 function fweaRunId() {
   var s = fweaState();
-  if (!s.runId) s.runId = 'frontier-weather-' + fweaNow().toString(36);
+  if (!s.runId) s.runId = 'ultrascripts-weather-' + fweaNow().toString(36);
   return s.runId;
 }
 
@@ -195,7 +195,7 @@ function fweaReadJson(title) {
 
 function fweaWriteCard(title, value, type) {
   var f = fweaFindCard(title);
-  var cardType = type || 'Frontier';
+  var cardType = type || 'Ultrascripts';
   if (f.card && f.index >= 0 && typeof updateStoryCard === 'function') {
     updateStoryCard(f.index, f.card.keys || f.card.key || title, value, f.card.type || cardType);
     return true;
@@ -217,11 +217,11 @@ function fweaLog(event, detail) {
   while (s.events.length > 60) s.events.shift();
 }
 
-function fweaHeartbeat() { return fweaReadJson('frontier:heartbeat'); }
+function fweaHeartbeat() { return fweaReadJson('ultrascripts:heartbeat'); }
 
 function fweaHasOp(moduleId, opName) {
   var hb = fweaHeartbeat();
-  if (!hb || !hb.frontier || hb.frontier.protocol !== 1) return false;
+  if (!hb || !hb.ultrascripts || hb.ultrascripts.protocol !== 1) return false;
   var mods = Array.isArray(hb.modules) ? hb.modules : [];
   for (var i = 0; i < mods.length; i++) {
     var m = mods[i];
@@ -250,7 +250,7 @@ function fweaWriteOut() {
     debugWrittenAt: fweaNow()
   };
   s._acks = [];
-  fweaWriteCard('frontier:out', JSON.stringify(payload), 'Frontier');
+  fweaWriteCard('ultrascripts:out', JSON.stringify(payload), 'Ultrascripts');
 }
 
 function fweaQueueAck(requestId, reason) {
@@ -294,7 +294,7 @@ function fweaPollResponses() {
   }
   var found = false;
   for (var m = 0; m < modules.length; m++) {
-    var card = fweaReadJson('frontier:in:' + modules[m]);
+    var card = fweaReadJson('ultrascripts:in:' + modules[m]);
     if (!card || !card.responses) continue;
     for (var rid in card.responses) {
       if (!Object.prototype.hasOwnProperty.call(card.responses, rid)) continue;
@@ -431,7 +431,7 @@ function fweaWriteTrace() {
     phase: s.phase,
     heartbeat: {
       present: !!hb,
-      protocol: hb && hb.frontier && hb.frontier.protocol,
+      protocol: hb && hb.ultrascripts && hb.ultrascripts.protocol,
       weatherAdvertised: fweaHasOp('weather', 'current') && fweaHasOp('weather', 'forecast')
     },
     counts: counts,
@@ -441,7 +441,7 @@ function fweaWriteTrace() {
     ackAttempts: s.ackAttempts,
     events: s.events
   };
-  fweaWriteCard('frontier:test:weather', JSON.stringify(trace, null, 2), 'Frontier Test');
+  fweaWriteCard('ultrascripts:test:weather', JSON.stringify(trace, null, 2), 'Ultrascripts Test');
 }
 
 // ---------- reset / commands ----------
@@ -481,25 +481,25 @@ function fweaConsumeCommand(kind, outputText, needles) {
 }
 
 function fweaResetSuite() {
-  state.frontierWeatherTest = {
-    runId: 'frontier-weather-' + fweaNow().toString(36),
+  state.ultrascriptsWeatherTest = {
+    runId: 'ultrascripts-weather-' + fweaNow().toString(36),
     turn: 0, seq: 0, outSeq: 0,
     pending: {}, completed: {}, acked: {}, ackAttempts: {},
     steps: {}, events: [], consumedCommands: {},
     phase: 'reset'
   };
-  fweaWriteCard('frontier:out', JSON.stringify({ v: 1, requests: [], acks: [] }), 'Frontier');
+  fweaWriteCard('ultrascripts:out', JSON.stringify({ v: 1, requests: [], acks: [] }), 'Ultrascripts');
   fweaWriteTrace();
 }
 
 // ---------- public entry point ----------
 
-function frontierWeatherTestStep(outputText) {
+function ultrascriptsWeatherTestStep(outputText) {
   var s = fweaState();
   fweaRunId();
   s.turn += 1;
 
-  if (fweaConsumeCommand('reset', outputText, ['weather test reset', 'frontier weather reset', '[[weather-test:reset]]'])) {
+  if (fweaConsumeCommand('reset', outputText, ['weather test reset', 'ultrascripts weather reset', '[[weather-test:reset]]'])) {
     fweaResetSuite();
     return true;
   }

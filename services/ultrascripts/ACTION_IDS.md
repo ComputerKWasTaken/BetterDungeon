@@ -1,8 +1,8 @@
 # ACTION_IDS — Phase 0 empirical findings
 
-This file records the ground-truth observations about AI Dungeon's action system that inform the Frontier transport layer. It is the source of truth for test harness assumptions and for regression triage if AID ever changes behavior.
+This file records the ground-truth observations about AI Dungeon's action system that inform the Ultrascripts transport layer. It is the source of truth for test harness assumptions and for regression triage if AID ever changes behavior.
 
-Source: Phase 0 instrumentation via `Project Management/frontier/action-hunter.user.js` (server-side WS hunter) and a minimal Output Modifier probe (script-side). Captured April 2026 against `play.aidungeon.com`.
+Source: Phase 0 instrumentation via `Project Management/ultrascripts/action-hunter.user.js` (server-side WS hunter) and a minimal Output Modifier probe (script-side). Captured April 2026 against `play.aidungeon.com`.
 
 ## TL;DR
 
@@ -10,7 +10,7 @@ Source: Phase 0 instrumentation via `Project Management/frontier/action-hunter.u
 - The script environment does **not** expose action ids at all. `history[i]` has `{ text, type, rawText }` only. See [Script-side observations](#script-side-observations).
 - Soft deletion via `undoneAt` covers undo / restore / delete / rewind. See [Mutation semantics](#mutation-semantics).
 - Retry is **Behavior A**: new action at `tail+1` with `retriedActionId` pointing to the original. See [Retry](#retry).
-- Frontier keys per-turn state by **live count** (`actions.filter(!undoneAt).length`), which both sides compute independently. See [Live-count convention](#live-count-convention).
+- Ultrascripts keys per-turn state by **live count** (`actions.filter(!undoneAt).length`), which both sides compute independently. See [Live-count convention](#live-count-convention).
 
 ## Observation channels
 
@@ -128,7 +128,7 @@ Both sides match by construction. On missing keys, BD SHOULD fall back to the ne
 
 ## Provenance
 
-- `Project Management/frontier/action-hunter.user.js` — the canonical Frontier Hunter userscript. Captures all three WS subscriptions plus `UpdateActions` and `SendEvent` fetch traffic. Install via Violentmonkey at `document-start`. Exposes live state on `window.__frontierActions` with `.summary()`, `.cardSummary()`, `.lastTurn()` helpers.
+- `Project Management/ultrascripts/action-hunter.user.js` — the canonical Ultrascripts Hunter userscript. Captures all three WS subscriptions plus `UpdateActions` and `SendEvent` fetch traffic. Install via Violentmonkey at `document-start`. Exposes live state on `window.__ultrascriptsActions` with `.summary()`, `.cardSummary()`, `.lastTurn()` helpers.
 - Script-side probe (not committed; paste into an AID scenario's Output Modifier to reproduce):
 
 ```js

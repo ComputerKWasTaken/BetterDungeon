@@ -1,12 +1,12 @@
-// Frontier Geolocation Module Test Suite — AI Dungeon Library
+// Ultrascripts Geolocation Module Test Suite — AI Dungeon Library
 //
-// Drives the BetterDungeon Frontier Geolocation module through its public ops
+// Drives the BetterDungeon Ultrascripts Geolocation module through its public ops
 // and error paths. Pair with output-modifier.js.
 //
 // Surfaces written:
-//   frontier:out                  - request envelope queue (script -> BD)
-//   frontier:in:geolocation       - response envelope (BD -> script)
-//   frontier:test:geolocation     - human-readable trace card with results
+//   ultrascripts:out                  - request envelope queue (script -> BD)
+//   ultrascripts:in:geolocation       - response envelope (BD -> script)
+//   ultrascripts:test:geolocation     - human-readable trace card with results
 //
 // Note: The geolocation module depends on browser geolocation APIs and user
 // permission. The `getCurrent` op may return a permission error if the user
@@ -15,7 +15,7 @@
 
 // ---------- state ----------
 
-state.frontierGeoTest = state.frontierGeoTest || {
+state.ultrascriptsGeoTest = state.ultrascriptsGeoTest || {
   runId: null,
   turn: 0,
   seq: 0,
@@ -109,11 +109,11 @@ var FGEO_STEPS = [
 
 function fgeoNow() { return Date.now ? Date.now() : new Date().getTime(); }
 
-function fgeoState() { return state.frontierGeoTest; }
+function fgeoState() { return state.ultrascriptsGeoTest; }
 
 function fgeoRunId() {
   var s = fgeoState();
-  if (!s.runId) s.runId = 'frontier-geo-' + fgeoNow().toString(36);
+  if (!s.runId) s.runId = 'ultrascripts-geo-' + fgeoNow().toString(36);
   return s.runId;
 }
 
@@ -144,7 +144,7 @@ function fgeoReadJson(title) {
 
 function fgeoWriteCard(title, value, type) {
   var f = fgeoFindCard(title);
-  var cardType = type || 'Frontier';
+  var cardType = type || 'Ultrascripts';
   if (f.card && f.index >= 0 && typeof updateStoryCard === 'function') {
     updateStoryCard(f.index, f.card.keys || f.card.key || title, value, f.card.type || cardType);
     return true;
@@ -166,11 +166,11 @@ function fgeoLog(event, detail) {
   while (s.events.length > 60) s.events.shift();
 }
 
-function fgeoHeartbeat() { return fgeoReadJson('frontier:heartbeat'); }
+function fgeoHeartbeat() { return fgeoReadJson('ultrascripts:heartbeat'); }
 
 function fgeoHasOp(moduleId, opName) {
   var hb = fgeoHeartbeat();
-  if (!hb || !hb.frontier || hb.frontier.protocol !== 1) return false;
+  if (!hb || !hb.ultrascripts || hb.ultrascripts.protocol !== 1) return false;
   var mods = Array.isArray(hb.modules) ? hb.modules : [];
   for (var i = 0; i < mods.length; i++) {
     var m = mods[i];
@@ -199,7 +199,7 @@ function fgeoWriteOut() {
     debugWrittenAt: fgeoNow()
   };
   s._acks = [];
-  fgeoWriteCard('frontier:out', JSON.stringify(payload), 'Frontier');
+  fgeoWriteCard('ultrascripts:out', JSON.stringify(payload), 'Ultrascripts');
 }
 
 function fgeoQueueAck(requestId, reason) {
@@ -243,7 +243,7 @@ function fgeoPollResponses() {
   }
   var found = false;
   for (var m = 0; m < modules.length; m++) {
-    var card = fgeoReadJson('frontier:in:' + modules[m]);
+    var card = fgeoReadJson('ultrascripts:in:' + modules[m]);
     if (!card || !card.responses) continue;
     for (var rid in card.responses) {
       if (!Object.prototype.hasOwnProperty.call(card.responses, rid)) continue;
@@ -384,7 +384,7 @@ function fgeoWriteTrace() {
     phase: s.phase,
     heartbeat: {
       present: !!hb,
-      protocol: hb && hb.frontier && hb.frontier.protocol,
+      protocol: hb && hb.ultrascripts && hb.ultrascripts.protocol,
       geolocationAdvertised: fgeoHasOp('geolocation', 'permission') && fgeoHasOp('geolocation', 'getCurrent')
     },
     counts: counts,
@@ -394,7 +394,7 @@ function fgeoWriteTrace() {
     ackAttempts: s.ackAttempts,
     events: s.events
   };
-  fgeoWriteCard('frontier:test:geolocation', JSON.stringify(trace, null, 2), 'Frontier Test');
+  fgeoWriteCard('ultrascripts:test:geolocation', JSON.stringify(trace, null, 2), 'Ultrascripts Test');
 }
 
 // ---------- reset / commands ----------
@@ -434,25 +434,25 @@ function fgeoConsumeCommand(kind, outputText, needles) {
 }
 
 function fgeoResetSuite() {
-  state.frontierGeoTest = {
-    runId: 'frontier-geo-' + fgeoNow().toString(36),
+  state.ultrascriptsGeoTest = {
+    runId: 'ultrascripts-geo-' + fgeoNow().toString(36),
     turn: 0, seq: 0, outSeq: 0,
     pending: {}, completed: {}, acked: {}, ackAttempts: {},
     steps: {}, events: [], consumedCommands: {},
     phase: 'reset'
   };
-  fgeoWriteCard('frontier:out', JSON.stringify({ v: 1, requests: [], acks: [] }), 'Frontier');
+  fgeoWriteCard('ultrascripts:out', JSON.stringify({ v: 1, requests: [], acks: [] }), 'Ultrascripts');
   fgeoWriteTrace();
 }
 
 // ---------- public entry point ----------
 
-function frontierGeoTestStep(outputText) {
+function ultrascriptsGeoTestStep(outputText) {
   var s = fgeoState();
   fgeoRunId();
   s.turn += 1;
 
-  if (fgeoConsumeCommand('reset', outputText, ['geo test reset', 'frontier geo reset', '[[geo-test:reset]]'])) {
+  if (fgeoConsumeCommand('reset', outputText, ['geo test reset', 'ultrascripts geo reset', '[[geo-test:reset]]'])) {
     fgeoResetSuite();
     return true;
   }

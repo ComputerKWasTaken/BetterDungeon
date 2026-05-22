@@ -1,9 +1,9 @@
-# Frontier Clock Module — AI Dungeon Test Suite
+# Ultrascripts Clock Module — AI Dungeon Test Suite
 
-End-to-end test scripts that exercise the BetterDungeon Frontier Clock module
-(`modules/clock/module.js`) over the live Frontier protocol from inside an
+End-to-end test scripts that exercise the BetterDungeon Ultrascripts Clock module
+(`modules/clock/module.js`) over the live Ultrascripts protocol from inside an
 AI Dungeon scenario. Use this any time you change the Clock module, the
-`ops-dispatcher`, the registry, the envelope helpers, or any other Frontier
+`ops-dispatcher`, the registry, the envelope helpers, or any other Ultrascripts
 plumbing — if the system is healthy this suite turns green; if it isn't, the
 trace card pinpoints what broke.
 
@@ -26,14 +26,14 @@ The suite runs a fixed plan of requests, one per turn, in order:
 
 It also verifies:
 
-- The `frontier:heartbeat` card exists and lists `clock` with all three ops.
-- Pending → terminal response transitions on `frontier:in:clock`.
+- The `ultrascripts:heartbeat` card exists and lists `clock` with all three ops.
+- Pending → terminal response transitions on `ultrascripts:in:clock`.
 - Ack-driven cleanup of response cards after responses are seen.
 
 ## Setup
 
 1. Load the BetterDungeon extension and open AI Dungeon.
-2. Open BetterDungeon → **Frontier** and enable Frontier and the **Clock**
+2. Open BetterDungeon → **Ultrascripts** and enable Ultrascripts and the **Clock**
    module.
 
 ## Install in a scenario
@@ -46,7 +46,7 @@ It also verifies:
 
 ## Reading results
 
-Open the `frontier:test:clock` story card after a few turns to see:
+Open the `ultrascripts:test:clock` story card after a few turns to see:
 
 - `phase` — current driver state (`queueing X`, `awaiting X`,
   `complete`, `complete-with-failures`).
@@ -65,8 +65,8 @@ To re-run from scratch without editing anything, type any of these phrases
 into your input on a turn:
 
 - `clock test reset`
-- `frontier clock reset`
+- `ultrascripts clock reset`
 - `[[clock-test:reset]]`
 
-The suite clears `frontier:out`, wipes its in-state, and starts over on the
+The suite clears `ultrascripts:out`, wipes its in-state, and starts over on the
 next turn.

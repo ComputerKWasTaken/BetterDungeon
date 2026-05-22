@@ -1,10 +1,10 @@
-// services/frontier/write-queue.js
+// services/ultrascripts/write-queue.js
 //
-// Frontier write-path coordinator. Wraps upsertStoryCard with per-card
+// Ultrascripts write-path coordinator. Wraps upsertStoryCard with per-card
 // serialization, last-write-wins coalescing, exponential-backoff retry,
 // and optimistic local echo.
 //
-// This is a Phase 1 transport-hardening primitive. Every Frontier component
+// This is a Phase 1 transport-hardening primitive. Every Ultrascripts component
 // that writes cards (Core heartbeat, ops-dispatcher responses, modules via
 // ctx.writeCard) goes through this queue. Direct upsertStoryCard calls are
 // not allowed once the queue is active.
@@ -23,13 +23,13 @@
 //     rollback on hard failure.
 //
 // See:
-//   - Project Management/frontier/01-architecture.md (write-queue)
-//   - Project Management/frontier/04-implementation-plan.md (Phase 1, item 4)
+//   - Project Management/ultrascripts/01-architecture.md (write-queue)
+//   - Project Management/ultrascripts/04-implementation-plan.md (Phase 1, item 4)
 
 (function () {
-  if (window.Frontier?.writeQueue) return;
+  if (window.Ultrascripts?.writeQueue) return;
 
-  const TAG = '[Frontier/write-queue]';
+  const TAG = '[Ultrascripts/write-queue]';
 
   // ---------- configuration ----------
 
@@ -79,7 +79,7 @@
   // ws-stream accessors for optimistic echo. Lazy-resolved because
   // write-queue.js loads before ws-stream fully initializes.
   function wsStream() {
-    return window.Frontier?.ws || null;
+    return window.Ultrascripts?.ws || null;
   }
 
   // ---------- optimistic echo ----------
@@ -156,7 +156,7 @@
 
   async function dispatchWrite(title, value, opts) {
     if (!writeFn) {
-      throw new Error(`${TAG} writeFn not set. Call Frontier.writeQueue.setWriteFn() first.`);
+      throw new Error(`${TAG} writeFn not set. Call Ultrascripts.writeQueue.setWriteFn() first.`);
     }
 
     let lastErr = null;
@@ -291,6 +291,6 @@
     }),
   };
 
-  window.Frontier = window.Frontier || {};
-  window.Frontier.writeQueue = writeQueue;
+  window.Ultrascripts = window.Ultrascripts || {};
+  window.Ultrascripts.writeQueue = writeQueue;
 })();

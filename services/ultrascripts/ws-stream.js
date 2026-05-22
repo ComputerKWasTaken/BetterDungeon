@@ -1,28 +1,28 @@
-// services/frontier/ws-stream.js
+// services/ultrascripts/ws-stream.js
 //
-// Frontier content-script-side transport. Runs at document-start in the
+// Ultrascripts content-script-side transport. Runs at document-start in the
 // ISOLATED world. Listens for postMessages from the page-world ws-interceptor,
 // maintains per-adventure card/action state, and broadcasts DOM CustomEvents
 // for Core and modules to consume.
 //
 // Runs alongside ws-interceptor.js, which lives in the MAIN world. The two
-// communicate via window.postMessage with a shared `BD_FRONTIER_WS` marker.
+// communicate via window.postMessage with a shared `BD_ULTRASCRIPTS_WS` marker.
 //
 // Emitted DOM events (dispatched on `document`):
-//   frontier:cards:full        detail: { cards: Card[] }
+//   ultrascripts:cards:full        detail: { cards: Card[] }
 //     Fires once on first card snapshot; subsequent changes use :diff.
-//   frontier:cards:diff        detail: { added: Card[], updated: Card[], removed: Card[] }
-//   frontier:actions:change    detail: { actions: Action[], changed: Action[] }
+//   ultrascripts:cards:diff        detail: { added: Card[], updated: Card[], removed: Card[] }
+//   ultrascripts:actions:change    detail: { actions: Action[], changed: Action[] }
 //     Fires on EVERY actionUpdates frame (including no-op edits).
-//   frontier:tail:change       detail: { tail: string|null, prev: string|null }
+//   ultrascripts:tail:change       detail: { tail: string|null, prev: string|null }
 //     Tail = max(id where undoneAt === null). Advances on new turns and retry;
 //     retreats on undo / rewind.
-//   frontier:livecount:change  detail: { liveCount: number, prev: number }
+//   ultrascripts:livecount:change  detail: { liveCount: number, prev: number }
 //     Live count = count of non-undone actions. This is the ordinal Scripture
 //     and similar modules use to look up history[liveCount]. See
 //     02-protocol.md#live-count-history-convention.
 //
-// Debug API (available in DevTools console as window.Frontier.ws):
+// Debug API (available in DevTools console as window.Ultrascripts.ws):
 //   getCards()     -> Map<cardId, Card>
 //   getActions()   -> Map<id, Action>
 //   getTail()      -> string | null
@@ -30,13 +30,13 @@
 //   getState()     -> internal snapshot (for debugging only; do not write)
 //
 // See:
-//   - Project Management/frontier/01-architecture.md (data flow)
-//   - Project Management/frontier/02-protocol.md (payload semantics)
+//   - Project Management/ultrascripts/01-architecture.md (data flow)
+//   - Project Management/ultrascripts/02-protocol.md (payload semantics)
 
 (function () {
-  if (window.Frontier?.ws) return;
+  if (window.Ultrascripts?.ws) return;
 
-  const TAG = '[Frontier/ws-stream]';
+  const TAG = '[Ultrascripts/ws-stream]';
   const ORIGIN = window.location.origin;
 
   const state = {
@@ -120,7 +120,7 @@
     // preserved. Templates are per-op, not per-adventure; a fresh adventure
     // will refresh them as AID's autosave runs.
 
-    emit('frontier:adventure:change', {
+    emit('ultrascripts:adventure:change', {
       adventureId,
       prevAdventureId: prevId,
       shortId: state.adventureShortId,
@@ -159,7 +159,7 @@
         state.liveCount = 0;
         state.firstCards = true;
         state.enrichment = Object.create(null);
-        emit('frontier:adventure:change', {
+        emit('ultrascripts:adventure:change', {
           adventureId: null,
           prevAdventureId: prevId,
           shortId: null,
@@ -229,9 +229,9 @@
 
     if (state.firstCards && snapshot) {
       state.firstCards = false;
-      emit('frontier:cards:full', { cards: [...state.cards.values()] });
+      emit('ultrascripts:cards:full', { cards: [...state.cards.values()] });
     } else if (added.length || updated.length || removed.length) {
-      emit('frontier:cards:diff', { added, updated, removed });
+      emit('ultrascripts:cards:diff', { added, updated, removed });
     }
   }
 
@@ -239,7 +239,7 @@
     // contextUpdate is a supplementary early signal. The authoritative tail is
     // derived from actions[] in onActions, because contextUpdate does not fire
     // on undo/restore/delete/rewind (see 02-protocol.md event-to-channel matrix).
-    // We intentionally do not emit anything here in Lite; Full Frontier may.
+    // We intentionally do not emit anything here in Lite; Full Ultrascripts may.
   }
 
   function onMutation(template) {
@@ -259,7 +259,7 @@
     }
 
     const firstTime = !prev;
-    emit('frontier:mutation:template', { op: template.op, firstTime, cardId, template });
+    emit('ultrascripts:mutation:template', { op: template.op, firstTime, cardId, template });
   }
 
   function onCardsEnrich(detail) {
@@ -278,7 +278,7 @@
     if (card) {
       const updated = { ...card, ...merged };
       state.cards.set(detail.id, updated);
-      emit('frontier:cards:enrich', { id: detail.id, card: updated, fields: merged });
+      emit('ultrascripts:cards:enrich', { id: detail.id, card: updated, fields: merged });
     }
   }
 
@@ -317,18 +317,18 @@
       }
     }
 
-    emit('frontier:actions:change', { actions: incoming, changed });
+    emit('ultrascripts:actions:change', { actions: incoming, changed });
 
     const prevTail = state.tail;
     if (newTail !== prevTail) {
       state.tail = newTail;
-      emit('frontier:tail:change', { tail: newTail, prev: prevTail });
+      emit('ultrascripts:tail:change', { tail: newTail, prev: prevTail });
     }
 
     const prevLive = state.liveCount;
     if (liveCount !== prevLive) {
       state.liveCount = liveCount;
-      emit('frontier:livecount:change', { liveCount, prev: prevLive });
+      emit('ultrascripts:livecount:change', { liveCount, prev: prevLive });
     }
   }
 
@@ -339,7 +339,7 @@
     if (event.source !== window) return;
     if (event.origin !== ORIGIN) return;
     const msg = event.data;
-    if (!msg || msg.source !== 'BD_FRONTIER_WS') return;
+    if (!msg || msg.source !== 'BD_ULTRASCRIPTS_WS') return;
 
     try {
       switch (msg.kind) {
@@ -377,7 +377,7 @@
           break;
         case 'adventure:change':
           // Adventure-boundary signal from HTTP hydration (Phase 1).
-          // Resets all per-adventure state and emits frontier:adventure:change.
+          // Resets all per-adventure state and emits ultrascripts:adventure:change.
           if (msg.payload?.adventureId) {
             onAdventureBoundary(msg.payload.adventureId, msg.payload.shortId);
           }
@@ -401,7 +401,7 @@
   // primary ws-interceptor.js path is active. On browsers that don't (older
   // Firefox, some Android WebView versions), we inject the interceptor via a
   // <script> tag at document-start. The interceptor's own install guard
-  // (window.__frontierWsInstalled) prevents double-install when both paths
+  // (window.__ultrascriptsWsInstalled) prevents double-install when both paths
   // succeed on modern browsers.
   //
   // This is wrapped in a try/catch because chrome.runtime.getURL can throw if
@@ -410,7 +410,7 @@
     const api = typeof browser !== 'undefined'
       ? browser
       : (typeof chrome !== 'undefined' ? chrome : null);
-    const url = api?.runtime?.getURL?.('services/frontier/ws-interceptor.js');
+    const url = api?.runtime?.getURL?.('services/ultrascripts/ws-interceptor.js');
     if (url) {
       const scriptEl = document.createElement('script');
       scriptEl.src = url;
@@ -427,8 +427,8 @@
 
   // ---------- public API ----------
 
-  window.Frontier = window.Frontier || {};
-  window.Frontier.ws = {
+  window.Ultrascripts = window.Ultrascripts || {};
+  window.Ultrascripts.ws = {
     getCards: () => new Map(state.cards),
     getActions: () => new Map(state.actions),
     getTail: () => state.tail,

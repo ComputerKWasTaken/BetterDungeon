@@ -1,10 +1,10 @@
 // modules/system/module.js
 //
-// Frontier system module. Exposes coarse device, browser, locale, display, and
+// Ultrascripts system module. Exposes coarse device, browser, locale, display, and
 // power hints so scripts can adapt without reaching for risky OS surfaces.
 
 (function () {
-  if (window.FrontierSystemModule) return;
+  if (window.UltrascriptsSystemModule) return;
 
   const DEVICE_CLASSES = {
     DESKTOP: 'desktop',
@@ -325,11 +325,11 @@
     }
   }
 
-  const FrontierSystemModule = {
+  const UltrascriptsSystemModule = {
     id: 'system',
     version: '1.0.0',
     label: 'System',
-    description: 'Provides coarse device, browser, locale, display, and power hints for Frontier scripts.',
+    description: 'Provides coarse device, browser, locale, display, and power hints for Ultrascripts scripts.',
 
     ops: {
       info: {
@@ -362,15 +362,15 @@
     },
   };
 
-  window.FrontierSystemModule = FrontierSystemModule;
+  window.UltrascriptsSystemModule = UltrascriptsSystemModule;
 
-  if (window.Frontier?.registry) {
-    window.Frontier.registry.register(FrontierSystemModule);
+  if (window.Ultrascripts?.registry) {
+    window.Ultrascripts.registry.register(UltrascriptsSystemModule);
   } else {
-    console.warn('[System] Frontier registry not available; system module not registered.');
+    console.warn('[System] Ultrascripts registry not available; system module not registered.');
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = FrontierSystemModule;
+    module.exports = UltrascriptsSystemModule;
   }
 })();

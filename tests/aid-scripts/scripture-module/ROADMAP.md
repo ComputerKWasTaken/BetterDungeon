@@ -149,7 +149,7 @@ The current sortable uses up/down arrow buttons. A native drag-and-drop implemen
 | No inline `<script>` execution | AI Dungeon CSP blocks `unsafe-inline` | Static HTML/CSS only; sanitizer strips scripts |
 | No `eval` or `Function()` | Same CSP restriction | Pre-compute values before sending manifest |
 | No external image URLs | Mixed content / CSP | Use data URI SVGs or inline CSS shapes |
-| No persistent storage in script | AI Dungeon resets `state` per session | Save to `frontier:state:*` cards; BD persists |
+| No persistent storage in script | AI Dungeon resets `state` per session | Save to `ultrascripts:state:*` cards; BD persists |
 | No web fonts | Extension content script can't load external fonts | Use system fonts; rely on CSS styling |
 
 ---
