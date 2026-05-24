@@ -381,8 +381,8 @@
     if (!instance || typeof instance.upsertStoryCard !== 'function') return;
 
     const ws = getWs();
-    const anyTemplate = ws?.getMutationTemplates ? Object.keys(ws.getMutationTemplates()) : [];
-    if (anyTemplate.length === 0) return;
+    const hasBase = ws?.hasBaseCredentials ? ws.hasBaseCredentials() : false;
+    if (!hasBase) return;
 
     const registry = getRegistry();
     const modulesList = registry ? registry.list() : [];
@@ -502,10 +502,9 @@
       if (state.adventureId) scheduleHeartbeat();
     });
 
-    // --- Template events ---
+    // --- Base Credentials events ---
 
-    document.addEventListener('ultrascripts:mutation:template', (e) => {
-      emit('mutation:template', e.detail);
+    document.addEventListener('ultrascripts:baseCredentials:change', (e) => {
       if (state.adventureId) scheduleHeartbeat();
     });
 
