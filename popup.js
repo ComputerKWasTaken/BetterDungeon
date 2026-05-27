@@ -175,8 +175,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initCollapsibleSections();
   initFeatureSearch();
   initQuickToggles();
-  updateSectionCounts();
-  updateUltrascriptsSectionCounts();
   initTutorial();
 });
 
@@ -258,8 +256,6 @@ function initToggles() {
     });
 
     setUltrascriptsModuleControlsEnabled(features.ultrascripts !== false);
-    updateSectionCounts();
-    updateUltrascriptsSectionCounts();
   });
 
   // Load auto-scan setting
@@ -316,7 +312,6 @@ function initUltrascriptsSettings() {
 
   document.querySelectorAll('[data-ultrascripts-module-toggle]').forEach(toggle => {
     toggle.addEventListener('change', () => {
-      updateUltrascriptsSectionCounts();
       saveUltrascriptsModuleState(toggle.dataset.ultrascriptsModuleToggle, toggle.checked);
     });
   });
@@ -374,7 +369,6 @@ function loadUltrascriptsModuleToggles() {
     if (Object.prototype.hasOwnProperty.call(saved, 'providerAI')) {
       chrome.storage.sync.set({ [STORAGE_KEYS.ultrascriptsModules]: modules });
     }
-    updateUltrascriptsSectionCounts();
   });
 }
 
@@ -802,7 +796,6 @@ function saveFeatureState(featureId, enabled) {
       notifyContentScript('FEATURE_TOGGLE', { featureId, enabled });
       if (featureId === 'ultrascripts') {
         setUltrascriptsModuleControlsEnabled(enabled);
-        updateUltrascriptsSectionCounts();
         setTimeout(refreshUltrascriptsState, 300);
       }
     });
@@ -2685,61 +2678,7 @@ function initQuickToggles() {
       const featureId = mainToggle.id.replace('feature-', '');
       const qt = document.querySelector(`[data-quick-toggle="${featureId}"]`);
       if (qt) qt.checked = mainToggle.checked;
-      updateSectionCounts();
-      updateUltrascriptsSectionCounts();
     });
-  });
-}
-
-// ============================================
-// SECTION FEATURE COUNTS
-// ============================================
-
-function updateSectionCounts() {
-  const sectionMap = {
-    'input-modes': ['command', 'try'],
-    'controls': ['hotkey', 'inputHistory', 'inputModeColor'],
-    'writing': ['markdown', 'notes'],
-    'scenario': ['triggerHighlight', 'storyCardModalDock'],
-    'automations': ['autoSee', 'textToSpeech']
-  };
-
-  Object.entries(sectionMap).forEach(([sectionId, featureIds]) => {
-    const countEl = document.getElementById(`count-${sectionId}`);
-    if (!countEl) return;
-
-    const enabled = featureIds.filter(id => {
-      const toggle = document.getElementById(`feature-${id}`);
-      return toggle && toggle.checked;
-    }).length;
-
-    countEl.textContent = `${enabled}/${featureIds.length}`;
-  });
-}
-
-function updateUltrascriptsSectionCounts() {
-  const runtimeCount = document.getElementById('count-ultrascripts-runtime');
-  const ultrascriptsToggle = document.getElementById('feature-ultrascripts');
-  if (runtimeCount) {
-    runtimeCount.textContent = `${ultrascriptsToggle?.checked ? 1 : 0}/1`;
-  }
-
-  const sectionMap = {
-    'ultrascripts-script-surface': ['scripture', 'webfetch', 'clock', 'sdk'],
-    'ultrascripts-context': ['geolocation', 'weather', 'network', 'system'],
-    'ultrascripts-ai': ['ai']
-  };
-
-  Object.entries(sectionMap).forEach(([sectionId, moduleIds]) => {
-    const countEl = document.getElementById(`count-${sectionId}`);
-    if (!countEl) return;
-
-    const enabled = moduleIds.filter(id => {
-      const toggle = document.querySelector(`[data-ultrascripts-module-toggle="${id}"]`);
-      return toggle && toggle.checked;
-    }).length;
-
-    countEl.textContent = `${enabled}/${moduleIds.length}`;
   });
 }
 

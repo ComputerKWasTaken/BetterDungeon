@@ -15,7 +15,7 @@
       <img src="icons/icon48.png" alt="" class="header-logo">
       <div class="header-title">
         <span class="header-name">BetterDungeon</span>
-        <span class="header-version">v1.2.1 <span class="header-badge pc">PC</span></span>
+        <span class="header-version">v2.0.0 <span class="header-badge pc">PC</span></span>
       </div>
     </div>
     <button class="header-help" id="tutorial-help-btn" aria-label="Start Tutorial" title="Help">
@@ -38,6 +38,9 @@
       <span class="nav-label">Presets</span>
     </button>
   </nav>
+
+  <!-- Fading Glow Divider Bar -->
+  <div class="accent-bar"></div>
 
   <!-- Main Content -->
   <main class="main">
@@ -80,122 +83,13 @@
         </div>
       </div>
 
-      <!-- Feature Search -->
-      <div class="feature-search-wrapper" id="feature-search-wrapper">
-        <span class="icon-search feature-search-icon"></span>
-        <input type="text" class="feature-search-input" id="feature-search" placeholder="Search features..." autocomplete="off">
-        <button class="feature-search-clear hidden" id="feature-search-clear" aria-label="Clear search">
-          <span class="icon-x"></span>
-        </button>
-      </div>
 
-      <!-- Quick Toggles -->
-      <div class="section quick-toggles-section" id="quick-toggles-section">
-        <button class="section-header section-header-collapsible" data-collapse="quick-toggles" aria-expanded="false">
-          <span class="section-icon icon-toggle-right" style="color: var(--accent);"></span>
-          <h2 class="section-title">Quick Toggles</h2>
-          <span class="section-chevron icon-chevron-down"></span>
-        </button>
-        <div class="section-body collapsed" id="collapse-quick-toggles">
-          <div class="quick-toggles-grid" id="quick-toggles-grid">
-            <div class="quick-toggle-item" data-quick-feature="command">
-              <span class="quick-toggle-dot" style="background: var(--bd-mode-command);"></span>
-              <span class="quick-toggle-name">Command</span>
-              <label class="toggle sm">
-                <input type="checkbox" data-quick-toggle="command">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="quick-toggle-item" data-quick-feature="try">
-              <span class="quick-toggle-dot" style="background: var(--bd-mode-try);"></span>
-              <span class="quick-toggle-name">Try</span>
-              <label class="toggle sm">
-                <input type="checkbox" data-quick-toggle="try">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="quick-toggle-item" data-quick-feature="hotkey">
-              <span class="quick-toggle-dot" style="background: var(--bd-icon-hotkeys);"></span>
-              <span class="quick-toggle-name">Hotkeys</span>
-              <label class="toggle sm">
-                <input type="checkbox" data-quick-toggle="hotkey">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="quick-toggle-item" data-quick-feature="inputHistory">
-              <span class="quick-toggle-dot" style="background: var(--accent);"></span>
-              <span class="quick-toggle-name">Input History</span>
-              <label class="toggle sm">
-                <input type="checkbox" data-quick-toggle="inputHistory">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="quick-toggle-item" data-quick-feature="inputModeColor">
-              <span class="quick-toggle-dot" style="background: var(--bd-icon-palette);"></span>
-              <span class="quick-toggle-name">Mode Colors</span>
-              <label class="toggle sm">
-                <input type="checkbox" data-quick-toggle="inputModeColor">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="quick-toggle-item" data-quick-feature="markdown">
-              <span class="quick-toggle-dot" style="background: var(--bd-icon-markdown);"></span>
-              <span class="quick-toggle-name">Markdown</span>
-              <label class="toggle sm">
-                <input type="checkbox" data-quick-toggle="markdown">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="quick-toggle-item" data-quick-feature="notes">
-              <span class="quick-toggle-dot" style="background: var(--bd-icon-notes);"></span>
-              <span class="quick-toggle-name">Notes</span>
-              <label class="toggle sm">
-                <input type="checkbox" data-quick-toggle="notes">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="quick-toggle-item" data-quick-feature="triggerHighlight">
-              <span class="quick-toggle-dot" style="background: var(--bd-icon-trigger);"></span>
-              <span class="quick-toggle-name">Triggers</span>
-              <label class="toggle sm">
-                <input type="checkbox" data-quick-toggle="triggerHighlight">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="quick-toggle-item" data-quick-feature="storyCardModalDock">
-              <span class="quick-toggle-dot" style="background: var(--bd-icon-modal-dock);"></span>
-              <span class="quick-toggle-name">Modal Dock</span>
-              <label class="toggle sm">
-                <input type="checkbox" data-quick-toggle="storyCardModalDock">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="quick-toggle-item" data-quick-feature="autoSee">
-              <span class="quick-toggle-dot" style="background: var(--bd-mode-see);"></span>
-              <span class="quick-toggle-name">Auto See</span>
-              <label class="toggle sm">
-                <input type="checkbox" data-quick-toggle="autoSee">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="quick-toggle-item" data-quick-feature="textToSpeech">
-              <span class="quick-toggle-dot" style="background: var(--accent);"></span>
-              <span class="quick-toggle-name">TTS</span>
-              <label class="toggle sm">
-                <input type="checkbox" data-quick-toggle="textToSpeech">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-          </div>
-        </div>
-      </div>
 
       <!-- Input Modes -->
       <div class="section section-collapsible" data-section="input-modes">
         <button class="section-header section-header-collapsible" data-collapse="input-modes" aria-expanded="true">
           <span class="section-icon icon-message-square" style="color: var(--bd-section-input-modes);"></span>
           <h2 class="section-title">Input Modes</h2>
-          <span class="section-count" id="count-input-modes"></span>
           <span class="section-chevron icon-chevron-down"></span>
         </button>
         <div class="section-body" id="collapse-input-modes">
@@ -269,7 +163,6 @@
         <button class="section-header section-header-collapsible" data-collapse="controls" aria-expanded="true">
           <span class="section-icon icon-gamepad-2" style="color: var(--bd-section-tools);"></span>
           <h2 class="section-title">Controls &amp; Navigation</h2>
-          <span class="section-count" id="count-controls"></span>
           <span class="section-chevron icon-chevron-down"></span>
         </button>
         <div class="section-body" id="collapse-controls">
@@ -388,7 +281,6 @@
         <button class="section-header section-header-collapsible" data-collapse="writing" aria-expanded="true">
           <span class="section-icon icon-type" style="color: var(--bd-section-formatting);"></span>
           <h2 class="section-title">Writing &amp; Formatting</h2>
-          <span class="section-count" id="count-writing"></span>
           <span class="section-chevron icon-chevron-down"></span>
         </button>
         <div class="section-body" id="collapse-writing">
@@ -469,7 +361,6 @@
         <button class="section-header section-header-collapsible" data-collapse="scenario" aria-expanded="true">
           <span class="section-icon icon-wrench" style="color: var(--bd-section-tools);"></span>
           <h2 class="section-title">Scenario Building</h2>
-          <span class="section-count" id="count-scenario"></span>
           <span class="section-chevron icon-chevron-down"></span>
         </button>
         <div class="section-body" id="collapse-scenario">
@@ -570,7 +461,6 @@
         <button class="section-header section-header-collapsible" data-collapse="automations" aria-expanded="true">
           <span class="section-icon icon-zap" style="color: var(--bd-section-automations);"></span>
           <h2 class="section-title">Automations</h2>
-          <span class="section-count" id="count-automations"></span>
           <span class="section-chevron icon-chevron-down"></span>
         </button>
         <div class="section-body" id="collapse-automations">
@@ -713,12 +603,7 @@
         </div>
       </div>
 
-      <!-- No Results Message -->
-      <div class="feature-search-empty hidden" id="feature-search-empty">
-        <span class="empty-icon icon-search"></span>
-        <p class="empty-title">No features found</p>
-        <p class="empty-desc">Try a different search term</p>
-      </div>
+
 
     </section>
 
@@ -728,7 +613,6 @@
         <div class="section-header">
           <span class="section-icon icon-activity" style="color: var(--bd-icon-scripts);"></span>
           <h2 class="section-title">Runtime</h2>
-          <span class="section-count" id="count-ultrascripts-runtime">1/1</span>
         </div>
         <div class="section-body">
           <article class="feature-card expanded ultrascripts-card" data-feature="ultrascripts">
@@ -774,7 +658,6 @@
         <div class="section-header">
           <span class="section-icon icon-layers" style="color: var(--bd-section-formatting);"></span>
           <h2 class="section-title">Script Surface</h2>
-          <span class="section-count" id="count-ultrascripts-script-surface">4/4</span>
         </div>
         <div class="section-body">
           <div class="ultrascripts-module-list">
@@ -931,7 +814,6 @@
         <div class="section-header">
           <span class="section-icon icon-brain-circuit" style="color: var(--bd-indigo);"></span>
           <h2 class="section-title">AI</h2>
-          <span class="section-count" id="count-ultrascripts-ai">1/1</span>
         </div>
         <div class="section-body">
           <div class="ultrascripts-module-list">
@@ -1031,7 +913,6 @@
         <div class="section-header">
           <span class="section-icon icon-map" style="color: var(--bd-section-tools);"></span>
           <h2 class="section-title">World &amp; Device Context</h2>
-          <span class="section-count" id="count-ultrascripts-context">4/4</span>
         </div>
         <div class="section-body">
           <div class="ultrascripts-module-list">
