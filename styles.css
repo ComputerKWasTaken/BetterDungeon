@@ -66,7 +66,7 @@
 /* Highlighted text - magical glow, critical clues, supernatural emphasis */
 .bd-markdown .bd-highlight,
 [data-bd-processed="true"] .bd-highlight {
-  background: rgba(255, 149, 0, 0.15);
+  background: var(--bd-highlight-bg);
   color: inherit;
   padding: 1px 4px;
   border-radius: 3px;
@@ -92,7 +92,7 @@
 .bd-markdown code,
 [data-bd-processed="true"] .bd-inline-code,
 [data-bd-processed="true"] code {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: var(--bd-code-inline-bg);
   padding: 2px 6px;
   border-radius: 4px;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
@@ -401,7 +401,7 @@
   opacity: 0;
   transition: opacity 0.3s ease;
   backdrop-filter: blur(12px);
-  background: rgba(10, 10, 15, 0.9);
+  background: var(--bd-loading-overlay-bg);
   font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
@@ -422,10 +422,10 @@
   border-radius: 16px;
   text-align: center;
   max-width: 420px;
-  background: linear-gradient(180deg, rgba(30, 30, 40, 0.95) 0%, rgba(20, 20, 28, 0.98) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bd-loading-bg);
+  border: 1px solid var(--bd-border-subtle);
   box-shadow: 
-    0 24px 80px rgba(0, 0, 0, 0.6),
+    var(--bd-shadow-2xl),
     0 0 1px rgba(255, 255, 255, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
@@ -593,17 +593,17 @@
 }
 
 .bd-toast-success {
-  background: linear-gradient(135deg, rgba(74, 222, 128, 0.95) 0%, rgba(34, 197, 94, 0.95) 100%);
+  background: var(--bd-toast-success-bg);
   color: #fff;
 }
 
 .bd-toast-error {
-  background: linear-gradient(135deg, rgba(248, 113, 113, 0.95) 0%, rgba(239, 68, 68, 0.95) 100%);
+  background: var(--bd-toast-error-bg);
   color: #fff;
 }
 
 .bd-toast-info {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.95) 0%, rgba(37, 99, 235, 0.95) 100%);
+  background: var(--bd-toast-info-bg);
   color: #fff;
 }
 
@@ -704,11 +704,11 @@
 }
 
 .bd-preset-container {
-  background: linear-gradient(180deg, rgba(30, 30, 40, 0.98) 0%, rgba(20, 20, 28, 0.99) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--bd-bg-secondary);
+  border: 1px solid var(--bd-border-default);
   border-radius: 12px;
   box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.5),
+    var(--bd-shadow-lg),
     0 0 1px rgba(255, 255, 255, 0.1);
   min-width: 220px;
   max-width: 300px;
@@ -810,7 +810,7 @@
   font-family: inherit;
   font-weight: 500;
   color: #fff;
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.8) 0%, rgba(139, 92, 246, 0.8) 100%);
+  background: var(--bd-accent-primary);
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -819,9 +819,9 @@
 
 .bd-preset-autofill-btn:hover,
 .bd-preset-new-btn:hover {
-  background: linear-gradient(135deg, rgba(168, 85, 247, 1) 0%, rgba(139, 92, 246, 1) 100%);
+  background: var(--bd-accent-hover);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.3);
+  box-shadow: var(--bd-shadow-glow);
 }
 
 .bd-preset-save-btn {

@@ -1186,12 +1186,12 @@ body {
 }
 
 .btn-primary {
-  background: var(--bd-gradient-brand);
+  background: var(--accent);
   color: var(--bd-text-on-accent);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, var(--accent-hover) 0%, var(--accent) 100%);
+  background: var(--accent-hover);
   transform: translateY(-1px);
   box-shadow: var(--bd-btn-primary-shadow);
 }
