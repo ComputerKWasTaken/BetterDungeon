@@ -1,20 +1,15 @@
-# Aura Cards
+# Aura Cards (Dynamic Profile Curator Edition)
 
-Aura Cards is an example AI Dungeon scenario script that rebuilds the core
-Auto-Cards idea on top of Ultrascripts's AI module.
+Aura Cards is an example AI Dungeon scenario script that acts as an automated, non-blocking **Story Card Curator** built on top of Ultrascripts's AI module.
 
-Instead of hijacking the story model and asking the player to press Continue
-while card text is generated, Aura Cards sends a sidecar `ai.chat` request
-through Ultrascripts. Normal gameplay continues; the script polls the response on
-later turns and writes or updates story cards when the AI returns structured
-JSON.
+Instead of hijacking the main story model and pausing gameplay while card text is generated, Aura Cards sends sidecar `ai.chat` requests asynchronously through Ultrascripts. Normal gameplay continues uninterrupted. The script polls AI responses on later turns and creates or updates story cards when the AI returns structured JSON.
 
 ## What It Demonstrates
 
 - Ultrascripts `ai.chat` calls from an AI Dungeon script.
-- `responseFormat: json_schema` for reliable card operations.
-- Automatic story-card creation and updates.
-- Memory-bank accumulation and sidecar compression.
+- `responseFormat: json_schema` for highly reliable card creations and rewrites.
+- **Dynamic Profile Updates**: As characters and locations evolve in your story (e.g. getting wounded, changing alliances, dying), Aura Cards automatically rewrites their core entries to integrate these developments.
+- Clean coordination with AI Dungeon's native Memory Bank (letting AID's vector database handle global history retrieval, while Aura Cards maintains up-to-date character profiles).
 - Graceful degradation when Ultrascripts or the AI module is not enabled.
 
 ## Setup
@@ -26,35 +21,25 @@ JSON.
 5. Paste `output.js` into the Output Modifier tab.
 6. Start or resume the adventure.
 
-Aura Cards is enabled by default. Open the `Configure Aura Cards` story card
-to tune usage or set `"enabled": false` to pause it.
+Aura Cards is enabled by default. Open the `Configure Aura Cards` story card to tune usage parameters or set `"enabled": false` to pause it.
 
-`input.js` and `context.js` are intentionally no-ops. They are included only
-for scenarios or docs that expect all four script tabs to exist.
+`input.js` and `context.js` are intentionally no-ops. They are included only for scenarios or docs that expect all four script tabs to exist.
 
 ## Runtime Cards
 
-- `Configure Aura Cards` - editable JSON config.
-- `Aura Cards Trace` - status, pending request ids, stats, and recent events.
+- `Configure Aura Cards` - editable JSON configuration.
+- `Aura Cards Trace` - status, pending request IDs, stats, and recent engine events.
 - `ultrascripts:out` - request queue consumed by BetterDungeon.
 - `ultrascripts:in:ai` - AI responses written by BetterDungeon.
 
-Generated cards are ordinary story cards marked in their notes with
-`Aura Cards metadata:` so Aura can update only its own cards and avoid
-overwriting user-authored cards.
+Generated cards are ordinary story cards marked in their descriptions with `Aura Cards metadata:` so Aura can identify and update only its own generated cards, avoiding overwriting user-authored lore.
 
-## Stability Notes
+## Stability & Defaults
 
-Aura Cards keeps the last valid config if the config card JSON is malformed,
-prunes old request bookkeeping from `state`, ignores completed sidecar results
-while disabled, and tolerates imperfect free-model JSON when the important
-card fields are still recoverable.
+Aura Cards keeps the last valid configuration if the config card JSON is malformed, prunes old request bookkeeping from `state`, and ignores completed sidecar results while disabled.
 
-## Usage Defaults
-
-Aura Cards keeps a small number of sidecar AI requests in flight, waits
-`cooldownTurns` turns between sweeps, limits each sweep to
-`maxCardsPerSweep` cards, and allows up to `maxConcurrentRequests` in-flight
-sidecar requests. The showcase defaults assume free or low-cost models:
-4-turn cooldown, 18-action lookback, 5 cards per sweep, and 2 concurrent
-requests.
+The showcase defaults assume free or low-cost models:
+- **4-turn cooldown** between sweeps.
+- **18-action lookback** for story events.
+- **5 cards per sweep** maximum.
+- **2 concurrent requests** in flight.

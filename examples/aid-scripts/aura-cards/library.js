@@ -1,9 +1,8 @@
-// Aura Cards - Ultrascripts AI Module example
+// Aura Cards - Ultrascripts AI Module example (Simplified Dynamic Curator Edition)
 //
-// Aura Cards is a sidecar rebuild of the core Auto-Cards idea. It watches
-// normal gameplay, asks Ultrascripts's AI module to extract durable lore as
-// structured JSON, and then creates or updates story cards without making the
-// story model stop and write cards.
+// Aura Cards is a sidecar dynamic lore curator. It watches gameplay, asks
+// Ultrascripts's AI module to identify/update important entities, and updates
+// standard story card entries directly on active sweeps without interrupting play.
 //
 // Setup:
 //   1. Enable BetterDungeon -> Ultrascripts.
@@ -18,7 +17,6 @@ var AURA_CONFIG_CARD_TITLE = 'Configure Aura Cards';
 var AURA_TRACE_CARD_TITLE = 'Aura Cards Trace';
 var AURA_CARD_TYPE = 'Aura';
 var AURA_METADATA_MARKER = 'Aura Cards metadata:';
-var AURA_MEMORY_MARKER = 'Memories:';
 
 var AURA_DEFAULT_BANNED_TITLES = [
   'North', 'East', 'South', 'West',
@@ -39,7 +37,6 @@ var AURA_DEFAULT_CONFIG = {
   maxConcurrentRequests: 2,
   minConfidence: 0.5,
   entryLimit: 900,
-  memoryLimit: 3200,
   maxPendingTurns: 14,
   showTrace: true,
   model: '',
@@ -89,7 +86,7 @@ function auraStateNumber(value, fallback) {
 }
 
 function auraEnsureStats(stats) {
-  var defaults = { created: 0, updated: 0, compressed: 0, skipped: 0, failed: 0, queued: 0 };
+  var defaults = { created: 0, updated: 0, skipped: 0, failed: 0, queued: 0 };
   for (var key in defaults) {
     if (!Object.prototype.hasOwnProperty.call(defaults, key)) continue;
     if (typeof stats[key] !== 'number' || !Number.isFinite(stats[key])) {
@@ -329,7 +326,6 @@ function auraNormalizeConfig(raw) {
   cfg.maxConcurrentRequests = auraClampInt(raw.maxConcurrentRequests, 1, 4, cfg.maxConcurrentRequests);
   cfg.minConfidence = auraClampNumber(raw.minConfidence, 0, 1, cfg.minConfidence);
   cfg.entryLimit = auraClampInt(raw.entryLimit, 300, 2000, cfg.entryLimit);
-  cfg.memoryLimit = auraClampInt(raw.memoryLimit, 800, 9900, cfg.memoryLimit);
   cfg.maxPendingTurns = auraClampInt(raw.maxPendingTurns, 3, 60, cfg.maxPendingTurns);
   cfg.showTrace = auraBool(raw.showTrace, cfg.showTrace);
   cfg.model = auraCleanSpaces(raw.model || AURA_CARDS_MODEL || '');
@@ -415,7 +411,7 @@ function auraQueueAck(requestId, reason) {
   s.ackAttempts[requestId] = attempts + 1;
   s._acks = s._acks || [];
   s._acks.push(requestId);
-  auraLog(attempts === 0 ? 'ack' : 'ack-retry', requestId + (reason ? ' - ' + reason : ''));
+  auraLog('ack', requestId + (reason ? ' - ' + reason : ''));
   return true;
 }
 
@@ -555,11 +551,7 @@ function auraProcessAiResponse(requestId, response, cfg) {
     return;
   }
 
-  if (meta.kind === 'compress') {
-    auraApplyCompression(parsed, meta, cfg);
-  } else {
-    auraApplySweep(parsed, meta, cfg);
-  }
+  auraApplySweep(parsed, meta, cfg);
 }
 
 function auraAiText(data) {
@@ -604,7 +596,7 @@ function auraFirstValidJsonObject(text) {
         JSON.parse(relaxed);
         return relaxed;
       } catch (err2) {
-        // Keep trying later balanced objects.
+        // Keep trying balanced candidates
       }
     }
   }
@@ -701,8 +693,7 @@ function auraNormalizeCandidate(raw, cfg) {
   });
   if (!keys.length) keys = [title];
 
-  var memory = auraCleanMemory(auraFirstValue(raw, ['memory', 'memories', 'fact', 'facts']));
-  var entry = auraCleanEntry(auraFirstValue(raw, ['entry', 'description', 'summary', 'lore']), title, cfg.entryLimit, memory);
+  var entry = auraCleanEntry(auraFirstValue(raw, ['entry', 'description', 'summary', 'lore']), title, cfg.entryLimit);
   if (!entry) return null;
 
   var reason = auraLimit(auraCleanSpaces(auraFirstValue(raw, ['reason', 'rationale', 'notes']) || ''), 220);
@@ -714,7 +705,6 @@ function auraNormalizeCandidate(raw, cfg) {
     type: auraKindToType(kind),
     keys: keys,
     entry: entry,
-    memory: memory,
     confidence: confidence,
     reason: reason
   };
@@ -814,27 +804,18 @@ function auraKindToType(kind) {
   return 'Custom';
 }
 
-function auraCleanEntry(entry, title, limit, fallbackMemory) {
+function auraCleanEntry(entry, title, limit) {
   entry = auraCoerceText(entry)
     .replace(/^```[\s\S]*?\n/i, '')
     .replace(/```$/i, '')
     .replace(/\s+/g, ' ')
     .trim();
   entry = entry.replace(/^\{[^}]*\}\s*/, '').trim();
-  if (entry.length < 40 && fallbackMemory) {
-    entry = fallbackMemory;
-  }
   if (entry.length < 40) return '';
   if (entry.toLowerCase().indexOf(title.toLowerCase()) === -1) {
     entry = title + ' is ' + entry.charAt(0).toLowerCase() + entry.slice(1);
   }
   return auraLimit(entry, limit);
-}
-
-function auraCleanMemory(memory) {
-  memory = auraCleanSpaces(auraCoerceText(memory)).replace(/^-+\s*/, '');
-  if (memory.length < 20) return '';
-  return auraLimit(memory, 500);
 }
 
 function auraFormatEntry(title, entry) {
@@ -851,7 +832,6 @@ function auraUpsertAuraCard(cardPlan, cfg, meta) {
   }
 
   var now = auraIso();
-  var memoryLines = [];
   var metadata = {
     aura: true,
     version: 1,
@@ -860,23 +840,18 @@ function auraUpsertAuraCard(cardPlan, cfg, meta) {
     confidence: cardPlan.confidence,
     lastSeenTurn: Number(meta.liveKey || auraLiveKey()),
     updatedAt: now,
-    memoryLimit: cfg.memoryLimit,
     reason: cardPlan.reason
   };
 
   if (existingAura.card) {
     metadata = auraMergeObjects(auraReadAuraMetadata(existingAura.card), metadata);
-    memoryLines = auraReadAuraMemories(existingAura.card);
-    if (cardPlan.memory) memoryLines = auraAppendMemory(memoryLines, cardPlan.memory);
-  } else if (cardPlan.memory) {
-    memoryLines = auraAppendMemory(memoryLines, cardPlan.memory);
   }
 
   var keys = existingAura.card
     ? auraUniqueStrings(String(existingAura.card.keys || '').split(',').concat(cardPlan.keys), 8)
     : cardPlan.keys;
 
-  var description = auraBuildAuraDescription(metadata, memoryLines);
+  var description = auraBuildAuraDescription(metadata);
   var written = auraWriteCard(
     cardPlan.title,
     auraFormatEntry(cardPlan.title, cardPlan.entry),
@@ -957,70 +932,11 @@ function auraReadAuraMetadata(card) {
   }
 }
 
-function auraReadAuraMemories(card) {
-  var description = String(card && card.description || '');
-  var memoryStart = description.indexOf(AURA_MEMORY_MARKER);
-  if (memoryStart === -1) return [];
-  var text = description.slice(memoryStart + AURA_MEMORY_MARKER.length);
-  return text.split('\n').map(function (line) {
-    return auraCleanSpaces(line.replace(/^-+\s*/, ''));
-  }).filter(function (line) {
-    return line.length > 0;
-  });
-}
-
-function auraBuildAuraDescription(metadata, memoryLines) {
+function auraBuildAuraDescription(metadata) {
   return [
     AURA_METADATA_MARKER,
-    JSON.stringify(metadata, null, 2),
-    '',
-    AURA_MEMORY_MARKER,
-    memoryLines.length ? '- ' + memoryLines.join('\n- ') : ''
+    JSON.stringify(metadata, null, 2)
   ].join('\n').trim();
-}
-
-function auraAppendMemory(memoryLines, newMemory) {
-  var lines = memoryLines.slice();
-  newMemory = auraCleanMemory(newMemory);
-  if (!newMemory) return lines;
-
-  for (var i = 0; i < lines.length; i++) {
-    if (auraSimilar(lines[i], newMemory) > 0.78) return lines;
-  }
-  lines.push(newMemory);
-  while (lines.length > 80) lines.shift();
-  return lines;
-}
-
-function auraSimilar(a, b) {
-  a = auraTitleKey(a);
-  b = auraTitleKey(b);
-  if (!a || !b) return 0;
-  if (a === b) return 1;
-  if (a.indexOf(b) !== -1 || b.indexOf(a) !== -1) return 0.9;
-
-  var aw = auraWordSet(a);
-  var bw = auraWordSet(b);
-  var shared = 0;
-  var total = 0;
-  var word;
-  for (word in aw) {
-    if (!Object.prototype.hasOwnProperty.call(aw, word)) continue;
-    total++;
-    if (bw[word]) shared++;
-  }
-  for (word in bw) {
-    if (!Object.prototype.hasOwnProperty.call(bw, word)) continue;
-    if (!aw[word]) total++;
-  }
-  return total ? shared / total : 0;
-}
-
-function auraWordSet(text) {
-  var out = {};
-  var words = String(text || '').toLowerCase().match(/[a-z0-9]{3,}/g) || [];
-  for (var i = 0; i < words.length; i++) out[words[i]] = true;
-  return out;
 }
 
 function auraRecentStory(outputText, cfg) {
@@ -1084,14 +1000,13 @@ function auraBuildSweepArgs(recentStory, cfg) {
     'AURA CARD CONTRACT:',
     'Return up to ' + cfg.maxCardsPerSweep + ' high-value card operations.',
     'Create cards for durable entities that improve object permanence: named characters, important places, factions, artifacts, recurring threats, active mysteries, rules of magic/technology, and relationships.',
-    'Update existing Aura cards when the recent text adds durable facts. Preserve stable old facts; fold in new facts naturally.',
+    'Update existing Aura cards when the recent text adds durable facts. Rewrite and update the entry field to naturally integrate these new facts (e.g. status changes, wounds, achievements, new alliances) while preserving stable, relevant background facts.',
     'Protect user-authored cards. If a non-Aura card already covers the title or trigger, skip it.',
     'Do not create cards for generic nouns, directions, weekdays, UI/config cards, player commands, temporary poses, single-scene clothing, momentary emotions, or ordinary actions.',
     'Use exact proper names from the story. Do not rename, merge, or over-generalize entities.',
     'Entry field: write 2-5 concise third-person sentences, no title header, no markdown, no bullets, no future plot prophecy.',
     'Every entry must name the title in the first sentence and focus on facts that would still matter ten turns later.',
     'Keys field: include the title first, then 1-5 short trigger phrases or aliases that should summon the card.',
-    'Memory field: write one compact durable fact learned from the recent text, or an empty string.',
     'Confidence: use 0.5-1.0 for worthwhile cards. Use skip with low confidence when unsure.'
   ].join('\n');
 
@@ -1147,11 +1062,10 @@ function auraSweepResponseFormat() {
                 kind: { type: 'string', enum: ['character', 'location', 'faction', 'item', 'concept', 'event', 'other'] },
                 keys: { type: 'array', items: { type: 'string' } },
                 entry: { type: 'string' },
-                memory: { type: 'string' },
                 reason: { type: 'string' },
                 confidence: { type: 'number' }
               },
-              required: ['mode', 'title', 'kind', 'keys', 'entry', 'memory', 'reason', 'confidence']
+              required: ['mode', 'title', 'kind', 'keys', 'entry', 'reason', 'confidence']
             }
           },
           notes: { type: 'string' }
@@ -1160,133 +1074,6 @@ function auraSweepResponseFormat() {
       }
     }
   };
-}
-
-function auraFindCompressionTarget(cfg) {
-  var cards = auraCards();
-  for (var i = 0; i < cards.length; i++) {
-    var c = cards[i];
-    if (!auraIsAuraCard(c)) continue;
-    var metadata = auraReadAuraMetadata(c);
-    var title = metadata.title || c.title;
-    if (auraHasPendingKind('compress', auraTitleKey(title))) continue;
-    var memories = auraReadAuraMemories(c);
-    var text = memories.join(' ');
-    if (text.length > cfg.memoryLimit) return { card: c, index: i, memories: memories };
-  }
-  return null;
-}
-
-function auraBuildCompressionArgs(target, cfg) {
-  var metadata = auraReadAuraMetadata(target.card);
-  var title = metadata.title || target.card.title;
-  var user = [
-    'TITLE: ' + title,
-    '',
-    'CURRENT ENTRY:',
-    auraLimit(auraCleanSpaces(target.card.entry || ''), 1000),
-    '',
-    'MEMORY BANK TO COMPRESS:',
-    target.memories.map(function (m) { return '- ' + m; }).join('\n'),
-    '',
-    'COMPRESSION CONTRACT:',
-    'Condense the bank into 4-10 durable memory facts for this one card.',
-    'Keep names, relationships, locations, causes, consequences, promises, threats, and unresolved mysteries.',
-    'Merge duplicate facts and discard temporary scene business.',
-    'Write in past tense when referring to past events.',
-    'Do not invent new facts or resolve unknowns.'
-  ].join('\n');
-
-  var args = {
-    provider: 'openrouter',
-    messages: [
-      {
-        role: 'system',
-        content: [
-          'You compress AI Dungeon story-card memory for long-term continuity.',
-          'Preserve durable facts and remove duplicate or temporary details.',
-          'Return only JSON matching the schema.'
-        ].join(' ')
-      },
-      { role: 'user', content: auraLimit(user, 7900) }
-    ],
-    maxTokens: 1000,
-    temperature: 0,
-    timeoutMs: 60000,
-    responseFormat: auraCompressionResponseFormat()
-  };
-  if (cfg.model) args.model = cfg.model;
-  return args;
-}
-
-function auraCompressionResponseFormat() {
-  return {
-    type: 'json_schema',
-    json_schema: {
-      name: 'aura_cards_memory',
-      strict: true,
-      schema: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          memory: { type: 'string' }
-        },
-        required: ['memory']
-      }
-    }
-  };
-}
-
-function auraApplyCompression(parsed, meta, cfg) {
-  var s = auraCardsState();
-  var title = meta.title || '';
-  var found = auraFindAuraCard(title);
-  if (!found.card) {
-    auraLog('compression-missing', title);
-    s.stats.failed++;
-    return;
-  }
-
-  var memory = auraCleanSpaces(parsed.memory || '');
-  if (!memory) {
-    auraLog('compression-empty', title);
-    s.stats.failed++;
-    return;
-  }
-
-  var lines = memory.split(/(?:\n|;\s+)/).map(function (line) {
-    return auraCleanSpaces(line.replace(/^-+\s*/, ''));
-  }).filter(function (line) {
-    return line.length > 0;
-  });
-  if (!lines.length) lines = [auraLimit(memory, cfg.memoryLimit)];
-  while (lines.join(' ').length > cfg.memoryLimit && lines.length > 1) {
-    lines.shift();
-  }
-  if (lines.join(' ').length > cfg.memoryLimit) {
-    lines = [auraLimit(lines.join(' '), cfg.memoryLimit)];
-  }
-
-  var metadata = auraReadAuraMetadata(found.card);
-  metadata.compressedAt = auraIso();
-  found.card.description = auraBuildAuraDescription(metadata, lines);
-  s.stats.compressed++;
-  s.phase = 'memory compressed';
-  auraLog('memory-compressed', title);
-}
-
-function auraQueueCompressionIfNeeded(cfg) {
-  var target = auraFindCompressionTarget(cfg);
-  if (!target) return false;
-  var metadata = auraReadAuraMetadata(target.card);
-  var title = metadata.title || target.card.title;
-  auraQueueAiRequest('compress', auraBuildCompressionArgs(target, cfg), {
-    title: title,
-    titleKey: auraTitleKey(title),
-    liveKey: auraLiveKey()
-  });
-  auraCardsState().phase = 'queueing memory compression';
-  return true;
 }
 
 function auraQueueSweepIfNeeded(outputText, cfg) {
@@ -1350,14 +1137,6 @@ function auraDrive(outputText, cfg) {
 
   if (auraPendingCount() >= cfg.maxConcurrentRequests) {
     s.phase = 'awaiting AI responses';
-    return;
-  }
-
-  if (auraQueueCompressionIfNeeded(cfg)) return;
-
-  if (s.cooldown > 0) {
-    s.cooldown--;
-    s.phase = 'cooldown ' + s.cooldown;
     return;
   }
 
