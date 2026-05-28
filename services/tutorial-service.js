@@ -258,8 +258,8 @@ class TutorialService {
         id: 'ultrascripts-examples',
         type: 'spotlight',
         target: '#tab-ultrascripts .btn-action',
-        title: 'Starter Template',
-        content: 'Use the starter template as the baseline for Ultrascripts request envelopes, response handling, and module-specific patterns.',
+        title: 'Script Templates',
+        content: 'Use the Enhanced or Required template as the baseline for Ultrascripts request envelopes, response handling, and module-specific patterns.',
         position: 'top',
         action: 'switchTab',
         actionTarget: 'ultrascripts'
