@@ -1,34 +1,26 @@
 # BetterDungeon Examples
 
-Reference scripts that *use* BetterDungeon's Ultrascripts modules to enhance
-real gameplay. These are the showcase counterpart to `tests/` - tests prove
-the system works, examples prove it's worth using.
+Reference starter scripts for BetterDungeon's Ultrascripts modules. This folder
+is intentionally small: complete showcase scripts should be built from the
+standard template after each module has been reviewed and finalized.
 
 ## Layout
 
 - **`aid-scripts/`** - AI Dungeon-side scripts (Library + modifier hooks)
   that paste into a scenario's Scripting panel.
 
-  - **`aid-scripts/aura-cards/`** - Aura Cards. Watches normal gameplay,
-    asks the Ultrascripts AI module to extract and maintain plot-relevant
-    story cards using a strict JSON schema, and updates those cards without
-    hijacking the story model. Demonstrates `chat` +
-    `responseFormat: json_schema`, cost discipline, graceful degradation,
-    and idempotent integration with the AID story-card system.
-
-  - **`aid-scripts/chronos-v2/`** - Chronos V2. Tracks story time, calendar
-    state, day/night phase, and weather while publishing an interactive
-    Scripture dashboard. Demonstrates multiple widgets in one script plus
-    hybrid use of `clock.now` and `weather.current` without making the
-    scenario depend on those modules being present.
+  - **`aid-scripts/ultrascripts-starter-template/`** - The canonical
+    SDK-based starter. It includes heartbeat checks, response polling, acks,
+    op calls, the `bd.us` helper surface, Scripture publishing, and safe
+    fallback behavior.
 
 ## Adding a new example
 
-1. Create `examples/aid-scripts/<feature>/` with a `README.md`,
-   `library.js`, and the modifier file that drives it.
-2. Always degrade gracefully if Ultrascripts or the relevant module isn't
-   mounted - the example must never break gameplay for users who haven't
-   enabled the feature yet.
-3. Throttle paid AI calls (e.g. every N turns or after specific triggers)
-   and cache slow or permissioned sidecar calls such as weather/location
-   lookups. Examples run in real adventures, not test harnesses.
+1. Start by copying `aid-scripts/ultrascripts-starter-template/`.
+2. Keep the `bd.us`-style helper surface intact unless the module review for a
+   specific script requires changing it.
+3. Always degrade gracefully if Ultrascripts or the relevant module is not
+   mounted. A template-derived script should never break plain AI Dungeon
+   gameplay unless it is explicitly documented as requiring Ultrascripts.
+4. Throttle paid AI calls and cache slow or permissioned sidecar calls such as
+   weather/location lookups. Examples run in real adventures, not test harnesses.
