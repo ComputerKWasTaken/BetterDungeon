@@ -34,12 +34,19 @@ Aura Cards is enabled by default. Open the `Configure Aura Cards` story card to 
 
 Generated cards are ordinary story cards marked in their descriptions with `Aura Cards metadata:` so Aura can identify and update only its own generated cards, avoiding overwriting user-authored lore.
 
-## Stability & Defaults
+## Self-Documenting Settings
 
-Aura Cards keeps the last valid configuration if the config card JSON is malformed, prunes old request bookkeeping from `state`, and ignores completed sidecar results while disabled.
+The `Configure Aura Cards` card contains inline descriptions inside a special `"__HELP__"` JSON block. The script automatically preserves and refreshes this documentation block whenever configuration changes.
 
-The showcase defaults assume free or low-cost models:
-- **4-turn cooldown** between sweeps.
-- **18-action lookback** for story events.
-- **5 cards per sweep** maximum.
-- **2 concurrent requests** in flight.
+*   **enabled**: Set to `false` to pause Aura Cards completely.
+*   **cooldownTurns**: How many player turns to wait between sweep cycles (default: `4`).
+*   **maxCardsPerSweep**: Max card profiles the AI can create/update in one sweep.
+*   **maxConcurrentRequests**: Max active background AI requests in flight.
+*   **minConfidence**: Minimum confidence threshold (0.0 to 1.0) to write a card.
+*   **entryLimit**: Maximum character limit for generated card entries.
+*   **maxPendingTurns**: Turns to wait for a background response before timing out.
+*   **showTrace**: Set to `false` to hide the Aura Cards Trace story card.
+*   **model**: Override model name for OpenRouter (leave blank for default).
+*   **systemPrompt**: Custom system prompt to guide the AI's curation style (leave blank for standard).
+
+Aura Cards automatically captures the **full available story context** from Turn 1 (capped at a highly generous safety boundary of **250,000 characters**, about 50,000 tokens) to ensure the AI has complete, deep narrative coverage during sweeps.

@@ -2,7 +2,7 @@
 //
 // Aura Cards is a sidecar dynamic lore curator. It watches gameplay, asks
 // Ultrascripts's AI module to identify/update important entities, and updates
-// standard story card entries directly on active sweeps without interrupting play.
+// story card entries directly on active sweeps without interrupting play.
 //
 // Setup:
 //   1. Enable BetterDungeon -> Ultrascripts.
@@ -18,21 +18,9 @@ var AURA_TRACE_CARD_TITLE = 'Aura Cards Trace';
 var AURA_CARD_TYPE = 'Aura';
 var AURA_METADATA_MARKER = 'Aura Cards metadata:';
 
-var AURA_DEFAULT_BANNED_TITLES = [
-  'North', 'East', 'South', 'West',
-  'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-  'You', 'Your', 'The Player', 'Player', 'Story', 'Recent Story',
-  'World Lore', 'Memories', 'Author Note', 'Authors Note',
-  'Configure Aura Cards', 'Aura Cards Trace',
-  'ultrascripts:out', 'ultrascripts:heartbeat', 'ultrascripts:in:ai'
-];
-
 var AURA_DEFAULT_CONFIG = {
   enabled: true,
   cooldownTurns: 4,
-  lookbackActions: 18,
   maxCardsPerSweep: 5,
   maxConcurrentRequests: 2,
   minConfidence: 0.5,
@@ -40,7 +28,19 @@ var AURA_DEFAULT_CONFIG = {
   maxPendingTurns: 14,
   showTrace: true,
   model: '',
-  bannedTitles: AURA_DEFAULT_BANNED_TITLES.slice()
+  systemPrompt: '',
+  __HELP__: {
+    enabled: "Set to false to pause Aura Cards completely.",
+    cooldownTurns: "Number of turns to wait between sweep cycles.",
+    maxCardsPerSweep: "Max card profiles the AI can create/update in one sweep.",
+    maxConcurrentRequests: "Max active background AI requests in flight.",
+    minConfidence: "Minimum confidence threshold (0.0 to 1.0) to write a card.",
+    entryLimit: "Maximum character limit for generated card entries.",
+    maxPendingTurns: "Turns to wait for a background response before timing out.",
+    showTrace: "Set to false to hide the Aura Cards Trace story card.",
+    model: "Override model name for OpenRouter (leave blank for default).",
+    systemPrompt: "Custom system prompt to guide the AI's curation style (leave blank for default)."
+  }
 };
 
 function auraCardsState() {
@@ -321,7 +321,6 @@ function auraNormalizeConfig(raw) {
 
   cfg.enabled = auraBool(raw.enabled, cfg.enabled);
   cfg.cooldownTurns = auraClampInt(raw.cooldownTurns, 1, 200, cfg.cooldownTurns);
-  cfg.lookbackActions = auraClampInt(raw.lookbackActions, 4, 60, cfg.lookbackActions);
   cfg.maxCardsPerSweep = auraClampInt(raw.maxCardsPerSweep, 1, 12, cfg.maxCardsPerSweep);
   cfg.maxConcurrentRequests = auraClampInt(raw.maxConcurrentRequests, 1, 4, cfg.maxConcurrentRequests);
   cfg.minConfidence = auraClampNumber(raw.minConfidence, 0, 1, cfg.minConfidence);
@@ -329,10 +328,10 @@ function auraNormalizeConfig(raw) {
   cfg.maxPendingTurns = auraClampInt(raw.maxPendingTurns, 3, 60, cfg.maxPendingTurns);
   cfg.showTrace = auraBool(raw.showTrace, cfg.showTrace);
   cfg.model = auraCleanSpaces(raw.model || AURA_CARDS_MODEL || '');
-  cfg.bannedTitles = auraUniqueStrings(
-    AURA_DEFAULT_BANNED_TITLES.concat(auraCoerceStringArray(raw.bannedTitles)),
-    400
-  );
+  cfg.systemPrompt = typeof raw.systemPrompt === 'string' ? raw.systemPrompt.trim() : '';
+
+  // Always re-inject help descriptions
+  cfg.__HELP__ = AURA_DEFAULT_CONFIG.__HELP__;
 
   return cfg;
 }
@@ -680,7 +679,6 @@ function auraNormalizeCandidate(raw, cfg) {
 
   var title = auraNormalizeTitle(auraFirstValue(raw, ['title', 'name', 'entity', 'cardTitle']));
   if (!title) return null;
-  if (auraIsBannedTitle(title, cfg)) return null;
 
   var rawConfidence = auraFirstValue(raw, ['confidence', 'score', 'relevance']);
   var confidence = rawConfidence === undefined ? 0.75 : auraClampNumber(rawConfidence, 0, 1, 0);
@@ -689,7 +687,7 @@ function auraNormalizeCandidate(raw, cfg) {
   var kind = auraNormalizeKind(auraFirstValue(raw, ['kind', 'type', 'category']));
   var keys = auraCoerceStringArray(auraFirstValue(raw, ['keys', 'triggers', 'aliases']));
   keys = auraUniqueStrings([title].concat(keys), 6).map(auraNormalizeKey).filter(function (key) {
-    return key.length >= 2 && key.length <= 60 && !auraIsBannedTitle(key, cfg);
+    return key.length >= 2 && key.length <= 60;
   });
   if (!keys.length) keys = [title];
 
@@ -772,17 +770,6 @@ function auraMinorWords() {
     on: true, or: true, over: true, the: true, to: true, under: true,
     with: true, without: true
   };
-}
-
-function auraIsBannedTitle(title, cfg) {
-  var key = auraTitleKey(title);
-  if (!key) return true;
-  if (key.indexOf('ultrascripts:') === 0 || key.indexOf('aura cards') !== -1) return true;
-  var bans = cfg.bannedTitles || [];
-  for (var i = 0; i < bans.length; i++) {
-    if (auraTitleKey(bans[i]) === key) return true;
-  }
-  return false;
 }
 
 function auraNormalizeKind(kind) {
@@ -939,12 +926,11 @@ function auraBuildAuraDescription(metadata) {
   ].join('\n').trim();
 }
 
-function auraRecentStory(outputText, cfg) {
+function auraRecentStory(outputText) {
   var pieces = [];
   var entries = (typeof history !== 'undefined' && Array.isArray(history)) ? history : [];
-  var start = Math.max(0, entries.length - cfg.lookbackActions);
 
-  for (var i = start; i < entries.length; i++) {
+  for (var i = 0; i < entries.length; i++) {
     var entry = entries[i];
     if (!entry) continue;
     var body = auraCleanSpaces(String(entry.text || entry.rawText || ''));
@@ -955,7 +941,14 @@ function auraRecentStory(outputText, cfg) {
   var out = auraCleanSpaces(outputText || '');
   if (out) pieces.push('[latest output] ' + out);
 
-  return auraLimit(pieces.join('\n'), 5200);
+  // Capture the full available story history joined together
+  var fullText = pieces.join('\n');
+  
+  // Safe high boundary cap (250,000 characters) to prevent browser freezes or LLM context size errors
+  if (fullText.length > 250000) {
+    fullText = '...[truncated older story]...\n' + fullText.slice(-250000);
+  }
+  return fullText;
 }
 
 function auraExistingCardsBrief(cfg) {
@@ -994,9 +987,6 @@ function auraBuildSweepArgs(recentStory, cfg) {
     'EXISTING STORY CARDS:',
     auraExistingCardsBrief(cfg),
     '',
-    'BANNED TITLES:',
-    cfg.bannedTitles.join(', '),
-    '',
     'AURA CARD CONTRACT:',
     'Return up to ' + cfg.maxCardsPerSweep + ' high-value card operations.',
     'Create cards for durable entities that improve object permanence: named characters, important places, factions, artifacts, recurring threats, active mysteries, rules of magic/technology, and relationships.',
@@ -1010,14 +1000,18 @@ function auraBuildSweepArgs(recentStory, cfg) {
     'Confidence: use 0.5-1.0 for worthwhile cards. Use skip with low confidence when unsure.'
   ].join('\n');
 
+  var activeSystemPrompt = (typeof cfg.systemPrompt === 'string' && cfg.systemPrompt.trim() !== '') 
+    ? cfg.systemPrompt.trim() 
+    : auraSweepSystemPrompt();
+
   var args = {
     provider: 'openrouter',
     messages: [
       {
         role: 'system',
-        content: auraSweepSystemPrompt()
+        content: activeSystemPrompt
       },
-      { role: 'user', content: auraLimit(user, 7900) }
+      { role: 'user', content: auraLimit(user, 260000) }
     ],
     maxTokens: 2600,
     temperature: 0.15,
@@ -1079,7 +1073,7 @@ function auraSweepResponseFormat() {
 function auraQueueSweepIfNeeded(outputText, cfg) {
   var s = auraCardsState();
   var liveKey = Number(auraLiveKey());
-  var recentStory = auraRecentStory(outputText, cfg);
+  var recentStory = auraRecentStory(outputText);
   var storySig = auraHash(recentStory);
 
   if (recentStory.length < 240) {
