@@ -280,6 +280,8 @@
         const parsed = JSON.parse(card.value);
         if (parsed?.ultrascripts?.protocol === PROTOCOL_VERSION) score += 1000;
         if (parsed?.ultrascripts?.client === 'BetterDungeon') score += 500;
+        if (parsed?.ultrascripts?.archived) score -= 1000000;
+        if (Array.isArray(parsed?.modules)) score += parsed.modules.length * 10000;
       } catch { /* not a heartbeat-shaped value */ }
     }
     return score;
@@ -287,17 +289,19 @@
 
   function chooseHeartbeatCard(cards) {
     if (!Array.isArray(cards) || cards.length === 0) return null;
-    if (state.heartbeatCardId) {
-      const remembered = cards.find(card => String(card?.id) === String(state.heartbeatCardId));
-      if (remembered) return remembered;
-    }
-    return [...cards].sort((a, b) => {
+    const ranked = [...cards].sort((a, b) => {
       const scoreDiff = heartbeatScore(b) - heartbeatScore(a);
       if (scoreDiff) return scoreDiff;
       const timeDiff = heartbeatWrittenAt(b) - heartbeatWrittenAt(a);
       if (timeDiff) return timeDiff;
       return String(a?.id || '').localeCompare(String(b?.id || ''));
-    })[0] || null;
+    });
+    const best = ranked[0] || null;
+    if (state.heartbeatCardId) {
+      const remembered = cards.find(card => String(card?.id) === String(state.heartbeatCardId));
+      if (remembered && heartbeatScore(remembered) >= heartbeatScore(best)) return remembered;
+    }
+    return best;
   }
 
   function refreshHeartbeatCardIndex() {
