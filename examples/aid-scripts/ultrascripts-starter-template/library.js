@@ -3,6 +3,10 @@
 // ============================================================
 // Paste this file into AI Dungeon's Library script, then paste the companion
 // Input, Context, and Output modifier files into their matching hooks.
+//
+// This template is "enhanced with Ultrascripts": the adventure still works
+// without BetterDungeon, while BetterDungeon players get widgets and module
+// responses when the runtime is available.
 
 globalThis.bd = globalThis.bd || {};
 var bd = globalThis.bd;
@@ -30,15 +34,17 @@ globalThis.UltrascriptsTemplate = function UltrascriptsTemplate(hook, inputText)
   if (hook === 'input') {
     var command = readTemplateCommand(text, CONFIG.commandPrefix);
     if (command) {
-      var handled = handleTemplateCommand(command, us);
+      var handled = handleTemplateCommand(command, us, templateState);
       text = handled.text;
       stop = handled.stop;
       us.commit();
-      return stop ? { text: text, stop: true } : { text: text };
+      return { text: text };
     }
   }
 
-  if (CONFIG.requireUltrascripts && !us.available()) {
+  var runtimeOnline = us.available();
+
+  if (CONFIG.requireUltrascripts && !runtimeOnline) {
     state.message = 'This scenario requires BetterDungeon with Ultrascripts enabled.';
     return { text: text };
   }
@@ -46,30 +52,44 @@ globalThis.UltrascriptsTemplate = function UltrascriptsTemplate(hook, inputText)
   var cfg = us.latest('sdk', 'config');
   var clock = us.latest('clock', 'now');
 
-  if (CONFIG.requestSdkConfig && us.available() && us.has('sdk', 'config') && !templateState.requestedSdkConfig) {
+  if (
+    CONFIG.requestSdkConfig &&
+    runtimeOnline &&
+    us.has('sdk', 'config') &&
+    !templateState.requestedSdkConfig
+  ) {
     templateState.requestedSdkConfig = true;
     us.call('sdk', 'config');
   }
 
-  if (CONFIG.requestClock && us.available() && us.has('clock', 'now') && templateState.lastClockRequestLiveCount !== us.liveCount()) {
+  if (
+    CONFIG.requestClock &&
+    runtimeOnline &&
+    us.has('clock', 'now') &&
+    templateState.lastClockRequestLiveCount !== us.liveCount()
+  ) {
     templateState.lastClockRequestLiveCount = us.liveCount();
     us.call('clock', 'now');
   }
 
   if (hook === 'context') {
     consumeTemplateWidgetEvents(us, templateState);
-    if (CONFIG.publishWidgets && us.available() && us.has('scripture')) {
+
+    if (CONFIG.publishWidgets && runtimeOnline && us.has('scripture')) {
       publishTemplateDashboard(us, cfg, clock);
     }
+
     if (CONFIG.addContextNote) {
       text += '\n[Ultrascripts template status: ' + buildStatusLine(us, cfg, clock) + ']';
     }
   }
 
-  if (hook === 'output') templateState.lastOutputLiveCount = us.liveCount();
+  if (hook === 'output') {
+    templateState.lastOutputLiveCount = us.liveCount();
+  }
 
   us.commit();
-  return stop ? { text: text, stop: true } : { text: text };
+  return { text: text };
 };
 
 function createUltrascriptsSdk() {
@@ -83,21 +103,52 @@ function createUltrascriptsSdk() {
   function findCard(title) {
     var cards = (typeof storyCards !== 'undefined' && Array.isArray(storyCards)) ? storyCards : [];
     for (var i = 0; i < cards.length; i++) {
-      if (cards[i] && cards[i].title === title) return cards[i];
+      var card = cards[i];
+      if (cardMatches(card, title)) return card;
     }
     return null;
   }
 
+  function findCardIndex(title) {
+    var cards = (typeof storyCards !== 'undefined' && Array.isArray(storyCards)) ? storyCards : [];
+    for (var i = 0; i < cards.length; i++) {
+      var card = cards[i];
+      if (cardMatches(card, title)) return i;
+    }
+    return -1;
+  }
+
+  function cardMatches(card, title) {
+    if (!card) return false;
+    if (card.title === title || card.key === title) return true;
+    if (card.keys === title) return true;
+    if (Array.isArray(card.keys) && card.keys.indexOf(title) !== -1) return true;
+    return false;
+  }
+
+  function cardText(card) {
+    return card ? (card.value || card.entry || card.description || '') : '';
+  }
+
   function upsertCard(title, value) {
-    var card = findCard(title);
-    if (card) card.value = value;
-    else if (typeof addStoryCard === 'function') addStoryCard(title, value);
+    var index = findCardIndex(title);
+    if (index >= 0) {
+      var card = storyCards[index];
+      if (typeof updateStoryCard === 'function') {
+        updateStoryCard(index, card.keys || card.key || card.title || title, value, card.type || 'Ultrascripts');
+      } else {
+        card.value = value;
+        card.entry = value;
+      }
+    } else if (typeof addStoryCard === 'function') {
+      addStoryCard(title, value, 'Ultrascripts');
+    }
   }
 
   function parseCard(title) {
     var card = findCard(title);
     if (!card) return null;
-    try { return JSON.parse(card.value || '{}'); } catch (e) { return null; }
+    try { return JSON.parse(cardText(card) || '{}'); } catch (e) { return null; }
   }
 
   function liveCount() {
@@ -106,20 +157,70 @@ function createUltrascriptsSdk() {
   }
 
   function heartbeat() {
-    var hb = parseCard('ultrascripts:heartbeat');
-    if (!hb || !hb.ultrascripts || hb.ultrascripts.protocol !== 1) return null;
-    if (hb.ultrascripts.client !== 'BetterDungeon') return null;
-    return hb;
+    var cards = (typeof storyCards !== 'undefined' && Array.isArray(storyCards)) ? storyCards : [];
+    var best = null;
+    var bestScore = -1;
+    for (var i = 0; i < cards.length; i++) {
+      var card = cards[i];
+      if (!cardMatches(card, 'ultrascripts:heartbeat')) continue;
+      try {
+        var hb = JSON.parse(cardText(card) || '{}');
+        var score = heartbeatScore(hb);
+        if (score > bestScore) {
+          best = hb;
+          bestScore = score;
+        }
+      } catch (e) {}
+    }
+    return best;
+  }
+
+  function heartbeatScore(hb) {
+    if (!hb || !hb.ultrascripts || hb.ultrascripts.protocol !== 1) return -1;
+    if (hb.ultrascripts.client !== 'BetterDungeon' || hb.ultrascripts.archived) return -1;
+    var moduleCount = moduleList(hb).length;
+    var writtenAt = Date.parse(hb.writtenAt || '') || 0;
+    return moduleCount * 10000000000000 + writtenAt;
+  }
+
+  function moduleList(hb) {
+    var raw = hb && hb.modules;
+    if (Array.isArray(raw)) return raw;
+    if (raw && typeof raw === 'object') {
+      var list = [];
+      for (var id in raw) {
+        var moduleInfo = raw[id];
+        if (moduleInfo && typeof moduleInfo === 'object') {
+          if (!moduleInfo.id) moduleInfo.id = id;
+          list.push(moduleInfo);
+        } else if (moduleInfo) {
+          list.push({ id: id, ops: [] });
+        }
+      }
+      return list;
+    }
+    return [];
+  }
+
+  function opList(moduleInfo) {
+    var raw = moduleInfo && (moduleInfo.ops || moduleInfo.operations || moduleInfo.capabilities);
+    if (Array.isArray(raw)) {
+      return raw.map(function (op) {
+        return typeof op === 'string' ? op : (op && (op.id || op.name || op.op));
+      }).filter(Boolean);
+    }
+    if (raw && typeof raw === 'object') return Object.keys(raw);
+    return [];
   }
 
   function has(moduleId, opName) {
     var hb = heartbeat();
-    var mods = (hb && Array.isArray(hb.modules)) ? hb.modules : [];
+    var mods = moduleList(hb);
     for (var i = 0; i < mods.length; i++) {
       var mod = mods[i];
       if (!mod || mod.id !== moduleId) continue;
       if (!opName) return true;
-      var ops = Array.isArray(mod.ops) ? mod.ops : [];
+      var ops = opList(mod);
       return ops.indexOf(opName) !== -1;
     }
     return false;
@@ -128,20 +229,32 @@ function createUltrascriptsSdk() {
   function rememberResult(moduleId, requestId, response) {
     store.results[moduleId] = store.results[moduleId] || {};
     store.results[moduleId][requestId] = response;
+
+    var ids = Object.keys(store.results[moduleId]);
+    if (ids.length > 40) {
+      ids.sort(function (a, b) {
+        var ra = store.results[moduleId][a] || {};
+        var rb = store.results[moduleId][b] || {};
+        return Number(ra.completedAt || 0) - Number(rb.completedAt || 0);
+      });
+      while (ids.length > 40) delete store.results[moduleId][ids.shift()];
+    }
   }
 
   function tick() {
     var hb = heartbeat();
-    var mods = (hb && Array.isArray(hb.modules)) ? hb.modules : [];
+    var mods = moduleList(hb);
     for (var i = 0; i < mods.length; i++) {
       var moduleId = mods[i] && mods[i].id;
       if (!moduleId) continue;
       var card = parseCard('ultrascripts:in:' + moduleId);
       if (!card || !card.responses) continue;
+
       for (var requestId in card.responses) {
         if (!Object.prototype.hasOwnProperty.call(card.responses, requestId)) continue;
         var response = card.responses[requestId];
-        if (response && (response.status === 'ok' || response.status === 'err' || response.status === 'timeout')) {
+        if (!response) continue;
+        if (response.status === 'ok' || response.status === 'err' || response.status === 'timeout') {
           rememberResult(moduleId, requestId, response);
           if (store.pendingAcks.indexOf(requestId) === -1) store.pendingAcks.push(requestId);
         }
@@ -152,7 +265,13 @@ function createUltrascriptsSdk() {
   function call(moduleId, opName, args) {
     store.reqCounter += 1;
     var requestId = moduleId + '.' + opName + '#' + liveCount() + '.' + store.reqCounter;
-    store.pendingRequests.push({ id: requestId, module: moduleId, op: opName, args: args || {}, ts: Date.now() });
+    store.pendingRequests.push({
+      id: requestId,
+      module: moduleId,
+      op: opName,
+      args: args || {},
+      ts: Date.now()
+    });
     return requestId;
   }
 
@@ -161,11 +280,22 @@ function createUltrascriptsSdk() {
     if (!bucket) return null;
     var prefix = opName ? (moduleId + '.' + opName + '#') : null;
     var best = null;
+
     for (var requestId in bucket) {
       if (!Object.prototype.hasOwnProperty.call(bucket, requestId)) continue;
       if (prefix && requestId.indexOf(prefix) !== 0) continue;
       var response = bucket[requestId];
-      if (!best || Number(response.completedLiveCount || 0) > Number(best.completedLiveCount || 0)) best = response;
+      if (!best) {
+        best = response;
+        continue;
+      }
+      var responseLiveCount = Number(response.completedLiveCount || 0);
+      var bestLiveCount = Number(best.completedLiveCount || 0);
+      var responseTime = Number(response.completedAt || 0);
+      var bestTime = Number(best.completedAt || 0);
+      if (responseLiveCount > bestLiveCount || (responseLiveCount === bestLiveCount && responseTime > bestTime)) {
+        best = response;
+      }
     }
     return best;
   }
@@ -190,23 +320,35 @@ function createUltrascriptsSdk() {
     var card = parseCard('ultrascripts:in:scripture');
     var events = (card && card.widgetEvents && card.widgetEvents.events) || [];
     var ackSeq = (store.scripture && store.scripture.interactions && store.scripture.interactions.ackSeq) || 0;
-    return events.filter(function (event) { return event && Number(event.seq || 0) > ackSeq; });
+    return events.filter(function (event) {
+      return event && Number(event.seq || 0) > ackSeq;
+    });
   }
 
   function ackScripture(seq) {
     if (!store.scripture) return;
     store.scripture.interactions = store.scripture.interactions || {};
-    store.scripture.interactions.ackSeq = Math.max(Number(store.scripture.interactions.ackSeq || 0), Number(seq || 0));
+    store.scripture.interactions.ackSeq = Math.max(
+      Number(store.scripture.interactions.ackSeq || 0),
+      Number(seq || 0)
+    );
   }
 
   function commit() {
     if (store.pendingRequests.length === 0 && store.pendingAcks.length === 0) return;
-    upsertCard('ultrascripts:out', JSON.stringify({ v: 1, requests: store.pendingRequests, acks: store.pendingAcks }));
+    upsertCard('ultrascripts:out', JSON.stringify({
+      v: 1,
+      requests: store.pendingRequests,
+      acks: store.pendingAcks
+    }));
     store.pendingRequests = [];
     store.pendingAcks = [];
   }
 
   return {
+    findCard: findCard,
+    upsertCard: upsertCard,
+    parseCard: parseCard,
     liveCount: liveCount,
     heartbeat: heartbeat,
     available: function () { return !!heartbeat(); },
@@ -224,25 +366,35 @@ function createUltrascriptsSdk() {
 
 function readTemplateCommand(text, prefix) {
   var raw = String(text || '').trim();
-  var normalized = raw.replace(/^>\s*You(?:\s+say)?\s*"?/i, '').replace(/[".]\s*$/g, '').trim();
+  var normalized = raw
+    .replace(/^>\s*You(?:\s+say)?\s*"?/i, '')
+    .replace(/[".]\s*$/g, '')
+    .trim();
+
   if (normalized.indexOf(prefix) !== 0) return null;
-  var parts = normalized.slice(prefix.length).trim().split(/\s+/).filter(Boolean);
-  return { name: (parts.shift() || 'status').toLowerCase(), args: parts };
+  var rest = normalized.slice(prefix.length).trim();
+  var parts = rest ? rest.split(/\s+/) : [];
+  return {
+    name: (parts.shift() || 'status').toLowerCase(),
+    args: parts
+  };
 }
 
-function handleTemplateCommand(command, us) {
+function handleTemplateCommand(command, us, templateState) {
   if (command.name === 'reset') {
     state.ultrascriptsTemplate = {};
     state.__ultrascriptsSdk = {};
     state.message = 'Ultrascripts template state reset.';
-    return { text: null, stop: true };
+    return { text: 'I pause for a moment while the scenario state resets.', stop: false };
   }
+
   if (command.name === 'status') {
     state.message = buildStatusLine(us, us.latest('sdk', 'config'), us.latest('clock', 'now'));
-    return { text: null, stop: true };
+    return { text: 'I check the scenario status.', stop: false };
   }
+
   state.message = 'Unknown template command. Try :us-template status or :us-template reset.';
-  return { text: null, stop: true };
+  return { text: 'I try an unknown scenario command.', stop: false };
 }
 
 function consumeTemplateWidgetEvents(us, templateState) {
@@ -250,7 +402,12 @@ function consumeTemplateWidgetEvents(us, templateState) {
   for (var i = 0; i < events.length; i++) {
     var event = events[i];
     if (!event) continue;
-    templateState.lastWidgetEvent = { widgetId: event.widgetId, action: event.action, value: event.value, seq: event.seq };
+    templateState.lastWidgetEvent = {
+      widgetId: event.widgetId,
+      action: event.action,
+      value: event.value,
+      seq: event.seq
+    };
     us.ackScripture(event.seq);
   }
 }
