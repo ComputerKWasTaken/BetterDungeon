@@ -835,7 +835,7 @@
               </div>
               <div class="feature-details">
                 <p>AI lets scripts ask a hosted model for bounded side tasks such as summarizing clues, classifying intent, generating structured data, or running private reasoning that should not interrupt the story turn.</p>
-                <p class="feature-hint"><span class="icon-brain-circuit"></span> Uses your own OpenRouter key. Scripts can call the module, but the key stays inside BetterDungeon and is never written to Story Cards.</p>
+                <p class="feature-hint"><span class="icon-brain-circuit"></span> Uses your own OpenRouter key. Scripts can call the module, but the key stays inside BetterDungeon and is never written to Story Cards. The default model is OpenRouter's free router.</p>
                 <div class="ultrascripts-provider-panel">
                   <div class="ultrascripts-panel-heading">
                     <span><span class="icon-key-round"></span> OpenRouter</span>
@@ -843,13 +843,33 @@
                       <span class="icon-plug-zap"></span>
                     </button>
                   </div>
+                  <div class="ultrascripts-ai-setup">
+                    <p>Create a key at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">openrouter.ai/keys</a>, paste it here, then save.</p>
+                    <p>Default: <span class="ultrascripts-ai-model-token">openrouter/free</span>. Tests: <span class="ultrascripts-ai-model-token">betterdungeon/dummy:free</span>.</p>
+                  </div>
                   <div class="ultrascripts-provider-fields">
-                    <input type="password" class="form-input" id="ai-openrouter-key" autocomplete="off" placeholder="OpenRouter API key">
-                    <input type="text" class="form-input" id="ai-default-model" autocomplete="off" placeholder="OpenRouter model ID, or betterdungeon/dummy:free for tests">
-                    <a class="ultrascripts-ai-model-link" href="https://openrouter.ai/models?output_modalities=text&amp;max_price=0" target="_blank" rel="noopener noreferrer">
-                      <span class="icon-external-link"></span>
-                      Browse free text models on OpenRouter
-                    </a>
+                    <label class="ultrascripts-ai-field">
+                      <span>OpenRouter key</span>
+                      <input type="password" class="form-input" id="ai-openrouter-key" autocomplete="off" placeholder="sk-or-v1-...">
+                    </label>
+                    <label class="ultrascripts-ai-field">
+                      <span>Default model</span>
+                      <input type="text" class="form-input" id="ai-default-model" autocomplete="off" placeholder="openrouter/free">
+                    </label>
+                    <p class="ultrascripts-ai-field-hint">
+                      <span class="icon-sparkles"></span>
+                      OpenRouter's free router automatically picks a free model. Add $10 in credits to raise the free-model daily limit from 50 requests to 1000.
+                    </p>
+                    <div class="ultrascripts-ai-links">
+                      <a class="ultrascripts-ai-model-link" href="https://openrouter.ai/settings/credits" target="_blank" rel="noopener noreferrer">
+                        <span class="icon-external-link"></span>
+                        Add credits
+                      </a>
+                      <a class="ultrascripts-ai-model-link" href="https://openrouter.ai/models?output_modalities=text&amp;max_price=0" target="_blank" rel="noopener noreferrer">
+                        <span class="icon-external-link"></span>
+                        Browse free models
+                      </a>
+                    </div>
                   </div>
                   <div class="ultrascripts-ai-cost-panel">
                     <div class="ultrascripts-ai-cost-heading">
@@ -888,7 +908,7 @@
                         <input type="number" class="form-input" id="ai-cost-monthly-cap" min="0" max="1000" step="0.01">
                       </label>
                     </div>
-                    <p class="ultrascripts-ai-cost-hint">Free models are simplest. Open paid safeguards only if you intentionally enable paid models.</p>
+                    <p class="ultrascripts-ai-cost-hint">Free models are simplest. Open paid safeguards only if you intentionally override the default with a paid model.</p>
                   </div>
                   <div class="ultrascripts-provider-actions">
                     <button class="btn btn-primary btn-sm" id="ai-save" type="button">
@@ -900,7 +920,7 @@
                       Clear Key
                     </button>
                   </div>
-                  <div class="ultrascripts-provider-status idle" id="ai-status">Add an OpenRouter key to enable hosted model calls.</div>
+                  <div class="ultrascripts-provider-status idle" id="ai-status">Add an OpenRouter key, then save. Default model: openrouter/free.</div>
                 </div>
               </div>
             </article>

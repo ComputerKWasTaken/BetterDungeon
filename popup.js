@@ -123,6 +123,8 @@ const DEFAULT_AI_COST_CONTROLS = {
   dailySpendCap: 0,
   monthlySpendCap: 0,
 };
+const DEFAULT_AI_MODEL = 'openrouter/free';
+const DUMMY_AI_MODEL = 'betterdungeon/dummy:free';
 
 const DEFAULT_TEXT_TO_SPEECH_SETTINGS = {
   voiceURI: 'auto',
@@ -626,7 +628,9 @@ async function loadAiSettings() {
   const savedModel = String(result[STORAGE_KEYS.aiOpenRouterDefaultModel] || '').trim();
   const legacyModel = String(result[STORAGE_KEYS.legacyProviderAiOpenRouterDefaultModel] || '').trim();
   const hasKey = !!(savedKey || legacyKey);
-  const model = savedModel || legacyModel;
+  const model = savedModel || legacyModel || DEFAULT_AI_MODEL;
+  const usingDummyModel = model.toLowerCase() === DUMMY_AI_MODEL;
+  const configured = hasKey || usingDummyModel;
 
   if ((!savedKey && legacyKey) || (!savedModel && legacyModel)) {
     const updates = {};
@@ -641,7 +645,7 @@ async function loadAiSettings() {
 
   if (keyInput) {
     keyInput.value = '';
-    keyInput.placeholder = hasKey ? 'Saved API key - leave blank to keep' : 'OpenRouter API key';
+    keyInput.placeholder = hasKey ? 'Saved API key - leave blank to keep' : 'sk-or-v1-...';
   }
   if (modelInput) {
     modelInput.value = model;
@@ -655,7 +659,17 @@ async function loadAiSettings() {
   if (dailyCapInput) dailyCapInput.value = String(controls.dailySpendCap);
   if (monthlyCapInput) monthlyCapInput.value = String(controls.monthlySpendCap);
 
-  updateAiStatus(hasKey, hasKey ? 'OpenRouter key saved locally.' : 'Add an OpenRouter key to enable hosted model calls.', hasKey ? 'ok' : 'idle');
+  if (usingDummyModel) {
+    updateAiStatus(true, 'Dummy model selected for local module tests. No OpenRouter request will be made.', 'ok');
+  } else {
+    updateAiStatus(
+      configured,
+      hasKey
+        ? `OpenRouter key saved locally. Default model: ${model}.`
+        : `Add an OpenRouter key, then save. Default model: ${model}.`,
+      hasKey ? 'ok' : 'idle'
+    );
+  }
 }
 
 function clampMoney(value, fallback, min, max) {
@@ -709,7 +723,7 @@ async function saveAiSettings(options = {}) {
   const keyInput = document.getElementById('ai-openrouter-key');
   const modelInput = document.getElementById('ai-default-model');
   const key = String(keyInput?.value || '').trim();
-  const model = String(modelInput?.value || '').trim();
+  const model = String(modelInput?.value || '').trim() || DEFAULT_AI_MODEL;
   const costControls = getAiCostControlsFromForm();
   const updates = {
     [STORAGE_KEYS.aiOpenRouterDefaultModel]: model,
@@ -764,7 +778,7 @@ function sendAiBackgroundRequest(request) {
 async function testAiConnection() {
   const btn = document.getElementById('ai-test');
   if (btn) btn.disabled = true;
-  updateAiStatus(false, 'Testing OpenRouter...', 'idle');
+  updateAiStatus(false, 'Testing AI configuration...', 'idle');
 
   try {
     await saveAiSettings({ silent: true });
@@ -773,8 +787,14 @@ async function testAiConnection() {
       op: 'testConnection',
       timeoutMs: 30000
     });
+    if (result?.dummy) {
+      updateAiStatus(true, 'Dummy model ready. No OpenRouter request was made.', 'ok');
+      showToast('Dummy AI model verified', 'success');
+      return;
+    }
     const count = typeof result?.modelCount === 'number' ? result.modelCount : 0;
-    updateAiStatus(true, `OpenRouter connected. ${count} models visible.`, 'ok');
+    const model = result?.defaultModel || DEFAULT_AI_MODEL;
+    updateAiStatus(true, `OpenRouter connected. Default model: ${model}. ${count} models visible.`, 'ok');
     showToast('AI connection verified', 'success');
   } catch (error) {
     const message = error?.message || 'AI connection failed';

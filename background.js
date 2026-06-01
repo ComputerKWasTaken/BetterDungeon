@@ -39,6 +39,7 @@
   };
   const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
   const OPENROUTER_TITLE = 'BetterDungeon Ultrascripts';
+  const OPENROUTER_FREE_ROUTER_MODEL_ID = 'openrouter/free';
   const AI_DUMMY_MODEL_ID = 'betterdungeon/dummy:free';
   const AI_DEFAULT_TIMEOUT_MS = 30000;
   const AI_MAX_TIMEOUT_MS = 60000;
@@ -363,7 +364,7 @@
     const result = await storageGet('local', keys);
     return {
       openrouterKey: String(result?.[AI_STORAGE_KEYS.openrouterKey] || result?.[AI_STORAGE_KEYS.legacyOpenrouterKey] || '').trim(),
-      openrouterDefaultModel: String(result?.[AI_STORAGE_KEYS.openrouterDefaultModel] || result?.[AI_STORAGE_KEYS.legacyOpenrouterDefaultModel] || '').trim(),
+      openrouterDefaultModel: String(result?.[AI_STORAGE_KEYS.openrouterDefaultModel] || result?.[AI_STORAGE_KEYS.legacyOpenrouterDefaultModel] || OPENROUTER_FREE_ROUTER_MODEL_ID).trim(),
       costControls: normalizeAiCostControls(result?.[AI_STORAGE_KEYS.costControls] || result?.[AI_STORAGE_KEYS.legacyBudget]),
     };
   }
@@ -697,7 +698,29 @@
   function findModel(models, modelId) {
     const requested = String(modelId || '').trim().toLowerCase();
     if (!requested) return null;
-    return models.find((model) => String(model?.id || '').toLowerCase() === requested) || null;
+    const found = models.find((model) => String(model?.id || '').toLowerCase() === requested) || null;
+    if (requested === OPENROUTER_FREE_ROUTER_MODEL_ID && (!found || !hasModelPricing(found))) {
+      return found ? { ...openRouterFreeRouterModel(), ...found, pricing: openRouterFreeRouterModel().pricing } : openRouterFreeRouterModel();
+    }
+    return found;
+  }
+
+  function openRouterFreeRouterModel() {
+    return {
+      id: OPENROUTER_FREE_ROUTER_MODEL_ID,
+      name: 'OpenRouter Free Router',
+      canonical_slug: OPENROUTER_FREE_ROUTER_MODEL_ID,
+      context_length: null,
+      architecture: {
+        input_modalities: ['text'],
+        output_modalities: ['text'],
+      },
+      pricing: {
+        prompt: '0',
+        completion: '0',
+        request: '0',
+      },
+    };
   }
 
   async function enforceAiCostControls(request, config, model) {
@@ -904,7 +927,12 @@
     const limit = Math.round(clampNumber(request.limit, AI_DEFAULT_MODEL_LIMIT, 0, AI_MAX_MODEL_LIMIT));
     const query = String(request.query || '').trim().toLowerCase();
     const fetched = await fetchOpenRouterModels(config, timeoutMs);
-    const allModels = fetched.models;
+    const freeRouter = openRouterFreeRouterModel();
+    const allModels = fetched.models.some((model) => String(model?.id || '').toLowerCase() === OPENROUTER_FREE_ROUTER_MODEL_ID)
+      ? fetched.models.map((model) => String(model?.id || '').toLowerCase() === OPENROUTER_FREE_ROUTER_MODEL_ID && !hasModelPricing(model)
+          ? { ...freeRouter, ...model, pricing: freeRouter.pricing }
+          : model)
+      : [freeRouter, ...fetched.models];
     const filtered = query
       ? allModels.filter((model) => {
           const id = String(model?.id || '').toLowerCase();

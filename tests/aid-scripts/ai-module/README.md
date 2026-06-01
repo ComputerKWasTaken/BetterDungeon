@@ -40,11 +40,12 @@ It also verifies:
 1. Load the BetterDungeon extension and open AI Dungeon.
 2. Open BetterDungeon → **Ultrascripts** and enable Ultrascripts and the **AI**
    module.
-3. Open Ultrascripts → **AI** and save a default model.
+3. Open Ultrascripts -> **AI** and save a default model. The popup defaults to
+   `openrouter/free`, OpenRouter's free router model.
 4. To avoid OpenRouter requests entirely, set the default model to
-   `betterdungeon/dummy:free`. Otherwise use a free default model unless you
-   intentionally want the suite to spend paid quota; real OpenRouter models
-   still require an API key.
+   `betterdungeon/dummy:free`. Otherwise keep `openrouter/free` unless you
+   intentionally want the suite to target a specific model; hosted OpenRouter
+   calls still require an API key.
 
 ## Install in a scenario
 
@@ -101,7 +102,8 @@ next turn.
 
 ## Manual missing-key check
 
-The suite assumes a configured OpenRouter key. To verify the
-`not_configured` error path, clear the key in BetterDungeon, take one turn,
-and inspect the `testConnection` step in the trace — its `error.code`
-should be `not_configured` instead of `ok`.
+The suite assumes a configured OpenRouter key or the local dummy model. To
+verify the `not_configured` error path, switch away from
+`betterdungeon/dummy:free`, clear the key in BetterDungeon, take one turn, and
+inspect the `testConnection` step in the trace. Its `error.code` should be
+`not_configured` instead of `ok`.
