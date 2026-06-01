@@ -39,6 +39,7 @@
   };
   const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
   const OPENROUTER_TITLE = 'BetterDungeon Ultrascripts';
+  const AI_DUMMY_MODEL_ID = 'betterdungeon/dummy:free';
   const AI_DEFAULT_TIMEOUT_MS = 30000;
   const AI_MAX_TIMEOUT_MS = 60000;
   const AI_MAX_RESPONSE_BYTES = 1500000;
@@ -119,6 +120,12 @@
       };
     }
     return { code: 'ai_failed', message: String(error || 'AI failed') };
+  }
+
+  function aiDebug(event, detail = {}) {
+    try {
+      console.info('[BetterDungeon/AI]', event, detail);
+    } catch { /* noop */ }
   }
 
   function clampNumber(value, fallback, min, max) {
@@ -425,6 +432,7 @@
   async function getSdkConfigSnapshot() {
     const syncResult = await storageGet('sync', Object.values(SDK_SYNC_STORAGE_KEYS));
     const aiConfig = await getAiConfig();
+    const dummyModel = isDummyAiModel(aiConfig.openrouterDefaultModel);
     return {
       features: normalizeSdkFeatures(syncResult[SDK_SYNC_STORAGE_KEYS.features]),
       ultrascripts: {
@@ -433,9 +441,10 @@
         scriptureDisplay: normalizeSdkScriptureDisplay(syncResult[SDK_SYNC_STORAGE_KEYS.scriptureWidgetDisplay]),
         webfetch: summarizeSdkWebFetchAllowlist(syncResult[SDK_SYNC_STORAGE_KEYS.webfetchAllowlist]),
         ai: {
-          configured: !!aiConfig.openrouterKey,
+          configured: !!aiConfig.openrouterKey || dummyModel,
           defaultModel: aiConfig.openrouterDefaultModel || null,
           costControls: normalizeAiCostControls(aiConfig.costControls),
+          dummyModel,
         },
       },
     };
@@ -474,15 +483,42 @@
     const limit = clampNumber(timeoutMs, AI_DEFAULT_TIMEOUT_MS, 1000, AI_MAX_TIMEOUT_MS);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), limit);
+    const startedAt = Date.now();
+    const trace = options.trace && typeof options.trace === 'object' ? options.trace : {};
+    const method = String(options.method || 'GET').toUpperCase();
+    aiDebug('fetch:start', {
+      ...trace,
+      path,
+      method,
+      timeoutMs: limit,
+    });
+    const { trace: _trace, ...fetchOptions } = options;
 
     try {
-      return await fetch(OPENROUTER_BASE_URL + path, {
-        ...options,
+      const response = await fetch(OPENROUTER_BASE_URL + path, {
+        ...fetchOptions,
         credentials: 'omit',
         cache: 'no-store',
         signal: controller.signal,
       });
+      aiDebug('fetch:response', {
+        ...trace,
+        path,
+        method,
+        status: response.status,
+        ok: response.ok,
+        elapsedMs: Date.now() - startedAt,
+      });
+      return response;
     } catch (err) {
+      aiDebug('fetch:error', {
+        ...trace,
+        path,
+        method,
+        elapsedMs: Date.now() - startedAt,
+        name: err?.name || null,
+        message: err?.message || String(err || ''),
+      });
       if (err?.name === 'AbortError') {
         throw { code: 'timeout', message: `AI timed out after ${limit} ms`, provider: 'openrouter' };
       }
@@ -669,7 +705,7 @@
     if (!model) {
       throw {
         code: 'model_not_found',
-        message: `OpenRouter model '${request.model}' was not found; verify the model ID or choose one from OpenRouter`,
+        message: `Configured OpenRouter model '${request.model}' was not found; choose a different default model in BetterDungeon settings`,
         provider: 'openrouter',
       };
     }
@@ -909,22 +945,39 @@
   }
 
   async function handleOpenRouterChat(request, config) {
+    const trace = {
+      requestId: request?.requestId || null,
+      op: 'chat',
+      provider: 'openrouter',
+    };
+    const startedAt = Date.now();
     const apiKey = requireOpenRouterKey(config);
     const timeoutMs = clampNumber(request.timeoutMs, AI_DEFAULT_TIMEOUT_MS, 1000, AI_MAX_TIMEOUT_MS);
-    const model = String(request.model || config.openrouterDefaultModel || '').trim();
+    const model = String(config.openrouterDefaultModel || '').trim();
+    aiDebug('chat:start', {
+      ...trace,
+      model,
+      timeoutMs,
+      messageCount: Array.isArray(request.messages) ? request.messages.length : 0,
+      maxTokens: request.maxTokens || null,
+      hasResponseFormat: !!request.responseFormat,
+    });
     if (!model) {
       throw {
         code: 'invalid_args',
-        message: 'model is required or configure a default OpenRouter model',
+        message: 'Configure a default OpenRouter model in BetterDungeon settings before using ai.chat',
         provider: 'openrouter',
       };
     }
     if (!Array.isArray(request.messages) || request.messages.length === 0) {
       throw { code: 'invalid_args', message: 'messages must be a non-empty array', provider: 'openrouter' };
     }
+    aiDebug('chat:models-fetch:start', { ...trace, model });
     const models = (await fetchOpenRouterModels(config, timeoutMs)).models;
+    aiDebug('chat:models-fetch:done', { ...trace, model, modelCount: models.length });
     const modelMeta = findModel(models, model);
     await enforceAiCostControls({ ...request, model }, config, modelMeta);
+    aiDebug('chat:cost-controls:ok', { ...trace, model });
 
     const body = {
       model,
@@ -945,8 +998,24 @@
       method: 'POST',
       headers: openRouterHeaders(apiKey),
       body: JSON.stringify(body),
+      trace: { ...trace, model },
     }, timeoutMs);
+    aiDebug('chat:provider-response:start-read', {
+      ...trace,
+      model,
+      status: response.status,
+      ok: response.ok,
+    });
     const responseBody = await readProviderJson(response);
+    aiDebug('chat:provider-response:read', {
+      ...trace,
+      model,
+      status: response.status,
+      ok: response.ok,
+      returnedBytes: responseBody.returnedBytes,
+      truncated: responseBody.truncated,
+      elapsedMs: Date.now() - startedAt,
+    });
 
     if (!response.ok) {
       throw providerStatusError(response, responseBody.payload, responseBody.text, responseBody.truncated);
@@ -957,7 +1026,130 @@
 
     const normalized = normalizeOpenRouterChat(responseBody.payload, model);
     await recordCostUsage(actualRequestCost(modelMeta, normalized.usage));
+    aiDebug('chat:done', {
+      ...trace,
+      model: normalized.model || model,
+      id: normalized.id || null,
+      textLength: typeof normalized.text === 'string' ? normalized.text.length : null,
+      finishReason: normalized.finishReason || null,
+      elapsedMs: Date.now() - startedAt,
+    });
     return normalized;
+  }
+
+  function isDummyAiModel(model) {
+    return String(model || '').trim().toLowerCase() === AI_DUMMY_MODEL_ID;
+  }
+
+  function normalizeDummyModel() {
+    return {
+      id: AI_DUMMY_MODEL_ID,
+      name: 'BetterDungeon Dummy (free)',
+      canonicalSlug: 'betterdungeon/dummy',
+      contextLength: 32768,
+      created: null,
+      inputModalities: ['text'],
+      outputModalities: ['text'],
+      pricing: { prompt: '0', completion: '0', request: '0' },
+    };
+  }
+
+  function dummyKeyInfo() {
+    return {
+      usage: 0,
+      usageDaily: 0,
+      usageWeekly: 0,
+      usageMonthly: 0,
+      byokUsage: 0,
+      limit: null,
+      limitRemaining: null,
+      limitReset: null,
+      freeTier: true,
+      provisioningKey: false,
+      managementKey: false,
+      includeByokInLimit: null,
+      expiresAt: null,
+      rateLimit: null,
+    };
+  }
+
+  function dummyChatText(request) {
+    const formatType = String(request?.responseFormat?.type || '').trim();
+    if (formatType === 'json_object') return '{"status":"online"}';
+    if (formatType === 'json_schema') return '{"status":"online"}';
+
+    const last = Array.isArray(request?.messages)
+      ? request.messages.slice().reverse().find((message) => message?.role === 'user')
+      : null;
+    const content = String(last?.content || '').toLowerCase();
+    if (content.includes('ultrascripts ai module is online')) {
+      return 'Ultrascripts AI module is online.';
+    }
+    return 'BetterDungeon dummy AI response.';
+  }
+
+  function handleDummyModels(request, config) {
+    const limit = Math.round(clampNumber(request.limit, AI_DEFAULT_MODEL_LIMIT, 0, AI_MAX_MODEL_LIMIT));
+    const query = String(request.query || '').trim().toLowerCase();
+    const model = normalizeDummyModel();
+    const matches = !query || model.id.toLowerCase().includes(query) || model.name.toLowerCase().includes(query);
+    const models = matches && limit > 0 ? [model] : [];
+    return {
+      provider: 'openrouter',
+      configured: true,
+      dummy: true,
+      defaultModel: config.openrouterDefaultModel || AI_DUMMY_MODEL_ID,
+      source: 'betterdungeon:dummy',
+      count: matches ? 1 : 0,
+      totalCount: 1,
+      returned: models.length,
+      truncated: false,
+      models,
+    };
+  }
+
+  function handleDummyTestConnection(request, config) {
+    const models = handleDummyModels({ ...request, limit: 0 }, config);
+    return {
+      provider: 'openrouter',
+      configured: true,
+      dummy: true,
+      ok: true,
+      defaultModel: config.openrouterDefaultModel || AI_DUMMY_MODEL_ID,
+      modelCount: models.totalCount,
+      source: models.source,
+      key: dummyKeyInfo(),
+      checkedAt: Date.now(),
+      checkedAtIso: new Date().toISOString(),
+    };
+  }
+
+  function handleDummyChat(request, config) {
+    if (!Array.isArray(request.messages) || request.messages.length === 0) {
+      throw { code: 'invalid_args', message: 'messages must be a non-empty array', provider: 'openrouter' };
+    }
+    const text = dummyChatText(request);
+    return {
+      provider: 'openrouter',
+      dummy: true,
+      model: config.openrouterDefaultModel || AI_DUMMY_MODEL_ID,
+      id: `bd-dummy-${Date.now().toString(36)}`,
+      created: Math.floor(Date.now() / 1000),
+      object: 'chat.completion',
+      text,
+      message: {
+        role: 'assistant',
+        content: text,
+      },
+      finishReason: 'stop',
+      nativeFinishReason: 'stop',
+      usage: {
+        promptTokens: estimateTokens(request.messages),
+        completionTokens: Math.max(1, Math.ceil(text.length / 4)),
+        totalTokens: estimateTokens(request.messages) + Math.max(1, Math.ceil(text.length / 4)),
+        raw: null,
+      },
+    };
   }
 
   async function handleAi(request = {}) {
@@ -972,6 +1164,11 @@
     }
 
     const config = await getAiConfig();
+    if (isDummyAiModel(config.openrouterDefaultModel)) {
+      if (op === 'chat') return handleDummyChat(request, config);
+      if (op === 'models') return handleDummyModels(request, config);
+      return handleDummyTestConnection(request, config);
+    }
     if (op === 'chat') return handleOpenRouterChat(request, config);
     if (op === 'models') return handleOpenRouterModels(request, config);
     return handleOpenRouterTestConnection(request, config);
@@ -989,9 +1186,36 @@
   extensionRuntime.onMessage.addListener((message, _sender, sendResponse) => {
     if (!message || (message.type !== AI_MESSAGE && message.type !== LEGACY_PROVIDER_AI_MESSAGE)) return false;
 
+    const startedAt = Date.now();
+    const request = message.request || {};
+    aiDebug('runtime:request', {
+      requestId: request.requestId || null,
+      type: message.type,
+      op: request.op || null,
+      provider: request.provider || null,
+      timeoutMs: request.timeoutMs || null,
+    });
     handleAi(message.request)
-      .then((data) => sendResponse({ ok: true, data }))
-      .catch((error) => sendResponse({ ok: false, error: normalizeAiError(error) }));
+      .then((data) => {
+        aiDebug('runtime:response:ok', {
+          requestId: request.requestId || null,
+          op: request.op || null,
+          elapsedMs: Date.now() - startedAt,
+          resultKeys: data && typeof data === 'object' ? Object.keys(data).slice(0, 12) : [],
+        });
+        sendResponse({ ok: true, data });
+      })
+      .catch((error) => {
+        const normalized = normalizeAiError(error);
+        aiDebug('runtime:response:error', {
+          requestId: request.requestId || null,
+          op: request.op || null,
+          elapsedMs: Date.now() - startedAt,
+          errorCode: normalized.code || null,
+          message: normalized.message || '',
+        });
+        sendResponse({ ok: false, error: normalized });
+      });
     return true;
   });
 

@@ -285,11 +285,12 @@ function createUltrascriptsSdk() {
       if (!Object.prototype.hasOwnProperty.call(bucket, requestId)) continue;
       if (prefix && requestId.indexOf(prefix) !== 0) continue;
       var response = bucket[requestId];
+      var responseLiveCount = Number(response.completedLiveCount || 0);
+      if (responseLiveCount > liveCount()) continue;
       if (!best) {
         best = response;
         continue;
       }
-      var responseLiveCount = Number(response.completedLiveCount || 0);
       var bestLiveCount = Number(best.completedLiveCount || 0);
       var responseTime = Number(response.completedAt || 0);
       var bestTime = Number(best.completedAt || 0);

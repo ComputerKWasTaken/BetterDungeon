@@ -17,7 +17,6 @@
   const MAX_MESSAGES = 20;
   const MAX_MESSAGE_CHARS = 8000;
   const MAX_TOTAL_CHARS = 24000;
-  const MAX_MODEL_CHARS = 160;
   const MAX_QUERY_CHARS = 120;
   const MAX_STOP_SEQUENCES = 4;
   const MAX_STOP_CHARS = 200;
@@ -32,6 +31,12 @@
   };
 
   const rateBuckets = new Map();
+
+  function debugLog(event, detail = {}) {
+    try {
+      console.info('[UltrascriptsAI]', event, detail);
+    } catch { /* noop */ }
+  }
 
   function invalidArgs(message, extra = {}) {
     return { code: 'invalid_args', message, ...extra };
@@ -61,17 +66,6 @@
 
   function normalizeTimeoutMs(value) {
     return Math.round(clampNumber(value, DEFAULT_TIMEOUT_MS, MIN_TIMEOUT_MS, MAX_TIMEOUT_MS));
-  }
-
-  function normalizeModel(value) {
-    if (value === undefined || value === null || value === '') return null;
-    if (typeof value !== 'string') throw invalidArgs('model must be a string');
-    const model = value.trim();
-    if (!model) return null;
-    if (model.length > MAX_MODEL_CHARS) {
-      throw invalidArgs(`model must be ${MAX_MODEL_CHARS} characters or fewer`);
-    }
-    return model;
   }
 
   function normalizeQuery(value) {
@@ -255,10 +249,34 @@
   }
 
   function backgroundRequest(request) {
+    const startedAt = Date.now();
+    const trace = {
+      requestId: request?.requestId || null,
+      op: request?.op || null,
+      provider: request?.provider || null,
+      timeoutMs: request?.timeoutMs || null,
+    };
+    debugLog('backgroundRequest:start', trace);
+
     if (typeof browser !== 'undefined' && browser?.runtime?.sendMessage) {
       return browser.runtime
         .sendMessage({ type: AI_MESSAGE, request })
-        .then((response) => unwrapBackgroundResponse(response));
+        .then((response) => {
+          debugLog('backgroundRequest:response', {
+            ...trace,
+            ok: !!response?.ok,
+            elapsedMs: Date.now() - startedAt,
+            errorCode: response?.error?.code || null,
+          });
+          return unwrapBackgroundResponse(response);
+        }, (err) => {
+          debugLog('backgroundRequest:sendMessageRejected', {
+            ...trace,
+            elapsedMs: Date.now() - startedAt,
+            message: err?.message || String(err || ''),
+          });
+          throw err;
+        });
     }
 
     const runtime = typeof chrome !== 'undefined' ? chrome.runtime : null;
@@ -270,24 +288,41 @@
       runtime.sendMessage({ type: AI_MESSAGE, request }, (response) => {
         const lastError = typeof chrome !== 'undefined' ? chrome.runtime?.lastError : null;
         if (lastError) {
+          debugLog('backgroundRequest:lastError', {
+            ...trace,
+            elapsedMs: Date.now() - startedAt,
+            message: lastError.message || 'AI background request failed',
+          });
           reject({ code: 'ai_unavailable', message: lastError.message || 'AI background request failed' });
           return;
         }
         try {
+          debugLog('backgroundRequest:response', {
+            ...trace,
+            ok: !!response?.ok,
+            elapsedMs: Date.now() - startedAt,
+            errorCode: response?.error?.code || null,
+          });
           resolve(unwrapBackgroundResponse(response));
         } catch (err) {
+          debugLog('backgroundRequest:unwrapError', {
+            ...trace,
+            elapsedMs: Date.now() - startedAt,
+            errorCode: err?.code || null,
+            message: err?.message || String(err || ''),
+          });
           reject(err);
         }
       });
     });
   }
 
-  async function chatOp(args = {}, ctx) {
+  async function chatOp(args = {}, ctx, opRequest) {
     const normalized = normalizeArgs(args);
     const request = {
       provider: normalizeProvider(normalized.provider),
       op: 'chat',
-      model: normalizeModel(normalized.model),
+      requestId: typeof opRequest?.id === 'string' ? opRequest.id : undefined,
       messages: normalizeMessages(normalized.messages),
       temperature: normalizeTemperature(normalized.temperature),
       maxTokens: normalizeMaxTokens(normalized.maxTokens),
@@ -299,11 +334,12 @@
     return backgroundRequest(request);
   }
 
-  async function modelsOp(args = {}, ctx) {
+  async function modelsOp(args = {}, ctx, opRequest) {
     const normalized = normalizeArgs(args);
     const request = {
       provider: normalizeProvider(normalized.provider),
       op: 'models',
+      requestId: typeof opRequest?.id === 'string' ? opRequest.id : undefined,
       query: normalizeQuery(normalized.query),
       limit: normalizeLimit(normalized.limit),
       timeoutMs: normalizeTimeoutMs(normalized.timeoutMs),
@@ -313,11 +349,12 @@
     return backgroundRequest(request);
   }
 
-  async function testConnectionOp(args = {}, ctx) {
+  async function testConnectionOp(args = {}, ctx, opRequest) {
     const normalized = normalizeArgs(args);
     const request = {
       provider: normalizeProvider(normalized.provider),
       op: 'testConnection',
+      requestId: typeof opRequest?.id === 'string' ? opRequest.id : undefined,
       timeoutMs: normalizeTimeoutMs(normalized.timeoutMs),
     };
 

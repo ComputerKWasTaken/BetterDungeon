@@ -16,7 +16,7 @@ The suite runs a fixed plan of requests, one per turn, in order:
 | `testConnection` | `ai` | `testConnection` | ok + safe key metadata |
 | `models` | `ai` | `models` | ok + non-empty `models[]` |
 | `chat-canonical` | `ai` | `chat` | ok + assistant text |
-| `chat-via-alias` | `providerAI` | `chat` | ok (verifies alias routing) |
+| `chat-via-alias` | `providerAI` | `chat` | ok (verifies alias routing and ignored legacy `model` arg) |
 | `chat-json-object` | `ai` | `chat` | ok + JSON-shaped assistant text |
 | `chat-json-schema` | `ai` | `chat` | ok + schema-shaped assistant text |
 | `err-empty-messages` | `ai` | `chat` | err `invalid_args` |
@@ -40,9 +40,11 @@ It also verifies:
 1. Load the BetterDungeon extension and open AI Dungeon.
 2. Open BetterDungeon → **Ultrascripts** and enable Ultrascripts and the **AI**
    module.
-3. Open Ultrascripts → **AI**, save an OpenRouter API key.
-4. Optionally edit `ULTRASCRIPTS_AI_TEST_MODEL` at the top of `library.js`.
-   The default is a free OpenRouter model.
+3. Open Ultrascripts → **AI** and save a default model.
+4. To avoid OpenRouter requests entirely, set the default model to
+   `betterdungeon/dummy:free`. Otherwise use a free default model unless you
+   intentionally want the suite to spend paid quota; real OpenRouter models
+   still require an API key.
 
 ## Install in a scenario
 

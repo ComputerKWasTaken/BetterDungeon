@@ -70,6 +70,23 @@
     console[method](TAG, ...args);
   }
 
+  function traceRequest(event, request, extra = {}) {
+    if (request?.module !== 'ai' && request?.module !== 'providerAI') return;
+    try {
+      console.info(TAG, event, {
+        requestId: request?.id || null,
+        module: request?.module || null,
+        op: request?.op || null,
+        liveCount: currentLiveCount(),
+        ...extra,
+      });
+    } catch { /* noop */ }
+  }
+
+  function isSupersededWriteError(err) {
+    return String(err?.message || '').includes('superseded by a newer write');
+  }
+
   // ---------- session mirror ----------
 
   function readSessionMirror(shortId) {
@@ -147,11 +164,71 @@
     return card?.value ?? card?.entry ?? card?.description ?? '';
   }
 
+  function responseIsTerminalValue(response) {
+    return !!envelope()?.isTerminalResponse?.(response);
+  }
+
+  function responseTime(response) {
+    return Number(response?.completedAt || response?.startedAt || 0) || 0;
+  }
+
+  function mergeResponseEnvelope(moduleId, incomingEnvelope) {
+    const cached = state.responseCache.get(moduleId);
+    if (!cached || !cached.responses) return { envelope: incomingEnvelope, changed: false };
+    if (!incomingEnvelope || !incomingEnvelope.responses) return { envelope: cached, changed: false };
+
+    let changed = false;
+    const merged = {
+      ...incomingEnvelope,
+      responses: { ...incomingEnvelope.responses },
+    };
+
+    for (const [requestId, cachedResponse] of Object.entries(cached.responses || {})) {
+      if (state.acked.has(requestId)) continue;
+
+      const incomingResponse = merged.responses[requestId];
+      if (!incomingResponse) {
+        if (state.inflight.has(requestId) || state.processed.has(requestId)) {
+          merged.responses[requestId] = cachedResponse;
+          changed = true;
+        }
+        continue;
+      }
+
+      const cachedTerminal = responseIsTerminalValue(cachedResponse);
+      const incomingTerminal = responseIsTerminalValue(incomingResponse);
+
+      if (cachedTerminal && !incomingTerminal) {
+        merged.responses[requestId] = cachedResponse;
+        changed = true;
+        continue;
+      }
+
+      if (cachedTerminal && incomingTerminal && responseTime(cachedResponse) > responseTime(incomingResponse)) {
+        merged.responses[requestId] = cachedResponse;
+        changed = true;
+      }
+    }
+
+    if (changed && (moduleId === 'ai' || moduleId === 'providerAI')) {
+      console.info(TAG, 'response:sync:merged-stale-card', {
+        module: moduleId,
+        responseIds: Object.keys(merged.responses || {}),
+      });
+    }
+
+    return { envelope: merged, changed };
+  }
+
   function syncResponseCard(card) {
     const env = envelope();
     const moduleId = env?.moduleIdFromResponseTitle?.(card?.title);
     if (!moduleId || !env) return;
-    const responseEnvelope = env.normalizeResponseEnvelope(cardValue(card));
+    const merged = mergeResponseEnvelope(
+      moduleId,
+      env.normalizeResponseEnvelope(cardValue(card))
+    );
+    const responseEnvelope = merged.envelope;
     let removedAcked = false;
     for (const requestId of state.acked) {
       if (responseEnvelope.responses && requestId in responseEnvelope.responses) {
@@ -160,9 +237,10 @@
       }
     }
     state.responseCache.set(moduleId, responseEnvelope);
-    if (removedAcked) {
+    if (removedAcked || merged.changed) {
       writeResponseEnvelope(moduleId).catch((err) => {
-        console.warn(TAG, `failed to rewrite acked response card for '${moduleId}'`, err);
+        if (isSupersededWriteError(err)) return;
+        console.warn(TAG, `failed to rewrite response card for '${moduleId}'`, err);
       });
     }
   }
@@ -198,10 +276,40 @@
     state.responseCache.set(moduleId, responseEnvelope);
 
     try {
+      if (moduleId === 'ai' || moduleId === 'providerAI') {
+        console.info(TAG, 'response:write:start', {
+          requestId,
+          module: moduleId,
+          status: response?.status || null,
+          writeKind,
+          liveCount: currentLiveCount(),
+        });
+      }
       await writeResponseEnvelope(moduleId);
+      if (moduleId === 'ai' || moduleId === 'providerAI') {
+        console.info(TAG, 'response:write:ok', {
+          requestId,
+          module: moduleId,
+          status: response?.status || null,
+          writeKind,
+          liveCount: currentLiveCount(),
+        });
+      }
       if (writeKind === 'pending') state.metrics.pendingWrites++;
       if (writeKind === 'terminal') state.metrics.terminalWrites++;
     } catch (err) {
+      if (isSupersededWriteError(err)) {
+        if (moduleId === 'ai' || moduleId === 'providerAI') {
+          console.info(TAG, 'response:write:superseded', {
+            requestId,
+            module: moduleId,
+            status: response?.status || null,
+            writeKind,
+            liveCount: currentLiveCount(),
+          });
+        }
+        return;
+      }
       state.metrics.errors++;
       console.warn(TAG, `failed to write response for '${requestId}'`, err);
     }
@@ -299,7 +407,16 @@
   }
 
   async function finalizeRequest(request, response) {
-    if (state.processed.has(request.id)) return;
+    if (state.processed.has(request.id)) {
+      traceRequest('finalize:skip-processed', request, { status: response?.status || null });
+      return;
+    }
+    const meta = state.inflight.get(request.id);
+    traceRequest('finalize:start', request, {
+      status: response?.status || null,
+      elapsedMs: meta?.startedAt ? now() - meta.startedAt : null,
+      startedLiveCount: meta?.startedLiveCount || null,
+    });
     await setResponse(request.module, request.id, response, 'terminal');
     state.inflight.delete(request.id);
     state.processed.set(request.id, {
@@ -307,6 +424,7 @@
       completedLiveCount: currentLiveCount(),
     });
     writeSessionMirror();
+    traceRequest('finalize:done', request, { status: response?.status || null });
   }
 
   async function respond(requestId, data) {
@@ -332,9 +450,14 @@
   async function dispatchRequest(request) {
     const env = envelope();
     state.metrics.requestsSeen++;
+    traceRequest('dispatch:seen', request);
 
     if (state.processed.has(request.id) || state.inflight.has(request.id)) {
       state.metrics.skippedDuplicate++;
+      traceRequest('dispatch:skip-duplicate', request, {
+        processed: state.processed.has(request.id),
+        inflight: state.inflight.has(request.id),
+      });
       return;
     }
 
@@ -346,11 +469,13 @@
       });
       writeSessionMirror();
       state.metrics.skippedDuplicate++;
+      traceRequest('dispatch:skip-existing-terminal', request, { status: existing?.status || null });
       return;
     }
 
     const mounted = findMountedModule(request.module);
     if (!mounted) {
+      traceRequest('dispatch:unknown-module', request);
       await finalizeRequest(
         request,
         env.errorResponse({
@@ -363,6 +488,7 @@
 
     const descriptor = getOpDescriptor(mounted.def, request.op);
     if (!descriptor) {
+      traceRequest('dispatch:unknown-op', request);
       await finalizeRequest(
         request,
         env.errorResponse({
@@ -374,6 +500,7 @@
     }
 
     if (existing?.status === 'pending' && descriptor.idempotent !== 'safe') {
+      traceRequest('dispatch:unsafe-replay-blocked', request);
       await finalizeRequest(
         request,
         env.errorResponse({
@@ -388,6 +515,11 @@
     const startedLiveCount = currentLiveCount();
     state.inflight.set(request.id, { request, startedAt, startedLiveCount });
     writeSessionMirror();
+    traceRequest('dispatch:start', request, {
+      descriptorTimeoutMs: descriptor.timeoutMs,
+      idempotent: descriptor.idempotent,
+      startedLiveCount,
+    });
 
     await setResponse(
       request.module,
@@ -403,13 +535,26 @@
         descriptor.timeoutMs,
         request.id
       );
+      traceRequest('dispatch:handler-resolved', request, {
+        elapsedMs: now() - startedAt,
+        resultKeys: result && typeof result === 'object' ? Object.keys(result).slice(0, 12) : [],
+      });
 
       if (!responseIsTerminal(request.module, request.id)) {
         await finalizeRequest(request, env.okResponse(result, { liveCount: currentLiveCount() }));
+      } else {
+        traceRequest('dispatch:terminal-already-present-after-resolve', request);
       }
     } catch (err) {
+      traceRequest('dispatch:handler-rejected', request, {
+        elapsedMs: now() - startedAt,
+        errorCode: err?.code || null,
+        message: err?.message || String(err || ''),
+      });
       if (!responseIsTerminal(request.module, request.id)) {
         await finalizeRequest(request, env.errorResponse(err, { liveCount: currentLiveCount() }));
+      } else {
+        traceRequest('dispatch:terminal-already-present-after-reject', request);
       }
     }
   }

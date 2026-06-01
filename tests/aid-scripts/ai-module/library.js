@@ -11,11 +11,7 @@
 //
 // Before running:
 //   1. Open BetterDungeon -> Ultrascripts and enable Ultrascripts + the AI module.
-//   2. In Ultrascripts -> AI, save an OpenRouter API key.
-//   3. Optionally edit ULTRASCRIPTS_AI_TEST_MODEL below; otherwise a free model
-//      is used.
-
-var ULTRASCRIPTS_AI_TEST_MODEL = 'inclusionai/ring-2.6-1t:free';
+//   2. In Ultrascripts -> AI, save an OpenRouter API key and default model.
 
 // ---------- state ----------
 
@@ -58,9 +54,8 @@ var FAI_STEPS = [
     label: 'models',
     module: 'ai',
     op: 'models',
-    // Fetch a small page so the chat steps can pick a real, currently-listed
-    // model rather than a hard-coded one that may have rotated out of the
-    // OpenRouter free tier.
+    // Fetch a small page to verify metadata transport. Chat always uses the
+    // player's configured default model; scenario-supplied model ids are ignored.
     args: function () { return { provider: 'openrouter', query: ':free', limit: 20, timeoutMs: 30000 }; },
     expect: 'ok',
     validate: function (r) {
@@ -72,7 +67,7 @@ var FAI_STEPS = [
     label: 'chat-canonical',
     module: 'ai',
     op: 'chat',
-    args: function () { return faiChatArgs(faiPickChatModel()); },
+    args: function () { return faiChatArgs(); },
     expect: 'ok',
     validate: faiValidChat
   },
@@ -80,7 +75,7 @@ var FAI_STEPS = [
     label: 'chat-via-alias',
     module: 'providerAI',
     op: 'chat',
-    args: function () { return faiChatArgs(faiPickChatModel()); },
+    args: function () { return faiChatArgsWithDeprecatedModel(); },
     expect: 'ok',
     validate: faiValidChat
   },
@@ -88,16 +83,18 @@ var FAI_STEPS = [
     label: 'chat-json-object',
     module: 'ai',
     op: 'chat',
-    args: function () { return faiJsonObjectArgs(faiPickChatModel()); },
+    args: function () { return faiJsonObjectArgs(); },
     expect: 'ok',
+    allowProviderUnsupported: true,
     validate: faiValidJsonObjectChat
   },
   {
     label: 'chat-json-schema',
     module: 'ai',
     op: 'chat',
-    args: function () { return faiJsonSchemaArgs(faiPickChatModel()); },
+    args: function () { return faiJsonSchemaArgs(); },
     expect: 'ok',
+    allowProviderUnsupported: true,
     validate: faiValidJsonSchemaChat
   },
   {
@@ -358,36 +355,19 @@ function faiRepeat(ch, count) {
   return out;
 }
 
-function faiTestModel() { return String(ULTRASCRIPTS_AI_TEST_MODEL || '').trim(); }
-
-// Pick a chat model dynamically: first prefer a `:free` model from the live
-// `models` response, then any model from that response, and finally the
-// configured default. This keeps the suite green as OpenRouter rotates its
-// free-tier inventory.
-function faiPickChatModel() {
+function faiConfiguredDefaultModel() {
   var s = state.ultrascriptsAiTest;
-  var rid = s.steps && s.steps['models'];
-  var done = rid && s.completed[rid];
-  var list = done && done.data && Array.isArray(done.data.models) ? done.data.models : [];
-
-  function modelId(m) {
-    if (!m) return '';
-    if (typeof m === 'string') return m;
-    return String(m.id || m.slug || m.name || '');
+  var labels = ['models', 'testConnection'];
+  for (var i = 0; i < labels.length; i++) {
+    var rid = s.steps && s.steps[labels[i]];
+    var done = rid && s.completed[rid];
+    var model = done && done.data && String(done.data.defaultModel || '').trim();
+    if (model) return model;
   }
-
-  for (var i = 0; i < list.length; i++) {
-    var id = modelId(list[i]);
-    if (id && id.indexOf(':free') !== -1) return id;
-  }
-  for (var j = 0; j < list.length; j++) {
-    var id2 = modelId(list[j]);
-    if (id2) return id2;
-  }
-  return faiTestModel();
+  return '';
 }
 
-function faiChatArgs(model) {
+function faiChatArgs() {
   var args = {
     provider: 'openrouter',
     messages: [
@@ -401,13 +381,17 @@ function faiChatArgs(model) {
     temperature: 0,
     timeoutMs: 60000
   };
-  var m = String(model || faiTestModel() || '').trim();
-  if (m) args.model = m;
   return args;
 }
 
-function faiJsonObjectArgs(model) {
-  var args = faiChatArgs(model);
+function faiChatArgsWithDeprecatedModel() {
+  var args = faiChatArgs();
+  args.model = 'betterdungeon/this-model-argument-should-be-ignored';
+  return args;
+}
+
+function faiJsonObjectArgs() {
+  var args = faiChatArgs();
   args.messages = [
     { role: 'system', content: 'Reply only with compact JSON.' },
     { role: 'user', content: 'Return {"status":"online"} and no prose.' }
@@ -416,8 +400,8 @@ function faiJsonObjectArgs(model) {
   return args;
 }
 
-function faiJsonSchemaArgs(model) {
-  var args = faiChatArgs(model);
+function faiJsonSchemaArgs() {
+  var args = faiChatArgs();
   args.messages = [
     { role: 'system', content: 'Reply only with JSON matching the requested schema.' },
     { role: 'user', content: 'Report that Ultrascripts AI is online.' }
@@ -470,6 +454,16 @@ function faiValidJsonObjectChat(r) {
 function faiValidJsonSchemaChat(r) {
   var parsed = faiParseJsonText(r);
   return faiValidChat(r) && !!parsed && parsed.status === 'online';
+}
+
+function faiProviderUnsupported(done) {
+  var err = done && done.error;
+  return !!(
+    done && done.status === 'err' &&
+    err && err.code === 'provider_error' &&
+    (err.status === 404 || String(err.upstreamCode || '') === '404') &&
+    String(err.message || '').toLowerCase().indexOf('no endpoints found') !== -1
+  );
 }
 
 // Look at recent history + the current output to detect command tokens.
@@ -603,6 +597,10 @@ function faiStepResult(step) {
   var pass = false, reason = '';
   if (step.expect === 'ok') {
     pass = done.status === 'ok' && (typeof step.validate !== 'function' || !!step.validate(done.data));
+    if (!pass && step.allowProviderUnsupported && faiProviderUnsupported(done)) {
+      pass = true;
+      reason = 'provider does not support requested responseFormat';
+    }
     if (!pass) reason = done.status !== 'ok' ? ('status=' + done.status) : 'validate failed';
   } else if (step.expect === 'err') {
     pass = done.status === 'err' && done.error && done.error.code === step.errorCode;
@@ -669,8 +667,7 @@ function faiWriteTrace() {
       protocol: hb && hb.ultrascripts && hb.ultrascripts.protocol,
       aiAdvertised: faiHasOp('ai', 'chat') && faiHasOp('ai', 'models') && faiHasOp('ai', 'testConnection')
     },
-    testModel: faiTestModel() || '(BetterDungeon default)',
-    pickedChatModel: faiPickChatModel() || null,
+    configuredDefaultModel: faiConfiguredDefaultModel() || null,
     counts: counts,
     checksPass: counts.pending === 0 && counts.fail === 0,
     results: results,
