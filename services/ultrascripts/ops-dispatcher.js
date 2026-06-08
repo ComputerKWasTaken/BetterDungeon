@@ -71,7 +71,7 @@
   }
 
   function traceRequest(event, request, extra = {}) {
-    if (request?.module !== 'ai' && request?.module !== 'providerAI') return;
+    if (request?.module !== 'ai') return;
     try {
       console.info(TAG, event, {
         requestId: request?.id || null,
@@ -210,7 +210,7 @@
       }
     }
 
-    if (changed && (moduleId === 'ai' || moduleId === 'providerAI')) {
+    if (changed && moduleId === 'ai') {
       console.info(TAG, 'response:sync:merged-stale-card', {
         module: moduleId,
         responseIds: Object.keys(merged.responses || {}),
@@ -276,7 +276,7 @@
     state.responseCache.set(moduleId, responseEnvelope);
 
     try {
-      if (moduleId === 'ai' || moduleId === 'providerAI') {
+      if (moduleId === 'ai') {
         console.info(TAG, 'response:write:start', {
           requestId,
           module: moduleId,
@@ -286,7 +286,7 @@
         });
       }
       await writeResponseEnvelope(moduleId);
-      if (moduleId === 'ai' || moduleId === 'providerAI') {
+      if (moduleId === 'ai') {
         console.info(TAG, 'response:write:ok', {
           requestId,
           module: moduleId,
@@ -299,7 +299,7 @@
       if (writeKind === 'terminal') state.metrics.terminalWrites++;
     } catch (err) {
       if (isSupersededWriteError(err)) {
-        if (moduleId === 'ai' || moduleId === 'providerAI') {
+        if (moduleId === 'ai') {
           console.info(TAG, 'response:write:superseded', {
             requestId,
             module: moduleId,

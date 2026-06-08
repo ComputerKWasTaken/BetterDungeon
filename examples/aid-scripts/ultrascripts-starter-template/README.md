@@ -29,7 +29,7 @@ The template is intentionally modest. It gives new scripts a stable foundation:
 - Add new module calls near the existing `sdk.config` and `clock.now` examples.
 - Read responses with `us.latest(moduleId, opName)`.
 - Compare `completedLiveCount` with `us.liveCount()` before applying unsafe
-  side-effect responses such as `ai.chat` or `webfetch.fetch`.
+  side-effect responses such as `ai.query` or `webfetch.fetch`.
 - Publish widgets through `publishTemplateDashboard` or replace it with your
   own Scripture manifest.
 

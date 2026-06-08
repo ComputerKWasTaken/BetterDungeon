@@ -11,9 +11,9 @@ code — anything here is for verifying behavior, not for shipping.
   Each subfolder targets one Ultrascripts module or feature.
 
   - **`aid-scripts/ai-module/`** — End-to-end suite for the Ultrascripts AI
-    module (`modules/ai/module.js`). Exercises `chat`, `models`,
-    `testConnection`, alias routing, validation paths, dispatcher routing
-    errors, and the `unsafe_replay_blocked` recovery path. See its
+    module (`modules/ai/module.js`). Exercises `query`, `status`, validation
+    paths, dispatcher routing errors, native Story Card generator readiness,
+    and the `unsafe_replay_blocked` recovery path. See its
     `README.md` for setup and reading the trace card.
 
   - **`aid-scripts/sdk-module/`** — End-to-end suite for the Ultrascripts SDK

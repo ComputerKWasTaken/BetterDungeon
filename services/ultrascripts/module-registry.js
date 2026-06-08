@@ -59,7 +59,7 @@
           const saved = result?.[STORAGE_KEY];
           if (saved && typeof saved === 'object') {
             for (const [id, enabled] of Object.entries(saved)) {
-              enabledState.set(id === 'providerAI' ? 'ai' : id, !!enabled);
+              if (definitions.has(id)) enabledState.set(id, !!enabled);
             }
           }
           persistedLoaded = true;

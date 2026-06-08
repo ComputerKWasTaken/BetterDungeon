@@ -640,6 +640,13 @@
 
       // Write (delegates to write queue).
       writeCard,
+      generateStoryCard(card, command, options) {
+        const instance = state.aiService;
+        if (!instance?.generateStoryCard) {
+          throw new Error(`${TAG} generateStoryCard: AIDungeonService is not available.`);
+        }
+        return instance.generateStoryCard(card, command, options);
+      },
 
       // Advanced ops helpers. Normal op handlers should return/throw; these
       // exist for handlers that need to settle a request outside the call

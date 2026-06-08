@@ -826,7 +826,7 @@
                     </span>
                     <h3 class="feature-title">AI</h3>
                   </div>
-                  <p class="feature-desc">OpenRouter model calls for scripts</p>
+                  <p class="feature-desc">Native AI Dungeon queries for scripts</p>
                 </div>
                 <label class="toggle sm">
                   <input type="checkbox" data-ultrascripts-module-toggle="ai" checked>
@@ -834,93 +834,16 @@
                 </label>
               </div>
               <div class="feature-details">
-                <p>AI lets scripts ask a hosted model for bounded side tasks such as summarizing clues, classifying intent, generating structured data, or running private reasoning that should not interrupt the story turn.</p>
-                <p class="feature-hint"><span class="icon-brain-circuit"></span> Uses your own OpenRouter key. Scripts can call the module, but the key stays inside BetterDungeon and is never written to Story Cards. The default model is OpenRouter's free router.</p>
-                <div class="ultrascripts-provider-panel">
+                <p>AI lets scripts ask AI Dungeon's native generator for bounded side tasks such as summarizing clues, classifying intent, generating structured data, or running private reasoning that should not interrupt the story turn.</p>
+                <p class="feature-hint"><span class="icon-brain-circuit"></span> Uses AI Dungeon's native Story Card generator through a reserved Ultrascripts shell card. No external API key or external setup is required.</p>
+                <div class="ultrascripts-ai-native-panel">
                   <div class="ultrascripts-panel-heading">
-                    <span><span class="icon-key-round"></span> OpenRouter</span>
-                    <button class="btn btn-icon btn-ghost" id="ai-test" aria-label="Test AI connection" title="Test connection">
-                      <span class="icon-plug-zap"></span>
-                    </button>
+                    <span><span class="icon-sparkles"></span> Native Query Backend</span>
                   </div>
                   <div class="ultrascripts-ai-setup">
-                    <p>Create a key at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">openrouter.ai/keys</a>, paste it here, then save.</p>
-                    <p>Default: <span class="ultrascripts-ai-model-token">openrouter/free</span>. Tests: <span class="ultrascripts-ai-model-token">betterdungeon/dummy:free</span>.</p>
+                    <p>Scripts call <span class="ultrascripts-ai-api-token">ai.query</span> with a prompt and optional context. BetterDungeon sends the request through AI Dungeon's Story Card generator and returns the generated text through the normal Ultrascripts response card.</p>
                   </div>
-                  <div class="ultrascripts-provider-fields">
-                    <label class="ultrascripts-ai-field">
-                      <span>OpenRouter key</span>
-                      <input type="password" class="form-input" id="ai-openrouter-key" autocomplete="off" placeholder="sk-or-v1-...">
-                    </label>
-                    <label class="ultrascripts-ai-field">
-                      <span>Default model</span>
-                      <input type="text" class="form-input" id="ai-default-model" autocomplete="off" placeholder="openrouter/free">
-                    </label>
-                    <p class="ultrascripts-ai-field-hint">
-                      <span class="icon-sparkles"></span>
-                      OpenRouter's free router automatically picks a free model. Add $10 in credits to raise the free-model daily limit from 50 requests to 1000.
-                    </p>
-                    <div class="ultrascripts-ai-links">
-                      <a class="ultrascripts-ai-model-link" href="https://openrouter.ai/settings/credits" target="_blank" rel="noopener noreferrer">
-                        <span class="icon-external-link"></span>
-                        Add credits
-                      </a>
-                      <a class="ultrascripts-ai-model-link" href="https://openrouter.ai/models?output_modalities=text&amp;max_price=0" target="_blank" rel="noopener noreferrer">
-                        <span class="icon-external-link"></span>
-                        Browse free models
-                      </a>
-                    </div>
-                  </div>
-                  <div class="ultrascripts-ai-cost-panel">
-                    <div class="ultrascripts-ai-cost-heading">
-                      <span><span class="icon-shield-check"></span> Cost Controls</span>
-                    </div>
-                    <div class="ultrascripts-ai-cost-toggle">
-                      <span>Free models only</span>
-                      <label class="toggle xs" title="Block paid OpenRouter models">
-                        <input type="checkbox" id="ai-cost-free-only" checked>
-                        <span class="toggle-slider"></span>
-                      </label>
-                    </div>
-                    <button class="ultrascripts-ai-cost-advanced-toggle" id="ai-cost-advanced-toggle" type="button" aria-expanded="false">
-                      <span class="icon-chevron-down"></span>
-                      Paid model safeguards
-                    </button>
-                    <div class="ultrascripts-ai-cost-grid hidden" id="ai-cost-advanced">
-                      <label>
-                        <span>Max input $ / 1M</span>
-                        <input type="number" class="form-input" id="ai-cost-max-input" min="0" max="1000" step="0.01">
-                      </label>
-                      <label>
-                        <span>Max output $ / 1M</span>
-                        <input type="number" class="form-input" id="ai-cost-max-output" min="0" max="1000" step="0.01">
-                      </label>
-                      <label>
-                        <span>Per-call estimate cap</span>
-                        <input type="number" class="form-input" id="ai-cost-per-call-cap" min="0" max="1000" step="0.01">
-                      </label>
-                      <label>
-                        <span>Daily spend cap</span>
-                        <input type="number" class="form-input" id="ai-cost-daily-cap" min="0" max="1000" step="0.01">
-                      </label>
-                      <label>
-                        <span>Monthly spend cap</span>
-                        <input type="number" class="form-input" id="ai-cost-monthly-cap" min="0" max="1000" step="0.01">
-                      </label>
-                    </div>
-                    <p class="ultrascripts-ai-cost-hint">Free models are simplest. Open paid safeguards only if you intentionally override the default with a paid model.</p>
-                  </div>
-                  <div class="ultrascripts-provider-actions">
-                    <button class="btn btn-primary btn-sm" id="ai-save" type="button">
-                      <span class="icon-check"></span>
-                      Save
-                    </button>
-                    <button class="btn btn-ghost btn-sm" id="ai-clear-key" type="button">
-                      <span class="icon-x"></span>
-                      Clear Key
-                    </button>
-                  </div>
-                  <div class="ultrascripts-provider-status idle" id="ai-status">Add an OpenRouter key, then save. Default model: openrouter/free.</div>
+                  <div class="ultrascripts-ai-status ok" id="ai-status">Native AI Dungeon Story Card generator backend. No setup required.</div>
                 </div>
               </div>
             </article>

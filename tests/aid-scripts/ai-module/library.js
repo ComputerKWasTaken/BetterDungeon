@@ -1,162 +1,111 @@
-// Ultrascripts AI Module Test Suite — AI Dungeon Library
+// Ultrascripts AI Module Test Suite - AI Dungeon Library
 //
-// Drives the BetterDungeon Ultrascripts AI module through every public op and a
-// representative set of error paths. Pair with output-modifier.js.
+// Drives the native BetterDungeon Ultrascripts AI module through its public
+// query/status API. Pair with output-modifier.js.
 //
 // Surfaces written:
-//   ultrascripts:out                  - request envelope queue (script -> BD)
-//   ultrascripts:in:ai                - response envelope (BD -> script, canonical id)
-//   ultrascripts:in:providerAI        - response envelope (BD -> script, alias path)
-//   ultrascripts:test:ai              - human-readable trace card with results
+//   ultrascripts:out      - request envelope queue (script -> BD)
+//   ultrascripts:in:ai    - response envelope (BD -> script)
+//   ultrascripts:test:ai  - human-readable trace card with results
 //
 // Before running:
 //   1. Open BetterDungeon -> Ultrascripts and enable Ultrascripts + the AI module.
-//   2. In Ultrascripts -> AI, save an OpenRouter API key and default model.
-
-// ---------- state ----------
+//   2. Open an AI Dungeon adventure and take one normal turn so GraphQL
+//      credentials and Story Cards hydrate.
 
 state.ultrascriptsAiTest = state.ultrascriptsAiTest || {
   runId: null,
   turn: 0,
   seq: 0,
   outSeq: 0,
-  pending: {},      // id -> request
-  completed: {},    // id -> { status, data, error, module, label }
+  pending: {},
+  completed: {},
   acked: {},
   ackAttempts: {},
-  steps: {},        // label -> requestId
-  replayResets: {}, // label -> count of times we re-queued after unsafe_replay_blocked
+  steps: {},
+  replayResets: {},
   events: [],
   consumedCommands: {},
   phase: 'boot'
 };
 
-// ---------- test plan ----------
-//
-// Each step queues one Ultrascripts request and records it under a stable label
-// so the trace can call out exactly what failed. `module` is either the
-// canonical id 'ai' or the alias 'providerAI' so we exercise alias routing.
+var FAI_BACKEND = 'aid-story-card-generator';
 
 var FAI_STEPS = [
   {
-    label: 'testConnection',
+    label: 'status',
     module: 'ai',
-    op: 'testConnection',
-    args: function () { return { provider: 'openrouter', timeoutMs: 30000 }; },
+    op: 'status',
+    args: function () { return {}; },
     expect: 'ok',
     validate: function (r) {
-      return !!(r && r.provider === 'openrouter' && r.ok === true &&
-        r.configured === true && typeof r.modelCount === 'number' &&
-        r.key && typeof r.key === 'object');
+      return !!(
+        r &&
+        r.backend === FAI_BACKEND &&
+        typeof r.ready === 'boolean' &&
+        r.hasGraphqlCredentials === true &&
+        typeof r.adventureShortId === 'string' &&
+        r.adventureShortId.length > 0
+      );
     }
   },
   {
-    label: 'models',
+    label: 'query-plain',
     module: 'ai',
-    op: 'models',
-    // Fetch a small page to verify metadata transport. Chat always uses the
-    // player's configured default model; scenario-supplied model ids are ignored.
-    args: function () { return { provider: 'openrouter', query: ':free', limit: 20, timeoutMs: 30000 }; },
+    op: 'query',
+    args: function () {
+      return {
+        prompt: 'Reply with one short sentence saying the Ultrascripts AI module is online.',
+        context: 'This is a BetterDungeon native query transport test.',
+        temperature: 0,
+        timeoutMs: 120000
+      };
+    },
     expect: 'ok',
-    validate: function (r) {
-      return !!(r && r.provider === 'openrouter' && r.configured === true &&
-        Array.isArray(r.models) && typeof r.totalCount === 'number');
-    }
+    validate: faiValidQuery
   },
   {
-    label: 'chat-canonical',
+    label: 'query-json',
     module: 'ai',
-    op: 'chat',
-    args: function () { return faiChatArgs(); },
+    op: 'query',
+    args: function () {
+      return {
+        prompt: 'Return only compact JSON with exactly this shape: {"status":"online"}.',
+        context: { test: 'ultrascripts-ai-json' },
+        includeStorySummary: false,
+        temperature: 0,
+        timeoutMs: 120000
+      };
+    },
     expect: 'ok',
-    validate: faiValidChat
+    validate: faiValidJsonQuery
   },
   {
-    label: 'chat-via-alias',
-    module: 'providerAI',
-    op: 'chat',
-    args: function () { return faiChatArgsWithDeprecatedModel(); },
-    expect: 'ok',
-    validate: faiValidChat
-  },
-  {
-    label: 'chat-json-object',
+    label: 'err-empty-prompt',
     module: 'ai',
-    op: 'chat',
-    args: function () { return faiJsonObjectArgs(); },
-    expect: 'ok',
-    allowProviderUnsupported: true,
-    validate: faiValidJsonObjectChat
-  },
-  {
-    label: 'chat-json-schema',
-    module: 'ai',
-    op: 'chat',
-    args: function () { return faiJsonSchemaArgs(); },
-    expect: 'ok',
-    allowProviderUnsupported: true,
-    validate: faiValidJsonSchemaChat
-  },
-  {
-    label: 'err-empty-messages',
-    module: 'ai',
-    op: 'chat',
-    args: function () { return { provider: 'openrouter', messages: [] }; },
+    op: 'query',
+    args: function () { return { prompt: '' }; },
     expect: 'err',
     errorCode: 'invalid_args'
   },
   {
-    label: 'err-bad-response-format',
+    label: 'err-oversized-prompt',
     module: 'ai',
-    op: 'chat',
-    args: function () {
-      return {
-        provider: 'openrouter',
-        messages: [{ role: 'user', content: 'hi' }],
-        responseFormat: {
-          type: 'json_schema',
-          json_schema: {
-            name: 'bad schema name!',
-            schema: { type: 'object' }
-          }
-        }
-      };
-    },
-    expect: 'err',
-    errorCode: 'invalid_args'
-  },
-  {
-    label: 'err-oversized-content',
-    module: 'ai',
-    op: 'chat',
-    args: function () {
-      return {
-        provider: 'openrouter',
-        messages: [{ role: 'user', content: faiRepeat('x', 8001) }]
-      };
-    },
+    op: 'query',
+    args: function () { return { prompt: faiRepeat('x', 6001) }; },
     expect: 'err',
     errorCode: 'invalid_args'
   },
   {
     label: 'err-bad-temperature',
     module: 'ai',
-    op: 'chat',
+    op: 'query',
     args: function () {
       return {
-        provider: 'openrouter',
-        messages: [{ role: 'user', content: 'hi' }],
+        prompt: 'hi',
         temperature: 99
       };
     },
-    expect: 'err',
-    errorCode: 'invalid_args'
-  },
-  {
-    label: 'err-bad-provider',
-    module: 'ai',
-    op: 'testConnection',
-    args: function () { return { provider: 'not-a-provider' }; },
     expect: 'err',
     errorCode: 'invalid_args'
   },
@@ -171,14 +120,12 @@ var FAI_STEPS = [
   {
     label: 'err-unknown-module',
     module: 'definitelyNotAModule',
-    op: 'chat',
+    op: 'query',
     args: function () { return {}; },
     expect: 'err',
     errorCode: 'unknown_module'
   }
 ];
-
-// ---------- helpers ----------
 
 function faiNow() { return Date.now ? Date.now() : new Date().getTime(); }
 
@@ -240,8 +187,11 @@ function faiLiveKey() {
 function faiLog(event, detail) {
   var s = state.ultrascriptsAiTest;
   s.events.push({
-    at: faiNow(), turn: s.turn, liveKey: faiLiveKey(),
-    event: event, detail: detail || ''
+    at: faiNow(),
+    turn: s.turn,
+    liveKey: faiLiveKey(),
+    event: event,
+    detail: detail || ''
   });
   while (s.events.length > 80) s.events.shift();
 }
@@ -262,7 +212,8 @@ function faiHasOp(moduleId, opName) {
 }
 
 function faiPendingArray() {
-  var s = state.ultrascriptsAiTest, out = [];
+  var s = state.ultrascriptsAiTest;
+  var out = [];
   for (var id in s.pending) {
     if (Object.prototype.hasOwnProperty.call(s.pending, id)) out.push(s.pending[id]);
   }
@@ -299,7 +250,9 @@ function faiQueueRequest(label, moduleId, opName, args) {
   var id = faiLiveKey() + '-' + label + '-' + (++s.seq);
   if (s.pending[id] || s.completed[id]) return id;
   s.pending[id] = {
-    id: id, module: moduleId, op: opName,
+    id: id,
+    module: moduleId,
+    op: opName,
     args: args === undefined ? {} : args,
     ts: faiNow()
   };
@@ -315,16 +268,7 @@ function faiIsTerminal(r) {
 
 function faiPollResponses() {
   var s = state.ultrascriptsAiTest;
-  // Responses come back on `ultrascripts:in:<request.module>`, where
-  // `<request.module>` is whatever name the script sent — including the
-  // intentionally bogus name in the unknown-module test. Build the poll set
-  // from the plan so every step is reachable.
-  var seen = {};
-  var modules = [];
-  for (var i = 0; i < FAI_STEPS.length; i++) {
-    var name = FAI_STEPS[i].module;
-    if (name && !seen[name]) { seen[name] = true; modules.push(name); }
-  }
+  var modules = ['ai', 'definitelyNotAModule'];
   var found = false;
   for (var m = 0; m < modules.length; m++) {
     var card = faiReadJson('ultrascripts:in:' + modules[m]);
@@ -335,8 +279,11 @@ function faiPollResponses() {
       if (!faiIsTerminal(r)) continue;
       if (!s.completed[rid]) {
         s.completed[rid] = {
-          status: r.status, data: r.data || null, error: r.error || null,
-          module: modules[m], seenAt: faiNow()
+          status: r.status,
+          data: r.data || null,
+          error: r.error || null,
+          module: modules[m],
+          seenAt: faiNow()
         };
         faiLog('completed', rid + ' -> ' + r.status);
       }
@@ -355,119 +302,37 @@ function faiRepeat(ch, count) {
   return out;
 }
 
-function faiConfiguredDefaultModel() {
-  var s = state.ultrascriptsAiTest;
-  var labels = ['models', 'testConnection'];
-  for (var i = 0; i < labels.length; i++) {
-    var rid = s.steps && s.steps[labels[i]];
-    var done = rid && s.completed[rid];
-    var model = done && done.data && String(done.data.defaultModel || '').trim();
-    if (model) return model;
-  }
-  return '';
-}
-
-function faiChatArgs() {
-  var args = {
-    provider: 'openrouter',
-    messages: [
-      { role: 'system', content: 'Reply with one short plain sentence.' },
-      { role: 'user', content: 'Say that the Ultrascripts AI module is online.' }
-    ],
-    // Reasoning models can spend hundreds of tokens thinking before emitting
-    // any visible content. Keep the budget high enough that a "say one short
-    // sentence" reply has room to surface.
-    maxTokens: 1024,
-    temperature: 0,
-    timeoutMs: 60000
-  };
-  return args;
-}
-
-function faiChatArgsWithDeprecatedModel() {
-  var args = faiChatArgs();
-  args.model = 'betterdungeon/this-model-argument-should-be-ignored';
-  return args;
-}
-
-function faiJsonObjectArgs() {
-  var args = faiChatArgs();
-  args.messages = [
-    { role: 'system', content: 'Reply only with compact JSON.' },
-    { role: 'user', content: 'Return {"status":"online"} and no prose.' }
-  ];
-  args.responseFormat = { type: 'json_object' };
-  return args;
-}
-
-function faiJsonSchemaArgs() {
-  var args = faiChatArgs();
-  args.messages = [
-    { role: 'system', content: 'Reply only with JSON matching the requested schema.' },
-    { role: 'user', content: 'Report that Ultrascripts AI is online.' }
-  ];
-  args.responseFormat = {
-    type: 'json_schema',
-    json_schema: {
-      name: 'ultrascripts_ai_status',
-      strict: true,
-      schema: {
-        type: 'object',
-        properties: {
-          status: {
-            type: 'string',
-            enum: ['online']
-          }
-        },
-        required: ['status'],
-        additionalProperties: false
-      }
-    }
-  };
-  return args;
-}
-
-// Validate the chat response envelope shape only, not the model's word count.
-// Reasoning models (e.g. inclusionai/ring-*) legitimately return empty
-// `text` / `message.content` when their reasoning budget exhausts maxTokens
-// before any visible content is emitted — that's a model-tuning concern,
-// not a Ultrascripts transport or AI-module bug.
-function faiValidChat(r) {
+function faiValidQuery(r) {
   return !!(
-    r && r.provider === 'openrouter' &&
-    typeof r.model === 'string' && r.model.length > 0 &&
+    r &&
+    r.backend === FAI_BACKEND &&
     typeof r.text === 'string' &&
-    r.message && r.message.role === 'assistant' &&
-    typeof r.message.content === 'string'
+    r.text.length > 0 &&
+    typeof r.generatedAtIso === 'string' &&
+    typeof r.shellCardId === 'string' &&
+    typeof r.promptChars === 'number' &&
+    typeof r.contextChars === 'number'
   );
 }
 
-function faiParseJsonText(r) {
-  if (!r || typeof r.text !== 'string' || !r.text.trim()) return null;
-  try { return JSON.parse(r.text); } catch (e) { return null; }
+function faiParseJsonText(text) {
+  if (typeof text !== 'string') return null;
+  var trimmed = text.trim();
+  try { return JSON.parse(trimmed); } catch (e) {}
+
+  var start = trimmed.indexOf('{');
+  var end = trimmed.lastIndexOf('}');
+  if (start !== -1 && end > start) {
+    try { return JSON.parse(trimmed.slice(start, end + 1)); } catch (e2) {}
+  }
+  return null;
 }
 
-function faiValidJsonObjectChat(r) {
-  return faiValidChat(r) && !!faiParseJsonText(r);
+function faiValidJsonQuery(r) {
+  var parsed = faiParseJsonText(r && r.text);
+  return faiValidQuery(r) && !!parsed && parsed.status === 'online';
 }
 
-function faiValidJsonSchemaChat(r) {
-  var parsed = faiParseJsonText(r);
-  return faiValidChat(r) && !!parsed && parsed.status === 'online';
-}
-
-function faiProviderUnsupported(done) {
-  var err = done && done.error;
-  return !!(
-    done && done.status === 'err' &&
-    err && err.code === 'provider_error' &&
-    (err.status === 404 || String(err.upstreamCode || '') === '404') &&
-    String(err.message || '').toLowerCase().indexOf('no endpoints found') !== -1
-  );
-}
-
-// Look at recent history + the current output to detect command tokens.
-// Lets the user type things like "[[ai-test:reset]]" to manually reset.
 function faiTextIncludes(text, needles) {
   var hay = String(text || '').toLowerCase();
   for (var i = 0; i < needles.length; i++) {
@@ -505,38 +370,34 @@ function faiConsumeCommand(kind, outputText, needles) {
 function faiResetSuite() {
   state.ultrascriptsAiTest = {
     runId: 'ultrascripts-ai-' + faiNow().toString(36),
-    turn: 0, seq: 0, outSeq: 0,
-    pending: {}, completed: {}, acked: {}, ackAttempts: {},
-    steps: {}, replayResets: {}, events: [], consumedCommands: {},
+    turn: 0,
+    seq: 0,
+    outSeq: 0,
+    pending: {},
+    completed: {},
+    acked: {},
+    ackAttempts: {},
+    steps: {},
+    replayResets: {},
+    events: [],
+    consumedCommands: {},
     phase: 'reset'
   };
   faiWriteCard('ultrascripts:out', JSON.stringify({ v: 1, requests: [], acks: [] }), 'Ultrascripts');
   faiWriteTrace();
 }
 
-// ---------- driver ----------
-//
-// Runs the steps strictly in order: each step waits for the previous one to
-// terminate before queueing the next request. This keeps response correlation
-// trivial and makes failures obvious in the trace.
-
 function faiCurrentStepIndex() {
   var s = state.ultrascriptsAiTest;
   for (var i = 0; i < FAI_STEPS.length; i++) {
     var step = FAI_STEPS[i];
     var rid = s.steps[step.label];
-    if (!rid) return i;                          // not yet queued
-    if (!s.completed[rid]) return i;             // queued, awaiting response
+    if (!rid) return i;
+    if (!s.completed[rid]) return i;
   }
   return FAI_STEPS.length;
 }
 
-// If a step terminated with `unsafe_replay_blocked`, the user reloaded the
-// page mid-flight and the dispatcher correctly refused to replay an unsafe
-// op. That's a transient environmental failure, not a contract violation —
-// recover by clearing the step's bookkeeping so it re-queues under a fresh
-// request id on the next advance. Capped to avoid infinite loops if a real
-// bug ever produces this code repeatedly.
 var FAI_MAX_REPLAY_RESETS = 2;
 
 function faiRecoverReplayBlocked() {
@@ -562,8 +423,7 @@ function faiRecoverReplayBlocked() {
 function faiAdvance() {
   var s = state.ultrascriptsAiTest;
 
-  // Heartbeat gate: AI module must advertise all three real ops.
-  if (!faiHasOp('ai', 'chat') || !faiHasOp('ai', 'models') || !faiHasOp('ai', 'testConnection')) {
+  if (!faiHasOp('ai', 'query') || !faiHasOp('ai', 'status')) {
     s.phase = 'waiting for ai heartbeat';
     return;
   }
@@ -594,13 +454,10 @@ function faiStepResult(step) {
   var done = s.completed[rid];
   if (!done) return { state: 'inflight', requestId: rid };
 
-  var pass = false, reason = '';
+  var pass = false;
+  var reason = '';
   if (step.expect === 'ok') {
     pass = done.status === 'ok' && (typeof step.validate !== 'function' || !!step.validate(done.data));
-    if (!pass && step.allowProviderUnsupported && faiProviderUnsupported(done)) {
-      pass = true;
-      reason = 'provider does not support requested responseFormat';
-    }
     if (!pass) reason = done.status !== 'ok' ? ('status=' + done.status) : 'validate failed';
   } else if (step.expect === 'err') {
     pass = done.status === 'err' && done.error && done.error.code === step.errorCode;
@@ -612,22 +469,24 @@ function faiStepResult(step) {
   }
 
   var out = {
-    state: 'done', requestId: rid, status: done.status,
-    error: done.error || null, pass: pass, reason: reason,
-    expect: step.expect, expectedCode: step.errorCode || null,
+    state: 'done',
+    requestId: rid,
+    status: done.status,
+    error: done.error || null,
+    pass: pass,
+    reason: reason,
+    expect: step.expect,
+    expectedCode: step.errorCode || null,
     module: done.module
   };
 
-  // Surface a small chat preview when a chat call returns ok so the trace
-  // immediately shows which model answered and what it actually said. This
-  // makes "validate failed" diagnosable without re-instrumenting.
-  if (step.op === 'chat' && done.status === 'ok' && done.data) {
+  if (step.op === 'query' && done.status === 'ok' && done.data) {
     var text = typeof done.data.text === 'string' ? done.data.text : '';
     out.preview = {
-      model: done.data.model || null,
+      backend: done.data.backend || null,
       textLength: text.length,
       textSample: text.length > 200 ? text.slice(0, 200) + '...' : text,
-      finishReason: done.data.finishReason || null
+      shellCardId: done.data.shellCardId || null
     };
   }
 
@@ -665,9 +524,8 @@ function faiWriteTrace() {
     heartbeat: {
       present: !!hb,
       protocol: hb && hb.ultrascripts && hb.ultrascripts.protocol,
-      aiAdvertised: faiHasOp('ai', 'chat') && faiHasOp('ai', 'models') && faiHasOp('ai', 'testConnection')
+      aiAdvertised: faiHasOp('ai', 'query') && faiHasOp('ai', 'status')
     },
-    configuredDefaultModel: faiConfiguredDefaultModel() || null,
     counts: counts,
     checksPass: counts.pending === 0 && counts.fail === 0,
     results: results,
@@ -678,8 +536,6 @@ function faiWriteTrace() {
   };
   faiWriteCard('ultrascripts:test:ai', JSON.stringify(trace, null, 2), 'Ultrascripts Test');
 }
-
-// ---------- public entry point ----------
 
 function ultrascriptsAiTestStep(outputText) {
   var s = state.ultrascriptsAiTest;

@@ -1,4 +1,4 @@
-// BetterDungeon - Popup Script (Revamped)
+﻿// BetterDungeon - Popup Script (Revamped)
 // Cleaner architecture with modular organization
 
 // ============================================
@@ -18,12 +18,6 @@ const STORAGE_KEYS = {
   ultrascriptsModules: 'ultrascripts_enabled_modules',
   scriptureWidgetDisplay: 'ultrascripts_mod_scripture_widget_display',
   webfetchAllowlist: 'ultrascripts_webfetch_allowlist',
-  aiOpenRouterKey: 'ultrascripts_ai_openrouter_api_key',
-  aiOpenRouterDefaultModel: 'ultrascripts_ai_openrouter_default_model',
-  aiCostControls: 'ultrascripts_ai_cost_controls',
-  legacyAiBudget: 'ultrascripts_ai_budget',
-  legacyProviderAiOpenRouterKey: 'ultrascripts_provider_ai_openrouter_api_key',
-  legacyProviderAiOpenRouterDefaultModel: 'ultrascripts_provider_ai_openrouter_default_model',
   customHotkeys: 'betterDungeon_customHotkeys',
   customModeColors: 'betterDungeon_customModeColors',
   commandSubMode: 'betterDungeon_commandSubMode',
@@ -113,18 +107,6 @@ const DEFAULT_SCRIPTURE_WIDGET_DISPLAY = {
   maxHeight: 'medium',
   layout: 'balanced'
 };
-
-const DEFAULT_AI_COST_CONTROLS = {
-  freeModelsOnly: true,
-  advancedOpen: false,
-  maxPromptPricePerMillion: 0,
-  maxCompletionPricePerMillion: 0,
-  perCallEstimateCap: 0,
-  dailySpendCap: 0,
-  monthlySpendCap: 0,
-};
-const DEFAULT_AI_MODEL = 'openrouter/free';
-const DUMMY_AI_MODEL = 'betterdungeon/dummy:free';
 
 const DEFAULT_TEXT_TO_SPEECH_SETTINGS = {
   voiceURI: 'auto',
@@ -324,20 +306,6 @@ function initUltrascriptsSettings() {
   document.getElementById('scripture-widget-layout')?.addEventListener('change', saveScriptureWidgetDisplay);
   document.getElementById('webfetch-consent-refresh')?.addEventListener('click', loadWebFetchConsentList);
   document.getElementById('webfetch-consent-save')?.addEventListener('click', saveWebFetchConsentFromForm);
-  document.getElementById('ai-save')?.addEventListener('click', saveAiSettings);
-  document.getElementById('ai-clear-key')?.addEventListener('click', clearAiKey);
-  document.getElementById('ai-test')?.addEventListener('click', testAiConnection);
-  document.getElementById('ai-cost-advanced-toggle')?.addEventListener('click', () => {
-    const controls = getAiCostControlsFromForm();
-    const advancedOpen = !controls.advancedOpen;
-    setAiCostAdvancedOpen(advancedOpen);
-    localStorageSet({
-      [STORAGE_KEYS.aiCostControls]: {
-        ...controls,
-        advancedOpen,
-      }
-    });
-  });
 }
 
 function defaultUltrascriptsModuleState() {
@@ -350,11 +318,8 @@ function defaultUltrascriptsModuleState() {
 function normalizeUltrascriptsModuleState(saved = {}) {
   const raw = saved && typeof saved === 'object' ? saved : {};
   const modules = { ...defaultUltrascriptsModuleState(), ...raw };
-  if (Object.prototype.hasOwnProperty.call(raw, 'providerAI')) {
-    if (!Object.prototype.hasOwnProperty.call(raw, 'ai')) {
-      modules.ai = !!raw.providerAI;
-    }
-    delete modules.providerAI;
+  for (const key of Object.keys(modules)) {
+    if (!ULTRASCRIPTS_PUBLIC_MODULES.includes(key)) delete modules[key];
   }
   return modules;
 }
@@ -368,7 +333,7 @@ function loadUltrascriptsModuleToggles() {
       const moduleId = toggle.dataset.ultrascriptsModuleToggle;
       toggle.checked = modules[moduleId] !== false;
     });
-    if (Object.prototype.hasOwnProperty.call(saved, 'providerAI')) {
+    if (Object.keys(saved).some(key => !ULTRASCRIPTS_PUBLIC_MODULES.includes(key))) {
       chrome.storage.sync.set({ [STORAGE_KEYS.ultrascriptsModules]: modules });
     }
   });
@@ -570,241 +535,17 @@ function setWebFetchConsentInStorage(origin, decision) {
   });
 }
 
-function localStorageGet(keys) {
-  return new Promise((resolve) => {
-    try {
-      chrome.storage.local.get(keys, (result) => {
-        resolve(result || {});
-      });
-    } catch {
-      resolve({});
-    }
-  });
+function loadAiSettings() {
+  updateAiStatus(true, 'Native AI Dungeon Story Card generator backend. No API key or external setup required.', 'ok');
 }
 
-function localStorageSet(items) {
-  return new Promise((resolve) => {
-    try {
-      chrome.storage.local.set(items, resolve);
-    } catch {
-      resolve();
-    }
-  });
-}
-
-function localStorageRemove(keys) {
-  return new Promise((resolve) => {
-    try {
-      chrome.storage.local.remove(keys, resolve);
-    } catch {
-      resolve();
-    }
-  });
-}
-
-async function loadAiSettings() {
-  const keyInput = document.getElementById('ai-openrouter-key');
-  const modelInput = document.getElementById('ai-default-model');
-  const freeOnlyInput = document.getElementById('ai-cost-free-only');
-  const advancedToggle = document.getElementById('ai-cost-advanced-toggle');
-  const advancedPanel = document.getElementById('ai-cost-advanced');
-  const maxInputPriceInput = document.getElementById('ai-cost-max-input');
-  const maxOutputPriceInput = document.getElementById('ai-cost-max-output');
-  const perCallCapInput = document.getElementById('ai-cost-per-call-cap');
-  const dailyCapInput = document.getElementById('ai-cost-daily-cap');
-  const monthlyCapInput = document.getElementById('ai-cost-monthly-cap');
-  if (!keyInput && !modelInput && !freeOnlyInput) return;
-
-  const result = await localStorageGet([
-    STORAGE_KEYS.aiOpenRouterKey,
-    STORAGE_KEYS.aiOpenRouterDefaultModel,
-    STORAGE_KEYS.aiCostControls,
-    STORAGE_KEYS.legacyAiBudget,
-    STORAGE_KEYS.legacyProviderAiOpenRouterKey,
-    STORAGE_KEYS.legacyProviderAiOpenRouterDefaultModel
-  ]);
-  const savedKey = String(result[STORAGE_KEYS.aiOpenRouterKey] || '').trim();
-  const legacyKey = String(result[STORAGE_KEYS.legacyProviderAiOpenRouterKey] || '').trim();
-  const savedModel = String(result[STORAGE_KEYS.aiOpenRouterDefaultModel] || '').trim();
-  const legacyModel = String(result[STORAGE_KEYS.legacyProviderAiOpenRouterDefaultModel] || '').trim();
-  const hasKey = !!(savedKey || legacyKey);
-  const model = savedModel || legacyModel || DEFAULT_AI_MODEL;
-  const usingDummyModel = model.toLowerCase() === DUMMY_AI_MODEL;
-  const configured = hasKey || usingDummyModel;
-
-  if ((!savedKey && legacyKey) || (!savedModel && legacyModel)) {
-    const updates = {};
-    if (!savedKey && legacyKey) updates[STORAGE_KEYS.aiOpenRouterKey] = legacyKey;
-    if (!savedModel && legacyModel) updates[STORAGE_KEYS.aiOpenRouterDefaultModel] = legacyModel;
-    await localStorageSet(updates);
-    await localStorageRemove([
-      STORAGE_KEYS.legacyProviderAiOpenRouterKey,
-      STORAGE_KEYS.legacyProviderAiOpenRouterDefaultModel
-    ]);
-  }
-
-  if (keyInput) {
-    keyInput.value = '';
-    keyInput.placeholder = hasKey ? 'Saved API key - leave blank to keep' : 'sk-or-v1-...';
-  }
-  if (modelInput) {
-    modelInput.value = model;
-  }
-  const controls = normalizeAiCostControls(result[STORAGE_KEYS.aiCostControls] || result[STORAGE_KEYS.legacyAiBudget]);
-  if (freeOnlyInput) freeOnlyInput.checked = controls.freeModelsOnly;
-  if (advancedToggle || advancedPanel) setAiCostAdvancedOpen(controls.advancedOpen);
-  if (maxInputPriceInput) maxInputPriceInput.value = String(controls.maxPromptPricePerMillion);
-  if (maxOutputPriceInput) maxOutputPriceInput.value = String(controls.maxCompletionPricePerMillion);
-  if (perCallCapInput) perCallCapInput.value = String(controls.perCallEstimateCap);
-  if (dailyCapInput) dailyCapInput.value = String(controls.dailySpendCap);
-  if (monthlyCapInput) monthlyCapInput.value = String(controls.monthlySpendCap);
-
-  if (usingDummyModel) {
-    updateAiStatus(true, 'Dummy model selected for local module tests. No OpenRouter request will be made.', 'ok');
-  } else {
-    updateAiStatus(
-      configured,
-      hasKey
-        ? `OpenRouter key saved locally. Default model: ${model}.`
-        : `Add an OpenRouter key, then save. Default model: ${model}.`,
-      hasKey ? 'ok' : 'idle'
-    );
-  }
-}
-
-function clampMoney(value, fallback, min, max) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.max(min, Math.min(max, Math.round(n * 1000000) / 1000000));
-}
-
-function normalizeAiCostControls(value = {}) {
-  const raw = value && typeof value === 'object' ? value : {};
-  return {
-    freeModelsOnly: raw.freeModelsOnly !== false,
-    advancedOpen: raw.advancedOpen === true,
-    maxPromptPricePerMillion: clampMoney(raw.maxPromptPricePerMillion, DEFAULT_AI_COST_CONTROLS.maxPromptPricePerMillion, 0, 1000),
-    maxCompletionPricePerMillion: clampMoney(raw.maxCompletionPricePerMillion, DEFAULT_AI_COST_CONTROLS.maxCompletionPricePerMillion, 0, 1000),
-    perCallEstimateCap: clampMoney(raw.perCallEstimateCap, DEFAULT_AI_COST_CONTROLS.perCallEstimateCap, 0, 1000),
-    dailySpendCap: clampMoney(raw.dailySpendCap, DEFAULT_AI_COST_CONTROLS.dailySpendCap, 0, 1000),
-    monthlySpendCap: clampMoney(raw.monthlySpendCap, DEFAULT_AI_COST_CONTROLS.monthlySpendCap, 0, 1000),
-  };
-}
-
-function getAiCostControlsFromForm() {
-  return normalizeAiCostControls({
-    freeModelsOnly: document.getElementById('ai-cost-free-only')?.checked !== false,
-    advancedOpen: document.getElementById('ai-cost-advanced-toggle')?.getAttribute('aria-expanded') === 'true',
-    maxPromptPricePerMillion: document.getElementById('ai-cost-max-input')?.value,
-    maxCompletionPricePerMillion: document.getElementById('ai-cost-max-output')?.value,
-    perCallEstimateCap: document.getElementById('ai-cost-per-call-cap')?.value,
-    dailySpendCap: document.getElementById('ai-cost-daily-cap')?.value,
-    monthlySpendCap: document.getElementById('ai-cost-monthly-cap')?.value,
-  });
-}
-
-function setAiCostAdvancedOpen(open) {
-  const expanded = !!open;
-  const toggle = document.getElementById('ai-cost-advanced-toggle');
-  const panel = document.getElementById('ai-cost-advanced');
-  if (toggle) toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-  if (panel) panel.classList.toggle('hidden', !expanded);
-}
-
-function updateAiStatus(configured, detail, tone = 'idle') {
+function updateAiStatus(_ready, detail, tone = 'ok') {
   const status = document.getElementById('ai-status');
   if (!status) return;
   status.classList.remove('ok', 'error', 'idle');
   status.classList.add(tone);
-  status.textContent = configured ? detail : detail;
+  status.textContent = detail;
 }
-
-async function saveAiSettings(options = {}) {
-  const keyInput = document.getElementById('ai-openrouter-key');
-  const modelInput = document.getElementById('ai-default-model');
-  const key = String(keyInput?.value || '').trim();
-  const model = String(modelInput?.value || '').trim() || DEFAULT_AI_MODEL;
-  const costControls = getAiCostControlsFromForm();
-  const updates = {
-    [STORAGE_KEYS.aiOpenRouterDefaultModel]: model,
-    [STORAGE_KEYS.aiCostControls]: costControls,
-  };
-
-  if (key) {
-    updates[STORAGE_KEYS.aiOpenRouterKey] = key;
-  }
-
-  await localStorageSet(updates);
-  await localStorageRemove(STORAGE_KEYS.legacyAiBudget);
-  if (key) {
-    await localStorageRemove(STORAGE_KEYS.legacyProviderAiOpenRouterKey);
-  }
-  await localStorageRemove(STORAGE_KEYS.legacyProviderAiOpenRouterDefaultModel);
-  if (keyInput) keyInput.value = '';
-  await loadAiSettings();
-  if (!options.silent) showToast('AI settings saved', 'success');
-}
-
-async function clearAiKey() {
-  await localStorageRemove([
-    STORAGE_KEYS.aiOpenRouterKey,
-    STORAGE_KEYS.legacyProviderAiOpenRouterKey
-  ]);
-  await loadAiSettings();
-  showToast('OpenRouter key cleared', 'success');
-}
-
-function sendAiBackgroundRequest(request) {
-  return new Promise((resolve, reject) => {
-    try {
-      chrome.runtime.sendMessage({ type: 'ULTRASCRIPTS_AI_REQUEST', request }, (response) => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          reject(new Error(lastError.message));
-          return;
-        }
-        if (response?.ok) {
-          resolve(response.data);
-          return;
-        }
-        reject(response?.error || new Error('AI request failed'));
-      });
-    } catch (error) {
-      reject(error);
-    }
-  });
-}
-
-async function testAiConnection() {
-  const btn = document.getElementById('ai-test');
-  if (btn) btn.disabled = true;
-  updateAiStatus(false, 'Testing AI configuration...', 'idle');
-
-  try {
-    await saveAiSettings({ silent: true });
-    const result = await sendAiBackgroundRequest({
-      provider: 'openrouter',
-      op: 'testConnection',
-      timeoutMs: 30000
-    });
-    if (result?.dummy) {
-      updateAiStatus(true, 'Dummy model ready. No OpenRouter request was made.', 'ok');
-      showToast('Dummy AI model verified', 'success');
-      return;
-    }
-    const count = typeof result?.modelCount === 'number' ? result.modelCount : 0;
-    const model = result?.defaultModel || DEFAULT_AI_MODEL;
-    updateAiStatus(true, `OpenRouter connected. Default model: ${model}. ${count} models visible.`, 'ok');
-    showToast('AI connection verified', 'success');
-  } catch (error) {
-    const message = error?.message || 'AI connection failed';
-    updateAiStatus(false, message, 'error');
-    showToast(message, 'error');
-  } finally {
-    if (btn) btn.disabled = false;
-  }
-}
-
 function saveFeatureState(featureId, enabled) {
   log('[Popup] Saving feature state:', featureId, enabled);
   chrome.storage.sync.get(STORAGE_KEYS.features, (result) => {
@@ -823,7 +564,7 @@ function saveFeatureState(featureId, enabled) {
 }
 
 function setUltrascriptsModuleControlsEnabled(enabled) {
-  document.querySelectorAll('[data-ultrascripts-module-toggle], #ultrascripts-debug, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #ai-openrouter-key, #ai-default-model, #ai-cost-free-only, #ai-cost-advanced-toggle, #ai-cost-max-input, #ai-cost-max-output, #ai-cost-per-call-cap, #ai-cost-daily-cap, #ai-cost-monthly-cap, #ai-save, #ai-clear-key, #ai-test')
+  document.querySelectorAll('[data-ultrascripts-module-toggle], #ultrascripts-debug, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save')
     .forEach(control => {
       control.disabled = !enabled;
     });
@@ -1392,14 +1133,14 @@ function updateHotkeyDisplay() {
 function formatKeyDisplay(key) {
   const specialKeys = {
     'escape': 'Esc',
-    'arrowup': '↑',
-    'arrowdown': '↓',
-    'arrowleft': '←',
-    'arrowright': '→',
-    'backspace': '⌫',
+    'arrowup': 'â†‘',
+    'arrowdown': 'â†“',
+    'arrowleft': 'â†',
+    'arrowright': 'â†’',
+    'backspace': 'âŒ«',
     'delete': 'Del',
-    'enter': '↵',
-    'space': '␣',
+    'enter': 'â†µ',
+    'space': 'â£',
     'tab': 'Tab'
   };
   
@@ -1739,7 +1480,7 @@ function initPresets() {
 }
 
 async function loadPresets() {
-  // Read from local storage (content script writes here after sync→local migration)
+  // Read from local storage (content script writes here after syncâ†’local migration)
   chrome.storage.local.get(STORAGE_KEYS.presets, (localResult) => {
     const localPresets = (localResult || {})[STORAGE_KEYS.presets];
 
@@ -1802,11 +1543,11 @@ function createPresetCard(preset) {
         <h4 class="preset-name">${escapeHtml(preset.name)}</h4>
         <div class="preset-meta">
           <span class="preset-uses">${preset.useCount} uses</span>
-          <span class="preset-components">${components.join(' • ')}</span>
+          <span class="preset-components">${components.join(' â€¢ ')}</span>
         </div>
       </div>
       <div class="preset-menu-wrapper">
-        <button class="preset-menu-btn" aria-label="Options">⋮</button>
+        <button class="preset-menu-btn" aria-label="Options">â‹®</button>
         <div class="preset-menu">
           <button class="preset-menu-item preset-edit-btn">Edit</button>
           <button class="preset-menu-item danger preset-delete-btn">Delete</button>
@@ -2064,7 +1805,7 @@ function initCharacters() {
 }
 
 async function loadCharacters() {
-  // Read from local storage (content script writes here after sync→local migration)
+  // Read from local storage (content script writes here after syncâ†’local migration)
   chrome.storage.local.get(STORAGE_KEYS.characters, (localResult) => {
     const localChars = (localResult || {})[STORAGE_KEYS.characters];
 
@@ -2235,7 +1976,7 @@ function renderCharacterFields(fields) {
           <span class="field-key">
             ${escapeHtml(displayKey)}${showRaw ? `<span class="field-key-raw">${escapeHtml(key)}</span>` : ''}
           </span>
-          <button class="field-delete" data-key="${escapeHtml(key)}" title="Delete field">×</button>
+          <button class="field-delete" data-key="${escapeHtml(key)}" title="Delete field">Ã—</button>
         </div>
         <textarea class="field-value" data-key="${escapeHtml(key)}" rows="1">${escapeHtml(value)}</textarea>
       </div>
@@ -2680,7 +2421,7 @@ function initQuickToggles() {
     }
   });
 
-  // Quick toggle → main toggle sync
+  // Quick toggle â†’ main toggle sync
   quickToggles.forEach(qt => {
     qt.addEventListener('change', () => {
       const featureId = qt.dataset.quickToggle;
@@ -2692,7 +2433,7 @@ function initQuickToggles() {
     });
   });
 
-  // Main toggle → quick toggle sync (observe changes)
+  // Main toggle â†’ quick toggle sync (observe changes)
   document.querySelectorAll('.feature-card [id^="feature-"]').forEach(mainToggle => {
     mainToggle.addEventListener('change', () => {
       const featureId = mainToggle.id.replace('feature-', '');
@@ -3145,3 +2886,4 @@ document.querySelectorAll('.feature-credit a').forEach(link => {
     chrome.tabs.create({ url: link.href });
   });
 });
+

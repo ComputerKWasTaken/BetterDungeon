@@ -1200,6 +1200,111 @@ class AIDungeonService {
     return result;
   }
 
+  async generateStoryCard(card, command, options = {}) {
+    const ws = (typeof window !== 'undefined') ? window.Ultrascripts?.ws : null;
+    const base = ws?.getBaseCredentials ? ws.getBaseCredentials() : null;
+    if (!base) {
+      throw new Error(`[AIDungeonService] Waiting for website credentials to load. Please wait or reload.`);
+    }
+
+    const adventure = this._getAdventureEnrichment();
+    const shortId = card?.shortId || adventure?.shortId;
+    if (!shortId) {
+      throw new Error(
+        `[AIDungeonService] Adventure shortId is unknown. Ensure you're on an adventure URL.`
+      );
+    }
+    if (!card?.id) {
+      throw new Error(`[AIDungeonService] generateStoryCard requires a Story Card id.`);
+    }
+    if (typeof command !== 'string' || !command.trim()) {
+      throw new Error(`[AIDungeonService] generateStoryCard requires a command.`);
+    }
+
+    const input = {
+      id: String(card.id),
+      shortId,
+      contentType: card.contentType || adventure?.contentType || 'adventure',
+      type: card.type || '',
+      title: card.title || '',
+      description: '',
+      keys: card.keys || '',
+      value: typeof card.value === 'string' ? card.value : '',
+      useForCharacterCreation: false,
+      instructions: command,
+      storyInformation: typeof options.storyInformation === 'string' ? options.storyInformation : '',
+      commandTemplate: command,
+      formattingMode: options.formattingMode || 'none',
+      temperature: typeof options.temperature === 'number' ? options.temperature : 1,
+      includeStorySummary: options.includeStorySummary !== false,
+    };
+
+    const body = JSON.stringify([{
+      operationName: 'GenerateStoryCard',
+      variables: { input },
+      query: `mutation GenerateStoryCard($input: GenerateStoryCardInput!) {
+        generateStoryCard(input: $input) {
+          success
+          message
+          storyCard {
+            id
+            value
+            __typename
+          }
+          __typename
+        }
+      }`
+    }]);
+
+    const timeoutMs = Number(options.timeoutMs || 0);
+    const controller = Number.isFinite(timeoutMs) && timeoutMs > 0
+      ? new AbortController()
+      : null;
+    const timer = controller
+      ? setTimeout(() => controller.abort(), timeoutMs)
+      : null;
+
+    let response;
+    try {
+      response = await fetch(base.url || 'https://api.aidungeon.com/graphql', {
+        method: 'POST',
+        credentials: 'include',
+        headers: this._restoreReplayHeaders(base.headers),
+        body,
+        ...(controller ? { signal: controller.signal } : {}),
+      });
+    } catch (err) {
+      if (err?.name === 'AbortError') {
+        throw new Error(`[AIDungeonService] generateStoryCard timed out after ${timeoutMs} ms`);
+      }
+      throw err;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+
+    if (!response.ok) {
+      const txt = await response.text().catch(() => '<no body>');
+      throw new Error(`[AIDungeonService] generateStoryCard HTTP ${response.status}: ${txt.slice(0, 200)}`);
+    }
+
+    const parsed = await response.json();
+    const first = Array.isArray(parsed) ? parsed[0] : parsed;
+    const data = first?.data;
+    if (!data || typeof data !== 'object') {
+      const errs = first?.errors ? ` errors=${JSON.stringify(first.errors).slice(0, 300)}` : '';
+      throw new Error(`[AIDungeonService] generateStoryCard response missing data.${errs}`);
+    }
+
+    const result = data.generateStoryCard;
+    if (result && result.success === false) {
+      throw new Error(`[AIDungeonService] generateStoryCard failed: ${result.message || 'unknown error'}`);
+    }
+    if (!result?.storyCard || typeof result.storyCard.value !== 'string') {
+      throw new Error(`[AIDungeonService] generateStoryCard returned no Story Card value.`);
+    }
+    return result;
+  }
+
   _mintCardId() {
     const n = Math.floor(Math.random() * 900000000) + 100000000;
     return String(n);

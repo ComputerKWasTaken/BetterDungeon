@@ -193,52 +193,8 @@ class TutorialService {
         type: 'spotlight',
         target: '[data-ultrascripts-module-card="ai"]',
         title: 'AI',
-        content: 'AI is the main attraction for many scripts: it lets a script ask a hosted model for side tasks without interrupting the main story turn.',
+        content: 'AI lets a script ask AI Dungeon\'s native generator for side tasks through a reserved Story Card generator shell, without interrupting the main story turn.',
         position: 'bottom',
-        action: 'switchTab',
-        actionTarget: 'ultrascripts',
-        expandCard: true
-      },
-      {
-        id: 'ai-key',
-        type: 'spotlight',
-        target: '#ai-openrouter-key',
-        title: 'OpenRouter Key',
-        content: 'Create a key at openrouter.ai/keys and paste it here. BetterDungeon stores it in extension settings and keeps it out of Story Cards, so scripts never see the key.',
-        position: 'top',
-        action: 'switchTab',
-        actionTarget: 'ultrascripts',
-        expandCard: true
-      },
-      {
-        id: 'ai-model',
-        type: 'spotlight',
-        target: '#ai-default-model',
-        title: 'Default Model',
-        content: 'Keep openrouter/free for automatic free routing, use betterdungeon/dummy:free for no-network tests, or enter a specific OpenRouter model ID. Scripts cannot override this choice.',
-        position: 'top',
-        action: 'switchTab',
-        actionTarget: 'ultrascripts',
-        expandCard: true
-      },
-      {
-        id: 'ai-cost-controls',
-        type: 'spotlight',
-        target: '.ultrascripts-ai-cost-panel',
-        title: 'AI Cost Controls',
-        content: 'Free models are the default path. If you intentionally use paid models, open the safeguards section to add optional price and spend caps.',
-        position: 'top',
-        action: 'switchTab',
-        actionTarget: 'ultrascripts',
-        expandCard: true
-      },
-      {
-        id: 'ai-test',
-        type: 'spotlight',
-        target: '#ai-test',
-        title: 'Test Connection',
-        content: 'After saving your key and model, use this plug button to verify the AI connection before relying on it in a scenario.',
-        position: 'top',
         action: 'switchTab',
         actionTarget: 'ultrascripts',
         expandCard: true
@@ -248,7 +204,7 @@ class TutorialService {
         type: 'spotlight',
         target: '#ai-status',
         title: 'Using AI in Scripts',
-        content: 'Send module ai, op chat, messages, and optional maxTokens or responseFormat. responseFormat supports text, json_object, and json_schema for structured outputs.',
+        content: 'Send module ai, op query, with a prompt and optional context. If a script wants JSON, ask for JSON in the prompt and validate it in the script.',
         position: 'top',
         action: 'switchTab',
         actionTarget: 'ultrascripts',
@@ -313,7 +269,7 @@ class TutorialService {
       {
         id: 'ai',
         title: 'AI',
-        description: 'OpenRouter and model calls',
+        description: 'Native Story Card generator queries',
         icon: 'icon-bot-message-square',
         stepId: 'ai-card'
       },
