@@ -10,6 +10,9 @@ generation plumbing.
 
 The suite runs a fixed plan of requests, one per turn, in order:
 
+`ai.query` is single-flight by design, so the suite advances only one native
+generation request at a time.
+
 | Step | Module | Op | Expect |
 | --- | --- | --- | --- |
 | `status` | `ai` | `status` | ok + native backend readiness |

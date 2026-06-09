@@ -70,7 +70,7 @@ var FAI_STEPS = [
     op: 'query',
     args: function () {
       return {
-        prompt: 'Return only compact JSON with exactly this shape: {"status":"online"}.',
+        prompt: 'Return exactly one complete JSON object and nothing else. The complete output must be parseable by JSON.parse and must be exactly {"status":"online"}. Do not output a fragment like "status":"online"; include the outer braces.',
         context: { test: 'ultrascripts-ai-json' },
         includeStorySummary: false,
         temperature: 0,

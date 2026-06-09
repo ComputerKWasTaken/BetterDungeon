@@ -1131,6 +1131,28 @@ class AIDungeonService {
     'accept-encoding', 'content-length', 'cookie',
   ]);
 
+  _combineAbortSignals(signals) {
+    const usable = signals.filter(Boolean);
+    if (usable.length === 0) return null;
+    if (usable.length === 1) return usable[0];
+    if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.any === 'function') {
+      return AbortSignal.any(usable);
+    }
+
+    const controller = new AbortController();
+    const abort = () => {
+      if (!controller.signal.aborted) controller.abort();
+    };
+    for (const signal of usable) {
+      if (signal.aborted) {
+        abort();
+        break;
+      }
+      signal.addEventListener('abort', abort, { once: true });
+    }
+    return controller.signal;
+  }
+
   async _replayMutation(overrides) {
     const ws = (typeof window !== 'undefined') ? window.Ultrascripts?.ws : null;
     const base = ws?.getBaseCredentials ? ws.getBaseCredentials() : null;
@@ -1258,7 +1280,9 @@ class AIDungeonService {
     }]);
 
     const timeoutMs = Number(options.timeoutMs || 0);
-    const externalSignal = options.signal instanceof AbortSignal ? options.signal : null;
+    const externalSignal = options.signal && typeof options.signal === 'object'
+      ? options.signal
+      : null;
     const timeoutController = Number.isFinite(timeoutMs) && timeoutMs > 0
       ? new AbortController()
       : null;
@@ -1266,11 +1290,7 @@ class AIDungeonService {
       ? setTimeout(() => timeoutController.abort(), timeoutMs)
       : null;
 
-    // Compose external cancellation signal with timeout signal.
-    const signals = [externalSignal, timeoutController?.signal].filter(Boolean);
-    const fetchSignal = signals.length > 1
-      ? AbortSignal.any(signals)
-      : signals[0] || null;
+    const fetchSignal = this._combineAbortSignals([externalSignal, timeoutController?.signal]);
 
     let response;
     try {

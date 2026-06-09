@@ -294,9 +294,9 @@
     const normalized = normalizeArgs(args);
     const request = normalizeQueryRequest(normalized);
 
-    // Only one query may be in flight. A script can't await a response within
-    // a single turn, so this effectively limits scripts to one query per turn.
-    // This should prevent abuse and means Latitude won't get on my case.
+    // Only one query may be in flight. Scripts cannot await a response within a
+    // single turn, so this effectively limits each script to one native query
+    // per turn and keeps background generation bounded.
     // Lock synchronously before any await to prevent race conditions.
     if (state.active) {
       throw rateLimited('An AI query is already in progress. Only one ai.query may run at a time.');
