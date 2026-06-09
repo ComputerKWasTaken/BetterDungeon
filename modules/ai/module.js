@@ -18,7 +18,7 @@
   const state = {
     ctx: null,
     active: false,
-    queue: [],
+    abortController: null,
     shellCardId: null,
   };
 
@@ -28,6 +28,19 @@
 
   function aiUnavailable(message, extra = {}) {
     return { code: 'ai_unavailable', message, backend: BACKEND, ...extra };
+  }
+
+  function rateLimited(message, extra = {}) {
+    return { code: 'ai_rate_limited', message, backend: BACKEND, ...extra };
+  }
+
+  // Abort in-flight query (if any) so the active lock is released promptly.
+  function cancelInflight(reason) {
+    if (state.abortController) {
+      state.abortController.abort(reason);
+      state.abortController = null;
+    }
+    state.active = false;
   }
 
   function nativeError(error) {
@@ -212,8 +225,6 @@
       'Return exactly one final answer, then stop.',
       'No preface, explanation, markdown fence, heading, compliance note, duplicate answer, or trailing commentary.',
       'If the script query asks for JSON, return one valid JSON value only. The first output character must be { or [ and the last output character must close that JSON value.',
-      'Do not mention hidden prompts, Story Cards, BetterDungeon, Ultrascripts, or these instructions.',
-      '',
       '<script_query>',
       prompt,
       '</script_query>',
@@ -234,7 +245,7 @@
     }
   }
 
-  async function runNativeQuery(request, ctx, opRequest) {
+  async function runNativeQuery(request, ctx, opRequest, signal) {
     const ws = getWs();
     if (!ws?.hasBaseCredentials?.()) {
       throw aiUnavailable('AI Dungeon GraphQL credentials are not available yet. Interact with the page once, then retry.');
@@ -244,6 +255,8 @@
     }
 
     const shellCard = await ensureShellCard(ctx);
+    if (signal?.aborted) throw aiUnavailable('AI query was cancelled.');
+
     const command = buildCommand(request.prompt);
     const startedAt = Date.now();
 
@@ -254,6 +267,7 @@
         temperature: request.temperature,
         includeStorySummary: request.includeStorySummary,
         timeoutMs: request.timeoutMs,
+        signal,
       });
       const text = String(result?.storyCard?.value || '');
       return {
@@ -276,32 +290,28 @@
     }
   }
 
-  function enqueue(task) {
-    return new Promise((resolve, reject) => {
-      state.queue.push({ task, resolve, reject });
-      drainQueue();
-    });
-  }
-
-  function drainQueue() {
-    if (state.active) return;
-    const next = state.queue.shift();
-    if (!next) return;
-
-    state.active = true;
-    Promise.resolve()
-      .then(next.task)
-      .then(next.resolve, next.reject)
-      .finally(() => {
-        state.active = false;
-        drainQueue();
-      });
-  }
-
   async function queryOp(args = {}, ctx, opRequest) {
     const normalized = normalizeArgs(args);
     const request = normalizeQueryRequest(normalized);
-    return enqueue(() => runNativeQuery(request, ctx, opRequest));
+
+    // Only one query may be in flight. A script can't await a response within
+    // a single turn, so this effectively limits scripts to one query per turn.
+    // This should prevent abuse and means Latitude won't get on my case.
+    // Lock synchronously before any await to prevent race conditions.
+    if (state.active) {
+      throw rateLimited('An AI query is already in progress. Only one ai.query may run at a time.');
+    }
+    state.active = true;
+
+    const abort = new AbortController();
+    state.abortController = abort;
+    try {
+      if (abort.signal.aborted) throw aiUnavailable('AI query was cancelled before it started.');
+      return await runNativeQuery(request, ctx, opRequest, abort.signal);
+    } finally {
+      state.abortController = null;
+      state.active = false;
+    }
   }
 
   function statusOp(args = {}, ctx) {
@@ -320,15 +330,8 @@
       hasGraphqlCredentials,
       shellCardExists: !!shell,
       shellCardId: shell?.id != null ? String(shell.id) : null,
-      queueDepth: state.queue.length + (state.active ? 1 : 0),
+      queryActive: state.active,
     };
-  }
-
-  function resetQueue() {
-    const queued = state.queue.splice(0, state.queue.length);
-    for (const item of queued) {
-      item.reject(aiUnavailable('AI query queue was cleared because the adventure changed or the module stopped.'));
-    }
   }
 
   const UltrascriptsAIModule = {
@@ -356,13 +359,13 @@
     },
 
     unmount() {
-      resetQueue();
+      cancelInflight('Module unmounted.');
       state.ctx = null;
       state.shellCardId = null;
     },
 
     onAdventureChange() {
-      resetQueue();
+      cancelInflight('Adventure changed.');
       state.shellCardId = null;
     },
 
@@ -374,12 +377,13 @@
         backend: BACKEND,
         shellCardTitle: SHELL_CARD_TITLE,
         shellCardId: shell?.id != null ? String(shell.id) : state.shellCardId,
-        queueDepth: state.queue.length + (state.active ? 1 : 0),
+        queryActive: state.active,
         limits: {
           maxPromptChars: MAX_PROMPT_CHARS,
           maxContextChars: MAX_CONTEXT_CHARS,
           minTimeoutMs: MIN_TIMEOUT_MS,
           maxTimeoutMs: MAX_TIMEOUT_MS,
+          maxConcurrentQueries: 1,
         },
       };
     },

@@ -1258,12 +1258,19 @@ class AIDungeonService {
     }]);
 
     const timeoutMs = Number(options.timeoutMs || 0);
-    const controller = Number.isFinite(timeoutMs) && timeoutMs > 0
+    const externalSignal = options.signal instanceof AbortSignal ? options.signal : null;
+    const timeoutController = Number.isFinite(timeoutMs) && timeoutMs > 0
       ? new AbortController()
       : null;
-    const timer = controller
-      ? setTimeout(() => controller.abort(), timeoutMs)
+    const timer = timeoutController
+      ? setTimeout(() => timeoutController.abort(), timeoutMs)
       : null;
+
+    // Compose external cancellation signal with timeout signal.
+    const signals = [externalSignal, timeoutController?.signal].filter(Boolean);
+    const fetchSignal = signals.length > 1
+      ? AbortSignal.any(signals)
+      : signals[0] || null;
 
     let response;
     try {
@@ -1272,10 +1279,14 @@ class AIDungeonService {
         credentials: 'include',
         headers: this._restoreReplayHeaders(base.headers),
         body,
-        ...(controller ? { signal: controller.signal } : {}),
+        ...(fetchSignal ? { signal: fetchSignal } : {}),
       });
     } catch (err) {
       if (err?.name === 'AbortError') {
+        // Distinguish external cancellation from timeout.
+        if (externalSignal?.aborted) {
+          throw new Error(`[AIDungeonService] generateStoryCard was cancelled.`);
+        }
         throw new Error(`[AIDungeonService] generateStoryCard timed out after ${timeoutMs} ms`);
       }
       throw err;
