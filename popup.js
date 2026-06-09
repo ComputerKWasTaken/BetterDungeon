@@ -291,7 +291,6 @@ function initUltrascriptsSettings() {
   loadUltrascriptsModuleToggles();
   loadScriptureWidgetDisplay();
   loadWebFetchConsentList();
-  loadAiSettings();
   refreshUltrascriptsState();
 
   document.querySelectorAll('[data-ultrascripts-module-toggle]').forEach(toggle => {
@@ -535,17 +534,6 @@ function setWebFetchConsentInStorage(origin, decision) {
   });
 }
 
-function loadAiSettings() {
-  updateAiStatus(true, 'Native AI Dungeon Story Card generator backend. No API key or external setup required.', 'ok');
-}
-
-function updateAiStatus(_ready, detail, tone = 'ok') {
-  const status = document.getElementById('ai-status');
-  if (!status) return;
-  status.classList.remove('ok', 'error', 'idle');
-  status.classList.add(tone);
-  status.textContent = detail;
-}
 function saveFeatureState(featureId, enabled) {
   log('[Popup] Saving feature state:', featureId, enabled);
   chrome.storage.sync.get(STORAGE_KEYS.features, (result) => {

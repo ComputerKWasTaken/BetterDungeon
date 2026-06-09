@@ -611,59 +611,6 @@ body.mobile {
   gap: 6px;
 }
 
-.ultrascripts-ai-native-panel {
-  margin-top: 10px;
-  padding-top: 10px;
-  border: 1px solid var(--border);
-  border-width: 1px 0 0;
-  background: transparent;
-}
-
-.ultrascripts-ai-setup {
-  display: grid;
-  gap: 4px;
-  margin: 8px 0;
-  padding: 8px 9px;
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--bg-elevated) 55%, transparent);
-  color: var(--text-muted);
-  font-size: 10.5px;
-  line-height: 1.35;
-}
-
-.ultrascripts-ai-setup p {
-  margin: 0;
-}
-
-.ultrascripts-ai-api-token {
-  display: inline;
-  padding: 0 2px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--text-secondary);
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  font-weight: 600;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
-.ultrascripts-ai-status {
-  margin-top: 8px;
-  color: var(--text-muted);
-  font-size: 11px;
-  line-height: 1.35;
-}
-
-.ultrascripts-ai-status.ok {
-  color: var(--success);
-}
-
-.ultrascripts-ai-status.error {
-  color: var(--error);
-}
-
 .feature-credit {
   font-size: 11px !important;
   font-style: italic;

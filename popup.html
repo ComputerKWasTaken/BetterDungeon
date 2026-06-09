@@ -826,7 +826,7 @@
                     </span>
                     <h3 class="feature-title">AI</h3>
                   </div>
-                  <p class="feature-desc">Native AI Dungeon queries for scripts</p>
+                  <p class="feature-desc">Native AI Dungeon powered LLM queries</p>
                 </div>
                 <label class="toggle sm">
                   <input type="checkbox" data-ultrascripts-module-toggle="ai" checked>
@@ -834,17 +834,8 @@
                 </label>
               </div>
               <div class="feature-details">
-                <p>AI lets scripts ask AI Dungeon's native generator for bounded side tasks such as summarizing clues, classifying intent, generating structured data, or running private reasoning that should not interrupt the story turn.</p>
-                <p class="feature-hint"><span class="icon-brain-circuit"></span> Uses AI Dungeon's native Story Card generator through a reserved Ultrascripts shell card. No external API key or external setup is required.</p>
-                <div class="ultrascripts-ai-native-panel">
-                  <div class="ultrascripts-panel-heading">
-                    <span><span class="icon-sparkles"></span> Native Query Backend</span>
-                  </div>
-                  <div class="ultrascripts-ai-setup">
-                    <p>Scripts call <span class="ultrascripts-ai-api-token">ai.query</span> with a prompt and optional context. BetterDungeon sends the request through AI Dungeon's Story Card generator and returns the generated text through the normal Ultrascripts response card.</p>
-                  </div>
-                  <div class="ultrascripts-ai-status ok" id="ai-status">Native AI Dungeon Story Card generator backend. No setup required.</div>
-                </div>
+                <p>The AI module lets scripts send a prompt with optional story context and receive generated text back through the normal Ultrascripts response flow.</p>
+                <p class="feature-hint"><span class="icon-brain-circuit"></span> Useful for summaries, classifications, JSON-shaped scene data, Co-GM notes, and other one-at-a-time helper requests.</p>
               </div>
             </article>
 
