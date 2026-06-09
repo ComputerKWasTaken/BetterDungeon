@@ -1138,8 +1138,9 @@ class AIDungeonService {
       throw new Error(`[AIDungeonService] Waiting for website credentials to load. Please wait or reload.`);
     }
 
-    const body = JSON.stringify({
-      operationName: 'SaveQueueStoryCard',
+    const operationName = overrides.operationName || 'UseAutoSaveStoryCard';
+    const body = JSON.stringify([{
+      operationName,
       variables: {
         input: {
           id: overrides.id,
@@ -1153,7 +1154,7 @@ class AIDungeonService {
           useForCharacterCreation: !!overrides.useForCharacterCreation
         }
       },
-      query: `mutation SaveQueueStoryCard($input: UpdateStoryCardInput!) {
+      query: `mutation ${operationName}($input: UpdateStoryCardInput!) {
         updateStoryCard(input: $input) {
           success
           message
@@ -1171,7 +1172,7 @@ class AIDungeonService {
           __typename
         }
       }`
-    });
+    }]);
 
     const response = await fetch(base.url || 'https://api.aidungeon.com/graphql', {
       method: 'POST',
@@ -1377,6 +1378,7 @@ class AIDungeonService {
       useForCharacterCreation: typeof useForCharacterCreation === 'boolean'
         ? useForCharacterCreation
         : !!existing?.useForCharacterCreation,
+      operationName: isCreate ? 'SaveQueueStoryCard' : 'UseAutoSaveStoryCard',
     };
 
     const result = await this._replayMutation(overrides);

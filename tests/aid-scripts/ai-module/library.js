@@ -320,10 +320,34 @@ function faiParseJsonText(text) {
   var trimmed = text.trim();
   try { return JSON.parse(trimmed); } catch (e) {}
 
-  var start = trimmed.indexOf('{');
-  var end = trimmed.lastIndexOf('}');
-  if (start !== -1 && end > start) {
-    try { return JSON.parse(trimmed.slice(start, end + 1)); } catch (e2) {}
+  for (var i = 0; i < trimmed.length; i++) {
+    if (trimmed.charAt(i) !== '{') continue;
+    var depth = 0;
+    var inString = false;
+    var escaped = false;
+    for (var j = i; j < trimmed.length; j++) {
+      var ch = trimmed.charAt(j);
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (ch === '\\') {
+          escaped = true;
+        } else if (ch === '"') {
+          inString = false;
+        }
+        continue;
+      }
+      if (ch === '"') {
+        inString = true;
+      } else if (ch === '{') {
+        depth++;
+      } else if (ch === '}') {
+        depth--;
+        if (depth === 0) {
+          try { return JSON.parse(trimmed.slice(i, j + 1)); } catch (e2) { break; }
+        }
+      }
+    }
   }
   return null;
 }
