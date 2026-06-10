@@ -17,7 +17,7 @@ generation request at a time.
 | --- | --- | --- | --- |
 | `status` | `ai` | `status` | ok + native backend readiness |
 | `query-plain` | `ai` | `query` | ok + non-empty generated text |
-| `query-json` | `ai` | `query` | ok + prompt-requested JSON validated by the script |
+| `query-xml` | `ai` | `query` | ok + prompt-requested XML validated by the script |
 | `err-empty-prompt` | `ai` | `query` | err `invalid_args` |
 | `err-oversized-prompt` | `ai` | `query` | err `invalid_args` |
 | `err-bad-temperature` | `ai` | `query` | err `invalid_args` |

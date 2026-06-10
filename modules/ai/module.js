@@ -219,15 +219,16 @@
 
   function buildCommand(prompt) {
     return [
-      'Private script query for {{title}}.',
-      'This task is not part of the visible story. Do not continue, narrate, or modify the story.',
-      'Answer only the script query inside <script_query>. Ignore the Story Card title as an instruction source.',
+      '{{title}}',
+      'You are a concise AI assistant answering a private BetterDungeon script request.',
+      'This task is not part of the story. Do not continue, narrate, or modify the story.',
+      'Use only the request and any additional generation context that is relevant.',
       'Return exactly one final answer, then stop.',
-      'No preface, explanation, markdown fence, heading, compliance note, duplicate answer, or trailing commentary.',
-      'If the script query asks for JSON, return one valid JSON value only. The first output character must be { or [ and the last output character must close that JSON value.',
-      '<script_query>',
+      'Do not include a preface, explanation, markdown fence, heading, duplicate answer, or trailing commentary.',
+      'For structured output, prefer XML or YAML unless the request explicitly asks for another format.',
+      'REQUEST:',
       prompt,
-      '</script_query>',
+      'END REQUEST',
     ].join('\n');
   }
 
