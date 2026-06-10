@@ -114,6 +114,12 @@ class BetterDungeon {
           modules: window.Ultrascripts?.registry?.list?.() || [],
         });
         return true;
+      } else if (message.type === 'ULTRASCRIPTS_AI_STATUS') {
+        this.handleUltrascriptsAIStatus().then(sendResponse);
+        return true;
+      } else if (message.type === 'ULTRASCRIPTS_AI_QUERY') {
+        this.handleUltrascriptsAIQuery(message.args).then(sendResponse);
+        return true;
       } else if (message.type === 'GET_WEBFETCH_CONSENT') {
         this.handleGetWebFetchConsent().then(sendResponse);
         return true;
@@ -122,6 +128,55 @@ class BetterDungeon {
         return true;
       }
     });
+  }
+
+  getUltrascriptsAIMount() {
+    const mounted = window.Ultrascripts?.registry?._getMounted?.('ai');
+    if (!mounted?.def?.ops || !mounted?.ctx) {
+      throw new Error('The Ultrascripts AI module is not mounted.');
+    }
+    return mounted;
+  }
+
+  async handleUltrascriptsAIStatus() {
+    try {
+      const mounted = this.getUltrascriptsAIMount();
+      const handler = mounted.def.ops.status?.handler;
+      if (typeof handler !== 'function') {
+        throw new Error('The Ultrascripts AI status operation is unavailable.');
+      }
+      return {
+        success: true,
+        status: await handler({}, mounted.ctx, { id: 'popup-ai-status' }),
+        inspect: mounted.def.inspect?.() || null,
+      };
+    } catch (error) {
+      return { success: false, error: error?.message || String(error) };
+    }
+  }
+
+  async handleUltrascriptsAIQuery(args = {}) {
+    try {
+      const mounted = this.getUltrascriptsAIMount();
+      const handler = mounted.def.ops.query?.handler;
+      if (typeof handler !== 'function') {
+        throw new Error('The Ultrascripts AI query operation is unavailable.');
+      }
+      return {
+        success: true,
+        result: await handler(args || {}, mounted.ctx, {
+          id: `popup-ai-query-${Date.now()}`,
+          source: 'popup-ai-lab',
+        }),
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error?.message || String(error),
+        code: error?.code || null,
+        details: error && typeof error === 'object' ? error : null,
+      };
+    }
   }
 
   async handleGetWebFetchConsent() {

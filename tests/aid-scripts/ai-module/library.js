@@ -55,6 +55,7 @@ var FAI_STEPS = [
     op: 'query',
     args: function () {
       return {
+        systemPrompt: 'Answer as a concise BetterDungeon transport health check. Return one short sentence only.',
         prompt: 'Reply with one short sentence saying the Ultrascripts AI module is online.',
         context: 'This is a BetterDungeon native query transport test.',
         temperature: 0,
@@ -310,6 +311,7 @@ function faiValidQuery(r) {
     r.text.length > 0 &&
     typeof r.generatedAtIso === 'string' &&
     typeof r.shellCardId === 'string' &&
+    typeof r.systemPromptChars === 'number' &&
     typeof r.promptChars === 'number' &&
     typeof r.contextChars === 'number'
   );

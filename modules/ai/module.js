@@ -14,6 +14,15 @@
   const MAX_TIMEOUT_MS = 120000;
   const MAX_PROMPT_CHARS = 6000;
   const MAX_CONTEXT_CHARS = 4000;
+  const MAX_SYSTEM_PROMPT_CHARS = 3000;
+  const DEFAULT_SYSTEM_PROMPT = [
+    'You are a concise AI assistant answering a private BetterDungeon script request.',
+    'This task is not part of the story. Do not continue, narrate, or modify the story.',
+    'Use only the request and any additional generation context that is relevant.',
+    'Return exactly one final answer, then stop.',
+    'Do not include a preface, explanation, markdown fence, heading, duplicate answer, or trailing commentary.',
+    'For structured output, prefer XML or YAML unless the request explicitly asks for another format.',
+  ].join('\n');
 
   const state = {
     ctx: null,
@@ -87,6 +96,17 @@
     return context;
   }
 
+  function normalizeSystemPrompt(value) {
+    if (value === undefined || value === null || value === '') return DEFAULT_SYSTEM_PROMPT;
+    if (typeof value !== 'string') throw invalidArgs('systemPrompt must be a string');
+    const systemPrompt = value.trim();
+    if (!systemPrompt) return DEFAULT_SYSTEM_PROMPT;
+    if (systemPrompt.length > MAX_SYSTEM_PROMPT_CHARS) {
+      throw invalidArgs(`systemPrompt must be ${MAX_SYSTEM_PROMPT_CHARS} characters or fewer`);
+    }
+    return systemPrompt;
+  }
+
   function normalizeTemperature(value) {
     if (value === undefined || value === null || value === '') return 1;
     const n = Number(value);
@@ -112,14 +132,17 @@
   function normalizeQueryRequest(args) {
     const prompt = normalizePrompt(args.prompt);
     const context = normalizeContext(args.context);
+    const systemPrompt = normalizeSystemPrompt(args.systemPrompt);
     return {
       prompt,
       context,
+      systemPrompt,
       temperature: normalizeTemperature(args.temperature),
       timeoutMs: normalizeTimeoutMs(args.timeoutMs),
       includeStorySummary: normalizeIncludeStorySummary(args.includeStorySummary),
       promptChars: prompt.length,
       contextChars: context.length,
+      systemPromptChars: systemPrompt.length,
     };
   }
 
@@ -217,15 +240,10 @@
     };
   }
 
-  function buildCommand(prompt) {
+  function buildCommand(prompt, systemPrompt = DEFAULT_SYSTEM_PROMPT) {
     return [
       '{{title}}',
-      'You are a concise AI assistant answering a private BetterDungeon script request.',
-      'This task is not part of the story. Do not continue, narrate, or modify the story.',
-      'Use only the request and any additional generation context that is relevant.',
-      'Return exactly one final answer, then stop.',
-      'Do not include a preface, explanation, markdown fence, heading, duplicate answer, or trailing commentary.',
-      'For structured output, prefer XML or YAML unless the request explicitly asks for another format.',
+      systemPrompt,
       'REQUEST:',
       prompt,
       'END REQUEST',
@@ -258,7 +276,7 @@
     const shellCard = await ensureShellCard(ctx);
     if (signal?.aborted) throw aiUnavailable('AI query was cancelled.');
 
-    const command = buildCommand(request.prompt);
+    const command = buildCommand(request.prompt, request.systemPrompt);
     const startedAt = Date.now();
 
     try {
@@ -278,6 +296,7 @@
         shellCardId: String(shellCard.id),
         promptChars: request.promptChars,
         contextChars: request.contextChars,
+        systemPromptChars: request.systemPromptChars,
       };
     } catch (err) {
       throw nativeError(err);
@@ -286,6 +305,7 @@
         lastRequestId: typeof opRequest?.id === 'string' ? opRequest.id : null,
         lastPromptChars: request.promptChars,
         lastContextChars: request.contextChars,
+        lastSystemPromptChars: request.systemPromptChars,
         lastElapsedMs: Date.now() - startedAt,
       });
     }
@@ -382,6 +402,7 @@
         limits: {
           maxPromptChars: MAX_PROMPT_CHARS,
           maxContextChars: MAX_CONTEXT_CHARS,
+          maxSystemPromptChars: MAX_SYSTEM_PROMPT_CHARS,
           minTimeoutMs: MIN_TIMEOUT_MS,
           maxTimeoutMs: MAX_TIMEOUT_MS,
           maxConcurrentQueries: 1,
