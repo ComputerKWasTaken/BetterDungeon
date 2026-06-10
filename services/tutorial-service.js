@@ -204,7 +204,7 @@ class TutorialService {
         type: 'spotlight',
         target: '#ai-status',
         title: 'Using AI in Scripts',
-        content: 'Send module ai, op query, with a prompt and optional context. If a script wants JSON, ask for JSON in the prompt and validate it in the script.',
+        content: 'Send module ai, op query, with a prompt and optional context. For structured output, prefer XML or YAML and validate it in the script.',
         position: 'top',
         action: 'switchTab',
         actionTarget: 'ultrascripts',

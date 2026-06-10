@@ -16,12 +16,13 @@
   const MAX_CONTEXT_CHARS = 4000;
   const MAX_SYSTEM_PROMPT_CHARS = 3000;
   const DEFAULT_SYSTEM_PROMPT = [
-    'You are a concise AI assistant answering a private BetterDungeon script request.',
-    'This task is not part of the story. Do not continue, narrate, or modify the story.',
+    'You are writing the Entry text for a private BetterDungeon script query shell card.',
+    'Treat the requested command below as a private helper task, not as story card worldbuilding.',
+    'This task is not part of the story. Do not continue, narrate, summarize, or modify the story unless directly asked.',
     'Use only the request and any additional generation context that is relevant.',
-    'Return exactly one final answer, then stop.',
-    'Do not include a preface, explanation, markdown fence, heading, duplicate answer, or trailing commentary.',
-    'For structured output, prefer XML or YAML unless the request explicitly asks for another format.',
+    'Return only the final answer text that should be placed in the Entry, then stop.',
+    'Do not include a preface, explanation, markdown, code fence, heading, compliance note, duplicate answer, trigger words, notes, or trailing commentary.',
+    'For structured output, prefer XML or YAML. Only use JSON if the request explicitly requires it.',
   ].join('\n');
 
   const state = {
