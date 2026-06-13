@@ -32,8 +32,8 @@ Dungeon. It gives new required scripts a stable foundation:
 - Keep the SDK helper intact until a module-specific review says otherwise.
 - Add new module calls near the existing `sdk.config` and `clock.now` examples.
 - Read responses with `bd.us.latest(moduleId, opName)`.
-- Compare `completedLiveCount` with `bd.us.liveCount()` before applying unsafe
-  side-effect responses such as `ai.query` or `webfetch.fetch`.
+- Compare `completedLiveCount` with `bd.us.liveCount()` before applying
+  side-effect responses such as `webfetch.fetch`.
 - Publish widgets through `publishTemplateDashboard` or replace it with your
   own Scripture manifest.
 

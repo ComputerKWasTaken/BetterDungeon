@@ -826,7 +826,7 @@
                     </span>
                     <h3 class="feature-title">AI</h3>
                   </div>
-                  <p class="feature-desc">Native AI Dungeon powered LLM queries</p>
+                  <p class="feature-desc">AI module rebuild placeholder</p>
                 </div>
                 <label class="toggle sm">
                   <input type="checkbox" data-ultrascripts-module-toggle="ai" checked>
@@ -834,60 +834,8 @@
                 </label>
               </div>
               <div class="feature-details">
-                <p>The AI module lets scripts send a prompt with optional story context and receive generated text back through the normal Ultrascripts response flow.</p>
-                <p class="feature-hint"><span class="icon-brain-circuit"></span> Useful for summaries, classifications, XML or YAML scene data, Co-GM notes, and other one-at-a-time helper requests.</p>
-                <div class="ai-lab-panel" id="ai-lab-panel">
-                  <div class="ultrascripts-panel-heading">
-                    <span><span class="icon-flask-conical"></span> Native query lab</span>
-                    <button class="btn btn-icon btn-ghost" id="ai-lab-refresh" aria-label="Refresh AI module status" title="Refresh status">
-                      <span class="icon-refresh-cw"></span>
-                    </button>
-                  </div>
-                  <div class="ai-lab-status" id="ai-lab-status">Open an AI Dungeon adventure to inspect AI readiness.</div>
-                  <label class="form-label" for="ai-lab-system-prompt">System prompt</label>
-                  <textarea class="form-textarea ai-lab-textarea ai-lab-system" id="ai-lab-system-prompt" maxlength="3000" placeholder="Instructions BetterDungeon places before the request."></textarea>
-                  <div class="ai-lab-count-row">
-                    <span>System</span>
-                    <span id="ai-lab-system-count">0 / 3000</span>
-                  </div>
-                  <label class="form-label" for="ai-lab-prompt">Prompt</label>
-                  <textarea class="form-textarea ai-lab-textarea" id="ai-lab-prompt" maxlength="6000" placeholder="Ask the native Story Card generator a private test question."></textarea>
-                  <div class="ai-lab-count-row">
-                    <span>Prompt</span>
-                    <span id="ai-lab-prompt-count">0 / 6000</span>
-                  </div>
-                  <label class="form-label" for="ai-lab-context">Additional generation context</label>
-                  <textarea class="form-textarea ai-lab-textarea ai-lab-context" id="ai-lab-context" maxlength="4000" placeholder="Optional context. Try changing this and includeStorySummary to probe what the generator sees."></textarea>
-                  <div class="ai-lab-count-row">
-                    <span>Context</span>
-                    <span id="ai-lab-context-count">0 / 4000</span>
-                  </div>
-                  <div class="ai-lab-controls">
-                    <label class="ai-lab-check" for="ai-lab-include-summary">
-                      <input type="checkbox" id="ai-lab-include-summary" checked>
-                      <span>Story summary</span>
-                    </label>
-                    <label for="ai-lab-temperature">
-                      <span>Temp</span>
-                      <input type="number" class="form-input" id="ai-lab-temperature" min="0" max="2" step="0.1" value="1">
-                    </label>
-                    <label for="ai-lab-timeout">
-                      <span>Timeout</span>
-                      <input type="number" class="form-input" id="ai-lab-timeout" min="5000" max="120000" step="1000" value="60000">
-                    </label>
-                  </div>
-                  <div class="ai-lab-actions">
-                    <button class="btn btn-primary" id="ai-lab-send">
-                      <span class="icon-send"></span>
-                      Send
-                    </button>
-                    <button class="btn btn-ghost" id="ai-lab-clear">
-                      <span class="icon-eraser"></span>
-                      Clear
-                    </button>
-                  </div>
-                  <pre class="ai-lab-output" id="ai-lab-output" aria-live="polite">No query sent yet.</pre>
-                </div>
+                <p>The AI module is currently an inert placeholder while its generation backend is rebuilt. Scripts can call <code>ai.status</code> to detect that state.</p>
+                <p class="feature-hint"><span class="icon-brain-circuit"></span> No generation operation is exposed right now. Future AI work will start from this clean status-only surface.</p>
               </div>
             </article>
 

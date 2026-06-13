@@ -334,11 +334,6 @@
         modulePreferences: normalizeSdkUltrascriptsModules(syncResult[SDK_SYNC_STORAGE_KEYS.ultrascriptsModules]),
         scriptureDisplay: normalizeSdkScriptureDisplay(syncResult[SDK_SYNC_STORAGE_KEYS.scriptureWidgetDisplay]),
         webfetch: summarizeSdkWebFetchAllowlist(syncResult[SDK_SYNC_STORAGE_KEYS.webfetchAllowlist]),
-        ai: {
-          backend: 'aid-story-card-generator',
-          configured: true,
-          requiresExternalKey: false,
-        },
       },
     };
   }

@@ -1,17 +1,7 @@
-// Ultrascripts AI Module Test Suite - AI Dungeon Library
+// Ultrascripts AI Placeholder Test Suite - AI Dungeon Library
 //
-// Drives the native BetterDungeon Ultrascripts AI module through its public
-// query/status API. Pair with output-modifier.js.
-//
-// Surfaces written:
-//   ultrascripts:out      - request envelope queue (script -> BD)
-//   ultrascripts:in:ai    - response envelope (BD -> script)
-//   ultrascripts:test:ai  - human-readable trace card with results
-//
-// Before running:
-//   1. Open BetterDungeon -> Ultrascripts and enable Ultrascripts + the AI module.
-//   2. Open an AI Dungeon adventure and take one normal turn so GraphQL
-//      credentials and Story Cards hydrate.
+// Verifies that the AI module is mounted as a rebuild placeholder and exposes
+// only ai.status. Pair with output-modifier.js.
 
 state.ultrascriptsAiTest = state.ultrascriptsAiTest || {
   runId: null,
@@ -22,117 +12,18 @@ state.ultrascriptsAiTest = state.ultrascriptsAiTest || {
   completed: {},
   acked: {},
   ackAttempts: {},
-  steps: {},
-  replayResets: {},
+  statusRequestId: null,
   events: [],
-  consumedCommands: {},
   phase: 'boot'
 };
 
-var FAI_BACKEND = 'aid-story-card-generator';
-
-var FAI_STEPS = [
-  {
-    label: 'status',
-    module: 'ai',
-    op: 'status',
-    args: function () { return {}; },
-    expect: 'ok',
-    validate: function (r) {
-      return !!(
-        r &&
-        r.backend === FAI_BACKEND &&
-        typeof r.ready === 'boolean' &&
-        r.hasGraphqlCredentials === true &&
-        typeof r.adventureShortId === 'string' &&
-        r.adventureShortId.length > 0
-      );
-    }
-  },
-  {
-    label: 'query-plain',
-    module: 'ai',
-    op: 'query',
-    args: function () {
-      return {
-        systemPrompt: 'Answer as a concise BetterDungeon transport health check. Return one short sentence only.',
-        prompt: 'Reply with one short sentence saying the Ultrascripts AI module is online.',
-        context: 'This is a BetterDungeon native query transport test.',
-        temperature: 0,
-        timeoutMs: 120000
-      };
-    },
-    expect: 'ok',
-    validate: faiValidQuery
-  },
-  {
-    label: 'query-xml',
-    module: 'ai',
-    op: 'query',
-    args: function () {
-      return {
-        prompt: 'Return exactly this XML and nothing else: <result><status>online</status></result>',
-        context: { test: 'ultrascripts-ai-xml' },
-        includeStorySummary: false,
-        temperature: 0,
-        timeoutMs: 120000
-      };
-    },
-    expect: 'ok',
-    validate: faiValidXmlQuery
-  },
-  {
-    label: 'err-empty-prompt',
-    module: 'ai',
-    op: 'query',
-    args: function () { return { prompt: '' }; },
-    expect: 'err',
-    errorCode: 'invalid_args'
-  },
-  {
-    label: 'err-oversized-prompt',
-    module: 'ai',
-    op: 'query',
-    args: function () { return { prompt: faiRepeat('x', 6001) }; },
-    expect: 'err',
-    errorCode: 'invalid_args'
-  },
-  {
-    label: 'err-bad-temperature',
-    module: 'ai',
-    op: 'query',
-    args: function () {
-      return {
-        prompt: 'hi',
-        temperature: 99
-      };
-    },
-    expect: 'err',
-    errorCode: 'invalid_args'
-  },
-  {
-    label: 'err-unknown-op',
-    module: 'ai',
-    op: 'thisOpDoesNotExist',
-    args: function () { return {}; },
-    expect: 'err',
-    errorCode: 'unknown_op'
-  },
-  {
-    label: 'err-unknown-module',
-    module: 'definitelyNotAModule',
-    op: 'query',
-    args: function () { return {}; },
-    expect: 'err',
-    errorCode: 'unknown_module'
-  }
-];
+var FAI_OLD_OPS = ['query', 'chat', 'models', 'testConnection'];
 
 function faiNow() { return Date.now ? Date.now() : new Date().getTime(); }
 
 function faiRunId() {
   var s = state.ultrascriptsAiTest;
-  if (!s.runId) s.runId = 'ultrascripts-ai-' + faiNow().toString(36);
+  if (!s.runId) s.runId = 'ultrascripts-ai-placeholder-' + faiNow().toString(36);
   return s.runId;
 }
 
@@ -194,22 +85,44 @@ function faiLog(event, detail) {
     event: event,
     detail: detail || ''
   });
-  while (s.events.length > 80) s.events.shift();
+  while (s.events.length > 60) s.events.shift();
 }
 
 function faiHeartbeat() { return faiReadJson('ultrascripts:heartbeat'); }
 
-function faiHasOp(moduleId, opName) {
+function faiAiModule() {
   var hb = faiHeartbeat();
-  if (!hb || !hb.ultrascripts || hb.ultrascripts.protocol !== 1) return false;
-  var mods = Array.isArray(hb.modules) ? hb.modules : [];
+  var mods = hb && Array.isArray(hb.modules) ? hb.modules : [];
   for (var i = 0; i < mods.length; i++) {
-    var m = mods[i];
-    if (!m || m.id !== moduleId) continue;
-    var ops = Array.isArray(m.ops) ? m.ops : [];
-    return ops.indexOf(opName) !== -1;
+    if (mods[i] && mods[i].id === 'ai') return mods[i];
+  }
+  return null;
+}
+
+function faiHasModule(moduleId) {
+  var hb = faiHeartbeat();
+  var mods = hb && Array.isArray(hb.modules) ? hb.modules : [];
+  for (var i = 0; i < mods.length; i++) {
+    if (mods[i] && mods[i].id === moduleId) return true;
   }
   return false;
+}
+
+function faiAiOps() {
+  var mod = faiAiModule();
+  return mod && Array.isArray(mod.ops) ? mod.ops : [];
+}
+
+function faiHasOp(opName) {
+  return faiAiOps().indexOf(opName) !== -1;
+}
+
+function faiOldOpsAdvertised() {
+  var found = [];
+  for (var i = 0; i < FAI_OLD_OPS.length; i++) {
+    if (faiHasOp(FAI_OLD_OPS[i])) found.push(FAI_OLD_OPS[i]);
+  }
+  return found;
 }
 
 function faiPendingArray() {
@@ -246,21 +159,20 @@ function faiQueueAck(requestId, reason) {
   return true;
 }
 
-function faiQueueRequest(label, moduleId, opName, args) {
+function faiQueueStatus() {
   var s = state.ultrascriptsAiTest;
-  var id = faiLiveKey() + '-' + label + '-' + (++s.seq);
-  if (s.pending[id] || s.completed[id]) return id;
+  if (s.statusRequestId) return;
+  var id = faiLiveKey() + '-ai-status-' + (++s.seq);
+  s.statusRequestId = id;
   s.pending[id] = {
     id: id,
-    module: moduleId,
-    op: opName,
-    args: args === undefined ? {} : args,
+    module: 'ai',
+    op: 'status',
+    args: {},
     ts: faiNow()
   };
-  s.steps[label] = id;
-  faiLog('queued', id + ' -> ' + moduleId + '.' + opName);
+  faiLog('queued', id + ' -> ai.status');
   faiWriteOut();
-  return id;
 }
 
 function faiIsTerminal(r) {
@@ -269,99 +181,51 @@ function faiIsTerminal(r) {
 
 function faiPollResponses() {
   var s = state.ultrascriptsAiTest;
-  var modules = ['ai', 'definitelyNotAModule'];
+  var card = faiReadJson('ultrascripts:in:ai');
+  if (!card || !card.responses) return;
+
   var found = false;
-  for (var m = 0; m < modules.length; m++) {
-    var card = faiReadJson('ultrascripts:in:' + modules[m]);
-    if (!card || !card.responses) continue;
-    for (var rid in card.responses) {
-      if (!Object.prototype.hasOwnProperty.call(card.responses, rid)) continue;
-      var r = card.responses[rid];
-      if (!faiIsTerminal(r)) continue;
-      if (!s.completed[rid]) {
-        s.completed[rid] = {
-          status: r.status,
-          data: r.data || null,
-          error: r.error || null,
-          module: modules[m],
-          seenAt: faiNow()
-        };
-        faiLog('completed', rid + ' -> ' + r.status);
-      }
-      delete s.pending[rid];
-      if (!s.acked[rid] || Number(s.ackAttempts[rid] || 0) < 6) {
-        found = faiQueueAck(rid, 'terminal') || found;
-      }
+  for (var rid in card.responses) {
+    if (!Object.prototype.hasOwnProperty.call(card.responses, rid)) continue;
+    var r = card.responses[rid];
+    if (!faiIsTerminal(r)) continue;
+    if (!s.completed[rid]) {
+      s.completed[rid] = {
+        status: r.status,
+        data: r.data || null,
+        error: r.error || null,
+        seenAt: faiNow()
+      };
+      faiLog('completed', rid + ' -> ' + r.status);
+    }
+    delete s.pending[rid];
+    if (!s.acked[rid] || Number(s.ackAttempts[rid] || 0) < 6) {
+      found = faiQueueAck(rid, 'terminal') || found;
     }
   }
   if (found) faiWriteOut();
 }
 
-function faiRepeat(ch, count) {
-  var out = '';
-  for (var i = 0; i < count; i++) out += ch;
-  return out;
-}
-
-function faiValidQuery(r) {
-  return !!(
-    r &&
-    r.backend === FAI_BACKEND &&
-    typeof r.text === 'string' &&
-    r.text.length > 0 &&
-    typeof r.generatedAtIso === 'string' &&
-    typeof r.shellCardId === 'string' &&
-    typeof r.systemPromptChars === 'number' &&
-    typeof r.promptChars === 'number' &&
-    typeof r.contextChars === 'number'
-  );
-}
-
-function faiValidXmlQuery(r) {
-  var text = String((r && r.text) || '').trim().toLowerCase();
-  return faiValidQuery(r) &&
-    text.indexOf('<status>online</status>') !== -1 &&
-    text.indexOf('<result') !== -1 &&
-    text.indexOf('</result>') !== -1;
-}
-
-function faiTextIncludes(text, needles) {
-  var hay = String(text || '').toLowerCase();
-  for (var i = 0; i < needles.length; i++) {
-    if (hay.indexOf(needles[i]) !== -1) return true;
-  }
-  return false;
-}
-
-function faiRecentSources(outputText) {
-  var src = [{ id: 'output:' + state.ultrascriptsAiTest.turn, text: String(outputText || '') }];
-  var entries = Array.isArray(history) ? history : [];
-  var start = Math.max(0, entries.length - 6);
-  for (var i = start; i < entries.length; i++) {
-    var e = entries[i];
-    if (!e) continue;
-    src.push({ id: 'history:' + i, text: String(e.text || '') + '\n' + String(e.rawText || '') });
-  }
-  return src;
-}
-
-function faiConsumeCommand(kind, outputText, needles) {
+function faiStatusData() {
   var s = state.ultrascriptsAiTest;
-  var sources = faiRecentSources(outputText);
-  for (var i = 0; i < sources.length; i++) {
-    var src = sources[i];
-    if (!faiTextIncludes(src.text, needles)) continue;
-    var sig = kind + ':' + src.id + ':' + src.text.slice(0, 120);
-    if (s.consumedCommands[sig]) return false;
-    s.consumedCommands[sig] = faiNow();
-    return true;
-  }
-  return false;
+  var done = s.statusRequestId ? s.completed[s.statusRequestId] : null;
+  return done && done.status === 'ok' ? done.data : null;
+}
+
+function faiStatusPass() {
+  var data = faiStatusData();
+  return !!(
+    data &&
+    data.ready === false &&
+    data.available === false &&
+    data.phase === 'rebuild' &&
+    data.reason === 'ai_module_rebuild'
+  );
 }
 
 function faiResetSuite() {
   state.ultrascriptsAiTest = {
-    runId: 'ultrascripts-ai-' + faiNow().toString(36),
+    runId: 'ultrascripts-ai-placeholder-' + faiNow().toString(36),
     turn: 0,
     seq: 0,
     outSeq: 0,
@@ -369,144 +233,63 @@ function faiResetSuite() {
     completed: {},
     acked: {},
     ackAttempts: {},
-    steps: {},
-    replayResets: {},
+    statusRequestId: null,
     events: [],
-    consumedCommands: {},
     phase: 'reset'
   };
   faiWriteCard('ultrascripts:out', JSON.stringify({ v: 1, requests: [], acks: [] }), 'Ultrascripts');
   faiWriteTrace();
 }
 
-function faiCurrentStepIndex() {
-  var s = state.ultrascriptsAiTest;
-  for (var i = 0; i < FAI_STEPS.length; i++) {
-    var step = FAI_STEPS[i];
-    var rid = s.steps[step.label];
-    if (!rid) return i;
-    if (!s.completed[rid]) return i;
-  }
-  return FAI_STEPS.length;
-}
-
-var FAI_MAX_REPLAY_RESETS = 2;
-
-function faiRecoverReplayBlocked() {
-  var s = state.ultrascriptsAiTest;
-  for (var i = 0; i < FAI_STEPS.length; i++) {
-    var label = FAI_STEPS[i].label;
-    var rid = s.steps[label];
-    if (!rid) continue;
-    var done = s.completed[rid];
-    if (!done || done.status !== 'err') continue;
-    if (!done.error || done.error.code !== 'unsafe_replay_blocked') continue;
-
-    var attempts = Number(s.replayResets[label] || 0);
-    if (attempts >= FAI_MAX_REPLAY_RESETS) continue;
-
-    delete s.completed[rid];
-    delete s.steps[label];
-    s.replayResets[label] = attempts + 1;
-    faiLog('replay-recover', label + ' re-queue after unsafe_replay_blocked (attempt ' + (attempts + 1) + ')');
-  }
+function faiConsumeReset(outputText) {
+  var hay = String(outputText || '').toLowerCase();
+  return hay.indexOf('ai test reset') !== -1 ||
+    hay.indexOf('ultrascripts ai reset') !== -1 ||
+    hay.indexOf('[[ai-test:reset]]') !== -1;
 }
 
 function faiAdvance() {
   var s = state.ultrascriptsAiTest;
+  var ai = faiAiModule();
+  var oldOps = faiOldOpsAdvertised();
 
-  if (!faiHasOp('ai', 'query') || !faiHasOp('ai', 'status')) {
+  if (!ai) {
     s.phase = 'waiting for ai heartbeat';
     return;
   }
-
-  faiRecoverReplayBlocked();
-
-  var idx = faiCurrentStepIndex();
-  if (idx >= FAI_STEPS.length) {
-    s.phase = faiAllChecksPass() ? 'complete' : 'complete-with-failures';
+  if (!faiHasOp('status') || oldOps.length > 0) {
+    s.phase = 'heartbeat contract mismatch';
     return;
   }
-
-  var step = FAI_STEPS[idx];
-  if (!s.steps[step.label]) {
-    s.phase = 'queueing ' + step.label;
-    var args;
-    try { args = step.args(); } catch (e) { args = {}; }
-    faiQueueRequest(step.label, step.module, step.op, args);
-  } else {
-    s.phase = 'awaiting ' + step.label;
+  if (!s.statusRequestId) {
+    s.phase = 'queueing status';
+    faiQueueStatus();
+    return;
   }
-}
-
-function faiStepResult(step) {
-  var s = state.ultrascriptsAiTest;
-  var rid = s.steps[step.label];
-  if (!rid) return { state: 'pending' };
-  var done = s.completed[rid];
-  if (!done) return { state: 'inflight', requestId: rid };
-
-  var pass = false;
-  var reason = '';
-  if (step.expect === 'ok') {
-    pass = done.status === 'ok' && (typeof step.validate !== 'function' || !!step.validate(done.data));
-    if (!pass) reason = done.status !== 'ok' ? ('status=' + done.status) : 'validate failed';
-  } else if (step.expect === 'err') {
-    pass = done.status === 'err' && done.error && done.error.code === step.errorCode;
-    if (!pass) {
-      reason = done.status !== 'err'
-        ? ('status=' + done.status)
-        : ('code=' + (done.error && done.error.code));
-    }
+  if (!s.completed[s.statusRequestId]) {
+    s.phase = 'awaiting status';
+    return;
   }
-
-  var out = {
-    state: 'done',
-    requestId: rid,
-    status: done.status,
-    error: done.error || null,
-    pass: pass,
-    reason: reason,
-    expect: step.expect,
-    expectedCode: step.errorCode || null,
-    module: done.module
-  };
-
-  if (step.op === 'query' && done.status === 'ok' && done.data) {
-    var text = typeof done.data.text === 'string' ? done.data.text : '';
-    out.preview = {
-      backend: done.data.backend || null,
-      textLength: text.length,
-      textSample: text.length > 200 ? text.slice(0, 200) + '...' : text,
-      shellCardId: done.data.shellCardId || null
-    };
-  }
-
-  return out;
-}
-
-function faiAllChecksPass() {
-  for (var i = 0; i < FAI_STEPS.length; i++) {
-    var r = faiStepResult(FAI_STEPS[i]);
-    if (r.state !== 'done' || !r.pass) return false;
-  }
-  return true;
+  s.phase = faiStatusPass() ? 'complete' : 'complete-with-failures';
 }
 
 function faiWriteTrace() {
   var s = state.ultrascriptsAiTest;
-  var results = {};
-  var counts = { total: FAI_STEPS.length, pass: 0, fail: 0, pending: 0 };
-  for (var i = 0; i < FAI_STEPS.length; i++) {
-    var step = FAI_STEPS[i];
-    var r = faiStepResult(step);
-    results[step.label] = r;
-    if (r.state !== 'done') counts.pending++;
-    else if (r.pass) counts.pass++;
-    else counts.fail++;
-  }
-
   var hb = faiHeartbeat();
+  var ai = faiAiModule();
+  var oldOps = faiOldOpsAdvertised();
+  var statusData = faiStatusData();
+  var statusDone = !!(s.statusRequestId && s.completed[s.statusRequestId]);
+  var statusPass = faiStatusPass();
+  var providerAliasAdvertised = faiHasModule('providerAI');
+  var heartbeatPass = !!ai && !providerAliasAdvertised && faiHasOp('status') && oldOps.length === 0;
+  var counts = {
+    total: 2,
+    pass: (heartbeatPass ? 1 : 0) + (statusPass ? 1 : 0),
+    fail: (heartbeatPass || !ai ? 0 : 1) + (statusDone && !statusPass ? 1 : 0),
+    pending: (!ai ? 1 : 0) + (!statusDone ? 1 : 0)
+  };
+
   var trace = {
     v: 1,
     runId: faiRunId(),
@@ -516,14 +299,22 @@ function faiWriteTrace() {
     heartbeat: {
       present: !!hb,
       protocol: hb && hb.ultrascripts && hb.ultrascripts.protocol,
-      aiAdvertised: faiHasOp('ai', 'query') && faiHasOp('ai', 'status')
+      aiAdvertised: !!ai,
+      providerAliasAdvertised: providerAliasAdvertised,
+      aiOps: faiAiOps(),
+      oldOpsAdvertised: oldOps,
+      pass: heartbeatPass
+    },
+    status: {
+      requestId: s.statusRequestId,
+      terminal: statusDone,
+      data: statusData,
+      pass: statusPass
     },
     counts: counts,
-    checksPass: counts.pending === 0 && counts.fail === 0,
-    results: results,
+    checksPass: heartbeatPass && statusPass,
     pendingIds: Object.keys(s.pending),
     ackAttempts: s.ackAttempts,
-    replayResets: s.replayResets || {},
     events: s.events
   };
   faiWriteCard('ultrascripts:test:ai', JSON.stringify(trace, null, 2), 'Ultrascripts Test');
@@ -534,7 +325,7 @@ function ultrascriptsAiTestStep(outputText) {
   faiRunId();
   s.turn += 1;
 
-  if (faiConsumeCommand('reset', outputText, ['ai test reset', 'ultrascripts ai reset', '[[ai-test:reset]]'])) {
+  if (faiConsumeReset(outputText)) {
     faiResetSuite();
     return true;
   }

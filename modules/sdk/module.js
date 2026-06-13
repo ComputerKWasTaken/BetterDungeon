@@ -258,11 +258,6 @@
         modulePreferences: ultrascriptsModules,
         scriptureDisplay,
         webfetch: summarizeWebFetchAllowlist(syncResult[STORAGE_KEYS.webfetchAllowlist]),
-        ai: {
-          backend: 'aid-story-card-generator',
-          configured: true,
-          requiresExternalKey: false,
-        },
       },
     };
   }

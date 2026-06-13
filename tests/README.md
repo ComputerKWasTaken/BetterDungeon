@@ -10,10 +10,9 @@ code — anything here is for verifying behavior, not for shipping.
   the live Full Ultrascripts protocol. Pasted into a scenario's Scripting panel.
   Each subfolder targets one Ultrascripts module or feature.
 
-  - **`aid-scripts/ai-module/`** — End-to-end suite for the Ultrascripts AI
-    module (`modules/ai/module.js`). Exercises `query`, `status`, validation
-    paths, dispatcher routing errors, native Story Card generator readiness,
-    and the `unsafe_replay_blocked` recovery path. See its
+  - **`aid-scripts/ai-module/`** — Placeholder suite for the Ultrascripts AI
+    module (`modules/ai/module.js`). Verifies heartbeat advertises only
+    `status` and that `ai.status` reports the rebuild state. See its
     `README.md` for setup and reading the trace card.
 
   - **`aid-scripts/sdk-module/`** — End-to-end suite for the Ultrascripts SDK

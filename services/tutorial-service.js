@@ -193,7 +193,7 @@ class TutorialService {
         type: 'spotlight',
         target: '[data-ultrascripts-module-card="ai"]',
         title: 'AI',
-        content: 'AI lets a script ask AI Dungeon\'s native generator for side tasks through a reserved Story Card generator shell, without interrupting the main story turn.',
+        content: 'AI is currently a status-only placeholder while the generation backend is rebuilt.',
         position: 'bottom',
         action: 'switchTab',
         actionTarget: 'ultrascripts',
@@ -204,7 +204,7 @@ class TutorialService {
         type: 'spotlight',
         target: '#ai-status',
         title: 'Using AI in Scripts',
-        content: 'Send module ai, op query, with a prompt and optional context. For structured output, prefer XML or YAML and validate it in the script.',
+        content: 'Scripts can call module ai, op status, to detect that the AI module is unavailable during the rebuild.',
         position: 'top',
         action: 'switchTab',
         actionTarget: 'ultrascripts',
@@ -269,7 +269,7 @@ class TutorialService {
       {
         id: 'ai',
         title: 'AI',
-        description: 'Native Story Card generator queries',
+        description: 'Status-only placeholder during rebuild',
         icon: 'icon-bot-message-square',
         stepId: 'ai-card'
       },
