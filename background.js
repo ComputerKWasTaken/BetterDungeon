@@ -25,9 +25,16 @@
   const MAX_TIMEOUT_MS = 30000;
   const GEMINI_DEFAULT_TIMEOUT_MS = 120000;
   const GEMINI_DEFAULT_MODEL = 'gemini-3.5-flash';
+  const GEMINI_DEFAULT_MODEL_MODE = 'auto';
+  const GEMINI_AUTO_STEPDOWN_MODELS = Object.freeze([
+    'gemini-3.5-flash',
+    'gemma-4-31b-it',
+    'gemma-4-26b-a4b-it',
+  ]);
   const GEMINI_STORAGE_KEYS = {
     apiKey: 'ultrascripts_ai_gemini_api_key',
     model: 'ultrascripts_ai_gemini_model',
+    modelMode: 'ultrascripts_ai_gemini_model_mode',
   };
   const DEFAULT_MAX_BODY_BYTES = 50000;
   const MAX_BODY_BYTES = 100000;
@@ -386,19 +393,49 @@
     return model || GEMINI_DEFAULT_MODEL;
   }
 
+  function normalizeGeminiModelMode(value) {
+    return String(value || '').trim().toLowerCase() === 'manual'
+      ? 'manual'
+      : GEMINI_DEFAULT_MODEL_MODE;
+  }
+
+  function normalizeGeminiFallbackChain(value) {
+    const seen = new Set();
+    const out = [];
+    const raw = Array.isArray(value) ? value : GEMINI_AUTO_STEPDOWN_MODELS;
+    for (let i = 0; i < raw.length; i++) {
+      const model = normalizeGeminiModel(raw[i]);
+      if (!model || seen.has(model)) continue;
+      seen.add(model);
+      out.push(model);
+    }
+    if (!out.length) out.push(GEMINI_DEFAULT_MODEL);
+    return out;
+  }
+
   async function getGeminiSettings() {
     const local = await storageGet('local', Object.values(GEMINI_STORAGE_KEYS));
     const apiKey = String(local[GEMINI_STORAGE_KEYS.apiKey] || '').trim();
+    const modelMode = normalizeGeminiModelMode(local[GEMINI_STORAGE_KEYS.modelMode]);
     const model = normalizeGeminiModel(local[GEMINI_STORAGE_KEYS.model]);
+    const fallbackChain = normalizeGeminiFallbackChain(GEMINI_AUTO_STEPDOWN_MODELS);
     return {
       apiKey,
       model,
+      modelMode,
+      fallbackChain,
       keyConfigured: !!apiKey,
     };
   }
 
+  function geminiQueryModels(settings) {
+    if (settings?.modelMode === 'manual') return [normalizeGeminiModel(settings?.model)];
+    return normalizeGeminiFallbackChain(settings?.fallbackChain);
+  }
+
   function geminiStatus(settings) {
     const ready = !!settings?.keyConfigured;
+    const models = geminiQueryModels(settings);
     return {
       backend: 'gemini',
       backendLabel: 'Gemini',
@@ -409,7 +446,9 @@
       config: {
         provider: 'gemini',
         keyConfigured: ready,
-        model: normalizeGeminiModel(settings?.model),
+        modelMode: normalizeGeminiModelMode(settings?.modelMode),
+        model: models[0] || GEMINI_DEFAULT_MODEL,
+        fallbackModels: models,
       },
       message: ready
         ? 'Gemini backend is configured.'
@@ -543,91 +582,122 @@
       };
     }
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), GEMINI_DEFAULT_TIMEOUT_MS);
-    const url =
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(settings.model)}:generateContent`;
+    const models = geminiQueryModels(settings);
+    let lastError = null;
 
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': settings.apiKey,
-        },
-        body: JSON.stringify(geminiPayload(task)),
-        credentials: 'omit',
-        cache: 'no-store',
-        signal: controller.signal,
-      });
+    for (let modelIndex = 0; modelIndex < models.length; modelIndex++) {
+      const currentModel = models[modelIndex];
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), GEMINI_DEFAULT_TIMEOUT_MS);
+      const url =
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent`;
 
-      const bodyText = await response.text();
-      if (!response.ok) {
-        const err = geminiHttpError(response.status, response.statusText, bodyText);
-        const retryAfter = response.headers.get('retry-after');
-        if (retryAfter) {
-          const seconds = Number(retryAfter);
-          if (Number.isFinite(seconds)) err.retryAfterMs = Math.max(0, seconds * 1000);
-        }
-        throw err;
-      }
-
-      let data = null;
       try {
-        data = JSON.parse(bodyText || '{}');
-      } catch (err) {
-        throw {
-          code: 'invalid_response',
-          message: 'Gemini returned invalid JSON.',
-          retryable: false,
-          backend: 'gemini',
-          detail: err?.message || 'invalid_json',
-        };
-      }
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': settings.apiKey,
+          },
+          body: JSON.stringify(geminiPayload(task)),
+          credentials: 'omit',
+          cache: 'no-store',
+          signal: controller.signal,
+        });
 
-      const text = extractGeminiText(data);
-      const base = {
-        backend: 'gemini',
-        generatedAtIso: new Date().toISOString(),
-        model: data?.modelVersion || settings.model,
-        usage: data?.usageMetadata || null,
-        status: geminiStatus(settings),
-      };
+        const bodyText = await response.text();
+        if (!response.ok) {
+          const err = geminiHttpError(response.status, response.statusText, bodyText);
+          const retryAfter = response.headers.get('retry-after');
+          if (retryAfter) {
+            const seconds = Number(retryAfter);
+            if (Number.isFinite(seconds)) err.retryAfterMs = Math.max(0, seconds * 1000);
+          }
+          err.model = currentModel;
+          if (
+            err.code === 'rate_limit' &&
+            settings?.modelMode !== 'manual' &&
+            modelIndex + 1 < models.length
+          ) {
+            lastError = err;
+            continue;
+          }
+          throw err;
+        }
 
-      if (task.output.type === 'json') {
+        let data = null;
         try {
-          return { ...base, json: JSON.parse(text), text };
+          data = JSON.parse(bodyText || '{}');
         } catch (err) {
           throw {
             code: 'invalid_response',
-            message: 'Gemini returned invalid JSON text.',
+            message: 'Gemini returned invalid JSON.',
             retryable: false,
             backend: 'gemini',
             detail: err?.message || 'invalid_json',
+            model: currentModel,
           };
         }
-      }
 
-      return { ...base, text };
-    } catch (err) {
-      if (err?.name === 'AbortError') {
+        const text = extractGeminiText(data);
+        const base = {
+          backend: 'gemini',
+          generatedAtIso: new Date().toISOString(),
+          model: currentModel,
+          providerModel: data?.modelVersion || currentModel,
+          usage: data?.usageMetadata || null,
+          status: geminiStatus(settings),
+          fallback: {
+            mode: settings?.modelMode || GEMINI_DEFAULT_MODEL_MODE,
+            attemptedModels: models.slice(0, modelIndex + 1),
+          },
+        };
+
+        if (task.output.type === 'json') {
+          try {
+            return { ...base, json: JSON.parse(text), text };
+          } catch (err) {
+            throw {
+              code: 'invalid_response',
+              message: 'Gemini returned invalid JSON text.',
+              retryable: false,
+              backend: 'gemini',
+              detail: err?.message || 'invalid_json',
+              model: currentModel,
+            };
+          }
+        }
+
+        return { ...base, text };
+      } catch (err) {
+        if (err?.name === 'AbortError') {
+          throw {
+            code: 'timeout',
+            message: `Gemini query timed out after ${GEMINI_DEFAULT_TIMEOUT_MS} ms.`,
+            retryable: true,
+            backend: 'gemini',
+            model: currentModel,
+          };
+        }
+        if (err?.code) throw err;
         throw {
-          code: 'timeout',
-          message: `Gemini query timed out after ${GEMINI_DEFAULT_TIMEOUT_MS} ms.`,
+          code: 'backend_failed',
+          message: err?.message || 'Gemini request failed.',
           retryable: true,
           backend: 'gemini',
+          model: currentModel,
         };
+      } finally {
+        clearTimeout(timer);
       }
-      if (err?.code) throw err;
-      throw {
-        code: 'backend_failed',
-        message: err?.message || 'Gemini request failed.',
-        retryable: true,
-        backend: 'gemini',
-      };
-    } finally {
-      clearTimeout(timer);
     }
+
+    throw lastError || {
+      code: 'rate_limit',
+      message: 'Gemini rate limit reached.',
+      retryable: true,
+      backend: 'gemini',
+    };
   }
 
   async function handleGemini(request = {}) {
@@ -639,6 +709,9 @@
       }
       if (request.model !== undefined) {
         next[GEMINI_STORAGE_KEYS.model] = normalizeGeminiModel(request.model);
+      }
+      if (request.modelMode !== undefined) {
+        next[GEMINI_STORAGE_KEYS.modelMode] = normalizeGeminiModelMode(request.modelMode);
       }
       await storageSet('local', next);
       return geminiStatus(await getGeminiSettings());

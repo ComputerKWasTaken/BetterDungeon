@@ -841,6 +841,13 @@
                   <input type="password" class="form-input" id="ai-gemini-api-key" placeholder="AIza...">
                 </div>
                 <div class="form-group">
+                  <label class="form-label" for="ai-gemini-model-mode">Model Selection</label>
+                  <select class="form-input" id="ai-gemini-model-mode">
+                    <option value="auto">Best available (automatic stepdown)</option>
+                    <option value="manual">Manual model</option>
+                  </select>
+                </div>
+                <div class="form-group" id="ai-gemini-model-group">
                   <label class="form-label" for="ai-gemini-model">Model</label>
                   <input type="text" class="form-input" id="ai-gemini-model" placeholder="gemini-3.5-flash">
                 </div>

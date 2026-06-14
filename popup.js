@@ -8,6 +8,7 @@
 const DEBUG = false;
 const AI_GEMINI_MESSAGE = 'ULTRASCRIPTS_AI_GEMINI';
 const AI_DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash';
+const AI_DEFAULT_GEMINI_MODEL_MODE = 'auto';
 
 const STORAGE_KEYS = {
   features: 'betterDungeonFeatures',
@@ -338,8 +339,21 @@ function setGeminiStatusText(status, pendingText) {
     el.textContent = 'Not checked';
     return;
   }
+  const modelMode = status.config?.modelMode || AI_DEFAULT_GEMINI_MODEL_MODE;
   const model = status.config?.model || AI_DEFAULT_GEMINI_MODEL;
-  el.textContent = status.ready ? `Ready (${model})` : 'API key required';
+  el.textContent = status.ready
+    ? (modelMode === 'manual' ? `Ready (manual: ${model})` : `Ready (auto: ${model})`)
+    : 'API key required';
+}
+
+function updateGeminiModelModeUi(mode) {
+  const normalized = mode === 'manual' ? 'manual' : AI_DEFAULT_GEMINI_MODEL_MODE;
+  const modelGroup = document.getElementById('ai-gemini-model-group');
+  const modelInput = document.getElementById('ai-gemini-model');
+  const modelMode = document.getElementById('ai-gemini-model-mode');
+  if (modelMode) modelMode.value = normalized;
+  if (modelGroup) modelGroup.style.display = normalized === 'manual' ? '' : 'none';
+  if (modelInput) modelInput.disabled = normalized !== 'manual';
 }
 
 async function loadGeminiSettings() {
@@ -347,11 +361,15 @@ async function loadGeminiSettings() {
     const status = await sendGeminiMessage({ op: 'status' });
     const keyInput = document.getElementById('ai-gemini-api-key');
     const modelInput = document.getElementById('ai-gemini-model');
+    const modelMode = document.getElementById('ai-gemini-model-mode');
     if (keyInput) {
       keyInput.value = '';
       keyInput.placeholder = status.config?.keyConfigured ? 'Saved locally' : 'AIza...';
     }
     if (modelInput) modelInput.value = status.config?.model || AI_DEFAULT_GEMINI_MODEL;
+    if (modelMode) {
+      updateGeminiModelModeUi(status.config?.modelMode || AI_DEFAULT_GEMINI_MODEL_MODE);
+    }
     setGeminiStatusText(status);
   } catch {
     setGeminiStatusText(null, 'Unavailable');
@@ -361,8 +379,11 @@ async function loadGeminiSettings() {
 async function saveGeminiSettings() {
   const keyInput = document.getElementById('ai-gemini-api-key');
   const modelInput = document.getElementById('ai-gemini-model');
+  const modelModeInput = document.getElementById('ai-gemini-model-mode');
+  const modelMode = modelModeInput?.value === 'manual' ? 'manual' : AI_DEFAULT_GEMINI_MODEL_MODE;
   const request = {
     op: 'settings:set',
+    modelMode,
     model: modelInput?.value || AI_DEFAULT_GEMINI_MODEL,
   };
   const apiKey = keyInput?.value?.trim();
@@ -397,6 +418,9 @@ async function testGeminiSettings() {
 
 function initGeminiSettings() {
   loadGeminiSettings();
+  document.getElementById('ai-gemini-model-mode')?.addEventListener('change', (event) => {
+    updateGeminiModelModeUi(event.target.value);
+  });
   document.getElementById('ai-gemini-save')?.addEventListener('click', saveGeminiSettings);
   document.getElementById('ai-gemini-test')?.addEventListener('click', testGeminiSettings);
 }
@@ -646,10 +670,13 @@ function saveFeatureState(featureId, enabled) {
 }
 
 function setUltrascriptsModuleControlsEnabled(enabled) {
-  document.querySelectorAll('[data-ultrascripts-module-toggle], #ultrascripts-debug, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #ai-gemini-api-key, #ai-gemini-model, #ai-gemini-save, #ai-gemini-test')
+  document.querySelectorAll('[data-ultrascripts-module-toggle], #ultrascripts-debug, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #ai-gemini-api-key, #ai-gemini-model-mode, #ai-gemini-model, #ai-gemini-save, #ai-gemini-test')
     .forEach(control => {
       control.disabled = !enabled;
     });
+  if (enabled) {
+    updateGeminiModelModeUi(document.getElementById('ai-gemini-model-mode')?.value);
+  }
 }
 
 // ============================================
