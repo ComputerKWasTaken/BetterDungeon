@@ -415,6 +415,16 @@ body.mobile {
   margin-left: 8px;
 }
 
+.btn-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn-row .btn {
+  flex: 1;
+}
+
 /* === Ultrascripts === */
 .ultrascripts-card .feature-details {
   padding-top: 12px;

@@ -204,7 +204,7 @@ class TutorialService {
         type: 'spotlight',
         target: '#ai-status',
         title: 'Using AI in Scripts',
-        content: 'Scripts can call module ai, op status, and later submit ai.query requests through the normal Ultrascripts out/in cards. Queries return not_configured until a backend is connected.',
+        content: 'Scripts can call module ai, op status, and later submit ai.query requests through the normal Ultrascripts out/in cards. Queries use Gemini when configured and return not_configured until the player saves an API key.',
         position: 'top',
         action: 'switchTab',
         actionTarget: 'ultrascripts',

@@ -1,7 +1,7 @@
 // modules/ai/module.js
 //
 // Ultrascripts AI module wrapper. Public ops delegate into the separated
-// backend-agnostic executor layer.
+// backend-agnostic executor layer backed by Gemini.
 
 (function () {
   if (window.UltrascriptsAIModule) return;
@@ -18,10 +18,11 @@
     return aiExecutor;
   }
 
-  function statusOp(args = {}) {
+  async function statusOp(args = {}) {
     if (args !== undefined && args !== null && (typeof args !== 'object' || Array.isArray(args))) {
       throw { code: 'invalid_args', message: 'args must be an object' };
     }
+    await geminiBackend()?.refreshStatus?.();
     return {
       ...executor().status(),
       checkedAtIso: new Date().toISOString(),
@@ -32,11 +33,15 @@
     return executor().query(args, { requestId: request.id || null });
   }
 
+  function geminiBackend() {
+    return window.UltrascriptsAIGeminiBackend || null;
+  }
+
   const UltrascriptsAIModule = {
     id: 'ai',
-    version: '0.3.0-executor',
+    version: '0.4.0-gemini',
     label: 'AI',
-    description: 'Asynchronous AI query executor. Backend connection is pending.',
+    description: 'Asynchronous AI query executor backed by Gemini.',
 
     ops: {
       status: {
@@ -53,7 +58,8 @@
 
     mount(ctx) {
       this._ctx = ctx;
-      ctx.log('debug', 'AI executor mounted');
+      geminiBackend()?.register?.();
+      ctx.log('debug', 'AI executor mounted with Gemini backend');
     },
 
     unmount() {
@@ -65,6 +71,7 @@
         mounted: !!this._ctx,
         ops: Object.keys(this.ops),
         executor: window.UltrascriptsAIExecutor?.inspect?.() || null,
+        gemini: geminiBackend()?.backend?.status?.() || null,
       };
     },
   };

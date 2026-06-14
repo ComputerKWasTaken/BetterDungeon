@@ -20,8 +20,15 @@
 
   const WEBFETCH_MESSAGE = 'ULTRASCRIPTS_WEBFETCH_FETCH';
   const SDK_MESSAGE = 'ULTRASCRIPTS_SDK_REQUEST';
+  const GEMINI_MESSAGE = 'ULTRASCRIPTS_AI_GEMINI';
   const DEFAULT_TIMEOUT_MS = 15000;
   const MAX_TIMEOUT_MS = 30000;
+  const GEMINI_DEFAULT_TIMEOUT_MS = 120000;
+  const GEMINI_DEFAULT_MODEL = 'gemini-3.5-flash';
+  const GEMINI_STORAGE_KEYS = {
+    apiKey: 'ultrascripts_ai_gemini_api_key',
+    model: 'ultrascripts_ai_gemini_model',
+  };
   const DEFAULT_MAX_BODY_BYTES = 50000;
   const MAX_BODY_BYTES = 100000;
   const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -75,10 +82,14 @@
 
   function normalizeError(error) {
     if (error && typeof error === 'object') {
-      return {
+      const normalized = {
         code: typeof error.code === 'string' ? error.code : 'webfetch_failed',
         message: typeof error.message === 'string' ? error.message : 'WebFetch failed',
       };
+      for (const key of ['retryable', 'status', 'statusText', 'retryAfterMs', 'backend', 'phase', 'task', 'detail']) {
+        if (error[key] !== undefined) normalized[key] = error[key];
+      }
+      return normalized;
     }
     return { code: 'webfetch_failed', message: String(error || 'WebFetch failed') };
   }
@@ -282,6 +293,38 @@
     return { ...SDK_DEFAULT_FEATURES, ...(raw && typeof raw === 'object' ? raw : {}) };
   }
 
+  function storageSet(areaName, data) {
+    const area = storageArea(areaName);
+    if (!area?.set) return Promise.resolve();
+
+    return new Promise((resolve, reject) => {
+      try {
+        const maybePromise = area.set(data, () => {
+          const lastError =
+            (typeof chrome !== 'undefined' && chrome.runtime?.lastError) ||
+            (typeof browser !== 'undefined' && browser.runtime?.lastError) ||
+            null;
+          if (lastError) reject(lastError);
+          else resolve();
+        });
+        if (maybePromise && typeof maybePromise.then === 'function') {
+          maybePromise.then(resolve, reject);
+        }
+      } catch (err) {
+        try {
+          const maybePromise = area.set(data);
+          if (maybePromise && typeof maybePromise.then === 'function') {
+            maybePromise.then(resolve, reject);
+          } else {
+            resolve();
+          }
+        } catch (innerErr) {
+          reject(innerErr);
+        }
+      }
+    });
+  }
+
   function normalizeSdkUltrascriptsModules(raw) {
     const out = {};
     const saved = raw && typeof raw === 'object' ? raw : {};
@@ -338,6 +381,287 @@
     };
   }
 
+  function normalizeGeminiModel(value) {
+    const model = String(value || GEMINI_DEFAULT_MODEL).trim().replace(/^models\//, '');
+    return model || GEMINI_DEFAULT_MODEL;
+  }
+
+  async function getGeminiSettings() {
+    const local = await storageGet('local', Object.values(GEMINI_STORAGE_KEYS));
+    const apiKey = String(local[GEMINI_STORAGE_KEYS.apiKey] || '').trim();
+    const model = normalizeGeminiModel(local[GEMINI_STORAGE_KEYS.model]);
+    return {
+      apiKey,
+      model,
+      keyConfigured: !!apiKey,
+    };
+  }
+
+  function geminiStatus(settings) {
+    const ready = !!settings?.keyConfigured;
+    return {
+      backend: 'gemini',
+      backendLabel: 'Gemini',
+      ready,
+      available: ready,
+      reason: ready ? null : 'ai_backend_not_configured',
+      supports: { text: true, json: true },
+      config: {
+        provider: 'gemini',
+        keyConfigured: ready,
+        model: normalizeGeminiModel(settings?.model),
+      },
+      message: ready
+        ? 'Gemini backend is configured.'
+        : 'Add a Gemini API key in BetterDungeon to enable AI queries.',
+    };
+  }
+
+  function isObject(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+  }
+
+  function cloneJson(value) {
+    if (value === undefined) return undefined;
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  function normalizeGeminiTask(task) {
+    if (!isObject(task)) {
+      throw { code: 'invalid_args', message: 'Gemini query task must be an object', retryable: false };
+    }
+    if (typeof task.prompt !== 'string' || !task.prompt.trim()) {
+      throw { code: 'invalid_args', message: 'prompt is required', retryable: false };
+    }
+    const output = isObject(task.output) ? task.output : { type: 'text' };
+    const type = output.type === 'json' ? 'json' : 'text';
+    if (type === 'json' && !isObject(output.schema)) {
+      throw {
+        code: 'invalid_args',
+        message: 'output.schema is required when output.type is json',
+        retryable: false,
+      };
+    }
+    return {
+      id: typeof task.id === 'string' ? task.id : null,
+      prompt: task.prompt,
+      promptChars: Number(task.promptChars || task.prompt.length),
+      output: {
+        type,
+        schema: output.schema ? cloneJson(output.schema) : undefined,
+      },
+    };
+  }
+
+  function geminiPayload(task) {
+    const payload = {
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: task.prompt }],
+        },
+      ],
+    };
+
+    if (task.output.type === 'json') {
+      payload.generationConfig = {
+        responseMimeType: 'application/json',
+        responseJsonSchema: task.output.schema,
+      };
+    }
+
+    return payload;
+  }
+
+  function geminiHttpError(status, statusText, bodyText) {
+    let parsed = null;
+    try { parsed = JSON.parse(bodyText || '{}'); } catch { parsed = null; }
+    const providerMessage = parsed?.error?.message || statusText || `HTTP ${status}`;
+    const base = {
+      status,
+      statusText,
+      backend: 'gemini',
+      detail: providerMessage,
+    };
+
+    if (status === 401 || status === 403) {
+      return { ...base, code: 'auth_failed', message: 'Gemini API key was rejected.', retryable: false };
+    }
+    if (status === 429) {
+      return { ...base, code: 'rate_limit', message: 'Gemini rate limit reached.', retryable: true };
+    }
+    if (status >= 500) {
+      return { ...base, code: 'backend_failed', message: 'Gemini service failed.', retryable: true };
+    }
+    if (status === 400) {
+      return { ...base, code: 'invalid_args', message: providerMessage, retryable: false };
+    }
+    return { ...base, code: 'backend_failed', message: providerMessage, retryable: status >= 500 };
+  }
+
+  function extractGeminiText(data) {
+    const candidates = Array.isArray(data?.candidates) ? data.candidates : [];
+    if (!candidates.length) {
+      const blockReason = data?.promptFeedback?.blockReason || null;
+      throw {
+        code: blockReason ? 'blocked' : 'invalid_response',
+        message: blockReason ? `Gemini blocked the prompt: ${blockReason}` : 'Gemini returned no candidates.',
+        retryable: false,
+        backend: 'gemini',
+      };
+    }
+
+    const candidate = candidates[0];
+    const parts = Array.isArray(candidate?.content?.parts) ? candidate.content.parts : [];
+    const text = parts
+      .map(part => (typeof part?.text === 'string' ? part.text : ''))
+      .filter(Boolean)
+      .join('');
+
+    if (!text) {
+      const finishReason = candidate?.finishReason || data?.promptFeedback?.blockReason || null;
+      throw {
+        code: finishReason && finishReason !== 'STOP' ? 'blocked' : 'invalid_response',
+        message: finishReason
+          ? `Gemini returned no text output (${finishReason}).`
+          : 'Gemini returned no text output.',
+        retryable: false,
+        backend: 'gemini',
+      };
+    }
+
+    return text;
+  }
+
+  async function callGeminiGenerateContent(settings, task) {
+    if (!settings.keyConfigured) {
+      throw {
+        code: 'not_configured',
+        message: 'No Gemini API key is configured.',
+        retryable: false,
+        backend: 'gemini',
+      };
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), GEMINI_DEFAULT_TIMEOUT_MS);
+    const url =
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(settings.model)}:generateContent`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': settings.apiKey,
+        },
+        body: JSON.stringify(geminiPayload(task)),
+        credentials: 'omit',
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+
+      const bodyText = await response.text();
+      if (!response.ok) {
+        const err = geminiHttpError(response.status, response.statusText, bodyText);
+        const retryAfter = response.headers.get('retry-after');
+        if (retryAfter) {
+          const seconds = Number(retryAfter);
+          if (Number.isFinite(seconds)) err.retryAfterMs = Math.max(0, seconds * 1000);
+        }
+        throw err;
+      }
+
+      let data = null;
+      try {
+        data = JSON.parse(bodyText || '{}');
+      } catch (err) {
+        throw {
+          code: 'invalid_response',
+          message: 'Gemini returned invalid JSON.',
+          retryable: false,
+          backend: 'gemini',
+          detail: err?.message || 'invalid_json',
+        };
+      }
+
+      const text = extractGeminiText(data);
+      const base = {
+        backend: 'gemini',
+        generatedAtIso: new Date().toISOString(),
+        model: data?.modelVersion || settings.model,
+        usage: data?.usageMetadata || null,
+        status: geminiStatus(settings),
+      };
+
+      if (task.output.type === 'json') {
+        try {
+          return { ...base, json: JSON.parse(text), text };
+        } catch (err) {
+          throw {
+            code: 'invalid_response',
+            message: 'Gemini returned invalid JSON text.',
+            retryable: false,
+            backend: 'gemini',
+            detail: err?.message || 'invalid_json',
+          };
+        }
+      }
+
+      return { ...base, text };
+    } catch (err) {
+      if (err?.name === 'AbortError') {
+        throw {
+          code: 'timeout',
+          message: `Gemini query timed out after ${GEMINI_DEFAULT_TIMEOUT_MS} ms.`,
+          retryable: true,
+          backend: 'gemini',
+        };
+      }
+      if (err?.code) throw err;
+      throw {
+        code: 'backend_failed',
+        message: err?.message || 'Gemini request failed.',
+        retryable: true,
+        backend: 'gemini',
+      };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function handleGemini(request = {}) {
+    const op = String(request.op || '').trim();
+    if (op === 'settings:set') {
+      const next = {};
+      if (request.apiKey !== undefined) {
+        next[GEMINI_STORAGE_KEYS.apiKey] = String(request.apiKey || '').trim();
+      }
+      if (request.model !== undefined) {
+        next[GEMINI_STORAGE_KEYS.model] = normalizeGeminiModel(request.model);
+      }
+      await storageSet('local', next);
+      return geminiStatus(await getGeminiSettings());
+    }
+
+    const settings = await getGeminiSettings();
+    if (op === 'status') return geminiStatus(settings);
+    if (op === 'test') {
+      const task = normalizeGeminiTask({
+        id: 'popup-test',
+        prompt: 'Reply with exactly: BetterDungeon Gemini ready',
+        output: { type: 'text' },
+      });
+      return callGeminiGenerateContent(settings, task);
+    }
+    if (op === 'query') {
+      const task = normalizeGeminiTask(request.task);
+      return callGeminiGenerateContent(settings, task);
+    }
+
+    throw { code: 'invalid_args', message: `Gemini op '${op || '(empty)'}' is not supported`, retryable: false };
+  }
+
   async function handleSdk(request = {}) {
     const op = String(request.op || '').trim();
     if (op !== 'config') {
@@ -359,6 +683,15 @@
     if (!message || message.type !== SDK_MESSAGE) return false;
 
     handleSdk(message.request)
+      .then((data) => sendResponse({ ok: true, data }))
+      .catch((error) => sendResponse({ ok: false, error: normalizeError(error) }));
+    return true;
+  });
+
+  extensionRuntime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (!message || message.type !== GEMINI_MESSAGE) return false;
+
+    handleGemini(message.request)
       .then((data) => sendResponse({ ok: true, data }))
       .catch((error) => sendResponse({ ok: false, error: normalizeError(error) }));
     return true;

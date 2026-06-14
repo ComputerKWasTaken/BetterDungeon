@@ -6,6 +6,8 @@
 // ============================================
 
 const DEBUG = false;
+const AI_GEMINI_MESSAGE = 'ULTRASCRIPTS_AI_GEMINI';
+const AI_DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash';
 
 const STORAGE_KEYS = {
   features: 'betterDungeonFeatures',
@@ -291,6 +293,7 @@ function initUltrascriptsSettings() {
   loadUltrascriptsModuleToggles();
   loadScriptureWidgetDisplay();
   loadWebFetchConsentList();
+  initGeminiSettings();
   refreshUltrascriptsState();
 
   document.querySelectorAll('[data-ultrascripts-module-toggle]').forEach(toggle => {
@@ -305,6 +308,97 @@ function initUltrascriptsSettings() {
   document.getElementById('scripture-widget-layout')?.addEventListener('change', saveScriptureWidgetDisplay);
   document.getElementById('webfetch-consent-refresh')?.addEventListener('click', loadWebFetchConsentList);
   document.getElementById('webfetch-consent-save')?.addEventListener('click', saveWebFetchConsentFromForm);
+}
+
+function sendGeminiMessage(request) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ type: AI_GEMINI_MESSAGE, request }, (response) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        reject(new Error(lastError.message || 'Gemini backend request failed'));
+        return;
+      }
+      if (response?.ok) {
+        resolve(response.data);
+        return;
+      }
+      reject(response?.error || { code: 'backend_failed', message: 'Gemini backend request failed' });
+    });
+  });
+}
+
+function setGeminiStatusText(status, pendingText) {
+  const el = document.getElementById('ai-gemini-status');
+  if (!el) return;
+  if (pendingText) {
+    el.textContent = pendingText;
+    return;
+  }
+  if (!status) {
+    el.textContent = 'Not checked';
+    return;
+  }
+  const model = status.config?.model || AI_DEFAULT_GEMINI_MODEL;
+  el.textContent = status.ready ? `Ready (${model})` : 'API key required';
+}
+
+async function loadGeminiSettings() {
+  try {
+    const status = await sendGeminiMessage({ op: 'status' });
+    const keyInput = document.getElementById('ai-gemini-api-key');
+    const modelInput = document.getElementById('ai-gemini-model');
+    if (keyInput) {
+      keyInput.value = '';
+      keyInput.placeholder = status.config?.keyConfigured ? 'Saved locally' : 'AIza...';
+    }
+    if (modelInput) modelInput.value = status.config?.model || AI_DEFAULT_GEMINI_MODEL;
+    setGeminiStatusText(status);
+  } catch {
+    setGeminiStatusText(null, 'Unavailable');
+  }
+}
+
+async function saveGeminiSettings() {
+  const keyInput = document.getElementById('ai-gemini-api-key');
+  const modelInput = document.getElementById('ai-gemini-model');
+  const request = {
+    op: 'settings:set',
+    model: modelInput?.value || AI_DEFAULT_GEMINI_MODEL,
+  };
+  const apiKey = keyInput?.value?.trim();
+  if (apiKey) request.apiKey = apiKey;
+
+  setGeminiStatusText(null, 'Saving...');
+  try {
+    const status = await sendGeminiMessage(request);
+    if (keyInput) {
+      keyInput.value = '';
+      keyInput.placeholder = status.config?.keyConfigured ? 'Saved locally' : 'AIza...';
+    }
+    setGeminiStatusText(status);
+    showToast('Gemini settings saved', 'success');
+  } catch (err) {
+    setGeminiStatusText(null, 'Save failed');
+    showToast(err?.message || 'Gemini settings failed to save', 'error');
+  }
+}
+
+async function testGeminiSettings() {
+  setGeminiStatusText(null, 'Testing...');
+  try {
+    const result = await sendGeminiMessage({ op: 'test' });
+    setGeminiStatusText(result.status);
+    showToast('Gemini test succeeded', 'success');
+  } catch (err) {
+    await loadGeminiSettings();
+    showToast(err?.message || 'Gemini test failed', 'error');
+  }
+}
+
+function initGeminiSettings() {
+  loadGeminiSettings();
+  document.getElementById('ai-gemini-save')?.addEventListener('click', saveGeminiSettings);
+  document.getElementById('ai-gemini-test')?.addEventListener('click', testGeminiSettings);
 }
 
 function defaultUltrascriptsModuleState() {
@@ -552,7 +646,7 @@ function saveFeatureState(featureId, enabled) {
 }
 
 function setUltrascriptsModuleControlsEnabled(enabled) {
-  document.querySelectorAll('[data-ultrascripts-module-toggle], #ultrascripts-debug, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save')
+  document.querySelectorAll('[data-ultrascripts-module-toggle], #ultrascripts-debug, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #ai-gemini-api-key, #ai-gemini-model, #ai-gemini-save, #ai-gemini-test')
     .forEach(control => {
       control.disabled = !enabled;
     });

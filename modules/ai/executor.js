@@ -7,7 +7,7 @@
 (function () {
   if (window.UltrascriptsAIExecutor) return;
 
-  const VERSION = '0.1.0-executor';
+  const VERSION = '0.2.0-gemini';
   const PROMPT_MAX_CHARS = 12000;
   const OUTPUT_TYPES = Object.freeze(['text', 'json']);
 
@@ -53,6 +53,9 @@
     }
 
     const normalized = { type };
+    if (type === 'json' && output.schema === undefined) {
+      throw invalidArgs('output.schema is required when output.type is json');
+    }
     if (output.schema !== undefined) {
       if (type !== 'json') throw invalidArgs('output.schema is only valid when output.type is json');
       if (!isObject(output.schema)) throw invalidArgs('output.schema must be a JSON object');
@@ -111,24 +114,38 @@
   function backendInfo() {
     const backend = state.backend;
     if (!backend) return null;
+    const rawStatus = typeof backend.status === 'function' ? backend.status() : null;
+    const status = isObject(rawStatus) ? rawStatus : {};
     return {
       id: backend.id || 'custom',
       label: backend.label || backend.id || 'Custom',
       supports: normalizeSupports(backend.supports),
+      status,
     };
   }
 
   function status() {
     const backend = backendInfo();
     const supports = backend ? backend.supports : { text: false, json: false };
-    const ready = !!(state.backend && typeof state.backend.query === 'function' && (supports.text || supports.json));
+    const backendReady = backend?.status?.ready;
+    const ready = !!(
+      state.backend &&
+      typeof state.backend.query === 'function' &&
+      (supports.text || supports.json) &&
+      (backendReady === undefined ? true : backendReady === true)
+    );
+    const reason = ready
+      ? null
+      : (backend?.status?.reason || 'ai_backend_not_configured');
     return {
       backend: backend ? backend.id : null,
+      backendLabel: backend ? backend.label : null,
       ready,
       available: ready,
       phase: ready ? 'live' : 'executor',
-      reason: ready ? null : 'ai_backend_not_configured',
+      reason,
       supports,
+      config: backend?.status?.config || null,
       contract: {
         ops: ['status', 'query'],
         outputTypes: [...OUTPUT_TYPES],
@@ -139,9 +156,11 @@
         promptMaxChars: PROMPT_MAX_CHARS,
         backendConfigured: !!backend,
       },
-      message: ready
-        ? 'AI querying is available.'
-        : 'The AI execution layer is available, but no callable generation backend is configured right now.',
+      message: backend?.status?.message || (
+        ready
+          ? 'AI querying is available.'
+          : 'The AI execution layer is available, but no callable generation backend is configured right now.'
+      ),
     };
   }
 

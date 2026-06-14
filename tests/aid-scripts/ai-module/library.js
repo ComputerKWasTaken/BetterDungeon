@@ -1,7 +1,7 @@
 // Ultrascripts AI Contract Test Suite - AI Dungeon Library
 //
-// Verifies that the AI module exposes the Phase 1 status/query contract while
-// the backend remains unconfigured. Pair with output-modifier.js.
+// Verifies that the AI module exposes the status/query contract and Gemini
+// backend state. Pair with output-modifier.js.
 
 state.ultrascriptsAiTest = state.ultrascriptsAiTest || {
   runId: null,
@@ -15,6 +15,7 @@ state.ultrascriptsAiTest = state.ultrascriptsAiTest || {
   statusRequestId: null,
   textQueryRequestId: null,
   jsonQueryRequestId: null,
+  jsonNoSchemaRequestId: null,
   events: [],
   phase: 'boot'
 };
@@ -179,7 +180,7 @@ function faiQueueStatus() {
 
 function faiQueueQuery(kind) {
   var s = state.ultrascriptsAiTest;
-  var key = kind === 'json' ? 'jsonQueryRequestId' : 'textQueryRequestId';
+  var key = kind === 'json-noschema' ? 'jsonNoSchemaRequestId' : (kind === 'json' ? 'jsonQueryRequestId' : 'textQueryRequestId');
   if (s[key]) return;
   var id = faiLiveKey() + '-ai-query-' + kind + '-' + (++s.seq);
   s[key] = id;
@@ -187,10 +188,26 @@ function faiQueueQuery(kind) {
     id: id,
     module: 'ai',
     op: 'query',
-    args: kind === 'json'
+    args: kind === 'json-noschema'
       ? {
         prompt: 'Return JSON only: {"ok": true}.',
         output: { type: 'json' }
+      }
+      : kind === 'json'
+      ? {
+        prompt: 'Return JSON with ok true and label "gemini".',
+        output: {
+          type: 'json',
+          schema: {
+            type: 'object',
+            properties: {
+              ok: { type: 'boolean' },
+              label: { type: 'string' }
+            },
+            required: ['ok', 'label'],
+            additionalProperties: false
+          }
+        }
       }
       : {
         prompt: 'Return one short plain-text sentence.',
@@ -243,34 +260,73 @@ function faiStatusPass() {
   var data = faiStatusData();
   return !!(
     data &&
-    data.ready === false &&
-    data.available === false &&
-    data.phase === 'executor' &&
-    data.reason === 'ai_backend_not_configured' &&
+    data.backend === 'gemini' &&
+    data.backendLabel === 'Gemini' &&
+    typeof data.ready === 'boolean' &&
+    data.available === data.ready &&
+    (data.phase === 'live' || data.phase === 'executor') &&
+    (data.ready === true ? data.reason === null : data.reason === 'ai_backend_not_configured') &&
+    data.supports &&
+    data.supports.text === true &&
+    data.supports.json === true &&
+    data.config &&
+    data.config.provider === 'gemini' &&
+    typeof data.config.keyConfigured === 'boolean' &&
+    typeof data.config.model === 'string' &&
     data.contract &&
     Array.isArray(data.contract.ops) &&
     data.contract.ops.indexOf('status') !== -1 &&
     data.contract.ops.indexOf('query') !== -1 &&
     data.executor &&
-    data.executor.version === '0.1.0-executor' &&
+    data.executor.version === '0.2.0-gemini' &&
     data.executor.promptMaxChars === 12000 &&
-    data.executor.backendConfigured === false
+    data.executor.backendConfigured === true
   );
 }
 
 function faiQueryPass(kind) {
   var s = state.ultrascriptsAiTest;
-  var id = kind === 'json' ? s.jsonQueryRequestId : s.textQueryRequestId;
+  var id = kind === 'json-noschema' ? s.jsonNoSchemaRequestId : (kind === 'json' ? s.jsonQueryRequestId : s.textQueryRequestId);
   var done = id ? s.completed[id] : null;
+  var status = faiStatusData();
+  if (kind === 'json-noschema') {
+    return !!(
+      done &&
+      done.status === 'err' &&
+      done.error &&
+      done.error.code === 'invalid_args'
+    );
+  }
+  if (status && status.ready === true) {
+    if (kind === 'json') {
+      return !!(
+        done &&
+        done.status === 'ok' &&
+        done.data &&
+        done.data.backend === 'gemini' &&
+        done.data.outputType === 'json' &&
+        done.data.json &&
+        done.data.json.ok === true &&
+        typeof done.data.json.label === 'string'
+      );
+    }
+    return !!(
+      done &&
+      done.status === 'ok' &&
+      done.data &&
+      done.data.backend === 'gemini' &&
+      done.data.outputType === 'text' &&
+      typeof done.data.text === 'string' &&
+      done.data.text.length > 0
+    );
+  }
   return !!(
     done &&
     done.status === 'err' &&
     done.error &&
     done.error.code === 'not_configured' &&
     done.error.retryable === false &&
-    done.error.task &&
-    done.error.task.outputType === kind &&
-    typeof done.error.task.promptChars === 'number'
+    done.error.backend === 'gemini'
   );
 }
 
@@ -287,6 +343,7 @@ function faiResetSuite() {
     statusRequestId: null,
     textQueryRequestId: null,
     jsonQueryRequestId: null,
+    jsonNoSchemaRequestId: null,
     events: [],
     phase: 'reset'
   };
@@ -341,7 +398,16 @@ function faiAdvance() {
     s.phase = 'awaiting json query';
     return;
   }
-  s.phase = faiStatusPass() && faiQueryPass('text') && faiQueryPass('json') ? 'complete' : 'complete-with-failures';
+  if (!s.jsonNoSchemaRequestId) {
+    s.phase = 'queueing json no-schema query';
+    faiQueueQuery('json-noschema');
+    return;
+  }
+  if (!s.completed[s.jsonNoSchemaRequestId]) {
+    s.phase = 'awaiting json no-schema query';
+    return;
+  }
+  s.phase = faiStatusPass() && faiQueryPass('text') && faiQueryPass('json') && faiQueryPass('json-noschema') ? 'complete' : 'complete-with-failures';
 }
 
 function faiWriteTrace() {
@@ -356,13 +422,15 @@ function faiWriteTrace() {
   var textQueryPass = faiQueryPass('text');
   var jsonQueryDone = !!(s.jsonQueryRequestId && s.completed[s.jsonQueryRequestId]);
   var jsonQueryPass = faiQueryPass('json');
+  var jsonNoSchemaDone = !!(s.jsonNoSchemaRequestId && s.completed[s.jsonNoSchemaRequestId]);
+  var jsonNoSchemaPass = faiQueryPass('json-noschema');
   var providerAliasAdvertised = faiHasModule('providerAI');
   var heartbeatPass = !!ai && !providerAliasAdvertised && faiHasOp('status') && faiHasOp('query') && legacyOps.length === 0;
   var counts = {
-    total: 4,
-    pass: (heartbeatPass ? 1 : 0) + (statusPass ? 1 : 0) + (textQueryPass ? 1 : 0) + (jsonQueryPass ? 1 : 0),
-    fail: (heartbeatPass || !ai ? 0 : 1) + (statusDone && !statusPass ? 1 : 0) + (textQueryDone && !textQueryPass ? 1 : 0) + (jsonQueryDone && !jsonQueryPass ? 1 : 0),
-    pending: (!ai ? 1 : 0) + (!statusDone ? 1 : 0) + (!textQueryDone ? 1 : 0) + (!jsonQueryDone ? 1 : 0)
+    total: 5,
+    pass: (heartbeatPass ? 1 : 0) + (statusPass ? 1 : 0) + (textQueryPass ? 1 : 0) + (jsonQueryPass ? 1 : 0) + (jsonNoSchemaPass ? 1 : 0),
+    fail: (heartbeatPass || !ai ? 0 : 1) + (statusDone && !statusPass ? 1 : 0) + (textQueryDone && !textQueryPass ? 1 : 0) + (jsonQueryDone && !jsonQueryPass ? 1 : 0) + (jsonNoSchemaDone && !jsonNoSchemaPass ? 1 : 0),
+    pending: (!ai ? 1 : 0) + (!statusDone ? 1 : 0) + (!textQueryDone ? 1 : 0) + (!jsonQueryDone ? 1 : 0) + (!jsonNoSchemaDone ? 1 : 0)
   };
 
   var trace = {
@@ -398,8 +466,14 @@ function faiWriteTrace() {
       response: s.jsonQueryRequestId ? s.completed[s.jsonQueryRequestId] || null : null,
       pass: jsonQueryPass
     },
+    jsonNoSchemaQuery: {
+      requestId: s.jsonNoSchemaRequestId,
+      terminal: jsonNoSchemaDone,
+      response: s.jsonNoSchemaRequestId ? s.completed[s.jsonNoSchemaRequestId] || null : null,
+      pass: jsonNoSchemaPass
+    },
     counts: counts,
-    checksPass: heartbeatPass && statusPass && textQueryPass && jsonQueryPass,
+    checksPass: heartbeatPass && statusPass && textQueryPass && jsonQueryPass && jsonNoSchemaPass,
     pendingIds: Object.keys(s.pending),
     ackAttempts: s.ackAttempts,
     events: s.events

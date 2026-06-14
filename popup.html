@@ -834,8 +834,30 @@
                 </label>
               </div>
               <div class="feature-details">
-                <p>AI exposes the stable <code>ai.status</code> and <code>ai.query</code> contract for asynchronous script requests. Text and JSON output modes are defined.</p>
-                <p class="feature-hint"><span class="icon-brain-circuit"></span> No backend is configured yet, so valid queries currently return a clear <code>not_configured</code> error.</p>
+                <p>AI lets scripts send asynchronous text or schema-backed JSON queries through Gemini.</p>
+                <p class="feature-hint"><span class="icon-brain-circuit"></span> Add a Gemini API key to make <code>ai.query</code> available.</p>
+                <div class="form-group">
+                  <label class="form-label" for="ai-gemini-api-key">Gemini API Key</label>
+                  <input type="password" class="form-input" id="ai-gemini-api-key" placeholder="AIza...">
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="ai-gemini-model">Model</label>
+                  <input type="text" class="form-input" id="ai-gemini-model" placeholder="gemini-3.5-flash">
+                </div>
+                <div class="feature-option">
+                  <span class="option-label">Status</span>
+                  <span class="option-value" id="ai-gemini-status">Not checked</span>
+                </div>
+                <div class="btn-row">
+                  <button class="btn btn-action" id="ai-gemini-save" type="button">
+                    <span class="icon-save"></span>
+                    Save
+                  </button>
+                  <button class="btn btn-ghost" id="ai-gemini-test" type="button">
+                    <span class="icon-circle-check"></span>
+                    Test
+                  </button>
+                </div>
               </div>
             </article>
 
