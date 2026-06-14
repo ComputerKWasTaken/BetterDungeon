@@ -47,8 +47,9 @@ A successful run ends with:
 - `phase: "complete"`
 - `checksPass: true`
 - `heartbeat.aiOps: ["status", "query"]`
-- `status.data.phase: "contract"`
+- `status.data.phase: "executor"`
 - `status.data.reason: "ai_backend_not_configured"`
+- `status.data.executor.version: "0.1.0-executor"`
 - `textQuery.response.error.code: "not_configured"`
 - `jsonQuery.response.error.code: "not_configured"`
 

@@ -64,6 +64,7 @@
         "modules/network/module.js",
         "modules/system/module.js",
         "modules/sdk/module.js",
+        "modules/ai/executor.js",
         "modules/ai/module.js",
         "modules/scripture/validators.js",
         "modules/scripture/renderer.js",

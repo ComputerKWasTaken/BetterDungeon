@@ -245,12 +245,16 @@ function faiStatusPass() {
     data &&
     data.ready === false &&
     data.available === false &&
-    data.phase === 'contract' &&
+    data.phase === 'executor' &&
     data.reason === 'ai_backend_not_configured' &&
     data.contract &&
     Array.isArray(data.contract.ops) &&
     data.contract.ops.indexOf('status') !== -1 &&
-    data.contract.ops.indexOf('query') !== -1
+    data.contract.ops.indexOf('query') !== -1 &&
+    data.executor &&
+    data.executor.version === '0.1.0-executor' &&
+    data.executor.promptMaxChars === 12000 &&
+    data.executor.backendConfigured === false
   );
 }
 
@@ -263,7 +267,10 @@ function faiQueryPass(kind) {
     done.status === 'err' &&
     done.error &&
     done.error.code === 'not_configured' &&
-    done.error.retryable === false
+    done.error.retryable === false &&
+    done.error.task &&
+    done.error.task.outputType === kind &&
+    typeof done.error.task.promptChars === 'number'
   );
 }
 
