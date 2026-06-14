@@ -826,7 +826,7 @@
                     </span>
                     <h3 class="feature-title">AI</h3>
                   </div>
-                  <p class="feature-desc">AI module rebuild placeholder</p>
+                  <p class="feature-desc">Async AI query contract</p>
                 </div>
                 <label class="toggle sm">
                   <input type="checkbox" data-ultrascripts-module-toggle="ai" checked>
@@ -834,8 +834,8 @@
                 </label>
               </div>
               <div class="feature-details">
-                <p>The AI module is currently an inert placeholder while its generation backend is rebuilt. Scripts can call <code>ai.status</code> to detect that state.</p>
-                <p class="feature-hint"><span class="icon-brain-circuit"></span> No generation operation is exposed right now. Future AI work will start from this clean status-only surface.</p>
+                <p>AI exposes the stable <code>ai.status</code> and <code>ai.query</code> contract for asynchronous script requests. Text and JSON output modes are defined.</p>
+                <p class="feature-hint"><span class="icon-brain-circuit"></span> No backend is configured yet, so valid queries currently return a clear <code>not_configured</code> error.</p>
               </div>
             </article>
 

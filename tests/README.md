@@ -12,7 +12,8 @@ code — anything here is for verifying behavior, not for shipping.
 
   - **`aid-scripts/ai-module/`** — Placeholder suite for the Ultrascripts AI
     module (`modules/ai/module.js`). Verifies heartbeat advertises only
-    `status` and that `ai.status` reports the rebuild state. See its
+    `status` and `query`, that `ai.status` reports the backend-pending
+    contract state, and that valid queries return `not_configured`. See its
     `README.md` for setup and reading the trace card.
 
   - **`aid-scripts/sdk-module/`** — End-to-end suite for the Ultrascripts SDK
