@@ -196,6 +196,7 @@ function faiQueueQuery(kind) {
       : kind === 'json'
       ? {
         prompt: 'Return JSON with ok true and label "gemini".',
+        thinking: 'low',
         output: {
           type: 'json',
           schema: {
@@ -269,16 +270,24 @@ function faiStatusPass() {
     data.supports &&
     data.supports.text === true &&
     data.supports.json === true &&
+    data.supports.thinking === true &&
     data.config &&
     data.config.provider === 'gemini' &&
     typeof data.config.keyConfigured === 'boolean' &&
     typeof data.config.model === 'string' &&
+    data.config.thinkingDefault === 'minimal' &&
+    Array.isArray(data.config.thinkingLevels) &&
+    data.config.thinkingLevels.indexOf('minimal') !== -1 &&
+    data.config.thinkingLevels.indexOf('high') !== -1 &&
     data.contract &&
     Array.isArray(data.contract.ops) &&
     data.contract.ops.indexOf('status') !== -1 &&
     data.contract.ops.indexOf('query') !== -1 &&
+    Array.isArray(data.contract.thinkingLevels) &&
+    data.contract.thinkingLevels.indexOf('minimal') !== -1 &&
+    data.contract.defaultThinking === 'minimal' &&
     data.executor &&
-    data.executor.version === '0.2.0-gemini' &&
+    data.executor.version === '0.3.0-gemini-thinking' &&
     data.executor.promptMaxChars === 12000 &&
     data.executor.backendConfigured === true
   );

@@ -94,7 +94,7 @@
   const backend = {
     id: 'gemini',
     label: 'Gemini',
-    supports: { text: true, json: true },
+    supports: { text: true, json: true, thinking: true },
     status: () => state.status,
     query: async (task) => {
       const result = await sendGeminiMessage({ op: 'query', task });

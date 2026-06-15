@@ -17,6 +17,7 @@ The suite verifies:
   `not_configured` when no key is saved.
 - Schema-backed JSON `ai.query` returns parsed JSON when Gemini is configured,
   or `not_configured` when no key is saved.
+- `ai.query` accepts a `thinking` level and defaults to `minimal`.
 - Schema-less JSON `ai.query` returns terminal `invalid_args`.
 
 ## Setup
@@ -38,8 +39,8 @@ errors, but live generation checks will not run.
 3. Paste the contents of `output-modifier.js` into the **Output Modifier**.
 4. Save and start or resume an adventure on that scenario.
 5. Take a few turns. The suite queues `ai.status`, one text `ai.query`, one
-   schema-backed JSON `ai.query`, one schema-less JSON guard check, reads the
-   responses, and writes a trace card.
+   schema-backed JSON `ai.query` with `thinking: "low"`, one schema-less JSON
+   guard check, reads the responses, and writes a trace card.
 
 ## Reading Results
 
@@ -54,7 +55,8 @@ A successful run ends with:
 - `checksPass: true`
 - `heartbeat.aiOps: ["status", "query"]`
 - `status.data.backend: "gemini"`
-- `status.data.executor.version: "0.2.0-gemini"`
+- `status.data.executor.version: "0.3.0-gemini-thinking"`
+- `status.data.contract.defaultThinking: "minimal"`
 - `status.data.config.keyConfigured: true` for live generation
 - `textQuery.response.status: "ok"` when configured
 - `jsonQuery.response.status: "ok"` when configured

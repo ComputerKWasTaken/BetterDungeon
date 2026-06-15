@@ -26,6 +26,8 @@
   const GEMINI_DEFAULT_TIMEOUT_MS = 120000;
   const GEMINI_DEFAULT_MODEL = 'gemini-3.5-flash';
   const GEMINI_DEFAULT_MODEL_MODE = 'auto';
+  const GEMINI_DEFAULT_THINKING_LEVEL = 'minimal';
+  const GEMINI_THINKING_LEVELS = Object.freeze(['minimal', 'low', 'medium', 'high']);
   const GEMINI_AUTO_STEPDOWN_MODELS = Object.freeze([
     'gemini-3.5-flash',
     'gemini-3.1-flash-lite',
@@ -444,13 +446,15 @@
       ready,
       available: ready,
       reason: ready ? null : 'ai_backend_not_configured',
-      supports: { text: true, json: true },
+      supports: { text: true, json: true, thinking: true },
       config: {
         provider: 'gemini',
         keyConfigured: ready,
         modelMode: normalizeGeminiModelMode(settings?.modelMode),
         model: reportedModel,
         fallbackModels: models,
+        thinkingDefault: GEMINI_DEFAULT_THINKING_LEVEL,
+        thinkingLevels: [...GEMINI_THINKING_LEVELS],
       },
       message: ready
         ? 'Gemini backend is configured.'
@@ -487,6 +491,7 @@
       id: typeof task.id === 'string' ? task.id : null,
       prompt: task.prompt,
       promptChars: Number(task.promptChars || task.prompt.length),
+      thinking: normalizeGeminiThinking(task.thinking),
       output: {
         type,
         schema: output.schema ? cloneJson(output.schema) : undefined,
@@ -494,7 +499,87 @@
     };
   }
 
-  function geminiPayload(task) {
+  function normalizeGeminiThinking(thinking) {
+    if (thinking === undefined || thinking === null) return { level: GEMINI_DEFAULT_THINKING_LEVEL };
+    if (typeof thinking === 'string') thinking = { level: thinking };
+    if (!isObject(thinking)) {
+      throw { code: 'invalid_args', message: 'thinking must be a string or object', retryable: false };
+    }
+
+    const rawLevel = thinking.level === undefined ? GEMINI_DEFAULT_THINKING_LEVEL : thinking.level;
+    if (typeof rawLevel !== 'string') {
+      throw { code: 'invalid_args', message: 'thinking.level must be a string', retryable: false };
+    }
+
+    const level = rawLevel.trim().toLowerCase();
+    if (GEMINI_THINKING_LEVELS.indexOf(level) === -1) {
+      throw {
+        code: 'invalid_args',
+        message: `thinking.level must be one of: ${GEMINI_THINKING_LEVELS.join(', ')}`,
+        retryable: false,
+      };
+    }
+    return { level };
+  }
+
+  function geminiThinkingFamily(model) {
+    const id = String(model || '').trim().toLowerCase().replace(/^models\//, '');
+    if (/^gemini-3\.1-pro(?:[.-]|$)/.test(id)) return 'gemini-3-pro';
+    if (/^gemini-3(?:[.-]|$)/.test(id)) return 'gemini-3';
+    if (/^gemini-2\.5(?:[.-]|$)/.test(id)) return 'gemini-2.5';
+    if (/^gemma-4(?:[.-]|$)/.test(id)) return 'gemma-4';
+    return 'unknown';
+  }
+
+  function geminiThinkingBudget(model, level) {
+    const id = String(model || '').toLowerCase();
+    if (level === 'minimal') return 0;
+    if (level === 'low') return id.indexOf('flash-lite') !== -1 ? 512 : 1024;
+    if (level === 'medium') return -1;
+    return 8192;
+  }
+
+  function geminiThinkingConfigForModel(model, thinking) {
+    const level = normalizeGeminiThinking(thinking).level;
+    const family = geminiThinkingFamily(model);
+    if (family === 'gemini-3' || family === 'gemini-3-pro') {
+      const appliedLevel = family === 'gemini-3-pro' && level === 'minimal' ? 'low' : level;
+      return {
+        config: { thinkingLevel: appliedLevel },
+        appliedLevel,
+        appliedBudget: null,
+        family,
+      };
+    }
+    if (family === 'gemini-2.5') {
+      const appliedBudget = geminiThinkingBudget(model, level);
+      return {
+        config: { thinkingBudget: appliedBudget },
+        appliedLevel: null,
+        appliedBudget,
+        family,
+      };
+    }
+    // Gemma 4 exposes thinking as an on/off toggle in the Gemini API:
+    // omit thinkingConfig for off, or send thinkingLevel: "high" for on.
+    if (family === 'gemma-4' && level !== 'minimal') {
+      return {
+        config: { thinkingLevel: 'high' },
+        appliedLevel: 'high',
+        appliedBudget: null,
+        family,
+        toggle: true,
+      };
+    }
+    return {
+      config: null,
+      appliedLevel: null,
+      appliedBudget: null,
+      family,
+    };
+  }
+
+  function geminiPayload(task, model) {
     const payload = {
       contents: [
         {
@@ -503,15 +588,34 @@
         },
       ],
     };
+    const generationConfig = {};
 
     if (task.output.type === 'json') {
-      payload.generationConfig = {
-        responseMimeType: 'application/json',
-        responseJsonSchema: task.output.schema,
-      };
+      generationConfig.responseMimeType = 'application/json';
+      generationConfig.responseJsonSchema = task.output.schema;
     }
 
-    return payload;
+    const thinking = geminiThinkingConfigForModel(model, task.thinking);
+    if (thinking.config) generationConfig.thinkingConfig = thinking.config;
+
+    if (Object.keys(generationConfig).length) payload.generationConfig = generationConfig;
+
+    return { payload, thinking };
+  }
+
+  function geminiThinkingMeta(task, model, thinking, options = {}) {
+    const requestedLevel = normalizeGeminiThinking(task.thinking).level;
+    const meta = {
+      requestedLevel,
+      applied: !!thinking?.config,
+      family: thinking?.family || geminiThinkingFamily(model),
+      defaulted: requestedLevel === GEMINI_DEFAULT_THINKING_LEVEL,
+    };
+    if (thinking?.appliedLevel) meta.appliedLevel = thinking.appliedLevel;
+    if (Number.isFinite(thinking?.appliedBudget)) meta.appliedBudget = thinking.appliedBudget;
+    if (thinking?.toggle) meta.toggle = true;
+    if (options.fallbackReason) meta.fallbackReason = options.fallbackReason;
+    return meta;
   }
 
   function geminiHttpError(status, statusText, bodyText) {
@@ -555,7 +659,7 @@
     const candidate = candidates[0];
     const parts = Array.isArray(candidate?.content?.parts) ? candidate.content.parts : [];
     const text = parts
-      .map(part => (typeof part?.text === 'string' ? part.text : ''))
+      .map(part => (!part?.thought && typeof part?.text === 'string' ? part.text : ''))
       .filter(Boolean)
       .join('');
 
@@ -593,84 +697,89 @@
       const timer = setTimeout(() => controller.abort(), GEMINI_DEFAULT_TIMEOUT_MS);
       const url =
         `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent`;
+      let payloadInfo = geminiPayload(task, currentModel);
 
       try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': settings.apiKey,
-          },
-          body: JSON.stringify(geminiPayload(task)),
-          credentials: 'omit',
-          cache: 'no-store',
-          signal: controller.signal,
-        });
+        while (true) {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': settings.apiKey,
+            },
+            body: JSON.stringify(payloadInfo.payload),
+            credentials: 'omit',
+            cache: 'no-store',
+            signal: controller.signal,
+          });
 
-        const bodyText = await response.text();
-        if (!response.ok) {
-          const err = geminiHttpError(response.status, response.statusText, bodyText);
-          const retryAfter = response.headers.get('retry-after');
-          if (retryAfter) {
-            const seconds = Number(retryAfter);
-            if (Number.isFinite(seconds)) err.retryAfterMs = Math.max(0, seconds * 1000);
+          const bodyText = await response.text();
+          if (!response.ok) {
+            const err = geminiHttpError(response.status, response.statusText, bodyText);
+            const retryAfter = response.headers.get('retry-after');
+            if (retryAfter) {
+              const seconds = Number(retryAfter);
+              if (Number.isFinite(seconds)) err.retryAfterMs = Math.max(0, seconds * 1000);
+            }
+            err.model = currentModel;
+            if (
+              err.code === 'rate_limit' &&
+              settings?.modelMode !== 'manual' &&
+              modelIndex + 1 < models.length
+            ) {
+              lastError = err;
+              break;
+            }
+            throw err;
           }
-          err.model = currentModel;
-          if (
-            err.code === 'rate_limit' &&
-            settings?.modelMode !== 'manual' &&
-            modelIndex + 1 < models.length
-          ) {
-            lastError = err;
-            continue;
-          }
-          throw err;
-        }
 
-        let data = null;
-        try {
-          data = JSON.parse(bodyText || '{}');
-        } catch (err) {
-          throw {
-            code: 'invalid_response',
-            message: 'Gemini returned invalid JSON.',
-            retryable: false,
-            backend: 'gemini',
-            detail: err?.message || 'invalid_json',
-            model: currentModel,
-          };
-        }
-
-        const text = extractGeminiText(data);
-        const base = {
-          backend: 'gemini',
-          generatedAtIso: new Date().toISOString(),
-          model: currentModel,
-          providerModel: data?.modelVersion || currentModel,
-          usage: data?.usageMetadata || null,
-          status: geminiStatus(settings, currentModel),
-          fallback: {
-            mode: settings?.modelMode || GEMINI_DEFAULT_MODEL_MODE,
-            attemptedModels: models.slice(0, modelIndex + 1),
-          },
-        };
-
-        if (task.output.type === 'json') {
+          let data = null;
           try {
-            return { ...base, json: JSON.parse(text), text };
+            data = JSON.parse(bodyText || '{}');
           } catch (err) {
             throw {
               code: 'invalid_response',
-              message: 'Gemini returned invalid JSON text.',
+              message: 'Gemini returned invalid JSON.',
               retryable: false,
               backend: 'gemini',
               detail: err?.message || 'invalid_json',
               model: currentModel,
             };
           }
-        }
 
-        return { ...base, text };
+          const text = extractGeminiText(data);
+          const base = {
+            backend: 'gemini',
+            generatedAtIso: new Date().toISOString(),
+            model: currentModel,
+            providerModel: data?.modelVersion || currentModel,
+            usage: data?.usageMetadata || null,
+            status: geminiStatus(settings, currentModel),
+            thinking: geminiThinkingMeta(task, currentModel, payloadInfo.thinking),
+            fallback: {
+              mode: settings?.modelMode || GEMINI_DEFAULT_MODEL_MODE,
+              attemptedModels: models.slice(0, modelIndex + 1),
+            },
+          };
+
+          if (task.output.type === 'json') {
+            try {
+              return { ...base, json: JSON.parse(text), text };
+            } catch (err) {
+              throw {
+                code: 'invalid_response',
+                message: 'Gemini returned invalid JSON text.',
+                retryable: false,
+                backend: 'gemini',
+                detail: err?.message || 'invalid_json',
+                model: currentModel,
+              };
+            }
+          }
+
+          return { ...base, text };
+        }
+        continue;
       } catch (err) {
         if (err?.name === 'AbortError') {
           throw {

@@ -7,9 +7,11 @@
 (function () {
   if (window.UltrascriptsAIExecutor) return;
 
-  const VERSION = '0.2.0-gemini';
+  const VERSION = '0.3.0-gemini-thinking';
   const PROMPT_MAX_CHARS = 12000;
   const OUTPUT_TYPES = Object.freeze(['text', 'json']);
+  const THINKING_LEVELS = Object.freeze(['minimal', 'low', 'medium', 'high']);
+  const DEFAULT_THINKING_LEVEL = 'minimal';
 
   const state = {
     backend: null,
@@ -64,6 +66,21 @@
     return normalized;
   }
 
+  function normalizeThinking(thinking) {
+    if (thinking === undefined || thinking === null) return { level: DEFAULT_THINKING_LEVEL };
+    if (typeof thinking === 'string') thinking = { level: thinking };
+    if (!isObject(thinking)) throw invalidArgs('thinking must be a string or object');
+
+    const rawLevel = thinking.level === undefined ? DEFAULT_THINKING_LEVEL : thinking.level;
+    if (typeof rawLevel !== 'string') throw invalidArgs('thinking.level must be a string');
+
+    const level = rawLevel.trim().toLowerCase();
+    if (THINKING_LEVELS.indexOf(level) === -1) {
+      throw invalidArgs(`thinking.level must be one of: ${THINKING_LEVELS.join(', ')}`);
+    }
+    return { level };
+  }
+
   function normalizeQuery(args) {
     const normalized = normalizeArgs(args);
     if (typeof normalized.prompt !== 'string' || !normalized.prompt.trim()) {
@@ -80,6 +97,7 @@
       prompt: normalized.prompt,
       promptChars: normalized.prompt.length,
       output: normalizeOutput(normalized.output),
+      thinking: normalizeThinking(normalized.thinking),
     };
   }
 
@@ -95,8 +113,10 @@
       prompt: query.prompt,
       promptChars: query.promptChars,
       output,
+      thinking: cloneJson(query.thinking),
       responseContract: {
         type: output.type,
+        thinking: cloneJson(query.thinking),
       },
     };
     if (output.schema) task.responseContract.schema = cloneJson(output.schema);
@@ -108,6 +128,7 @@
     return {
       text: supports.text === true,
       json: supports.json === true,
+      thinking: supports.thinking === true,
     };
   }
 
@@ -126,7 +147,7 @@
 
   function status() {
     const backend = backendInfo();
-    const supports = backend ? backend.supports : { text: false, json: false };
+    const supports = backend ? backend.supports : { text: false, json: false, thinking: false };
     const backendReady = backend?.status?.ready;
     const ready = !!(
       state.backend &&
@@ -149,6 +170,8 @@
       contract: {
         ops: ['status', 'query'],
         outputTypes: [...OUTPUT_TYPES],
+        thinkingLevels: [...THINKING_LEVELS],
+        defaultThinking: DEFAULT_THINKING_LEVEL,
         asyncOnly: true,
       },
       executor: {
@@ -191,6 +214,7 @@
       promptChars: task.promptChars,
       generatedAtIso: result?.generatedAtIso || new Date().toISOString(),
     };
+    if (result?.thinking) base.thinking = cloneJson(result.thinking);
 
     if (task.output.type === 'json') {
       return { ...base, json: normalizeJsonResult(result) };
