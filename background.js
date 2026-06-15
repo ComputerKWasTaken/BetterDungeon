@@ -89,6 +89,13 @@
     'authorization',
     'proxy-authorization',
   ]);
+  const geminiRuntimeState = {
+    lastResolvedModel: null,
+    lastProviderModel: null,
+    lastResolvedAtIso: null,
+    lastFallbackMode: null,
+    lastAttemptedModels: [],
+  };
 
   function normalizeError(error) {
     if (error && typeof error === 'object') {
@@ -436,10 +443,32 @@
     return normalizeGeminiFallbackChain(settings?.fallbackChain);
   }
 
+  function geminiRememberSuccess(result) {
+    geminiRuntimeState.lastResolvedModel = typeof result?.model === 'string' ? result.model : null;
+    geminiRuntimeState.lastProviderModel =
+      typeof result?.providerModel === 'string' ? result.providerModel : null;
+    geminiRuntimeState.lastResolvedAtIso =
+      typeof result?.generatedAtIso === 'string' ? result.generatedAtIso : new Date().toISOString();
+    geminiRuntimeState.lastFallbackMode =
+      typeof result?.fallback?.mode === 'string' ? result.fallback.mode : GEMINI_DEFAULT_MODEL_MODE;
+    geminiRuntimeState.lastAttemptedModels = Array.isArray(result?.fallback?.attemptedModels)
+      ? result.fallback.attemptedModels.filter(model => typeof model === 'string' && model)
+      : [];
+  }
+
+  function geminiResetRuntimeState() {
+    geminiRuntimeState.lastResolvedModel = null;
+    geminiRuntimeState.lastProviderModel = null;
+    geminiRuntimeState.lastResolvedAtIso = null;
+    geminiRuntimeState.lastFallbackMode = null;
+    geminiRuntimeState.lastAttemptedModels = [];
+  }
+
   function geminiStatus(settings, actualModel = null) {
     const ready = !!settings?.keyConfigured;
     const models = geminiQueryModels(settings);
-    const reportedModel = actualModel || models[0] || GEMINI_DEFAULT_MODEL;
+    const selectedModel = models[0] || GEMINI_DEFAULT_MODEL;
+    const activeModel = actualModel || geminiRuntimeState.lastResolvedModel || null;
     return {
       backend: 'gemini',
       backendLabel: 'Gemini',
@@ -451,10 +480,17 @@
         provider: 'gemini',
         keyConfigured: ready,
         modelMode: normalizeGeminiModelMode(settings?.modelMode),
-        model: reportedModel,
+        model: selectedModel,
+        selectedModel,
+        activeModel,
         fallbackModels: models,
         thinkingDefault: GEMINI_DEFAULT_THINKING_LEVEL,
         thinkingLevels: [...GEMINI_THINKING_LEVELS],
+        lastResolvedModel: geminiRuntimeState.lastResolvedModel,
+        lastProviderModel: geminiRuntimeState.lastProviderModel,
+        lastResolvedAtIso: geminiRuntimeState.lastResolvedAtIso,
+        lastFallbackMode: geminiRuntimeState.lastFallbackMode,
+        lastAttemptedModels: [...geminiRuntimeState.lastAttemptedModels],
       },
       message: ready
         ? 'Gemini backend is configured.'
@@ -761,6 +797,7 @@
               attemptedModels: models.slice(0, modelIndex + 1),
             },
           };
+          geminiRememberSuccess(base);
 
           if (task.output.type === 'json') {
             try {
@@ -825,6 +862,7 @@
         next[GEMINI_STORAGE_KEYS.modelMode] = normalizeGeminiModelMode(request.modelMode);
       }
       await storageSet('local', next);
+      geminiResetRuntimeState();
       return geminiStatus(await getGeminiSettings());
     }
 

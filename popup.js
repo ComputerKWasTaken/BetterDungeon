@@ -340,9 +340,14 @@ function setGeminiStatusText(status, pendingText) {
     return;
   }
   const modelMode = status.config?.modelMode || AI_DEFAULT_GEMINI_MODEL_MODE;
-  const model = status.config?.model || AI_DEFAULT_GEMINI_MODEL;
+  const selectedModel = status.config?.selectedModel || status.config?.model || AI_DEFAULT_GEMINI_MODEL;
+  const activeModel = status.config?.activeModel || status.config?.lastResolvedModel || null;
   el.textContent = status.ready
-    ? (modelMode === 'manual' ? `Ready (manual: ${model})` : `Ready (auto: ${model})`)
+    ? (
+      modelMode === 'manual'
+        ? `Ready (manual: ${selectedModel})`
+        : `Ready (auto: ${activeModel || selectedModel})`
+    )
     : 'API key required';
 }
 
