@@ -28,6 +28,7 @@
   const GEMINI_DEFAULT_MODEL_MODE = 'auto';
   const GEMINI_AUTO_STEPDOWN_MODELS = Object.freeze([
     'gemini-3.5-flash',
+    'gemini-3.1-flash-lite',
     'gemma-4-31b-it',
     'gemma-4-26b-a4b-it',
   ]);
