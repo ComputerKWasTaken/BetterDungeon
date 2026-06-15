@@ -18,7 +18,11 @@ The suite verifies:
 - Schema-backed JSON `ai.query` returns parsed JSON when Gemini is configured,
   or `not_configured` when no key is saved.
 - `ai.query` accepts a `thinking` level and defaults to `minimal`.
+- Successful query responses expose diagnostics under `data.meta`, including
+  backend, model, output type, prompt size, generated timestamp, and thinking
+  metadata.
 - Schema-less JSON `ai.query` returns terminal `invalid_args`.
+- Invalid thinking levels return terminal `invalid_args`.
 
 ## Setup
 
@@ -40,7 +44,8 @@ errors, but live generation checks will not run.
 4. Save and start or resume an adventure on that scenario.
 5. Take a few turns. The suite queues `ai.status`, one text `ai.query`, one
    schema-backed JSON `ai.query` with `thinking: "low"`, one schema-less JSON
-   guard check, reads the responses, and writes a trace card.
+   guard check, one invalid-thinking guard check, reads the responses, and
+   writes a trace card.
 
 ## Reading Results
 
@@ -55,12 +60,15 @@ A successful run ends with:
 - `checksPass: true`
 - `heartbeat.aiOps: ["status", "query"]`
 - `status.data.backend: "gemini"`
-- `status.data.executor.version: "0.3.0-gemini-thinking"`
+- `status.data.executor.version: "0.4.0-gemini-meta"`
 - `status.data.contract.defaultThinking: "minimal"`
 - `status.data.config.keyConfigured: true` for live generation
 - `textQuery.response.status: "ok"` when configured
+- `textQuery.response.data.meta.thinking.requestedLevel: "minimal"` when configured
 - `jsonQuery.response.status: "ok"` when configured
+- `jsonQuery.response.data.meta.thinking.requestedLevel: "low"` when configured
 - `jsonNoSchemaQuery.response.error.code: "invalid_args"`
+- `invalidThinkingQuery.response.error.code: "invalid_args"`
 
 If no key is configured, the text and schema-backed JSON checks pass when they
 return `not_configured` from the Gemini backend instead.

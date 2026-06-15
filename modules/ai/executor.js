@@ -7,7 +7,7 @@
 (function () {
   if (window.UltrascriptsAIExecutor) return;
 
-  const VERSION = '0.3.0-gemini-thinking';
+  const VERSION = '0.4.0-gemini-meta';
   const PROMPT_MAX_CHARS = 12000;
   const OUTPUT_TYPES = Object.freeze(['text', 'json']);
   const THINKING_LEVELS = Object.freeze(['minimal', 'low', 'medium', 'high']);
@@ -207,19 +207,28 @@
     throw invalidResponse('AI backend did not return JSON output');
   }
 
-  function normalizeBackendResult(result, task) {
-    const base = {
+  function normalizeResultMeta(result, task) {
+    const meta = {
       backend: result?.backend || backendInfo()?.id || null,
       outputType: task.output.type,
       promptChars: task.promptChars,
       generatedAtIso: result?.generatedAtIso || new Date().toISOString(),
     };
-    if (result?.thinking) base.thinking = cloneJson(result.thinking);
+    if (typeof result?.model === 'string') meta.model = result.model;
+    if (typeof result?.providerModel === 'string') meta.providerModel = result.providerModel;
+    if (result?.thinking) meta.thinking = cloneJson(result.thinking);
+    if (result?.fallback) meta.fallback = cloneJson(result.fallback);
+    if (result?.usage) meta.usage = cloneJson(result.usage);
+    return meta;
+  }
+
+  function normalizeBackendResult(result, task) {
+    const meta = normalizeResultMeta(result, task);
 
     if (task.output.type === 'json') {
-      return { ...base, json: normalizeJsonResult(result) };
+      return { json: normalizeJsonResult(result), meta };
     }
-    return { ...base, text: normalizeTextResult(result) };
+    return { text: normalizeTextResult(result), meta };
   }
 
   function setBackend(backend) {

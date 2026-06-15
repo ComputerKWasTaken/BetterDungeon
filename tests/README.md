@@ -13,7 +13,8 @@ code — anything here is for verifying behavior, not for shipping.
   - **`aid-scripts/ai-module/`** — Placeholder suite for the Ultrascripts AI
     module (`modules/ai/module.js`). Verifies heartbeat advertises only
     `status` and `query`, that `ai.status` reports Gemini readiness, and that
-    text, schema-backed JSON, per-query thinking, missing-key, and schema guard paths behave. See
+    text, schema-backed JSON, query metadata, per-query thinking, missing-key,
+    schema guard, and thinking guard paths behave. See
     its `README.md` for setup and reading the trace card.
 
   - **`aid-scripts/sdk-module/`** — End-to-end suite for the Ultrascripts SDK

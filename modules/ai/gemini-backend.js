@@ -105,6 +105,7 @@
         model: result?.model,
         providerModel: result?.providerModel,
         usage: result?.usage,
+        thinking: result?.thinking,
         fallback: result?.fallback,
         text: result?.text,
         json: result?.json,

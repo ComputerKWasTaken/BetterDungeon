@@ -16,6 +16,7 @@ state.ultrascriptsAiTest = state.ultrascriptsAiTest || {
   textQueryRequestId: null,
   jsonQueryRequestId: null,
   jsonNoSchemaRequestId: null,
+  invalidThinkingRequestId: null,
   events: [],
   phase: 'boot'
 };
@@ -180,7 +181,11 @@ function faiQueueStatus() {
 
 function faiQueueQuery(kind) {
   var s = state.ultrascriptsAiTest;
-  var key = kind === 'json-noschema' ? 'jsonNoSchemaRequestId' : (kind === 'json' ? 'jsonQueryRequestId' : 'textQueryRequestId');
+  var key = kind === 'json-noschema'
+    ? 'jsonNoSchemaRequestId'
+    : (kind === 'thinking-invalid'
+      ? 'invalidThinkingRequestId'
+      : (kind === 'json' ? 'jsonQueryRequestId' : 'textQueryRequestId'));
   if (s[key]) return;
   var id = faiLiveKey() + '-ai-query-' + kind + '-' + (++s.seq);
   s[key] = id;
@@ -192,6 +197,12 @@ function faiQueueQuery(kind) {
       ? {
         prompt: 'Return JSON only: {"ok": true}.',
         output: { type: 'json' }
+      }
+      : kind === 'thinking-invalid'
+      ? {
+        prompt: 'Return one word.',
+        thinking: 'turbo',
+        output: { type: 'text' }
       }
       : kind === 'json'
       ? {
@@ -287,18 +298,38 @@ function faiStatusPass() {
     data.contract.thinkingLevels.indexOf('minimal') !== -1 &&
     data.contract.defaultThinking === 'minimal' &&
     data.executor &&
-    data.executor.version === '0.3.0-gemini-thinking' &&
+    data.executor.version === '0.4.0-gemini-meta' &&
     data.executor.promptMaxChars === 12000 &&
     data.executor.backendConfigured === true
   );
 }
 
+function faiMetaPass(meta, outputType) {
+  return !!(
+    meta &&
+    meta.backend === 'gemini' &&
+    meta.outputType === outputType &&
+    typeof meta.promptChars === 'number' &&
+    typeof meta.generatedAtIso === 'string' &&
+    typeof meta.model === 'string' &&
+    meta.thinking &&
+    typeof meta.thinking.requestedLevel === 'string' &&
+    typeof meta.thinking.applied === 'boolean' &&
+    typeof meta.thinking.family === 'string' &&
+    typeof meta.thinking.defaulted === 'boolean'
+  );
+}
+
 function faiQueryPass(kind) {
   var s = state.ultrascriptsAiTest;
-  var id = kind === 'json-noschema' ? s.jsonNoSchemaRequestId : (kind === 'json' ? s.jsonQueryRequestId : s.textQueryRequestId);
+  var id = kind === 'json-noschema'
+    ? s.jsonNoSchemaRequestId
+    : (kind === 'thinking-invalid'
+      ? s.invalidThinkingRequestId
+      : (kind === 'json' ? s.jsonQueryRequestId : s.textQueryRequestId));
   var done = id ? s.completed[id] : null;
   var status = faiStatusData();
-  if (kind === 'json-noschema') {
+  if (kind === 'json-noschema' || kind === 'thinking-invalid') {
     return !!(
       done &&
       done.status === 'err' &&
@@ -312,21 +343,23 @@ function faiQueryPass(kind) {
         done &&
         done.status === 'ok' &&
         done.data &&
-        done.data.backend === 'gemini' &&
-        done.data.outputType === 'json' &&
         done.data.json &&
         done.data.json.ok === true &&
-        typeof done.data.json.label === 'string'
+        typeof done.data.json.label === 'string' &&
+        faiMetaPass(done.data.meta, 'json') &&
+        done.data.meta.thinking.requestedLevel === 'low' &&
+        done.data.meta.thinking.defaulted === false
       );
     }
     return !!(
       done &&
       done.status === 'ok' &&
       done.data &&
-      done.data.backend === 'gemini' &&
-      done.data.outputType === 'text' &&
       typeof done.data.text === 'string' &&
-      done.data.text.length > 0
+      done.data.text.length > 0 &&
+      faiMetaPass(done.data.meta, 'text') &&
+      done.data.meta.thinking.requestedLevel === 'minimal' &&
+      done.data.meta.thinking.defaulted === true
     );
   }
   return !!(
@@ -353,6 +386,7 @@ function faiResetSuite() {
     textQueryRequestId: null,
     jsonQueryRequestId: null,
     jsonNoSchemaRequestId: null,
+    invalidThinkingRequestId: null,
     events: [],
     phase: 'reset'
   };
@@ -416,7 +450,16 @@ function faiAdvance() {
     s.phase = 'awaiting json no-schema query';
     return;
   }
-  s.phase = faiStatusPass() && faiQueryPass('text') && faiQueryPass('json') && faiQueryPass('json-noschema') ? 'complete' : 'complete-with-failures';
+  if (!s.invalidThinkingRequestId) {
+    s.phase = 'queueing invalid thinking query';
+    faiQueueQuery('thinking-invalid');
+    return;
+  }
+  if (!s.completed[s.invalidThinkingRequestId]) {
+    s.phase = 'awaiting invalid thinking query';
+    return;
+  }
+  s.phase = faiStatusPass() && faiQueryPass('text') && faiQueryPass('json') && faiQueryPass('json-noschema') && faiQueryPass('thinking-invalid') ? 'complete' : 'complete-with-failures';
 }
 
 function faiWriteTrace() {
@@ -433,13 +476,15 @@ function faiWriteTrace() {
   var jsonQueryPass = faiQueryPass('json');
   var jsonNoSchemaDone = !!(s.jsonNoSchemaRequestId && s.completed[s.jsonNoSchemaRequestId]);
   var jsonNoSchemaPass = faiQueryPass('json-noschema');
+  var invalidThinkingDone = !!(s.invalidThinkingRequestId && s.completed[s.invalidThinkingRequestId]);
+  var invalidThinkingPass = faiQueryPass('thinking-invalid');
   var providerAliasAdvertised = faiHasModule('providerAI');
   var heartbeatPass = !!ai && !providerAliasAdvertised && faiHasOp('status') && faiHasOp('query') && legacyOps.length === 0;
   var counts = {
-    total: 5,
-    pass: (heartbeatPass ? 1 : 0) + (statusPass ? 1 : 0) + (textQueryPass ? 1 : 0) + (jsonQueryPass ? 1 : 0) + (jsonNoSchemaPass ? 1 : 0),
-    fail: (heartbeatPass || !ai ? 0 : 1) + (statusDone && !statusPass ? 1 : 0) + (textQueryDone && !textQueryPass ? 1 : 0) + (jsonQueryDone && !jsonQueryPass ? 1 : 0) + (jsonNoSchemaDone && !jsonNoSchemaPass ? 1 : 0),
-    pending: (!ai ? 1 : 0) + (!statusDone ? 1 : 0) + (!textQueryDone ? 1 : 0) + (!jsonQueryDone ? 1 : 0) + (!jsonNoSchemaDone ? 1 : 0)
+    total: 6,
+    pass: (heartbeatPass ? 1 : 0) + (statusPass ? 1 : 0) + (textQueryPass ? 1 : 0) + (jsonQueryPass ? 1 : 0) + (jsonNoSchemaPass ? 1 : 0) + (invalidThinkingPass ? 1 : 0),
+    fail: (heartbeatPass || !ai ? 0 : 1) + (statusDone && !statusPass ? 1 : 0) + (textQueryDone && !textQueryPass ? 1 : 0) + (jsonQueryDone && !jsonQueryPass ? 1 : 0) + (jsonNoSchemaDone && !jsonNoSchemaPass ? 1 : 0) + (invalidThinkingDone && !invalidThinkingPass ? 1 : 0),
+    pending: (!ai ? 1 : 0) + (!statusDone ? 1 : 0) + (!textQueryDone ? 1 : 0) + (!jsonQueryDone ? 1 : 0) + (!jsonNoSchemaDone ? 1 : 0) + (!invalidThinkingDone ? 1 : 0)
   };
 
   var trace = {
@@ -481,8 +526,14 @@ function faiWriteTrace() {
       response: s.jsonNoSchemaRequestId ? s.completed[s.jsonNoSchemaRequestId] || null : null,
       pass: jsonNoSchemaPass
     },
+    invalidThinkingQuery: {
+      requestId: s.invalidThinkingRequestId,
+      terminal: invalidThinkingDone,
+      response: s.invalidThinkingRequestId ? s.completed[s.invalidThinkingRequestId] || null : null,
+      pass: invalidThinkingPass
+    },
     counts: counts,
-    checksPass: heartbeatPass && statusPass && textQueryPass && jsonQueryPass && jsonNoSchemaPass,
+    checksPass: heartbeatPass && statusPass && textQueryPass && jsonQueryPass && jsonNoSchemaPass && invalidThinkingPass,
     pendingIds: Object.keys(s.pending),
     ackAttempts: s.ackAttempts,
     events: s.events

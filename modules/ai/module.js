@@ -39,7 +39,7 @@
 
   const UltrascriptsAIModule = {
     id: 'ai',
-    version: '0.4.0-gemini',
+    version: '0.5.0-gemini-meta',
     label: 'AI',
     description: 'Asynchronous AI query executor backed by Gemini.',
 
