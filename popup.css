@@ -396,6 +396,7 @@ body.mobile {
   justify-content: space-between;
   padding: 10px 12px;
   background: var(--bg-elevated);
+  margin-bottom: 8px;
   border-radius: var(--radius-md);
   margin-top: 12px;
 }
@@ -423,6 +424,7 @@ body.mobile {
 
 .btn-row .btn {
   flex: 1;
+  margin-top: 0;
 }
 
 /* === Ultrascripts === */
@@ -1099,10 +1101,18 @@ body.mobile {
   border: 1px solid var(--border);
 }
 
+.btn-ghost [class^="icon-"] {
+  color: var(--text-secondary);
+}
+
 .btn-ghost:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
   border-color: var(--border-hover);
+}
+
+.btn-ghost:hover [class^="icon-"] {
+  color: var(--text-primary);
 }
 
 .btn:disabled:hover {
