@@ -433,9 +433,10 @@
     return normalizeGeminiFallbackChain(settings?.fallbackChain);
   }
 
-  function geminiStatus(settings) {
+  function geminiStatus(settings, actualModel = null) {
     const ready = !!settings?.keyConfigured;
     const models = geminiQueryModels(settings);
+    const reportedModel = actualModel || models[0] || GEMINI_DEFAULT_MODEL;
     return {
       backend: 'gemini',
       backendLabel: 'Gemini',
@@ -447,7 +448,7 @@
         provider: 'gemini',
         keyConfigured: ready,
         modelMode: normalizeGeminiModelMode(settings?.modelMode),
-        model: models[0] || GEMINI_DEFAULT_MODEL,
+        model: reportedModel,
         fallbackModels: models,
       },
       message: ready
@@ -646,7 +647,7 @@
           model: currentModel,
           providerModel: data?.modelVersion || currentModel,
           usage: data?.usageMetadata || null,
-          status: geminiStatus(settings),
+          status: geminiStatus(settings, currentModel),
           fallback: {
             mode: settings?.modelMode || GEMINI_DEFAULT_MODEL_MODE,
             attemptedModels: models.slice(0, modelIndex + 1),

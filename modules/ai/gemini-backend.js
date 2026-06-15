@@ -102,6 +102,10 @@
       return {
         backend: 'gemini',
         generatedAtIso: result?.generatedAtIso,
+        model: result?.model,
+        providerModel: result?.providerModel,
+        usage: result?.usage,
+        fallback: result?.fallback,
         text: result?.text,
         json: result?.json,
       };
