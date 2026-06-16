@@ -6,6 +6,9 @@
 // ============================================
 
 const DEBUG = false;
+const AI_GEMINI_MESSAGE = 'ULTRASCRIPTS_AI_GEMINI';
+const AI_DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash';
+const AI_DEFAULT_GEMINI_MODEL_MODE = 'auto';
 
 const STORAGE_KEYS = {
   features: 'betterDungeonFeatures',
@@ -107,16 +110,6 @@ const DEFAULT_SCRIPTURE_WIDGET_DISPLAY = {
   maxHeight: 'medium',
   layout: 'balanced'
 };
-
-const DEFAULT_AI_LAB_SYSTEM_PROMPT = [
-  'You are writing the Entry text for a private BetterDungeon script query shell card.',
-  'Treat the requested command below as a private helper task, not as story card worldbuilding.',
-  'This task is not part of the story. Do not continue, narrate, summarize, or modify the story unless directly asked.',
-  'Use only the request and any additional generation context that is relevant.',
-  'Return only the final answer text that should be placed in the Entry, then stop.',
-  'Do not include a preface, explanation, markdown, code fence, heading, compliance note, duplicate answer, trigger words, notes, or trailing commentary.',
-  'For structured output, prefer XML or YAML. Only use JSON if the request explicitly requires it.',
-].join('\n');
 
 const DEFAULT_TEXT_TO_SPEECH_SETTINGS = {
   voiceURI: 'auto',
@@ -301,8 +294,8 @@ function initUltrascriptsSettings() {
   loadUltrascriptsModuleToggles();
   loadScriptureWidgetDisplay();
   loadWebFetchConsentList();
+  initGeminiSettings();
   refreshUltrascriptsState();
-  initAiQueryLab();
 
   document.querySelectorAll('[data-ultrascripts-module-toggle]').forEach(toggle => {
     toggle.addEventListener('change', () => {
@@ -311,12 +304,148 @@ function initUltrascriptsSettings() {
   });
 
   document.getElementById('ultrascripts-refresh')?.addEventListener('click', refreshUltrascriptsState);
-  document.getElementById('ai-lab-refresh')?.addEventListener('click', refreshAiLabStatus);
   document.getElementById('scripture-widget-size')?.addEventListener('change', saveScriptureWidgetDisplay);
   document.getElementById('scripture-widget-height')?.addEventListener('change', saveScriptureWidgetDisplay);
   document.getElementById('scripture-widget-layout')?.addEventListener('change', saveScriptureWidgetDisplay);
   document.getElementById('webfetch-consent-refresh')?.addEventListener('click', loadWebFetchConsentList);
   document.getElementById('webfetch-consent-save')?.addEventListener('click', saveWebFetchConsentFromForm);
+}
+
+function sendGeminiMessage(request) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ type: AI_GEMINI_MESSAGE, request }, (response) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        reject(new Error(lastError.message || 'Gemini backend request failed'));
+        return;
+      }
+      if (response?.ok) {
+        resolve(response.data);
+        return;
+      }
+      reject(response?.error || { code: 'backend_failed', message: 'Gemini backend request failed' });
+    });
+  });
+}
+
+function setGeminiStatusText(status, pendingText) {
+  const el = document.getElementById('ai-gemini-status');
+  if (!el) return;
+  if (pendingText) {
+    el.textContent = pendingText;
+    return;
+  }
+  if (!status) {
+    el.textContent = 'Not checked';
+    return;
+  }
+  const modelMode = status.config?.modelMode || AI_DEFAULT_GEMINI_MODEL_MODE;
+  const selectedModel = status.config?.selectedModel || status.config?.model || AI_DEFAULT_GEMINI_MODEL;
+  const activeModel = status.config?.activeModel || status.config?.lastResolvedModel || null;
+  el.textContent = status.ready
+    ? (
+      modelMode === 'manual'
+        ? `Ready (manual: ${selectedModel})`
+        : `Ready (auto: ${activeModel || selectedModel})`
+    )
+    : 'API key required';
+}
+
+function updateGeminiModelModeUi(mode) {
+  const normalized = mode === 'manual' ? 'manual' : AI_DEFAULT_GEMINI_MODEL_MODE;
+  const modelGroup = document.getElementById('ai-gemini-model-group');
+  const modelInput = document.getElementById('ai-gemini-model');
+  const modelMode = document.getElementById('ai-gemini-model-mode');
+  if (modelMode) modelMode.value = normalized;
+  if (modelGroup) modelGroup.style.display = normalized === 'manual' ? '' : 'none';
+  if (modelInput) modelInput.disabled = normalized !== 'manual';
+}
+
+async function loadGeminiSettings() {
+  try {
+    const status = await sendGeminiMessage({ op: 'status' });
+    const keyInput = document.getElementById('ai-gemini-api-key');
+    const modelInput = document.getElementById('ai-gemini-model');
+    const modelMode = document.getElementById('ai-gemini-model-mode');
+    if (keyInput) {
+      keyInput.value = '';
+      keyInput.placeholder = status.config?.keyConfigured ? 'Saved locally' : 'AIza...';
+    }
+    if (modelInput) modelInput.value = status.config?.model || AI_DEFAULT_GEMINI_MODEL;
+    if (modelMode) {
+      updateGeminiModelModeUi(status.config?.modelMode || AI_DEFAULT_GEMINI_MODEL_MODE);
+    }
+    setGeminiStatusText(status);
+  } catch {
+    setGeminiStatusText(null, 'Unavailable');
+  }
+}
+
+async function saveGeminiSettings() {
+  const keyInput = document.getElementById('ai-gemini-api-key');
+  const modelInput = document.getElementById('ai-gemini-model');
+  const modelModeInput = document.getElementById('ai-gemini-model-mode');
+  const modelMode = modelModeInput?.value === 'manual' ? 'manual' : AI_DEFAULT_GEMINI_MODEL_MODE;
+  const request = {
+    op: 'settings:set',
+    modelMode,
+    model: modelInput?.value || AI_DEFAULT_GEMINI_MODEL,
+  };
+  const apiKey = keyInput?.value?.trim();
+  if (apiKey) request.apiKey = apiKey;
+
+  setGeminiStatusText(null, 'Saving...');
+  try {
+    const status = await sendGeminiMessage(request);
+    if (keyInput) {
+      keyInput.value = '';
+      keyInput.placeholder = status.config?.keyConfigured ? 'Saved locally' : 'AIza...';
+    }
+    setGeminiStatusText(status);
+    showToast('Gemini settings saved', 'success');
+  } catch (err) {
+    setGeminiStatusText(null, 'Save failed');
+    showToast(err?.message || 'Gemini settings failed to save', 'error');
+  }
+}
+
+async function clearGeminiApiKey() {
+  const keyInput = document.getElementById('ai-gemini-api-key');
+  setGeminiStatusText(null, 'Clearing key...');
+  try {
+    const status = await sendGeminiMessage({ op: 'settings:set', apiKey: '' });
+    if (keyInput) {
+      keyInput.value = '';
+      keyInput.placeholder = 'AIza...';
+    }
+    setGeminiStatusText(status);
+    showToast('Gemini API key cleared', 'success');
+  } catch (err) {
+    await loadGeminiSettings();
+    showToast(err?.message || 'Gemini API key could not be cleared', 'error');
+  }
+}
+
+async function testGeminiSettings() {
+  setGeminiStatusText(null, 'Testing...');
+  try {
+    const result = await sendGeminiMessage({ op: 'test' });
+    setGeminiStatusText(result.status);
+    showToast('Gemini test succeeded', 'success');
+  } catch (err) {
+    await loadGeminiSettings();
+    showToast(err?.message || 'Gemini test failed', 'error');
+  }
+}
+
+function initGeminiSettings() {
+  loadGeminiSettings();
+  document.getElementById('ai-gemini-model-mode')?.addEventListener('change', (event) => {
+    updateGeminiModelModeUi(event.target.value);
+  });
+  document.getElementById('ai-gemini-save')?.addEventListener('click', saveGeminiSettings);
+  document.getElementById('ai-gemini-clear-key')?.addEventListener('click', clearGeminiApiKey);
+  document.getElementById('ai-gemini-test')?.addEventListener('click', testGeminiSettings);
 }
 
 function defaultUltrascriptsModuleState() {
@@ -360,9 +489,6 @@ function saveUltrascriptsModuleState(moduleId, enabled) {
     chrome.storage.sync.set({ [STORAGE_KEYS.ultrascriptsModules]: modules }, () => {
       sendToActiveAIDungeon('SET_ULTRASCRIPTS_MODULE_ENABLED', { moduleId, enabled: !!enabled })
         .then(refreshUltrascriptsState)
-        .then(() => {
-          if (moduleId === 'ai') refreshAiLabStatus();
-        })
         .catch(() => {
           updateUltrascriptsStatus(null, 'Changes will apply next time Ultrascripts starts.');
         });
@@ -442,136 +568,6 @@ function updateUltrascriptsStatus(state, fallbackDetail = '') {
   dot.classList.add(ultrascriptsOn ? 'online' : 'offline');
   label.textContent = ultrascriptsOn ? 'Ultrascripts online' : 'Ultrascripts off';
   detail.textContent = `${mounted.length}/${ULTRASCRIPTS_PUBLIC_MODULES.length} modules mounted, ${enabled.length} enabled.`;
-}
-
-function initAiQueryLab() {
-  const systemPrompt = document.getElementById('ai-lab-system-prompt');
-  const prompt = document.getElementById('ai-lab-prompt');
-  const context = document.getElementById('ai-lab-context');
-  const send = document.getElementById('ai-lab-send');
-  const clear = document.getElementById('ai-lab-clear');
-  if (!systemPrompt || !prompt || !context || !send || !clear) return;
-
-  systemPrompt.value = systemPrompt.value || DEFAULT_AI_LAB_SYSTEM_PROMPT;
-
-  const updateCounts = () => {
-    const systemCount = document.getElementById('ai-lab-system-count');
-    const promptCount = document.getElementById('ai-lab-prompt-count');
-    const contextCount = document.getElementById('ai-lab-context-count');
-    if (systemCount) systemCount.textContent = `${systemPrompt.value.length} / 3000`;
-    if (promptCount) promptCount.textContent = `${prompt.value.length} / 6000`;
-    if (contextCount) contextCount.textContent = `${context.value.length} / 4000`;
-  };
-
-  systemPrompt.addEventListener('input', updateCounts);
-  prompt.addEventListener('input', updateCounts);
-  context.addEventListener('input', updateCounts);
-  send.addEventListener('click', runAiLabQuery);
-  clear.addEventListener('click', () => {
-    prompt.value = '';
-    context.value = '';
-    setAiLabOutput('No query sent yet.');
-    updateCounts();
-  });
-
-  updateCounts();
-  refreshAiLabStatus();
-}
-
-async function refreshAiLabStatus() {
-  const statusEl = document.getElementById('ai-lab-status');
-  if (!statusEl) return;
-
-  statusEl.classList.remove('ready', 'error');
-  statusEl.textContent = 'Checking AI module readiness...';
-
-  try {
-    const response = await sendToActiveAIDungeon('ULTRASCRIPTS_AI_STATUS');
-    if (!response?.success) {
-      statusEl.classList.add('error');
-      statusEl.textContent = response?.error || 'AI module status is unavailable.';
-      return;
-    }
-
-    const status = response.status || {};
-    const parts = [
-      status.ready ? 'Ready' : 'Not ready',
-      status.adventureShortId ? `adventure ${status.adventureShortId}` : 'no adventure id',
-      status.hasGraphqlCredentials ? 'GraphQL credentials loaded' : 'GraphQL credentials missing',
-      status.shellCardExists ? `shell ${status.shellCardId || 'exists'}` : 'shell not hydrated',
-      status.queryActive ? 'query active' : 'idle',
-    ];
-    statusEl.classList.toggle('ready', !!status.ready);
-    statusEl.classList.toggle('error', !status.ready);
-    statusEl.textContent = parts.join(' · ');
-  } catch (error) {
-    statusEl.classList.add('error');
-    statusEl.textContent = error?.message || 'Open AI Dungeon to inspect AI readiness.';
-  }
-}
-
-function getAiLabNumber(id, fallback) {
-  const input = document.getElementById(id);
-  const value = Number(input?.value);
-  return Number.isFinite(value) ? value : fallback;
-}
-
-function buildAiLabArgs() {
-  const systemPrompt = document.getElementById('ai-lab-system-prompt')?.value.trim() || '';
-  const prompt = document.getElementById('ai-lab-prompt')?.value.trim() || '';
-  const context = document.getElementById('ai-lab-context')?.value || '';
-  const includeStorySummary = document.getElementById('ai-lab-include-summary')?.checked !== false;
-  const temperature = getAiLabNumber('ai-lab-temperature', 1);
-  const timeoutMs = getAiLabNumber('ai-lab-timeout', 60000);
-  return { systemPrompt, prompt, context, includeStorySummary, temperature, timeoutMs };
-}
-
-function setAiLabOutput(text, kind = '') {
-  const output = document.getElementById('ai-lab-output');
-  if (!output) return;
-  output.classList.remove('success', 'error');
-  if (kind) output.classList.add(kind);
-  output.textContent = text;
-}
-
-function formatAiLabResult(result) {
-  const meta = [
-    `backend: ${result.backend || 'unknown'}`,
-    `generatedAtIso: ${result.generatedAtIso || 'unknown'}`,
-    `shellCardId: ${result.shellCardId || 'unknown'}`,
-    `systemPromptChars: ${result.systemPromptChars ?? 'unknown'}`,
-    `promptChars: ${result.promptChars ?? 'unknown'}`,
-    `contextChars: ${result.contextChars ?? 'unknown'}`,
-  ].join('\n');
-  return `${meta}\n\n${result.text || ''}`;
-}
-
-async function runAiLabQuery() {
-  const send = document.getElementById('ai-lab-send');
-  const args = buildAiLabArgs();
-  if (!args.prompt) {
-    setAiLabOutput('Prompt is required.', 'error');
-    return;
-  }
-
-  if (send) send.disabled = true;
-  setAiLabOutput('Generating with AI Dungeon Story Card generator...');
-
-  try {
-    const response = await sendToActiveAIDungeon('ULTRASCRIPTS_AI_QUERY', { args });
-    if (!response?.success) {
-      const code = response?.code ? `${response.code}: ` : '';
-      setAiLabOutput(`${code}${response?.error || 'AI query failed.'}`, 'error');
-      await refreshAiLabStatus();
-      return;
-    }
-    setAiLabOutput(formatAiLabResult(response.result || {}), 'success');
-    await refreshAiLabStatus();
-  } catch (error) {
-    setAiLabOutput(error?.message || 'AI Dungeon tab is not active.', 'error');
-  } finally {
-    if (send) send.disabled = false;
-  }
 }
 
 function normalizeWebFetchStore(value) {
@@ -697,10 +693,13 @@ function saveFeatureState(featureId, enabled) {
 }
 
 function setUltrascriptsModuleControlsEnabled(enabled) {
-  document.querySelectorAll('[data-ultrascripts-module-toggle], #ultrascripts-debug, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save')
+  document.querySelectorAll('[data-ultrascripts-module-toggle], #ultrascripts-debug, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #ai-gemini-api-key, #ai-gemini-model-mode, #ai-gemini-model, #ai-gemini-save, #ai-gemini-test')
     .forEach(control => {
       control.disabled = !enabled;
     });
+  if (enabled) {
+    updateGeminiModelModeUi(document.getElementById('ai-gemini-model-mode')?.value);
+  }
 }
 
 // ============================================
