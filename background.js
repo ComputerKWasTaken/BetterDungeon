@@ -24,10 +24,12 @@
   const DEFAULT_TIMEOUT_MS = 15000;
   const MAX_TIMEOUT_MS = 30000;
   const GEMINI_DEFAULT_TIMEOUT_MS = 120000;
+  const GEMINI_PROMPT_MAX_CHARS = 12000;
   const GEMINI_DEFAULT_MODEL = 'gemini-3.5-flash';
   const GEMINI_DEFAULT_MODEL_MODE = 'auto';
   const GEMINI_DEFAULT_THINKING_LEVEL = 'minimal';
   const GEMINI_THINKING_LEVELS = Object.freeze(['minimal', 'low', 'medium', 'high']);
+  const GEMINI_OUTPUT_TYPES = Object.freeze(['text', 'json']);
   const GEMINI_AUTO_STEPDOWN_MODELS = Object.freeze([
     'gemini-3.5-flash',
     'gemini-3.1-flash-lite',
@@ -514,8 +516,25 @@
     if (typeof task.prompt !== 'string' || !task.prompt.trim()) {
       throw { code: 'invalid_args', message: 'prompt is required', retryable: false };
     }
+    if (task.prompt.length > GEMINI_PROMPT_MAX_CHARS) {
+      throw {
+        code: 'invalid_args',
+        message: `prompt must be ${GEMINI_PROMPT_MAX_CHARS} characters or less`,
+        retryable: false,
+        maxChars: GEMINI_PROMPT_MAX_CHARS,
+        actualChars: task.prompt.length,
+      };
+    }
     const output = isObject(task.output) ? task.output : { type: 'text' };
-    const type = output.type === 'json' ? 'json' : 'text';
+    const rawType = output.type === undefined ? 'text' : output.type;
+    if (typeof rawType !== 'string' || GEMINI_OUTPUT_TYPES.indexOf(rawType) === -1) {
+      throw {
+        code: 'invalid_args',
+        message: `output.type must be one of: ${GEMINI_OUTPUT_TYPES.join(', ')}`,
+        retryable: false,
+      };
+    }
+    const type = rawType;
     if (type === 'json' && !isObject(output.schema)) {
       throw {
         code: 'invalid_args',
@@ -733,90 +752,87 @@
       const timer = setTimeout(() => controller.abort(), GEMINI_DEFAULT_TIMEOUT_MS);
       const url =
         `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent`;
-      let payloadInfo = geminiPayload(task, currentModel);
+      const payloadInfo = geminiPayload(task, currentModel);
 
       try {
-        while (true) {
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-goog-api-key': settings.apiKey,
-            },
-            body: JSON.stringify(payloadInfo.payload),
-            credentials: 'omit',
-            cache: 'no-store',
-            signal: controller.signal,
-          });
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': settings.apiKey,
+          },
+          body: JSON.stringify(payloadInfo.payload),
+          credentials: 'omit',
+          cache: 'no-store',
+          signal: controller.signal,
+        });
 
-          const bodyText = await response.text();
-          if (!response.ok) {
-            const err = geminiHttpError(response.status, response.statusText, bodyText);
-            const retryAfter = response.headers.get('retry-after');
-            if (retryAfter) {
-              const seconds = Number(retryAfter);
-              if (Number.isFinite(seconds)) err.retryAfterMs = Math.max(0, seconds * 1000);
-            }
-            err.model = currentModel;
-            if (
-              err.code === 'rate_limit' &&
-              settings?.modelMode !== 'manual' &&
-              modelIndex + 1 < models.length
-            ) {
-              lastError = err;
-              break;
-            }
-            throw err;
+        const bodyText = await response.text();
+        if (!response.ok) {
+          const err = geminiHttpError(response.status, response.statusText, bodyText);
+          const retryAfter = response.headers.get('retry-after');
+          if (retryAfter) {
+            const seconds = Number(retryAfter);
+            if (Number.isFinite(seconds)) err.retryAfterMs = Math.max(0, seconds * 1000);
           }
+          err.model = currentModel;
+          if (
+            err.code === 'rate_limit' &&
+            settings?.modelMode !== 'manual' &&
+            modelIndex + 1 < models.length
+          ) {
+            lastError = err;
+            continue;
+          }
+          throw err;
+        }
 
-          let data = null;
+        let data = null;
+        try {
+          data = JSON.parse(bodyText || '{}');
+        } catch (err) {
+          throw {
+            code: 'invalid_response',
+            message: 'Gemini returned invalid JSON.',
+            retryable: false,
+            backend: 'gemini',
+            detail: err?.message || 'invalid_json',
+            model: currentModel,
+          };
+        }
+
+        const text = extractGeminiText(data);
+        const base = {
+          backend: 'gemini',
+          generatedAtIso: new Date().toISOString(),
+          model: currentModel,
+          providerModel: data?.modelVersion || currentModel,
+          usage: data?.usageMetadata || null,
+          status: geminiStatus(settings, currentModel),
+          thinking: geminiThinkingMeta(task, currentModel, payloadInfo.thinking),
+          fallback: {
+            mode: settings?.modelMode || GEMINI_DEFAULT_MODEL_MODE,
+            attemptedModels: models.slice(0, modelIndex + 1),
+          },
+        };
+        geminiRememberSuccess(base);
+
+        if (task.output.type === 'json') {
           try {
-            data = JSON.parse(bodyText || '{}');
+            return { ...base, json: JSON.parse(text), text };
           } catch (err) {
             throw {
               code: 'invalid_response',
-              message: 'Gemini returned invalid JSON.',
+              message: 'Gemini returned invalid JSON text.',
               retryable: false,
               backend: 'gemini',
               detail: err?.message || 'invalid_json',
               model: currentModel,
             };
           }
-
-          const text = extractGeminiText(data);
-          const base = {
-            backend: 'gemini',
-            generatedAtIso: new Date().toISOString(),
-            model: currentModel,
-            providerModel: data?.modelVersion || currentModel,
-            usage: data?.usageMetadata || null,
-            status: geminiStatus(settings, currentModel),
-            thinking: geminiThinkingMeta(task, currentModel, payloadInfo.thinking),
-            fallback: {
-              mode: settings?.modelMode || GEMINI_DEFAULT_MODEL_MODE,
-              attemptedModels: models.slice(0, modelIndex + 1),
-            },
-          };
-          geminiRememberSuccess(base);
-
-          if (task.output.type === 'json') {
-            try {
-              return { ...base, json: JSON.parse(text), text };
-            } catch (err) {
-              throw {
-                code: 'invalid_response',
-                message: 'Gemini returned invalid JSON text.',
-                retryable: false,
-                backend: 'gemini',
-                detail: err?.message || 'invalid_json',
-                model: currentModel,
-              };
-            }
-          }
-
-          return { ...base, text };
         }
-        continue;
+
+        return { ...base, text };
       } catch (err) {
         if (err?.name === 'AbortError') {
           throw {

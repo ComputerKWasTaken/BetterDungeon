@@ -409,6 +409,23 @@ async function saveGeminiSettings() {
   }
 }
 
+async function clearGeminiApiKey() {
+  const keyInput = document.getElementById('ai-gemini-api-key');
+  setGeminiStatusText(null, 'Clearing key...');
+  try {
+    const status = await sendGeminiMessage({ op: 'settings:set', apiKey: '' });
+    if (keyInput) {
+      keyInput.value = '';
+      keyInput.placeholder = 'AIza...';
+    }
+    setGeminiStatusText(status);
+    showToast('Gemini API key cleared', 'success');
+  } catch (err) {
+    await loadGeminiSettings();
+    showToast(err?.message || 'Gemini API key could not be cleared', 'error');
+  }
+}
+
 async function testGeminiSettings() {
   setGeminiStatusText(null, 'Testing...');
   try {
@@ -427,6 +444,7 @@ function initGeminiSettings() {
     updateGeminiModelModeUi(event.target.value);
   });
   document.getElementById('ai-gemini-save')?.addEventListener('click', saveGeminiSettings);
+  document.getElementById('ai-gemini-clear-key')?.addEventListener('click', clearGeminiApiKey);
   document.getElementById('ai-gemini-test')?.addEventListener('click', testGeminiSettings);
 }
 
