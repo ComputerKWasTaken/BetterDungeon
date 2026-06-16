@@ -548,39 +548,6 @@ body.mobile {
   padding: 6px 0;
 }
 
-.scripture-settings-panel {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
-}
-
-.scripture-setting-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 118px;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 0;
-}
-
-.scripture-setting-row strong {
-  display: block;
-  color: var(--text-primary);
-  font-size: 12px;
-  margin-bottom: 2px;
-}
-
-.scripture-setting-row small {
-  display: block;
-  color: var(--text-muted);
-  font-size: 10.5px;
-  line-height: 1.35;
-}
-
-.scripture-setting-row .form-select {
-  padding: 7px 9px;
-  font-size: 11px;
-}
-
 .ultrascripts-consent-row {
   display: grid;
   grid-template-columns: 1fr auto auto;

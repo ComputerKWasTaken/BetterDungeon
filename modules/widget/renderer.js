@@ -1,38 +1,18 @@
-// modules/scripture/renderer.js
+// modules/widget/renderer.js
 //
-// DOM renderer for Scripture widgets. It intentionally keeps the legacy
+// DOM renderer for widgets. It intentionally keeps the legacy
 // BetterScripts CSS class names so existing widget styles remain pixel-stable
 // while the data source moves to Ultrascripts state cards.
 
 (function () {
-  if (window.ScriptureWidgetRenderer) return;
+  if (window.UltrascriptsWidgetRenderer) return;
 
-  const validators = () => window.ScriptureValidators;
-  const DEFAULT_DISPLAY_OPTIONS = {
-    size: 'normal',
-    maxHeight: 'medium',
-    layout: 'balanced',
-  };
+  const validators = () => window.UltrascriptsWidgetValidators;
 
-  function normalizeDisplayOptions(options = {}) {
-    const raw = options && typeof options === 'object' ? options : {};
-    const size = ['compact', 'normal', 'comfortable', 'large'].includes(String(raw.size || '').toLowerCase())
-      ? String(raw.size).toLowerCase()
-      : DEFAULT_DISPLAY_OPTIONS.size;
-    const maxHeight = ['short', 'medium', 'tall'].includes(String(raw.maxHeight || '').toLowerCase())
-      ? String(raw.maxHeight).toLowerCase()
-      : DEFAULT_DISPLAY_OPTIONS.maxHeight;
-    const layout = ['balanced', 'stacked'].includes(String(raw.layout || '').toLowerCase())
-      ? String(raw.layout).toLowerCase()
-      : DEFAULT_DISPLAY_OPTIONS.layout;
-    return { size, maxHeight, layout };
-  }
-
-  class ScriptureWidgetRenderer {
+  class UltrascriptsWidgetRenderer {
     constructor(options = {}) {
       this.logFn = typeof options.log === 'function' ? options.log : null;
       this.onInteraction = typeof options.onInteraction === 'function' ? options.onInteraction : null;
-      this.displayOptions = normalizeDisplayOptions(options.displayOptions);
       this.registeredWidgets = new Map();
       // Map<widgetId, { value?, seq }>. Any widget with an entry pulses amber
       // until its seq is <= ackSeq. Optional `value` carries the player's
@@ -58,7 +38,7 @@
 
     warn(...args) {
       if (this.logFn) this.logFn('warn', ...args);
-      else console.warn('[Scripture]', ...args);
+      else console.warn('[Widget]', ...args);
     }
 
     warnOnce(key, ...args) {
@@ -70,21 +50,6 @@
 
     getCurrentWidgetConfig(widgetId, fallback) {
       return this.registeredWidgets.get(widgetId)?.config || fallback;
-    }
-
-    setDisplayOptions(options = {}) {
-      this.displayOptions = normalizeDisplayOptions({ ...this.displayOptions, ...options });
-      this.applyDisplayOptions();
-      this.updateContainerPosition();
-      this.recalculateWidgetDensity();
-      return { ...this.displayOptions };
-    }
-
-    applyDisplayOptions() {
-      if (!this.widgetContainer) return;
-      this.widgetContainer.dataset.widgetSize = this.displayOptions.size;
-      this.widgetContainer.dataset.widgetHeight = this.displayOptions.maxHeight;
-      this.widgetContainer.dataset.widgetLayout = this.displayOptions.layout;
     }
 
     isInteractiveType(type) {
@@ -227,7 +192,7 @@
       if (this.widgetContainer && document.body.contains(this.widgetContainer)) return;
 
       const wrapper = document.createElement('div');
-      wrapper.className = 'bd-betterscripts-wrapper bd-scripture-wrapper';
+      wrapper.className = 'bd-betterscripts-wrapper bd-widget-module-wrapper';
       wrapper.id = 'bd-betterscripts-wrapper';
       Object.assign(wrapper.style, {
         position: 'fixed',
@@ -238,18 +203,17 @@
       });
 
       this.widgetContainer = document.createElement('div');
-      this.widgetContainer.className = 'bd-betterscripts-container bd-scripture-container';
+      this.widgetContainer.className = 'bd-betterscripts-container bd-widget-module-container';
       this.widgetContainer.id = 'bd-betterscripts-top';
-      this.applyDisplayOptions();
 
       const leftZone = document.createElement('div');
-      leftZone.className = 'bd-bar-zone bd-bar-left bd-scripture-zone';
+      leftZone.className = 'bd-bar-zone bd-bar-left bd-widget-module-zone';
 
       const centerZone = document.createElement('div');
-      centerZone.className = 'bd-bar-zone bd-bar-center bd-scripture-zone';
+      centerZone.className = 'bd-bar-zone bd-bar-center bd-widget-module-zone';
 
       const rightZone = document.createElement('div');
-      rightZone.className = 'bd-bar-zone bd-bar-right bd-scripture-zone';
+      rightZone.className = 'bd-bar-zone bd-bar-right bd-widget-module-zone';
 
       this.widgetContainer.appendChild(leftZone);
       this.widgetContainer.appendChild(centerZone);
@@ -1829,7 +1793,7 @@
 
         const input = document.createElement('input');
         input.type = 'radio';
-        input.name = `scripture-radio-${widgetId}`;
+        input.name = `widget-radio-${widgetId}`;
         input.value = this.optionDomValue(norm.value);
         input.dataset.type = typeof norm.value;
         input.dataset.value = String(norm.value);
@@ -2358,21 +2322,21 @@
     }
 
     emitWidget(action, widgetId, config) {
-      window.dispatchEvent(new CustomEvent('scripture:widget', {
+      window.dispatchEvent(new CustomEvent('widget:lifecycle', {
         detail: { action, widgetId, config },
       }));
     }
 
     emitError(type, detail) {
-      window.dispatchEvent(new CustomEvent('scripture:error', {
+      window.dispatchEvent(new CustomEvent('widget:error', {
         detail: { type, ...detail },
       }));
     }
   }
 
-  window.ScriptureWidgetRenderer = ScriptureWidgetRenderer;
+  window.UltrascriptsWidgetRenderer = UltrascriptsWidgetRenderer;
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = ScriptureWidgetRenderer;
+    module.exports = UltrascriptsWidgetRenderer;
   }
 })();

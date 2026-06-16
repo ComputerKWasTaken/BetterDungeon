@@ -21,7 +21,7 @@ Dungeon. It gives new required scripts a stable foundation:
 - response polling and acknowledgement
 - latest-response helpers
 - safe `sdk.config` and `clock.now` examples
-- Scripture dashboard publishing
+- Widget dashboard publishing
 - command handling with `:us-required status` and `:us-required reset`
 
 ## How To Build From It
@@ -35,7 +35,7 @@ Dungeon. It gives new required scripts a stable foundation:
 - Compare `completedLiveCount` with `bd.us.liveCount()` before applying
   side-effect responses such as `webfetch.fetch`.
 - Publish widgets through `publishTemplateDashboard` or replace it with your
-  own Scripture manifest.
+  own Widget manifest.
 
 By default this is a **required** script: missing Ultrascripts stops player
 input and explains that BetterDungeon/Ultrascripts must be enabled.

@@ -1,4 +1,4 @@
-// Ultrascripts Scripture Module Test Suite — AI Dungeon Input Modifier
+// Ultrascripts Widget Module Test Suite — AI Dungeon Input Modifier
 //
 // Pair with library.js + output-modifier.js. This hook runs ONLY when the
 // player submits input, so it does not tick the suite — that would cause the
@@ -8,19 +8,19 @@
 // AI Dungeon onInput hook constraints (per AID scripting docs):
 //   - Returning an empty string from onInput throws "Unable to run scenario scripts".
 //   - Returning { stop: true } from onInput throws the same error.
-// So if the player's entire input is a /scripture command and we strip it to
+// So if the player's entire input is a /widget command and we strip it to
 // nothing, we MUST substitute a non-empty placeholder. '.' is a minimal "do"
 // action that AID accepts; the command's side effects have already fired via
-// scrConsumeCommands by then.
+// widConsumeCommands by then.
 
 var modifier = function (text) {
-  if (typeof scrConsumeCommands !== 'function') {
+  if (typeof widConsumeCommands !== 'function') {
     return { text: text };
   }
 
   var out = text == null ? '' : String(text);
   try {
-    var result = scrConsumeCommands(out);
+    var result = widConsumeCommands(out);
     if (result && result.matched) {
       var stripped = (result.stripped || '').replace(/^\s+|\s+$/g, '');
       out = stripped.length > 0 ? stripped : '.';

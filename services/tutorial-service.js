@@ -124,10 +124,10 @@ class TutorialService {
         expandCard: true
       },
       {
-        id: 'scripture',
+        id: 'widget',
         type: 'spotlight',
-        target: '[data-feature="scripture"]',
-        title: 'Scripture',
+        target: '[data-feature="widget"]',
+        title: 'Widget',
         content: 'Enables Ultrascripts scripts to display dynamic UI widgets like HP bars, stats, and game state.',
         position: 'top',
         expandCard: true
@@ -169,7 +169,7 @@ class TutorialService {
       {
         id: 'ultrascripts-modules',
         type: 'spotlight',
-        target: '[data-ultrascripts-module-card="scripture"]',
+        target: '[data-ultrascripts-module-card="widget"]',
         title: 'Modules',
         content: 'Each module is a focused capability for scripts, such as UI widgets, web lookups, time, device context, or AI. Toggle only the ones you want available.',
         position: 'bottom',

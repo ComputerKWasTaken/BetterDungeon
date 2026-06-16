@@ -17,7 +17,7 @@ The template is intentionally modest. It gives new scripts a stable foundation:
 - response polling and acknowledgement
 - latest-response helpers
 - safe `sdk.config` and `clock.now` examples
-- Scripture dashboard publishing
+- Widget dashboard publishing
 - command handling with `:us-template status` and `:us-template reset`
 - graceful fallback when BetterDungeon is missing
 
@@ -31,7 +31,7 @@ The template is intentionally modest. It gives new scripts a stable foundation:
 - Compare `completedLiveCount` with `us.liveCount()` before applying side-effect
   responses such as `webfetch.fetch`.
 - Publish widgets through `publishTemplateDashboard` or replace it with your
-  own Scripture manifest.
+  own Widget manifest.
 
 By default this is an **enhanced** script: plain AI Dungeon still works, and
 BetterDungeon players get the extra dashboard and module integration.

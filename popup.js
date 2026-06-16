@@ -1,4 +1,4 @@
-﻿// BetterDungeon - Popup Script (Revamped)
+// BetterDungeon - Popup Script (Revamped)
 // Cleaner architecture with modular organization
 
 // ============================================
@@ -19,7 +19,6 @@ const STORAGE_KEYS = {
   autoApply: 'betterDungeon_autoApplyInstructions',
   ultrascriptsDebug: 'ultrascripts_debug',
   ultrascriptsModules: 'ultrascripts_enabled_modules',
-  scriptureWidgetDisplay: 'ultrascripts_mod_scripture_widget_display',
   webfetchAllowlist: 'ultrascripts_webfetch_allowlist',
   customHotkeys: 'betterDungeon_customHotkeys',
   customModeColors: 'betterDungeon_customModeColors',
@@ -90,7 +89,7 @@ const DEFAULT_FEATURES = {
 };
 
 const ULTRASCRIPTS_PUBLIC_MODULES = [
-  'scripture',
+  'widget',
   'webfetch',
   'clock',
   'sdk',
@@ -103,12 +102,6 @@ const ULTRASCRIPTS_PUBLIC_MODULES = [
 
 const DEFAULT_SETTINGS = {
   tryCriticalChance: 5
-};
-
-const DEFAULT_SCRIPTURE_WIDGET_DISPLAY = {
-  size: 'normal',
-  maxHeight: 'medium',
-  layout: 'balanced'
 };
 
 const DEFAULT_TEXT_TO_SPEECH_SETTINGS = {
@@ -292,7 +285,6 @@ function initToggles() {
 
 function initUltrascriptsSettings() {
   loadUltrascriptsModuleToggles();
-  loadScriptureWidgetDisplay();
   loadWebFetchConsentList();
   initGeminiSettings();
   refreshUltrascriptsState();
@@ -304,9 +296,6 @@ function initUltrascriptsSettings() {
   });
 
   document.getElementById('ultrascripts-refresh')?.addEventListener('click', refreshUltrascriptsState);
-  document.getElementById('scripture-widget-size')?.addEventListener('change', saveScriptureWidgetDisplay);
-  document.getElementById('scripture-widget-height')?.addEventListener('change', saveScriptureWidgetDisplay);
-  document.getElementById('scripture-widget-layout')?.addEventListener('change', saveScriptureWidgetDisplay);
   document.getElementById('webfetch-consent-refresh')?.addEventListener('click', loadWebFetchConsentList);
   document.getElementById('webfetch-consent-save')?.addEventListener('click', saveWebFetchConsentFromForm);
 }
@@ -496,47 +485,6 @@ function saveUltrascriptsModuleState(moduleId, enabled) {
   });
 }
 
-function normalizeScriptureWidgetDisplay(value = {}) {
-  const raw = value && typeof value === 'object' ? value : {};
-  const size = ['compact', 'normal', 'comfortable', 'large'].includes(String(raw.size || '').toLowerCase())
-    ? String(raw.size).toLowerCase()
-    : DEFAULT_SCRIPTURE_WIDGET_DISPLAY.size;
-  const maxHeight = ['short', 'medium', 'tall'].includes(String(raw.maxHeight || '').toLowerCase())
-    ? String(raw.maxHeight).toLowerCase()
-    : DEFAULT_SCRIPTURE_WIDGET_DISPLAY.maxHeight;
-  const layout = ['balanced', 'stacked'].includes(String(raw.layout || '').toLowerCase())
-    ? String(raw.layout).toLowerCase()
-    : DEFAULT_SCRIPTURE_WIDGET_DISPLAY.layout;
-  return { size, maxHeight, layout };
-}
-
-function loadScriptureWidgetDisplay() {
-  chrome.storage.sync.get(STORAGE_KEYS.scriptureWidgetDisplay, (result) => {
-    const display = normalizeScriptureWidgetDisplay((result || {})[STORAGE_KEYS.scriptureWidgetDisplay]);
-    const size = document.getElementById('scripture-widget-size');
-    const height = document.getElementById('scripture-widget-height');
-    const layout = document.getElementById('scripture-widget-layout');
-    if (size) size.value = display.size;
-    if (height) height.value = display.maxHeight;
-    if (layout) layout.value = display.layout;
-  });
-}
-
-function getScriptureWidgetDisplayFromForm() {
-  return normalizeScriptureWidgetDisplay({
-    size: document.getElementById('scripture-widget-size')?.value,
-    maxHeight: document.getElementById('scripture-widget-height')?.value,
-    layout: document.getElementById('scripture-widget-layout')?.value,
-  });
-}
-
-function saveScriptureWidgetDisplay() {
-  const display = getScriptureWidgetDisplayFromForm();
-  chrome.storage.sync.set({ [STORAGE_KEYS.scriptureWidgetDisplay]: display }, () => {
-    notifyContentScript('SET_SCRIPTURE_WIDGET_DISPLAY', { display });
-  });
-}
-
 async function refreshUltrascriptsState() {
   try {
     const state = await sendToActiveAIDungeon('GET_ULTRASCRIPTS_STATE');
@@ -693,7 +641,7 @@ function saveFeatureState(featureId, enabled) {
 }
 
 function setUltrascriptsModuleControlsEnabled(enabled) {
-  document.querySelectorAll('[data-ultrascripts-module-toggle], #ultrascripts-debug, #scripture-widget-size, #scripture-widget-height, #scripture-widget-layout, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #ai-gemini-api-key, #ai-gemini-model-mode, #ai-gemini-model, #ai-gemini-save, #ai-gemini-test')
+  document.querySelectorAll('[data-ultrascripts-module-toggle], #ultrascripts-debug, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #ai-gemini-api-key, #ai-gemini-model-mode, #ai-gemini-model, #ai-gemini-save, #ai-gemini-test')
     .forEach(control => {
       control.disabled = !enabled;
     });
@@ -1265,14 +1213,14 @@ function updateHotkeyDisplay() {
 function formatKeyDisplay(key) {
   const specialKeys = {
     'escape': 'Esc',
-    'arrowup': 'â†‘',
-    'arrowdown': 'â†“',
-    'arrowleft': 'â†',
-    'arrowright': 'â†’',
-    'backspace': 'âŒ«',
+    'arrowup': '↑',
+    'arrowdown': '↓',
+    'arrowleft': '←',
+    'arrowright': '→',
+    'backspace': '⌫',
     'delete': 'Del',
-    'enter': 'â†µ',
-    'space': 'â£',
+    'enter': '↵',
+    'space': '␣',
     'tab': 'Tab'
   };
   
@@ -1612,7 +1560,7 @@ function initPresets() {
 }
 
 async function loadPresets() {
-  // Read from local storage (content script writes here after syncâ†’local migration)
+  // Read from local storage (content script writes here after sync→local migration)
   chrome.storage.local.get(STORAGE_KEYS.presets, (localResult) => {
     const localPresets = (localResult || {})[STORAGE_KEYS.presets];
 
@@ -1675,11 +1623,11 @@ function createPresetCard(preset) {
         <h4 class="preset-name">${escapeHtml(preset.name)}</h4>
         <div class="preset-meta">
           <span class="preset-uses">${preset.useCount} uses</span>
-          <span class="preset-components">${components.join(' â€¢ ')}</span>
+          <span class="preset-components">${components.join(' • ')}</span>
         </div>
       </div>
       <div class="preset-menu-wrapper">
-        <button class="preset-menu-btn" aria-label="Options">â‹®</button>
+        <button class="preset-menu-btn" aria-label="Options">⋮</button>
         <div class="preset-menu">
           <button class="preset-menu-item preset-edit-btn">Edit</button>
           <button class="preset-menu-item danger preset-delete-btn">Delete</button>
@@ -1937,7 +1885,7 @@ function initCharacters() {
 }
 
 async function loadCharacters() {
-  // Read from local storage (content script writes here after syncâ†’local migration)
+  // Read from local storage (content script writes here after sync→local migration)
   chrome.storage.local.get(STORAGE_KEYS.characters, (localResult) => {
     const localChars = (localResult || {})[STORAGE_KEYS.characters];
 
@@ -2108,7 +2056,7 @@ function renderCharacterFields(fields) {
           <span class="field-key">
             ${escapeHtml(displayKey)}${showRaw ? `<span class="field-key-raw">${escapeHtml(key)}</span>` : ''}
           </span>
-          <button class="field-delete" data-key="${escapeHtml(key)}" title="Delete field">Ã—</button>
+          <button class="field-delete" data-key="${escapeHtml(key)}" title="Delete field">×</button>
         </div>
         <textarea class="field-value" data-key="${escapeHtml(key)}" rows="1">${escapeHtml(value)}</textarea>
       </div>
@@ -2553,7 +2501,7 @@ function initQuickToggles() {
     }
   });
 
-  // Quick toggle â†’ main toggle sync
+  // Quick toggle → main toggle sync
   quickToggles.forEach(qt => {
     qt.addEventListener('change', () => {
       const featureId = qt.dataset.quickToggle;
@@ -2565,7 +2513,7 @@ function initQuickToggles() {
     });
   });
 
-  // Main toggle â†’ quick toggle sync (observe changes)
+  // Main toggle → quick toggle sync (observe changes)
   document.querySelectorAll('.feature-card [id^="feature-"]').forEach(mainToggle => {
     mainToggle.addEventListener('change', () => {
       const featureId = mainToggle.id.replace('feature-', '');

@@ -2,7 +2,7 @@
 //
 // Ultrascripts module lifecycle. Modules register a definition:
 //   {
-//     id:              string   — unique identifier (e.g. 'scripture')
+//     id:              string   — unique identifier (e.g. 'widget')
 //     version:         string?  — semver
 //     label:           string?  — human-readable label for popup UI
 //     stateNames:      string[] — which ultrascripts:state:<name> cards it reads

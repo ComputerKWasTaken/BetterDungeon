@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Scripture Widget Design Preview</title>
+  <title>Widget Design Preview</title>
 
   <!-- Theme variables & widget styles from BetterDungeon -->
   <link rel="stylesheet" href="../core/theme-variables.css" />
@@ -157,33 +157,12 @@
 
     <!-- ========== HEADER ========== -->
     <div class="preview-header">
-      <h1>Scripture — Widget Design Preview</h1>
-      <p>All supported Scripture widget types rendered with the live BetterDungeon theme &amp; styles.</p>
+      <h1>Widget Module Preview</h1>
+      <p>All supported widget types rendered with the live BetterDungeon theme &amp; styles.</p>
     </div>
 
     <!-- ========== CONTROLS ========== -->
     <div class="controls-bar">
-      <label>Size</label>
-      <select id="ctrl-size">
-        <option value="compact">Compact</option>
-        <option value="normal" selected>Normal</option>
-        <option value="comfortable">Comfortable</option>
-        <option value="large">Large</option>
-      </select>
-
-      <label>Max Height</label>
-      <select id="ctrl-height">
-        <option value="short">Short</option>
-        <option value="medium" selected>Medium</option>
-        <option value="tall">Tall</option>
-      </select>
-
-      <label>Layout</label>
-      <select id="ctrl-layout">
-        <option value="balanced" selected>Balanced (3-zone grid)</option>
-        <option value="stacked">Stacked (single column)</option>
-      </select>
-
       <div class="width-control">
         <label>Container Width</label>
         <input type="range" id="ctrl-width" min="320" max="1200" value="900" />
@@ -203,12 +182,11 @@
       </p>
 
       <div class="game-area">
-        <div class="bd-betterscripts-wrapper bd-scripture-wrapper">
-          <div class="bd-betterscripts-container bd-scripture-container"
-               data-widget-size="normal" data-widget-height="tall" data-widget-layout="balanced">
+        <div class="bd-betterscripts-wrapper bd-widget-module-wrapper">
+          <div class="bd-betterscripts-container bd-widget-module-container">
 
             <!-- LEFT — Pending interactive widgets -->
-            <div class="bd-bar-zone bd-bar-left bd-scripture-zone">
+            <div class="bd-bar-zone bd-bar-left bd-widget-module-zone">
 
               <!-- Pending: button -->
               <div class="bd-widget bd-widget-button bd-widget-interactive" data-state="pending" style="pointer-events:auto">
@@ -229,7 +207,7 @@
             </div>
 
             <!-- CENTER — Pending toggle & stat -->
-            <div class="bd-bar-zone bd-bar-center bd-scripture-zone">
+            <div class="bd-bar-zone bd-bar-center bd-widget-module-zone">
 
               <!-- Pending: toggle -->
               <div class="bd-widget bd-widget-toggle bd-widget-interactive" data-state="pending" style="pointer-events:auto">
@@ -258,7 +236,7 @@
             </div>
 
             <!-- RIGHT — Normal widgets (for contrast) -->
-            <div class="bd-bar-zone bd-bar-right bd-scripture-zone">
+            <div class="bd-bar-zone bd-bar-right bd-widget-module-zone">
 
               <div class="bd-widget bd-widget-stat" data-color="yellow">
                 <span class="bd-widget-label">Gold</span>
@@ -302,12 +280,11 @@
 
       <div class="game-area" id="display-area">
         <!-- wrapper mirrors the real container structure from renderer.js -->
-        <div class="bd-betterscripts-wrapper bd-scripture-wrapper" id="bd-betterscripts-wrapper">
-          <div class="bd-betterscripts-container bd-scripture-container" id="bd-betterscripts-top"
-               data-widget-size="normal" data-widget-height="medium" data-widget-layout="balanced">
+        <div class="bd-betterscripts-wrapper bd-widget-module-wrapper" id="bd-betterscripts-wrapper">
+          <div class="bd-betterscripts-container bd-widget-module-container" id="bd-betterscripts-top">
 
             <!-- LEFT ZONE -->
-            <div class="bd-bar-zone bd-bar-left bd-scripture-zone" id="zone-left">
+            <div class="bd-bar-zone bd-bar-left bd-widget-module-zone" id="zone-left">
 
               <!-- Stat (green) -->
               <div class="bd-widget bd-widget-stat" id="bd-widget-hp" data-color="green" style="pointer-events:auto">
@@ -344,7 +321,7 @@
             </div>
 
             <!-- CENTER ZONE -->
-            <div class="bd-bar-zone bd-bar-center bd-scripture-zone" id="zone-center">
+            <div class="bd-bar-zone bd-bar-center bd-widget-module-zone" id="zone-center">
 
               <!-- Bar (green — HP) -->
               <div class="bd-widget bd-widget-bar" id="bd-widget-hp-bar" data-color="green" style="pointer-events:auto">
@@ -390,7 +367,7 @@
             </div>
 
             <!-- RIGHT ZONE -->
-            <div class="bd-bar-zone bd-bar-right bd-scripture-zone" id="zone-right">
+            <div class="bd-bar-zone bd-bar-right bd-widget-module-zone" id="zone-right">
 
               <!-- Badge (default) -->
               <div class="bd-widget bd-widget-badge" id="bd-widget-badge-class" style="pointer-events:auto;--badge-color:var(--bd-purple)">
@@ -433,11 +410,10 @@
       <p class="desc">Multi-item display containers.</p>
 
       <div class="game-area" id="compound-area">
-        <div class="bd-betterscripts-wrapper bd-scripture-wrapper">
-          <div class="bd-betterscripts-container bd-scripture-container"
-               data-widget-size="normal" data-widget-height="medium" data-widget-layout="balanced">
+        <div class="bd-betterscripts-wrapper bd-widget-module-wrapper">
+          <div class="bd-betterscripts-container bd-widget-module-container">
 
-            <div class="bd-bar-zone bd-bar-left bd-scripture-zone">
+            <div class="bd-bar-zone bd-bar-left bd-widget-module-zone">
 
               <!-- List widget -->
               <div class="bd-widget bd-widget-list" id="bd-widget-inventory" style="pointer-events:auto">
@@ -468,7 +444,7 @@
 
             </div>
 
-            <div class="bd-bar-zone bd-bar-center bd-scripture-zone">
+            <div class="bd-bar-zone bd-bar-center bd-widget-module-zone">
 
               <!-- Panel widget -->
               <div class="bd-widget bd-widget-panel" id="bd-widget-char-stats" style="pointer-events:auto">
@@ -499,7 +475,7 @@
 
             </div>
 
-            <div class="bd-bar-zone bd-bar-right bd-scripture-zone">
+            <div class="bd-bar-zone bd-bar-right bd-widget-module-zone">
 
               <!-- Custom HTML widget -->
               <div class="bd-widget bd-widget-custom" id="bd-widget-custom-quest" style="pointer-events:auto">
@@ -529,11 +505,10 @@
       <p class="desc">Widgets that emit user interactions back to the AI script.</p>
 
       <div class="game-area" id="interactive-area">
-        <div class="bd-betterscripts-wrapper bd-scripture-wrapper">
-          <div class="bd-betterscripts-container bd-scripture-container"
-               data-widget-size="normal" data-widget-height="medium" data-widget-layout="balanced">
+        <div class="bd-betterscripts-wrapper bd-widget-module-wrapper">
+          <div class="bd-betterscripts-container bd-widget-module-container">
 
-            <div class="bd-bar-zone bd-bar-left bd-scripture-zone">
+            <div class="bd-bar-zone bd-bar-left bd-widget-module-zone">
 
               <!-- Button (default) -->
               <div class="bd-widget bd-widget-button bd-widget-interactive" id="bd-widget-btn-attack" style="pointer-events:auto">
@@ -560,7 +535,7 @@
 
             </div>
 
-            <div class="bd-bar-zone bd-bar-center bd-scripture-zone">
+            <div class="bd-bar-zone bd-bar-center bd-widget-module-zone">
 
               <!-- Toggle -->
               <div class="bd-widget bd-widget-toggle bd-widget-interactive" id="bd-widget-toggle-stealth" style="pointer-events:auto">
@@ -593,7 +568,7 @@
 
             </div>
 
-            <div class="bd-bar-zone bd-bar-right bd-scripture-zone">
+            <div class="bd-bar-zone bd-bar-right bd-widget-module-zone">
 
               <!-- Slider -->
               <div class="bd-widget bd-widget-slider bd-widget-interactive" id="bd-widget-slider-aggro" style="pointer-events:auto">
@@ -628,11 +603,10 @@
       <p class="desc">All seven preset colors applied to stat &amp; bar widgets.</p>
 
       <div class="game-area" id="color-area">
-        <div class="bd-betterscripts-wrapper bd-scripture-wrapper">
-          <div class="bd-betterscripts-container bd-scripture-container"
-               data-widget-size="normal" data-widget-height="tall" data-widget-layout="stacked">
+        <div class="bd-betterscripts-wrapper bd-widget-module-wrapper">
+          <div class="bd-betterscripts-container bd-widget-module-container">
 
-            <div class="bd-bar-zone bd-bar-center bd-scripture-zone">
+            <div class="bd-bar-zone bd-bar-center bd-widget-module-zone">
 
               <div class="bd-widget bd-widget-stat" data-color="red" style="pointer-events:auto">
                 <span class="bd-widget-label">Red</span>
@@ -668,10 +642,9 @@
         </div>
 
         <!-- Bar variants for all colors -->
-        <div class="bd-betterscripts-wrapper bd-scripture-wrapper" style="margin-top:12px">
-          <div class="bd-betterscripts-container bd-scripture-container"
-               data-widget-size="normal" data-widget-height="tall" data-widget-layout="stacked">
-            <div class="bd-bar-zone bd-bar-center bd-scripture-zone">
+        <div class="bd-betterscripts-wrapper bd-widget-module-wrapper" style="margin-top:12px">
+          <div class="bd-betterscripts-container bd-widget-module-container">
+            <div class="bd-bar-zone bd-bar-center bd-widget-module-zone">
 
               <div class="bd-widget bd-widget-bar" data-color="red" style="pointer-events:auto">
                 <span class="bd-widget-label">Red Bar</span>
@@ -737,10 +710,9 @@
       <p class="desc">Three badge rendering modes across several accent colors.</p>
 
       <div class="game-area">
-        <div class="bd-betterscripts-wrapper bd-scripture-wrapper">
-          <div class="bd-betterscripts-container bd-scripture-container"
-               data-widget-size="normal" data-widget-height="medium" data-widget-layout="stacked">
-            <div class="bd-bar-zone bd-bar-center bd-scripture-zone">
+        <div class="bd-betterscripts-wrapper bd-widget-module-wrapper">
+          <div class="bd-betterscripts-container bd-widget-module-container">
+            <div class="bd-bar-zone bd-bar-center bd-widget-module-zone">
 
               <!-- Default badges -->
               <div class="bd-widget bd-widget-badge" style="pointer-events:auto;--badge-color:var(--bd-accent-primary)">
@@ -794,11 +766,10 @@
       <p class="desc">Continuous progress bars and compact tag clusters.</p>
 
       <div class="game-area">
-        <div class="bd-betterscripts-wrapper bd-scripture-wrapper">
-          <div class="bd-betterscripts-container bd-scripture-container"
-               data-widget-size="normal" data-widget-height="medium" data-widget-layout="balanced">
+        <div class="bd-betterscripts-wrapper bd-widget-module-wrapper">
+          <div class="bd-betterscripts-container bd-widget-module-container">
 
-            <div class="bd-bar-zone bd-bar-left bd-scripture-zone">
+            <div class="bd-bar-zone bd-bar-left bd-widget-module-zone">
 
               <!-- Progress (60%) -->
               <div class="bd-widget bd-widget-progress" style="pointer-events:auto">
@@ -820,7 +791,7 @@
 
             </div>
 
-            <div class="bd-bar-zone bd-bar-center bd-scripture-zone">
+            <div class="bd-bar-zone bd-bar-center bd-widget-module-zone">
 
               <!-- Tag Group (status effects) -->
               <div class="bd-widget bd-widget-taggroup" style="pointer-events:auto">
@@ -845,7 +816,7 @@
 
             </div>
 
-            <div class="bd-bar-zone bd-bar-right bd-scripture-zone">
+            <div class="bd-bar-zone bd-bar-right bd-widget-module-zone">
 
               <!-- Progress (full) -->
               <div class="bd-widget bd-widget-progress" style="pointer-events:auto">
@@ -879,10 +850,9 @@
       <p class="desc">Lightweight visual separator — plain line or labeled break.</p>
 
       <div class="game-area">
-        <div class="bd-betterscripts-wrapper bd-scripture-wrapper">
-          <div class="bd-betterscripts-container bd-scripture-container"
-               data-widget-size="normal" data-widget-height="medium" data-widget-layout="stacked">
-            <div class="bd-bar-zone bd-bar-center bd-scripture-zone">
+        <div class="bd-betterscripts-wrapper bd-widget-module-wrapper">
+          <div class="bd-betterscripts-container bd-widget-module-container">
+            <div class="bd-bar-zone bd-bar-center bd-widget-module-zone">
 
               <div class="bd-widget bd-widget-stat" data-color="green" style="pointer-events:auto">
                 <span class="bd-widget-label">HP</span>
@@ -925,11 +895,10 @@
       <p class="desc">Radio groups, numeric steppers, confirmation buttons, and multi-select chips.</p>
 
       <div class="game-area">
-        <div class="bd-betterscripts-wrapper bd-scripture-wrapper">
-          <div class="bd-betterscripts-container bd-scripture-container"
-               data-widget-size="normal" data-widget-height="tall" data-widget-layout="balanced">
+        <div class="bd-betterscripts-wrapper bd-widget-module-wrapper">
+          <div class="bd-betterscripts-container bd-widget-module-container">
 
-            <div class="bd-bar-zone bd-bar-left bd-scripture-zone">
+            <div class="bd-bar-zone bd-bar-left bd-widget-module-zone">
 
               <!-- Radio group -->
               <div class="bd-widget bd-widget-radio bd-widget-interactive" style="pointer-events:auto">
@@ -955,7 +924,7 @@
 
             </div>
 
-            <div class="bd-bar-zone bd-bar-center bd-scripture-zone">
+            <div class="bd-bar-zone bd-bar-center bd-widget-module-zone">
 
               <!-- Stepper (stat allocation) -->
               <div class="bd-widget bd-widget-stepper bd-widget-interactive" style="pointer-events:auto">
@@ -987,7 +956,7 @@
 
             </div>
 
-            <div class="bd-bar-zone bd-bar-right bd-scripture-zone">
+            <div class="bd-bar-zone bd-bar-right bd-widget-module-zone">
 
               <!-- Chip Select (party members) -->
               <div class="bd-widget bd-widget-chipselect bd-widget-interactive" style="pointer-events:auto">
@@ -1026,11 +995,10 @@
       <p class="desc">Accordion sections, tabbed views, sortable priority lists, and action menus.</p>
 
       <div class="game-area">
-        <div class="bd-betterscripts-wrapper bd-scripture-wrapper">
-          <div class="bd-betterscripts-container bd-scripture-container"
-               data-widget-size="normal" data-widget-height="tall" data-widget-layout="balanced">
+        <div class="bd-betterscripts-wrapper bd-widget-module-wrapper">
+          <div class="bd-betterscripts-container bd-widget-module-container">
 
-            <div class="bd-bar-zone bd-bar-left bd-scripture-zone">
+            <div class="bd-bar-zone bd-bar-left bd-widget-module-zone">
 
               <!-- Accordion -->
               <div class="bd-widget bd-widget-accordion" style="pointer-events:auto">
@@ -1084,7 +1052,7 @@
 
             </div>
 
-            <div class="bd-bar-zone bd-bar-center bd-scripture-zone">
+            <div class="bd-bar-zone bd-bar-center bd-widget-module-zone">
 
               <!-- Dropdown Menu -->
               <div class="bd-widget bd-widget-dropdown bd-widget-interactive" data-open="false" style="pointer-events:auto">
@@ -1103,7 +1071,7 @@
 
             </div>
 
-            <div class="bd-bar-zone bd-bar-right bd-scripture-zone">
+            <div class="bd-bar-zone bd-bar-right bd-widget-module-zone">
 
               <!-- Sortable List -->
               <div class="bd-widget bd-widget-sortable bd-widget-interactive" style="pointer-events:auto">
@@ -1155,29 +1123,10 @@
   </div><!-- /.preview-page -->
 
   <!-- ================================================================
-       INTERACTIVE CONTROLS — wire up the display-options controls
+       INTERACTIVE CONTROLS
        ================================================================ -->
   <script>
     (function () {
-      const containers = document.querySelectorAll('.bd-betterscripts-container');
-
-      // Sync a data-attribute across all containers
-      function setAttr(attr, value) {
-        containers.forEach(c => c.dataset[attr] = value);
-      }
-
-      document.getElementById('ctrl-size').addEventListener('change', function () {
-        setAttr('widgetSize', this.value);
-      });
-
-      document.getElementById('ctrl-height').addEventListener('change', function () {
-        setAttr('widgetHeight', this.value);
-      });
-
-      document.getElementById('ctrl-layout').addEventListener('change', function () {
-        setAttr('widgetLayout', this.value);
-      });
-
       const widthSlider = document.getElementById('ctrl-width');
       const widthLabel = document.getElementById('ctrl-width-value');
       const gameAreas = document.querySelectorAll('.game-area');

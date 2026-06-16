@@ -20,8 +20,8 @@ code - anything here is for verifying behavior, not for shipping.
   - **`aid-scripts/sdk-module/`** - End-to-end suite for the Ultrascripts SDK
     module (`modules/sdk/module.js`). Exercises `version` and `config` ops.
 
-  - **`aid-scripts/scripture-module/`** - Behavior-focused suite for the
-    Ultrascripts Scripture module. Eight scenario commands exercising every
+  - **`aid-scripts/widget-module/`** - Behavior-focused suite for the
+    Ultrascripts Widget module. Eight scenario commands exercising every
     widget type, value transitions, edge cases, custom HTML, and panels.
 
   - **`aid-scripts/clock-module/`** - End-to-end suite for the Ultrascripts

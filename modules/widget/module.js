@@ -1,25 +1,20 @@
-// modules/scripture/module.js
+// modules/widget/module.js
 //
-// Ultrascripts Scripture module. Consumes `ultrascripts:state:scripture` and renders
+// Ultrascripts Widget module. Consumes `ultrascripts:state:widget` and renders
 // widget state from the live-count history entry matching the current action
 // window.
 
 (function () {
-  if (window.ScriptureModule) return;
+  if (window.UltrascriptsWidgetModule) return;
 
-  const MODULE_ID = 'scripture';
-  const STATE_NAME = 'scripture';
-  const IN_CARD_TITLE = 'ultrascripts:in:scripture';
+  const MODULE_ID = 'widget';
+  const STATE_NAME = 'widget';
+  const IN_CARD_TITLE = 'ultrascripts:in:widget';
   const MAX_WIDGET_EVENTS = 100;
   const MAX_EVENT_STRING_LENGTH = 1200;
   const MAX_EVENT_OBJECT_KEYS = 20;
   const MAX_EVENT_ARRAY_ITEMS = 20;
   const MAX_EVENT_DEPTH = 3;
-  const DEFAULT_WIDGET_DISPLAY_OPTIONS = {
-    size: 'normal',
-    maxHeight: 'medium',
-    layout: 'balanced',
-  };
 
   function isObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -98,7 +93,7 @@
   }
 
   function applyValueToWidget(config, value) {
-    const validators = window.ScriptureValidators;
+    const validators = window.UltrascriptsWidgetValidators;
     if (isObject(value)) {
       const patch = validators?.filterWidgetStatePatch
         ? validators.filterWidgetStatePatch(config, cloneObject(value))
@@ -152,7 +147,7 @@
       parsed?.interactions?.ackSeq,
       parsed?.interactions?.widgetAckSeq,
       parsed?.widgetEvents?.ackSeq,
-      parsed?.ack?.scripture,
+      parsed?.ack?.widget,
     ];
     let max = 0;
     for (const candidate of candidates) {
@@ -162,30 +157,16 @@
     return max;
   }
 
-  function normalizeWidgetDisplayOptions(options = {}) {
-    const raw = isObject(options) ? options : {};
-    const size = ['compact', 'normal', 'comfortable', 'large'].includes(String(raw.size || '').toLowerCase())
-      ? String(raw.size).toLowerCase()
-      : DEFAULT_WIDGET_DISPLAY_OPTIONS.size;
-    const maxHeight = ['short', 'medium', 'tall'].includes(String(raw.maxHeight || '').toLowerCase())
-      ? String(raw.maxHeight).toLowerCase()
-      : DEFAULT_WIDGET_DISPLAY_OPTIONS.maxHeight;
-    const layout = ['balanced', 'stacked'].includes(String(raw.layout || '').toLowerCase())
-      ? String(raw.layout).toLowerCase()
-      : DEFAULT_WIDGET_DISPLAY_OPTIONS.layout;
-    return { size, maxHeight, layout };
-  }
-
   function buildRenderWidgets(parsed, liveCount, ctx) {
-    const validators = window.ScriptureValidators;
-    if (!validators) throw new Error('ScriptureValidators is not loaded');
+    const validators = window.UltrascriptsWidgetValidators;
+    if (!validators) throw new Error('UltrascriptsWidgetValidators is not loaded');
 
     if (!isObject(parsed)) {
       return { widgets: [], errors: ['State card payload must be an object'] };
     }
 
     if (parsed.v !== 1) {
-      return { widgets: [], errors: [`Unsupported Scripture state version: ${parsed.v}`] };
+      return { widgets: [], errors: [`Unsupported Widget state version: ${parsed.v}`] };
     }
 
     const manifestResult = validators.validateManifest(parsed.manifest);
@@ -219,16 +200,15 @@
     return { widgets, errors };
   }
 
-  const ScriptureModule = {
+  const UltrascriptsWidgetModule = {
     id: MODULE_ID,
     version: '1.0.0',
-    label: 'Scripture',
-    description: 'Renders Ultrascripts widget state from scripture state cards.',
+    label: 'Widget',
+    description: 'Renders Ultrascripts widget state from Widget state cards.',
     stateNames: [STATE_NAME],
     tracksLiveCount: true,
     _renderer: null,
     _ctx: null,
-    _widgetDisplayOptions: { ...DEFAULT_WIDGET_DISPLAY_OPTIONS },
     _lastParsed: null,
     _lastCtx: null,
     _eventQueue: [],
@@ -240,13 +220,9 @@
 
     mount(ctx) {
       this._ctx = ctx;
-      this._renderer = new window.ScriptureWidgetRenderer({
+      this._renderer = new window.UltrascriptsWidgetRenderer({
         log: (level, ...args) => ctx.log(level, ...args),
         onInteraction: (event) => this.queueInteraction(event),
-        displayOptions: this._widgetDisplayOptions,
-      });
-      ctx.storage.get('widget_display', DEFAULT_WIDGET_DISPLAY_OPTIONS).then((options) => {
-        if (this._ctx === ctx) this.setWidgetDisplayOptions(options);
       });
     },
 
@@ -263,16 +239,16 @@
     },
 
     onEnable(ctx) {
-      ctx.log('debug', 'Scripture enabled');
+      ctx.log('debug', 'Widget enabled');
     },
 
     onDisable(ctx) {
-      ctx.log('debug', 'Scripture disabled');
+      ctx.log('debug', 'Widget disabled');
       this._renderer?.clearAllWidgets?.();
     },
 
     onAdventureChange(_newAdventureShortId, ctx) {
-      ctx.log('debug', 'Adventure changed; clearing Scripture widgets');
+      ctx.log('debug', 'Adventure changed; clearing widgets');
       this._renderer?.clearAllWidgets?.();
       this._eventQueue = [];
       this._queueLoaded = false;
@@ -302,7 +278,7 @@
 
         this.renderState(parsed, ctx);
       } catch (err) {
-        ctx.log('warn', 'Scripture onStateChange failed:', err);
+        ctx.log('warn', 'Widget onStateChange failed:', err);
       }
     },
 
@@ -315,7 +291,7 @@
       const result = buildRenderWidgets(parsed, liveCount, ctx);
 
       if (result.errors.length) {
-        this.warnOnce(ctx, 'state-warnings', 'Scripture state warnings:', result.errors);
+        this.warnOnce(ctx, 'state-warnings', 'Widget state warnings:', result.errors);
       }
 
       this._renderer.setWidgets(result.widgets);
@@ -334,18 +310,6 @@
       this._warnedMessages.add(cacheKey);
       if (this._warnedMessages.size > 200) this._warnedMessages.clear();
       ctx?.log?.('warn', message, details);
-    },
-
-    setWidgetDisplayOptions(options, opts = {}) {
-      const normalized = normalizeWidgetDisplayOptions(options);
-      this._widgetDisplayOptions = normalized;
-      this._renderer?.setDisplayOptions?.(normalized);
-
-      if (opts.persist && this._ctx?.storage) {
-        this._ctx.storage.set('widget_display', normalized);
-      }
-
-      return normalized;
     },
 
     ensureQueueLoaded(ctx = this._ctx) {
@@ -374,7 +338,7 @@
       this._eventQueue = this._eventQueue.filter(event => Number(event.seq || 0) > ackSeq);
       if (this._eventQueue.length !== before) {
         this.writeInteractionInbox(ctx).catch((err) => {
-          ctx.log('warn', 'Failed to prune Scripture widget events:', err);
+          ctx.log('warn', 'Failed to prune widget events:', err);
         });
       }
     },
@@ -388,7 +352,7 @@
       const nowMs = Date.now();
       const seq = Math.max(this._lastSeq, ...this._eventQueue.map(item => Number(item.seq || 0))) + 1;
       const record = {
-        id: `scripture-${seq}`,
+        id: `widget-${seq}`,
         seq,
         widgetId: event.widgetId,
         widgetType: event.widgetType,
@@ -444,7 +408,7 @@
       const run = () => {
         this._inboxWriteTimer = null;
         this.writeInteractionInbox(ctx).catch((err) => {
-          ctx.log('warn', 'Failed to write Scripture widget event:', err);
+          ctx.log('warn', 'Failed to write widget event:', err);
         });
       };
 
@@ -475,7 +439,7 @@
 
       await ctx.writeCard(IN_CARD_TITLE, JSON.stringify(envelope), {
         type: 'Ultrascripts',
-        description: 'Scripture widget interaction queue.',
+        description: 'Widget module interaction queue.',
       });
     },
 
@@ -483,7 +447,6 @@
       return {
         mounted: !!this._renderer,
         widgets: this._renderer ? [...this._renderer.registeredWidgets.keys()] : [],
-        widgetDisplayOptions: { ...this._widgetDisplayOptions },
         widgetEventQueueLength: this._eventQueue.length,
         widgetEventLatestSeq: this._lastSeq,
         widgetEventAckSeq: this._ackSeq,
@@ -491,15 +454,15 @@
     },
   };
 
-  window.ScriptureModule = ScriptureModule;
+  window.UltrascriptsWidgetModule = UltrascriptsWidgetModule;
 
   if (window.Ultrascripts?.registry) {
-    window.Ultrascripts.registry.register(ScriptureModule);
+    window.Ultrascripts.registry.register(UltrascriptsWidgetModule);
   } else {
-    console.warn('[Scripture] Ultrascripts registry not available; Scripture module not registered.');
+    console.warn('[Widget] Ultrascripts registry not available; Widget module not registered.');
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = ScriptureModule;
+    module.exports = UltrascriptsWidgetModule;
   }
 })();

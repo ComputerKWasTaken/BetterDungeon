@@ -14,7 +14,6 @@
     features: 'betterDungeonFeatures',
     ultrascriptsModules: 'ultrascripts_enabled_modules',
     ultrascriptsDebug: 'ultrascripts_debug',
-    scriptureWidgetDisplay: 'ultrascripts_mod_scripture_widget_display',
     webfetchAllowlist: 'ultrascripts_webfetch_allowlist',
   };
   const DEFAULT_FEATURES = {
@@ -34,7 +33,7 @@
     textToSpeech: false,
   };
   const ULTRASCRIPTS_MODULES = [
-    'scripture',
+    'widget',
     'webfetch',
     'clock',
     'sdk',
@@ -44,11 +43,6 @@
     'system',
     'ai',
   ];
-  const DEFAULT_SCRIPTURE_WIDGET_DISPLAY = {
-    size: 'normal',
-    maxHeight: 'medium',
-    layout: 'balanced',
-  };
   function invalidArgs(message, extra = {}) {
     return { code: 'invalid_args', message, ...extra };
   }
@@ -183,20 +177,6 @@
     return out;
   }
 
-  function normalizeScriptureDisplay(raw) {
-    const display = raw && typeof raw === 'object' ? raw : {};
-    const size = ['compact', 'normal', 'comfortable', 'large'].includes(String(display.size || '').toLowerCase())
-      ? String(display.size).toLowerCase()
-      : DEFAULT_SCRIPTURE_WIDGET_DISPLAY.size;
-    const maxHeight = ['short', 'medium', 'tall'].includes(String(display.maxHeight || '').toLowerCase())
-      ? String(display.maxHeight).toLowerCase()
-      : DEFAULT_SCRIPTURE_WIDGET_DISPLAY.maxHeight;
-    const layout = ['balanced', 'stacked'].includes(String(display.layout || '').toLowerCase())
-      ? String(display.layout).toLowerCase()
-      : DEFAULT_SCRIPTURE_WIDGET_DISPLAY.layout;
-    return { size, maxHeight, layout };
-  }
-
   function summarizeWebFetchAllowlist(raw) {
     const entries = raw && typeof raw === 'object' ? Object.entries(raw) : [];
     let allowCount = 0;
@@ -237,13 +217,11 @@
       STORAGE_KEYS.features,
       STORAGE_KEYS.ultrascriptsModules,
       STORAGE_KEYS.ultrascriptsDebug,
-      STORAGE_KEYS.scriptureWidgetDisplay,
       STORAGE_KEYS.webfetchAllowlist,
     ]);
 
     const features = normalizeFeatures(syncResult[STORAGE_KEYS.features]);
     const ultrascriptsModules = normalizeUltrascriptsModules(syncResult[STORAGE_KEYS.ultrascriptsModules]);
-    const scriptureDisplay = normalizeScriptureDisplay(syncResult[STORAGE_KEYS.scriptureWidgetDisplay]);
 
     return {
       sdkVersion: SDK_VERSION,
@@ -256,7 +234,6 @@
         runtimeEnabled: typeof getCore()?.isEnabled === 'function' ? !!getCore().isEnabled() : !!getCore()?.inspect?.()?.enabled,
         debug: !!syncResult[STORAGE_KEYS.ultrascriptsDebug],
         modulePreferences: ultrascriptsModules,
-        scriptureDisplay,
         webfetch: summarizeWebFetchAllowlist(syncResult[STORAGE_KEYS.webfetchAllowlist]),
       },
     };

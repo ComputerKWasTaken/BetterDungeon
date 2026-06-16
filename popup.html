@@ -73,7 +73,7 @@
             </div>
             <div class="whats-new-item">
               <span class="whats-new-item-icon icon-code" style="color: #a855f7;"></span>
-              <div><strong>Ultrascripts Preview</strong> &mdash; Scripture widgets now ride on story-card state instead of hidden story text, keeping widget values aligned with undo, retry, edit, and continue.</div>
+              <div><strong>Ultrascripts Preview</strong> &mdash; widgets now ride on story-card state instead of hidden story text, keeping widget values aligned with undo, retry, edit, and continue.</div>
             </div>
             <div class="whats-new-item">
               <span class="whats-new-item-icon icon-wrench" style="color: #6b7280;"></span>
@@ -661,63 +661,25 @@
         </div>
         <div class="section-body">
           <div class="ultrascripts-module-list">
-            <article class="feature-card ultrascripts-module-card" data-ultrascripts-module-card="scripture">
+            <article class="feature-card ultrascripts-module-card" data-ultrascripts-module-card="widget">
               <div class="feature-row">
                 <div class="feature-info">
                   <div class="feature-title-row">
                     <span class="feature-icon" style="color: var(--bd-icon-scripts);">
                       <span class="icon-book-open-text"></span>
                     </span>
-                    <h3 class="feature-title">Scripture</h3>
+                    <h3 class="feature-title">Widget</h3>
                   </div>
                   <p class="feature-desc">Live visual UI for script-driven displays</p>
                 </div>
                 <label class="toggle sm">
-                  <input type="checkbox" data-ultrascripts-module-toggle="scripture" checked>
+                  <input type="checkbox" data-ultrascripts-module-toggle="widget" checked>
                   <span class="toggle-slider"></span>
                 </label>
               </div>
               <div class="feature-details">
-                <p>Scripture lets adventure scripts render interface elements outside the story text, including stat bars, counters, panels, status readouts, and custom HTML widgets.</p>
+                <p>The Widget module lets adventure scripts render interface elements outside the story text, including stat bars, counters, panels, status readouts, and custom HTML widgets.</p>
                 <p class="feature-hint"><span class="icon-book-open-text"></span> Useful for RPG HUDs, relationship meters, timers, inventory panels, and scenario-specific dashboards.</p>
-                <div class="scripture-settings-panel">
-                  <div class="ultrascripts-panel-heading">
-                    <span><span class="icon-sliders-horizontal"></span> Widget Display</span>
-                  </div>
-                  <label class="scripture-setting-row" for="scripture-widget-size">
-                    <span>
-                      <strong>Size</strong>
-                      <small>Scales Scripture widgets without changing the script's state.</small>
-                    </span>
-                    <select class="form-select form-select-sm" id="scripture-widget-size" aria-label="Scripture widget size">
-                      <option value="compact">Compact</option>
-                      <option value="normal">Normal</option>
-                      <option value="comfortable">Comfortable</option>
-                      <option value="large">Large</option>
-                    </select>
-                  </label>
-                  <label class="scripture-setting-row" for="scripture-widget-height">
-                    <span>
-                      <strong>Max Height</strong>
-                      <small>Controls how much vertical space the widget bar may use before scrolling.</small>
-                    </span>
-                    <select class="form-select form-select-sm" id="scripture-widget-height" aria-label="Scripture widget max height">
-                      <option value="short">Short</option>
-                      <option value="medium">Medium</option>
-                      <option value="tall">Tall</option>
-                    </select>
-                  </label>
-                  <label class="scripture-setting-row" for="scripture-widget-layout">
-                    <span>
-                      <strong>Layout</strong>
-                      <small>Balanced keeps left, center, and right zones; stacked gives every zone full width.</small>
-                    </span>
-                    <select class="form-select form-select-sm" id="scripture-widget-layout" aria-label="Scripture widget layout">
-                      <option value="balanced">Balanced</option>
-                      <option value="stacked">Stacked</option>
-                    </select>
-                  </label>
-                </div>
               </div>
             </article>
 

@@ -31,7 +31,7 @@ Empirically verified Phase 1 smoke test (commit 1). The subscription fires **onl
 
 Phase 0's "every turn, unconditional" claim was correct only for the scenario used there, which had a server-side script writing cards on every turn. Absent any server-side script write, a cards-only turn produces zero subscription frames.
 
-**Implication for Scripture:** this is the desired behavior. Scripture's state cards are written exclusively by its AID output-modifier script (server side), so every state change naturally produces an `adventureStoryCardsUpdate` push that BD can consume. Scripture's **manifest** card, written by BD from the popup UI, takes the HTTP path — BD updates its cache locally and doesn't need an echo.
+**Implication for Widget:** this is the desired behavior. Widget's state cards are written exclusively by its AID output-modifier script (server side), so every state change naturally produces an `adventureStoryCardsUpdate` push that BD can consume. Widget's **manifest** card, written by BD from the popup UI, takes the HTTP path — BD updates its cache locally and doesn't need an echo.
 
 `actionUpdates.type` values observed: `create`, `update`.
 

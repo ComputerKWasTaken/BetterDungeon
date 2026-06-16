@@ -1,4 +1,4 @@
-// Ultrascripts Scripture Module Test Suite — AI Dungeon Output Modifier
+// Ultrascripts Widget Module Test Suite — AI Dungeon Output Modifier
 //
 // Pair with library.js + input-modifier.js. The output hook fires on every
 // generation (player turns AND AI continue/retry turns), so this is where we
@@ -6,8 +6,8 @@
 // state envelope, and writing the trace. The text is returned untouched.
 
 var modifier = function (text) {
-  if (typeof ultrascriptsScriptureTestStep === 'function') {
-    try { ultrascriptsScriptureTestStep(text); } catch (e) { /* never break gameplay */ }
+  if (typeof ultrascriptsWidgetTestStep === 'function') {
+    try { ultrascriptsWidgetTestStep(text); } catch (e) { /* never break gameplay */ }
   }
   return { text: text };
 };

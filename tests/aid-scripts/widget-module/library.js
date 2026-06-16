@@ -1,31 +1,31 @@
-// Ultrascripts Scripture Module Test Suite — AI Dungeon Library
+// Ultrascripts Widget Module Test Suite — AI Dungeon Library
 //
 // Behavior-focused widget test suite. Loads curated manifests that exercise
 // every supported widget type, plus scenarios for invalid configs, value
 // transitions, and edge cases. Pair with input-modifier.js + output-modifier.js.
 //
 // Surfaces written:
-//   ultrascripts:state:scripture   - widget manifest + history + ack envelope (script -> BD)
-//   ultrascripts:in:scripture      - script's view of BD's inbox (read-only here)
-//   ultrascripts:test:scripture    - human-readable trace with scenario, values, events
+//   ultrascripts:state:widget   - widget manifest + history + ack envelope (script -> BD)
+//   ultrascripts:in:widget      - script's view of BD's inbox (read-only here)
+//   ultrascripts:test:widget    - human-readable trace with scenario, values, events
 //
 // Commands:
-//   /scripture display      - stat/bar/counter/progress/taggroup/divider/icon/badge/text
-//   /scripture interactive  - radio/stepper/confirm/chipselect/button/toggle/select/slider/input/textarea
-//   /scripture containers   - accordion/tabs/dropdown/sortable
-//   /scripture invalid      - broken configs (module should skip with a warning)
-//   /scripture transitions  - animated value changes across turns
-//   /scripture edge         - empty lists, long labels, missing values, 0-width bars
-//   /scripture custom       - raw HTML widgets (tables, lists, code, formatted text, images, grids)
-//   /scripture panels       - panel widgets with title/items/content layouts
-//   /scripture value <id> <val>  - manually set a widget's value
-//   /scripture ack          - force-ack all pending widget events
-//   /scripture clear        - unmount all widgets
-//   /scripture reset        - reset suite state
+//   /widget display      - stat/bar/counter/progress/taggroup/divider/icon/badge/text
+//   /widget interactive  - radio/stepper/confirm/chipselect/button/toggle/select/slider/input/textarea
+//   /widget containers   - accordion/tabs/dropdown/sortable
+//   /widget invalid      - broken configs (module should skip with a warning)
+//   /widget transitions  - animated value changes across turns
+//   /widget edge         - empty lists, long labels, missing values, 0-width bars
+//   /widget custom       - raw HTML widgets (tables, lists, code, formatted text, images, grids)
+//   /widget panels       - panel widgets with title/items/content layouts
+//   /widget value <id> <val>  - manually set a widget's value
+//   /widget ack          - force-ack all pending widget events
+//   /widget clear        - unmount all widgets
+//   /widget reset        - reset suite state
 
 // ---------- state ----------
 
-state.scriptureTest = state.scriptureTest || {
+state.widgetTest = state.widgetTest || {
   runId: null,
   turn: 0,
   scenario: null,           // 'display' | 'interactive' | 'containers' | 'invalid' | 'transitions' | 'edge' | 'custom' | 'panels'
@@ -34,7 +34,7 @@ state.scriptureTest = state.scriptureTest || {
   observedEvents: [],
   consumedCommands: {},
   events: [],
-  // value overrides set by /scripture value <id> <val>
+  // value overrides set by /widget value <id> <val>
   overrides: {},
   // transition scenario phase
   transitionIdx: 0,
@@ -42,7 +42,7 @@ state.scriptureTest = state.scriptureTest || {
 
 // ---------- scenario manifests ----------
 
-var SCR_DISPLAY_MANIFEST = {
+var WID_DISPLAY_MANIFEST = {
   widgets: [
     { id: 'hp',      type: 'stat',     align: 'left',   label: 'HP',       value: '87',  color: 'red'    },
     { id: 'mp',      type: 'stat',     align: 'left',   label: 'MP',       value: '23',  color: 'blue'   },
@@ -66,7 +66,7 @@ var SCR_DISPLAY_MANIFEST = {
   ],
 };
 
-var SCR_INTERACTIVE_MANIFEST = {
+var WID_INTERACTIVE_MANIFEST = {
   widgets: [
     { id: 'attack',  type: 'button',   align: 'left',   text: 'Attack',   value: 'strike' },
     { id: 'defend',  type: 'toggle',   align: 'left',   label: 'Defend',   value: true },
@@ -96,7 +96,7 @@ var SCR_INTERACTIVE_MANIFEST = {
   ],
 };
 
-var SCR_CONTAINERS_MANIFEST = {
+var WID_CONTAINERS_MANIFEST = {
   widgets: [
     { id: 'inv',     type: 'accordion', align: 'left',
       items: [
@@ -127,7 +127,7 @@ var SCR_CONTAINERS_MANIFEST = {
   ],
 };
 
-var SCR_INVALID_MANIFEST = {
+var WID_INVALID_MANIFEST = {
   widgets: [
     // These should render
     { id: 'ok',      type: 'stat',     align: 'left',   label: 'OK',       value: '42' },
@@ -139,7 +139,7 @@ var SCR_INVALID_MANIFEST = {
   ],
 };
 
-var SCR_TRANSITIONS_MANIFEST = {
+var WID_TRANSITIONS_MANIFEST = {
   widgets: [
     { id: 'hp',      type: 'stat',     align: 'left',   label: 'HP' },
     { id: 'xp',      type: 'bar',      align: 'center', label: 'XP',       max: 200 },
@@ -149,7 +149,7 @@ var SCR_TRANSITIONS_MANIFEST = {
 };
 
 // Phases for the transitions scenario. Each turn advances to the next phase.
-var SCR_TRANSITION_PHASES = [
+var WID_TRANSITION_PHASES = [
   { hp: '87',  xp: 20,   gold: 0,    quest: 5   },
   { hp: '64',  xp: 60,   gold: 12,   quest: 33  },
   { hp: '42',  xp: 120,  gold: 55,   quest: 67  },
@@ -158,7 +158,7 @@ var SCR_TRANSITION_PHASES = [
   { hp: '100', xp: 0,    gold: 0,    quest: 0   },
 ];
 
-var SCR_EDGE_MANIFEST = {
+var WID_EDGE_MANIFEST = {
   widgets: [
     { id: 'empty',   type: 'taggroup', align: 'left',   label: 'Empty Tags', items: [] },
     { id: 'long',    type: 'stat',     align: 'center', label: 'Very Long Label That Might Overflow', value: '99' },
@@ -175,7 +175,7 @@ var SCR_EDGE_MANIFEST = {
   ],
 };
 
-var SCR_CUSTOM_MANIFEST = {
+var WID_CUSTOM_MANIFEST = {
   widgets: [
     { id: 'loot',    type: 'custom', align: 'left',   html: '<h3>Loot Table</h3><table><tr><th>Item</th><th>Rarity</th><th>Qty</th></tr><tr><td>Iron Sword</td><td>Common</td><td>1</td></tr><tr><td>Health Potion</td><td>Uncommon</td><td>3</td></tr><tr><td>Ancient Relic</td><td><mark>Legendary</mark></td><td>1</td></tr></table>' },
     { id: 'notes',   type: 'custom', align: 'center', html: '<p><strong>Quest Update:</strong> The <em>Seal of Valor</em> has been recovered.</p><blockquote>"Beware the shadows beneath the cathedral." — <a href="#">Old Man Hemlock</a></blockquote><hr><p>Current objective: <u>Find the hidden vault</u></p>' },
@@ -188,7 +188,7 @@ var SCR_CUSTOM_MANIFEST = {
   ],
 };
 
-var SCR_PANELS_MANIFEST = {
+var WID_PANELS_MANIFEST = {
   widgets: [
     { id: 'stats',   type: 'panel', align: 'left',   title: 'Character Stats',
       items: [
@@ -218,28 +218,28 @@ var SCR_PANELS_MANIFEST = {
   ],
 };
 
-function scrManifestFor(scenario) {
+function widManifestFor(scenario) {
   switch (scenario) {
-    case 'display':      return SCR_DISPLAY_MANIFEST;
-    case 'interactive':  return SCR_INTERACTIVE_MANIFEST;
-    case 'containers':   return SCR_CONTAINERS_MANIFEST;
-    case 'invalid':      return SCR_INVALID_MANIFEST;
-    case 'transitions':  return SCR_TRANSITIONS_MANIFEST;
-    case 'edge':         return SCR_EDGE_MANIFEST;
-    case 'custom':       return SCR_CUSTOM_MANIFEST;
-    case 'panels':       return SCR_PANELS_MANIFEST;
+    case 'display':      return WID_DISPLAY_MANIFEST;
+    case 'interactive':  return WID_INTERACTIVE_MANIFEST;
+    case 'containers':   return WID_CONTAINERS_MANIFEST;
+    case 'invalid':      return WID_INVALID_MANIFEST;
+    case 'transitions':  return WID_TRANSITIONS_MANIFEST;
+    case 'edge':         return WID_EDGE_MANIFEST;
+    case 'custom':       return WID_CUSTOM_MANIFEST;
+    case 'panels':       return WID_PANELS_MANIFEST;
   }
   return null;
 }
 
 // ---------- value helpers ----------
 
-function scrDefaultValuesFor(manifest, scenario) {
+function widDefaultValuesFor(manifest, scenario) {
   if (!manifest || !Array.isArray(manifest.widgets)) return {};
   var values = {};
 
   if (scenario === 'transitions') {
-    var phase = SCR_TRANSITION_PHASES[0] || {};
+    var phase = WID_TRANSITION_PHASES[0] || {};
     for (var i = 0; i < manifest.widgets.length; i++) {
       var w = manifest.widgets[i];
       values[w.id] = phase[w.id] !== undefined ? phase[w.id] : null;
@@ -282,18 +282,18 @@ function scrDefaultValuesFor(manifest, scenario) {
 
 // ---------- helpers ----------
 
-function scrNow() { return Date.now ? Date.now() : new Date().getTime(); }
+function widNow() { return Date.now ? Date.now() : new Date().getTime(); }
 
-function scrRunId() {
-  var s = state.scriptureTest;
-  if (!s.runId) s.runId = 'scripture-' + scrNow().toString(36);
+function widRunId() {
+  var s = state.widgetTest;
+  if (!s.runId) s.runId = 'widget-' + widNow().toString(36);
   return s.runId;
 }
 
-function scrCards() { return Array.isArray(storyCards) ? storyCards : []; }
+function widCards() { return Array.isArray(storyCards) ? storyCards : []; }
 
-function scrFindCard(title) {
-  var cards = scrCards();
+function widFindCard(title) {
+  var cards = widCards();
   for (var i = 0; i < cards.length; i++) {
     var c = cards[i];
     if (!c) continue;
@@ -304,19 +304,19 @@ function scrFindCard(title) {
   return { card: null, index: -1 };
 }
 
-function scrCardText(card) {
+function widCardText(card) {
   if (!card) return '';
   return card.value || card.entry || card.description || '';
 }
 
-function scrReadJson(title) {
-  var f = scrFindCard(title);
+function widReadJson(title) {
+  var f = widFindCard(title);
   if (!f.card) return null;
-  try { return JSON.parse(scrCardText(f.card) || '{}'); } catch (e) { return null; }
+  try { return JSON.parse(widCardText(f.card) || '{}'); } catch (e) { return null; }
 }
 
-function scrWriteCard(title, value, type) {
-  var f = scrFindCard(title);
+function widWriteCard(title, value, type) {
+  var f = widFindCard(title);
   var cardType = type || 'Ultrascripts';
   if (f.card && f.index >= 0 && typeof updateStoryCard === 'function') {
     updateStoryCard(f.index, f.card.keys || f.card.key || title, value, f.card.type || cardType);
@@ -329,42 +329,42 @@ function scrWriteCard(title, value, type) {
   return false;
 }
 
-function scrLiveCount() {
+function widLiveCount() {
   return (Array.isArray(history) ? history.length : 0) + 1;
 }
 
-function scrLog(event, detail) {
-  var s = state.scriptureTest;
+function widLog(event, detail) {
+  var s = state.widgetTest;
   s.events.push({
-    at: scrNow(), turn: s.turn, liveCount: scrLiveCount(),
+    at: widNow(), turn: s.turn, liveCount: widLiveCount(),
     event: event, detail: detail || '',
   });
   while (s.events.length > 40) s.events.shift();
 }
 
-function scrHeartbeat() { return scrReadJson('ultrascripts:heartbeat'); }
+function widHeartbeat() { return widReadJson('ultrascripts:heartbeat'); }
 
-function scrScriptureAdvertised() {
-  var hb = scrHeartbeat();
+function widWidgetAdvertised() {
+  var hb = widHeartbeat();
   if (!hb || !hb.ultrascripts || hb.ultrascripts.protocol !== 1) return false;
   var mods = Array.isArray(hb.modules) ? hb.modules : [];
   for (var i = 0; i < mods.length; i++) {
-    if (mods[i] && mods[i].id === 'scripture') return true;
+    if (mods[i] && mods[i].id === 'widget') return true;
   }
   return false;
 }
 
 // ---------- envelope builder ----------
 
-function scrCurrentValues(manifest, scenario) {
-  var s = state.scriptureTest;
-  var defaults = scrDefaultValuesFor(manifest, scenario);
+function widCurrentValues(manifest, scenario) {
+  var s = state.widgetTest;
+  var defaults = widDefaultValuesFor(manifest, scenario);
   var overrides = s.overrides || {};
   var values = {};
   for (var k in defaults) values[k] = overrides[k] !== undefined ? overrides[k] : defaults[k];
   // Transitions scenario: apply current phase values (overrides still win)
   if (scenario === 'transitions') {
-    var phase = SCR_TRANSITION_PHASES[s.transitionIdx % SCR_TRANSITION_PHASES.length] || {};
+    var phase = WID_TRANSITION_PHASES[s.transitionIdx % WID_TRANSITION_PHASES.length] || {};
     for (var k in phase) {
       if (overrides[k] === undefined) values[k] = phase[k];
     }
@@ -372,17 +372,17 @@ function scrCurrentValues(manifest, scenario) {
   return values;
 }
 
-function scrBuildEnvelope() {
-  var s = state.scriptureTest;
-  var manifest = scrManifestFor(s.scenario);
-  var liveCount = scrLiveCount();
+function widBuildEnvelope() {
+  var s = state.widgetTest;
+  var manifest = widManifestFor(s.scenario);
+  var liveCount = widLiveCount();
 
   if (!manifest) {
     return { v: 1, manifest: { widgets: [] }, history: {}, interactions: { ackSeq: s.ackSeq } };
   }
 
   var history = {};
-  history[String(liveCount)] = scrCurrentValues(manifest, s.scenario);
+  history[String(liveCount)] = widCurrentValues(manifest, s.scenario);
 
   return {
     v: 1,
@@ -392,17 +392,17 @@ function scrBuildEnvelope() {
   };
 }
 
-function scrPublishState() {
-  var env = scrBuildEnvelope();
-  scrWriteCard('ultrascripts:state:scripture', JSON.stringify(env), 'Ultrascripts');
+function widPublishState() {
+  var env = widBuildEnvelope();
+  widWriteCard('ultrascripts:state:widget', JSON.stringify(env), 'Ultrascripts');
   return env;
 }
 
 // ---------- inbox poller ----------
 
-function scrPollInbox() {
-  var s = state.scriptureTest;
-  var card = scrReadJson('ultrascripts:in:scripture');
+function widPollInbox() {
+  var s = state.widgetTest;
+  var card = widReadJson('ultrascripts:in:widget');
   if (!card) return { latestSeq: 0, newEvents: [] };
 
   var widgetEvents = card.widgetEvents || {};
@@ -426,12 +426,12 @@ function scrPollInbox() {
       };
     }));
     while (s.observedEvents.length > 20) s.observedEvents.shift();
-    scrLog('events', 'received ' + newEvents.length + ' (seq=' + s.lastSeqSeen + ')');
+    widLog('events', 'received ' + newEvents.length + ' (seq=' + s.lastSeqSeen + ')');
   }
 
   if (s.lastSeqSeen > s.ackSeq) {
     s.ackSeq = s.lastSeqSeen;
-    scrLog('ack', 'ackSeq -> ' + s.ackSeq);
+    widLog('ack', 'ackSeq -> ' + s.ackSeq);
   }
 
   return { latestSeq: latestSeq, newEvents: newEvents };
@@ -439,33 +439,33 @@ function scrPollInbox() {
 
 // ---------- command parser ----------
 
-function scrParseCommand(line) {
-  var m = String(line || '').match(/\/scripture\s+([^\n\r]+)/i);
+function widParseCommand(line) {
+  var m = String(line || '').match(/\/widget\s+([^\n\r]+)/i);
   if (!m) return null;
   var parts = m[1].trim().split(/\s+/);
   return { verb: (parts[0] || '').toLowerCase(), args: parts.slice(1), raw: m[0] };
 }
 
-function scrApplyCommand(cmd) {
+function widApplyCommand(cmd) {
   if (!cmd || !cmd.verb) return false;
-  var s = state.scriptureTest;
+  var s = state.widgetTest;
   var args = cmd.args || [];
 
   switch (cmd.verb) {
     case 'reset':
-      state.scriptureTest = {
-        runId: 'scripture-' + scrNow().toString(36),
+      state.widgetTest = {
+        runId: 'widget-' + widNow().toString(36),
         turn: 0, scenario: null,
         ackSeq: 0, lastSeqSeen: 0,
         observedEvents: [], consumedCommands: {}, events: [],
         overrides: {}, transitionIdx: 0,
       };
-      scrWriteCard(
-        'ultrascripts:state:scripture',
+      widWriteCard(
+        'ultrascripts:state:widget',
         JSON.stringify({ v: 1, manifest: { widgets: [] }, history: {}, interactions: { ackSeq: 0 } }),
         'Ultrascripts'
       );
-      scrLog('cmd', 'reset');
+      widLog('cmd', 'reset');
       return true;
 
     case 'display':
@@ -478,7 +478,7 @@ function scrApplyCommand(cmd) {
     case 'panels':
       s.scenario = cmd.verb;
       s.overrides = {};
-      scrLog('cmd', cmd.verb + ' scenario');
+      widLog('cmd', cmd.verb + ' scenario');
       return true;
 
     case 'value':
@@ -494,48 +494,48 @@ function scrApplyCommand(cmd) {
           try { val = JSON.parse(raw); } catch (e) {}
         }
         s.overrides[id] = val;
-        scrLog('cmd', 'set ' + id + ' = ' + JSON.stringify(val));
+        widLog('cmd', 'set ' + id + ' = ' + JSON.stringify(val));
       }
       return true;
 
     case 'next':
       if (s.scenario === 'transitions') {
-        s.transitionIdx = (s.transitionIdx + 1) % SCR_TRANSITION_PHASES.length;
-        scrLog('cmd', 'transition phase -> ' + s.transitionIdx);
+        s.transitionIdx = (s.transitionIdx + 1) % WID_TRANSITION_PHASES.length;
+        widLog('cmd', 'transition phase -> ' + s.transitionIdx);
       }
       return true;
 
     case 'ack':
       if (s.lastSeqSeen > s.ackSeq) {
         s.ackSeq = s.lastSeqSeen;
-        scrLog('cmd', 'ack -> ' + s.ackSeq);
+        widLog('cmd', 'ack -> ' + s.ackSeq);
       }
       return true;
 
     case 'clear':
       s.scenario = null;
       s.overrides = {};
-      scrLog('cmd', 'cleared');
+      widLog('cmd', 'cleared');
       return true;
   }
   return false;
 }
 
-function scrConsumeCommands(text) {
-  var s = state.scriptureTest;
+function widConsumeCommands(text) {
+  var s = state.widgetTest;
   var raw = String(text || '');
   if (!raw) return { matched: false, stripped: raw };
   var stripped = raw;
   var matchedAny = false;
-  var pattern = /\/scripture\s+[^\n\r]*/gi;
+  var pattern = /\/widget\s+[^\n\r]*/gi;
   var match;
   while ((match = pattern.exec(raw)) !== null) {
     var line = match[0];
     var sig = 'cmd:' + line + ':' + s.turn;
     if (s.consumedCommands[sig]) continue;
-    s.consumedCommands[sig] = scrNow();
-    var parsed = scrParseCommand(line);
-    if (parsed && scrApplyCommand(parsed)) {
+    s.consumedCommands[sig] = widNow();
+    var parsed = widParseCommand(line);
+    if (parsed && widApplyCommand(parsed)) {
       matchedAny = true;
       stripped = stripped.replace(line, '').replace(/[ \t]{2,}/g, ' ');
     }
@@ -545,7 +545,7 @@ function scrConsumeCommands(text) {
 
 // ---------- trace ----------
 
-function scrSummarizeEnvelope(env) {
+function widSummarizeEnvelope(env) {
   if (!env) return null;
   var widgetCount = (env.manifest && Array.isArray(env.manifest.widgets)) ? env.manifest.widgets.length : 0;
   var historyKeys = env.history ? Object.keys(env.history) : [];
@@ -558,25 +558,25 @@ function scrSummarizeEnvelope(env) {
   };
 }
 
-function scrWriteTrace(envelope) {
-  var s = state.scriptureTest;
-  var hb = scrHeartbeat();
-  var summary = scrSummarizeEnvelope(envelope);
-  var manifest = scrManifestFor(s.scenario);
+function widWriteTrace(envelope) {
+  var s = state.widgetTest;
+  var hb = widHeartbeat();
+  var summary = widSummarizeEnvelope(envelope);
+  var manifest = widManifestFor(s.scenario);
 
   var trace = {
     v: 2,
-    runId: scrRunId(),
+    runId: widRunId(),
     turn: s.turn,
-    liveCount: scrLiveCount(),
+    liveCount: widLiveCount(),
     phase: s.scenario || 'idle',
     scenario: s.scenario,
     transitionPhase: s.scenario === 'transitions'
-      ? { idx: s.transitionIdx, total: SCR_TRANSITION_PHASES.length }
+      ? { idx: s.transitionIdx, total: WID_TRANSITION_PHASES.length }
       : null,
     heartbeat: {
       present: !!hb,
-      scriptureAdvertised: scrScriptureAdvertised(),
+      widgetAdvertised: widWidgetAdvertised(),
     },
     publishedEnvelope: summary,
     interactions: {
@@ -590,38 +590,38 @@ function scrWriteTrace(envelope) {
       })
       : [],
     commands: [
-      '/scripture display      - stat / bar / counter / progress / taggroup / divider / icon / badge / text',
-      '/scripture interactive  - radio / stepper / confirm / chipselect / button / toggle / select / slider / input / textarea',
-      '/scripture containers   - accordion / tabs / dropdown / sortable',
-      '/scripture invalid      - broken configs (module should skip them)',
-      '/scripture transitions  - animated value changes across turns',
-      '/scripture edge         - empty lists, long labels, 0-width bars, etc.',
-      '/scripture value <id> <val>  - manually set a widget value',
-      '/scripture next         - advance transition to next phase',
-      '/scripture ack          - force-ack pending events',
-      '/scripture clear        - unmount all widgets',
-      '/scripture reset        - reset suite state',
+      '/widget display      - stat / bar / counter / progress / taggroup / divider / icon / badge / text',
+      '/widget interactive  - radio / stepper / confirm / chipselect / button / toggle / select / slider / input / textarea',
+      '/widget containers   - accordion / tabs / dropdown / sortable',
+      '/widget invalid      - broken configs (module should skip them)',
+      '/widget transitions  - animated value changes across turns',
+      '/widget edge         - empty lists, long labels, 0-width bars, etc.',
+      '/widget value <id> <val>  - manually set a widget value',
+      '/widget next         - advance transition to next phase',
+      '/widget ack          - force-ack pending events',
+      '/widget clear        - unmount all widgets',
+      '/widget reset        - reset suite state',
     ],
     events: s.events.slice(-12),
   };
-  scrWriteCard('ultrascripts:test:scripture', JSON.stringify(trace, null, 2), 'Ultrascripts Test');
+  widWriteCard('ultrascripts:test:widget', JSON.stringify(trace, null, 2), 'Ultrascripts Test');
 }
 
 // ---------- public entry point ----------
 
-function ultrascriptsScriptureTestStep(text) {
-  var s = state.scriptureTest;
-  scrRunId();
+function ultrascriptsWidgetTestStep(text) {
+  var s = state.widgetTest;
+  widRunId();
   s.turn += 1;
 
-  scrPollInbox();
+  widPollInbox();
 
   // Auto-advance transition scenario each turn
   if (s.scenario === 'transitions') {
-    s.transitionIdx = (s.transitionIdx + 1) % SCR_TRANSITION_PHASES.length;
+    s.transitionIdx = (s.transitionIdx + 1) % WID_TRANSITION_PHASES.length;
   }
 
-  var env = scrPublishState();
-  scrWriteTrace(env);
+  var env = widPublishState();
+  widWriteTrace(env);
   return true;
 }

@@ -1,11 +1,11 @@
-// modules/scripture/validators.js
+// modules/widget/validators.js
 //
-// Validation and compatibility helpers for the Ultrascripts Scripture module.
+// Validation and compatibility helpers for the Ultrascripts Widget module.
 // These are intentionally pure-ish utilities so the module can reject malformed
 // state without the renderer throwing during a Ultrascripts dispatch tick.
 
 (function () {
-  if (window.ScriptureValidators) return;
+  if (window.UltrascriptsWidgetValidators) return;
 
   const WIDGET_TYPES = new Set([
     // --- existing display ---
@@ -426,7 +426,7 @@
     return isPlainObject(styleObj) ? { ...styleObj } : {};
   }
 
-  window.ScriptureValidators = {
+  window.UltrascriptsWidgetValidators = {
     WIDGET_TYPES,
     VALID_ALIGNMENTS,
     INTERACTIVE_WIDGET_TYPES,
@@ -445,6 +445,6 @@
   };
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = window.ScriptureValidators;
+    module.exports = window.UltrascriptsWidgetValidators;
   }
 })();

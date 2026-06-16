@@ -1,4 +1,4 @@
-﻿// BetterDungeon background worker.
+// BetterDungeon background worker.
 //
 // Hosts privileged operations that content scripts should not perform inside
 // the page context. Phase 5 uses this for WebFetch so Ultrascripts ops can access
@@ -49,7 +49,6 @@
     features: 'betterDungeonFeatures',
     ultrascriptsModules: 'ultrascripts_enabled_modules',
     ultrascriptsDebug: 'ultrascripts_debug',
-    scriptureWidgetDisplay: 'ultrascripts_mod_scripture_widget_display',
     webfetchAllowlist: 'ultrascripts_webfetch_allowlist',
   };
   const SDK_DEFAULT_FEATURES = {
@@ -69,7 +68,7 @@
     textToSpeech: false,
   };
   const SDK_ULTRASCRIPTS_MODULES = [
-    'scripture',
+    'widget',
     'webfetch',
     'clock',
     'sdk',
@@ -79,12 +78,6 @@
     'system',
     'ai',
   ];
-  const SDK_DEFAULT_SCRIPTURE_WIDGET_DISPLAY = {
-    size: 'normal',
-    maxHeight: 'medium',
-    layout: 'balanced',
-  };
-
   const BLOCKED_RESPONSE_HEADERS = new Set([
     'set-cookie',
     'set-cookie2',
@@ -356,20 +349,6 @@
     return out;
   }
 
-  function normalizeSdkScriptureDisplay(raw) {
-    const display = raw && typeof raw === 'object' ? raw : {};
-    const size = ['compact', 'normal', 'comfortable', 'large'].includes(String(display.size || '').toLowerCase())
-      ? String(display.size).toLowerCase()
-      : SDK_DEFAULT_SCRIPTURE_WIDGET_DISPLAY.size;
-    const maxHeight = ['short', 'medium', 'tall'].includes(String(display.maxHeight || '').toLowerCase())
-      ? String(display.maxHeight).toLowerCase()
-      : SDK_DEFAULT_SCRIPTURE_WIDGET_DISPLAY.maxHeight;
-    const layout = ['balanced', 'stacked'].includes(String(display.layout || '').toLowerCase())
-      ? String(display.layout).toLowerCase()
-      : SDK_DEFAULT_SCRIPTURE_WIDGET_DISPLAY.layout;
-    return { size, maxHeight, layout };
-  }
-
   function summarizeSdkWebFetchAllowlist(raw) {
     const entries = raw && typeof raw === 'object' ? Object.entries(raw) : [];
     let allowCount = 0;
@@ -394,7 +373,6 @@
       ultrascripts: {
         debug: !!syncResult[SDK_SYNC_STORAGE_KEYS.ultrascriptsDebug],
         modulePreferences: normalizeSdkUltrascriptsModules(syncResult[SDK_SYNC_STORAGE_KEYS.ultrascriptsModules]),
-        scriptureDisplay: normalizeSdkScriptureDisplay(syncResult[SDK_SYNC_STORAGE_KEYS.scriptureWidgetDisplay]),
         webfetch: summarizeSdkWebFetchAllowlist(syncResult[SDK_SYNC_STORAGE_KEYS.webfetchAllowlist]),
       },
     };

@@ -11,7 +11,7 @@ standard templates after each module has been reviewed and finalized.
 
   - **`aid-scripts/ultrascripts-starter-template/`** - The canonical
     Enhanced with Ultrascripts starter. It includes heartbeat checks, response
-    polling, acks, op calls, the `bd.us` helper surface, Scripture publishing,
+    polling, acks, op calls, the `bd.us` helper surface, Widget publishing,
     and safe fallback behavior.
   - **`aid-scripts/ultrascripts-required-template/`** - The canonical Requires
     Ultrascripts starter. It uses the same helper surface, plus hard runtime
