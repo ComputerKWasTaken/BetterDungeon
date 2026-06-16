@@ -1,7 +1,8 @@
-# Ultrascripts AI Gemini - AI Dungeon Test Suite
+# Ultrascripts AI Module - AI Dungeon Test Suite
 
-End-to-end contract test scripts for the BetterDungeon Ultrascripts AI module
-and Gemini backend.
+End-to-end contract test scripts for the BetterDungeon Ultrascripts AI module.
+The current default backend is Gemini, but the suite is centered on the public
+`status` and `query` contract.
 
 ## What It Covers
 
@@ -11,11 +12,11 @@ The suite verifies:
 - `ai` advertises exactly the Phase 1 public ops: `status` and `query`.
 - Legacy ops are not advertised: `chat`, `models`, and `testConnection`.
 - The legacy provider alias is not advertised as a heartbeat module.
-- `ai.status` reports Gemini backend readiness, selected model, and key
+- `ai.status` reports query readiness, configured model selection, and key
   configuration state.
-- Plain text `ai.query` returns text when Gemini is configured, or
+- Plain text `ai.query` returns text when the backend is configured, or
   `not_configured` when no key is saved.
-- Schema-backed JSON `ai.query` returns parsed JSON when Gemini is configured,
+- Schema-backed JSON `ai.query` returns parsed JSON when the backend is configured,
   or `not_configured` when no key is saved.
 - `ai.query` accepts a `thinking` level and defaults to `minimal`.
 - Successful query responses expose diagnostics under `data.meta`, including
@@ -29,11 +30,11 @@ The suite verifies:
 1. Load the BetterDungeon extension and open AI Dungeon.
 2. Open BetterDungeon -> **Ultrascripts** and enable Ultrascripts and the
    **AI** module.
-3. For live generation checks, add a Gemini API key in the AI module card.
+3. For live generation checks, add an API key in the AI module card.
 4. Open or resume an adventure, then take one normal turn so BetterDungeon can
    write the heartbeat.
 
-Without a Gemini API key, the suite still verifies the contract and missing-key
+Without an API key, the suite still verifies the contract and missing-key
 errors, but live generation checks will not run.
 
 ## Install In A Scenario
@@ -71,4 +72,4 @@ A successful run ends with:
 - `invalidThinkingQuery.response.error.code: "invalid_args"`
 
 If no key is configured, the text and schema-backed JSON checks pass when they
-return `not_configured` from the Gemini backend instead.
+return `not_configured` instead.

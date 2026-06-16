@@ -1,7 +1,7 @@
 // Ultrascripts AI Contract Test Suite - AI Dungeon Library
 //
-// Verifies that the AI module exposes the status/query contract and Gemini
-// backend state. Pair with output-modifier.js.
+// Verifies that the AI module exposes the status/query contract and reports
+// usable backend state. Pair with output-modifier.js.
 
 state.ultrascriptsAiTest = state.ultrascriptsAiTest || {
   runId: null,
