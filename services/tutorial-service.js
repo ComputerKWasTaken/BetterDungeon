@@ -193,7 +193,7 @@ class TutorialService {
         type: 'spotlight',
         target: '[data-ultrascripts-module-card="ai"]',
         title: 'AI',
-        content: 'AI now exposes the stable status and query contract, while the actual generation backend is still pending.',
+        content: 'AI is BetterDungeon\'s asynchronous LLM query module. Scripts can check readiness with ai.status, submit ai.query requests, and receive text or schema-backed JSON results back on a later turn instead of blocking gameplay.',
         position: 'bottom',
         action: 'switchTab',
         actionTarget: 'ultrascripts',
@@ -204,7 +204,18 @@ class TutorialService {
         type: 'spotlight',
         target: '#ai-status',
         title: 'Using AI in Scripts',
-        content: 'Scripts can call module ai, op status, and later submit ai.query requests through the normal Ultrascripts out/in cards. Queries use Gemini when configured and return not_configured until the player saves an API key.',
+        content: 'Scripts call module ai, op status, then submit ai.query through the normal Ultrascripts out/in cards. The default setup uses Gemini, supports plain text or schema-backed JSON, and returns not_configured until the player saves an API key.',
+        position: 'top',
+        action: 'switchTab',
+        actionTarget: 'ultrascripts',
+        expandCard: true
+      },
+      {
+        id: 'ai-setup',
+        type: 'spotlight',
+        target: '#ai-gemini-api-key',
+        title: 'AI Setup',
+        content: 'To turn AI queries on for a scenario, save an API key here. BetterDungeon keeps the key in extension local storage, lets you choose automatic fallback or a manual model, and gives you a quick connection test in the popup.',
         position: 'top',
         action: 'switchTab',
         actionTarget: 'ultrascripts',
@@ -269,7 +280,7 @@ class TutorialService {
       {
         id: 'ai',
         title: 'AI',
-        description: 'Status-only placeholder during rebuild',
+        description: 'Async queries, status checks, and API-key setup',
         icon: 'icon-bot-message-square',
         stepId: 'ai-card'
       },
