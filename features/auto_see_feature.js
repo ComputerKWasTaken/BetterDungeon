@@ -1,89 +1,92 @@
 // BetterDungeon - Auto See Feature
-// Automatically sends a "See" action after AI outputs
-// Detects submitted actions and Continue actions, then triggers See and reverts to original input mode
+// Automatically sends an empty "See" action after AI outputs.
 
 class AutoSeeFeature {
   static id = 'autoSee';
 
   constructor() {
-    // DOM observation state
-    this.observer = null;
-    this.debounceTimer = null;
-    
-    // Track story content to detect AI response completion
-    this.lastStoryContent = '';
-    this.lastStoryLength = 0;
+    this.enabled = true;
+    this.debug = false;
+
+    this.currentAdventureId = null; // AI Dungeon URL shortId
     this.isProcessing = false;
     this.isWaitingForAIResponse = false;
-    
-    // Track user's original input mode for restoration
-    this.userOriginalMode = 'do'; // Default to 'do' mode
-    
-    // Settings
-    this.enabled = true;
-    this.delay = 500; // Fixed 0.5s delay before triggering See action
-    this.triggerMode = 'everyTurn'; // 'everyTurn' or 'afterNTurns'
-    this.turnInterval = 2; // If triggerMode is 'afterNTurns', trigger every N turns
+    this.currentOperationId = 0;
+    this.operationStartTime = null;
+
+    this.triggerMode = 'everyTurn';
+    this.turnInterval = 2;
     this.turnCounter = 0;
-    
-    // Selectors
-    this.storyOutputSelector = '#gameplay-output';
+
     this.inputAreaSelector = '[aria-label="Change input mode"]';
+    this.inputModeMenuSelector = '[aria-label="Change input mode"]';
     this.submitButtonSelector = '[aria-label="Submit action"]';
     this.continueButtonSelector = '[aria-label="Command: continue"]';
-    this.inputModeMenuSelector = '[aria-label="Change input mode"]';
-    this.closeInputModeMenuSelector = '[aria-label="Close \'Input Mode\' menu"]';
-    this.takeATurnSelector = '[aria-label="Command: take a turn"]';
-    this.closeInputSelector = '[aria-label="Close text input"]';
     this.textInputSelector = '#game-text-input';
-    
-    // Mode selectors for switching
-    this.modeSelectors = {
-      'do': '[aria-label="Set to \'Do\' mode"]',
-      'try': '[aria-label="Set to \'Try\' mode"]',
-      'say': '[aria-label="Set to \'Say\' mode"]',
-      'story': '[aria-label="Set to \'Story\' mode"]',
-      'see': '[aria-label="Set to \'See\' mode"]',
-      'command': '[aria-label="Set to \'Command\' mode"]'
-    };
-    
-    // Bound event listeners for cleanup
+
     this.boundClickHandler = null;
     this.boundEnterKeyHandler = null;
     this.boundContinueHotkeyHandler = null;
     this.boundVisibilityHandler = null;
     this.boundUserInterruptHandler = null;
-    this.debug = false;
-    
-    // ==================== STABILITY IMPROVEMENTS ====================
-    // Operation tracking for cancellation and staleness detection
-    this.currentOperationId = 0;
-    this.operationStartTime = null;
-    
-    // Timeout configurations (in milliseconds)
-    this.TIMEOUTS = {
-      WAITING_FOR_AI: 60000,      // Max time to wait for AI response (60s)
-      PROCESSING_OPERATION: 30000, // Max time for the entire See action (30s)
-      STEP_TIMEOUT: 5000,          // Max time for individual steps (5s)
-      RATE_LIMIT_COOLDOWN: 1000    // Minimum time between trigger attempts (1s)
-    };
-    
-    // Rate limiting
-    this.lastTriggerAttempt = 0;
-    
-    // Safety reset timer for stuck states
-    this.safetyResetTimer = null;
-    this.waitingForAITimer = null;
-    
-    // Stability checking for reliable AI response detection
-    this.stabilityCheckTimer = null;
-    this.lastCheckedContent = '';
-    this.stableContentCount = 0;
-    this.STABILITY_THRESHOLD = 2; // Content must be stable for this many checks
-    this.STABILITY_CHECK_INTERVAL = 300; // ms between stability checks
-  }
+    this.originalPushState = null;
+    this.originalReplaceState = null;
 
-  // ==================== LIFECYCLE ====================
+    this.waitingForAITimer = null;
+    this.safetyResetTimer = null;
+    this.lastTriggerAttempt = 0;
+    this.lastObservedActionEvent = null;
+
+    this.TIMEOUTS = {
+      WAITING_FOR_AI: 60000,
+      PROCESSING_OPERATION: 45000,
+      RATE_LIMIT_COOLDOWN: 1000,
+    };
+
+    this.ACTION_REQUEST_QUERY = `mutation ActionRequest($input: ActionRequestInput!) {
+      actionRequest(input: $input) {
+        success
+        message
+        errorContext
+        __typename
+      }
+    }`;
+
+    this.SEND_EVENT_QUERY = `mutation SendEvent($input: EventStreamInput) {
+      sendEvent(input: $input) {
+        success
+        __typename
+      }
+    }`;
+
+    this.GET_LATEST_ACTION_FOR_TIMEOUT_QUERY = `query GetLatestActionForTimeout($shortId: String, $limit: Int, $desc: Boolean) {
+      adventure(shortId: $shortId) {
+        id
+        actionCount
+        actionWindow(limit: $limit, desc: $desc) {
+          id
+          adventureId
+          updatedAt
+          __typename
+        }
+        __typename
+      }
+    }`;
+
+    this.REFETCH_LATEST_ACTION_FOR_TIMEOUT_QUERY = `query RefetchLatestActionForTimeout($shortId: String, $limit: Int, $desc: Boolean) {
+      adventure(shortId: $shortId) {
+        id
+        actionCount
+        actionWindow(limit: $limit, desc: $desc) {
+          id
+          adventureId
+          updatedAt
+          __typename
+        }
+        __typename
+      }
+    }`;
+  }
 
   async init() {
     console.log('[AutoSee] Initializing Auto See feature...');
@@ -93,243 +96,152 @@ class AutoSeeFeature {
     this.setupActionDetection();
     this.setupVisibilityHandling();
     this.setupUserInterruptDetection();
-    this.startObserving();
     this.log('[AutoSee] Initialization complete. Enabled:', this.enabled, 'Mode:', this.triggerMode);
   }
 
   destroy() {
     this.log('[AutoSee] Destroying Auto See feature...');
-    
-    // Abort any ongoing operation
     this.abortCurrentOperation('Feature destroyed');
-    
-    // Clean up observer
-    if (this.observer) {
-      this.observer.disconnect();
-      this.observer = null;
-    }
-    
-    // Clean up all timers
     this.clearAllTimers();
-    
-    // Clean up action detection listeners
     this.cleanupActionDetection();
-    
-    // Clean up visibility handler
+
     if (this.boundVisibilityHandler) {
       document.removeEventListener('visibilitychange', this.boundVisibilityHandler);
       this.boundVisibilityHandler = null;
     }
-    
-    // Clean up user interrupt handler
     if (this.boundUserInterruptHandler) {
       document.removeEventListener('click', this.boundUserInterruptHandler, true);
       this.boundUserInterruptHandler = null;
     }
-    
+    if (this.originalPushState) {
+      history.pushState = this.originalPushState;
+      this.originalPushState = null;
+    }
+    if (this.originalReplaceState) {
+      history.replaceState = this.originalReplaceState;
+      this.originalReplaceState = null;
+    }
+
     this.resetState();
-    this.log('[AutoSee] Cleanup complete');
   }
 
-  // ==================== STATE MANAGEMENT ====================
-
-  /**
-   * Resets all state flags to their initial values
-   */
   resetState() {
     this.isProcessing = false;
     this.isWaitingForAIResponse = false;
     this.operationStartTime = null;
-    this.log('[AutoSee] State reset complete');
   }
 
-  /**
-   * Clears all active timers to prevent memory leaks and stale callbacks
-   */
   clearAllTimers() {
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-      this.debounceTimer = null;
+    if (this.waitingForAITimer) {
+      clearTimeout(this.waitingForAITimer);
+      this.waitingForAITimer = null;
     }
     if (this.safetyResetTimer) {
       clearTimeout(this.safetyResetTimer);
       this.safetyResetTimer = null;
     }
-    if (this.waitingForAITimer) {
-      clearTimeout(this.waitingForAITimer);
-      this.waitingForAITimer = null;
-    }
-    if (this.stabilityCheckTimer) {
-      clearInterval(this.stabilityCheckTimer);
-      this.stabilityCheckTimer = null;
-    }
   }
 
-  /**
-   * Aborts the current operation if one is in progress
-   * @param {string} reason - Reason for aborting
-   */
   abortCurrentOperation(reason) {
     if (this.isProcessing || this.isWaitingForAIResponse) {
       this.log('[AutoSee] Aborting current operation:', reason);
-      this.currentOperationId++; // Invalidate any ongoing async operations
+      this.currentOperationId++;
       this.clearAllTimers();
       this.resetState();
-      
-      // Try to clean up any open UI elements
-      this.safeCleanupUI();
     }
   }
 
-  /**
-   * Safely attempts to close any open UI elements without throwing errors
-   */
-  safeCleanupUI() {
-    try {
-      this.closeInputModeMenu();
-      this.closeInputArea();
-    } catch (e) {
-      this.log('[AutoSee] Error during UI cleanup:', e);
-    }
-  }
-
-  /**
-   * Checks if an operation is still valid (not stale/cancelled)
-   * @param {number} operationId - The operation ID to check
-   * @returns {boolean} True if operation is still valid
-   */
   isOperationValid(operationId) {
     return operationId === this.currentOperationId;
   }
 
-  /**
-   * Sets up a safety timeout that will reset stuck states
-   * @param {number} timeout - Timeout duration in milliseconds
-   * @param {string} context - Description of what we're timing out
-   */
   setupSafetyTimeout(timeout, context) {
-    this.clearSafetyTimeout();
+    if (this.safetyResetTimer) clearTimeout(this.safetyResetTimer);
     this.safetyResetTimer = setTimeout(() => {
       if (this.isProcessing || this.isWaitingForAIResponse) {
-        console.warn(`[AutoSee] Safety timeout triggered: ${context} - resetting state`);
+        console.warn(`[AutoSee] Safety timeout triggered: ${context}`);
         this.abortCurrentOperation(`Safety timeout: ${context}`);
       }
     }, timeout);
   }
 
-  /**
-   * Clears the safety timeout
-   */
-  clearSafetyTimeout() {
-    if (this.safetyResetTimer) {
-      clearTimeout(this.safetyResetTimer);
-      this.safetyResetTimer = null;
-    }
-  }
-
-  // ==================== SETTINGS ====================
-
   async loadSettings() {
-    this.log('[AutoSee] Loading settings...');
     try {
       const result = await chrome.storage.sync.get([
         'betterDungeon_autoSeeTriggerMode',
-        'betterDungeon_autoSeeTurnInterval'
+        'betterDungeon_autoSeeTurnInterval',
       ]);
-      // NOTE: We don't touch this.enabled here - FeatureManager sets it before init()
-      // This ensures FeatureManager is the single source of truth for enabled state
       this.triggerMode = (result || {}).betterDungeon_autoSeeTriggerMode ?? 'everyTurn';
       this.turnInterval = (result || {}).betterDungeon_autoSeeTurnInterval ?? 2;
-      this.log('[AutoSee] Settings loaded - Enabled:', this.enabled, 'TriggerMode:', this.triggerMode, 'TurnInterval:', this.turnInterval);
-    } catch (e) {
-      console.error('[AutoSee] ERROR: Error loading settings:', e);
+    } catch (error) {
+      console.error('[AutoSee] Error loading settings:', error);
     }
   }
 
   setTriggerMode(mode) {
-    this.log('[AutoSee] Setting trigger mode:', mode);
     this.triggerMode = mode;
     chrome.storage.sync.set({ betterDungeon_autoSeeTriggerMode: mode });
   }
 
   setTurnInterval(interval) {
     this.turnInterval = Math.max(2, Math.min(10, interval));
-    this.log('[AutoSee] Setting turn interval:', this.turnInterval);
     chrome.storage.sync.set({ betterDungeon_autoSeeTurnInterval: this.turnInterval });
   }
 
-  // ==================== ADVENTURE DETECTION ====================
-
   detectCurrentAdventure() {
-    const match = window.location.pathname.match(/\/adventure\/([^\/]+)/);
-    const newAdventureId = match ? match[1] : null;
-    
-    if (newAdventureId !== this.currentAdventureId) {
-      this.log('[AutoSee] Adventure changed from', this.currentAdventureId, 'to', newAdventureId);
-      // Reset state on adventure change
-      this.lastStoryContent = '';
-      this.lastStoryLength = 0;
+    const nextAdventureId = this.getCurrentAdventureShortId();
+
+    if (nextAdventureId !== this.currentAdventureId) {
+      this.abortCurrentOperation('Adventure changed');
       this.turnCounter = 0;
-      this.isProcessing = false;
-      this.isWaitingForAIResponse = false;
-      this.userOriginalMode = 'do';
+      this.currentAdventureId = nextAdventureId;
+      this.log('[AutoSee] Adventure changed to', this.currentAdventureId);
     }
-    
-    this.currentAdventureId = newAdventureId;
+  }
+
+  getCurrentAdventureShortId() {
+    return (
+      window.Ultrascripts?.ws?.getAdventureShortId?.() ||
+      window.location.pathname.match(/\/(?:adventures?|play)\/([^/]+)/)?.[1] ||
+      null
+    );
   }
 
   startAdventureChangeDetection() {
-    this.log('[AutoSee] Starting adventure change detection...');
-    // Listen for popstate (back/forward navigation)
-    window.addEventListener('popstate', () => {
-      this.abortCurrentOperation('Navigation detected (popstate)');
-      this.detectCurrentAdventure();
-    });
-    
-    // Watch for URL changes via history API
-    const originalPushState = history.pushState;
-    const originalReplaceState = history.replaceState;
-    
+    window.addEventListener('popstate', () => this.detectCurrentAdventure());
+
+    this.originalPushState = history.pushState;
+    this.originalReplaceState = history.replaceState;
+
     history.pushState = (...args) => {
-      originalPushState.apply(history, args);
-      this.abortCurrentOperation('Navigation detected (pushState)');
+      this.originalPushState.apply(history, args);
       this.detectCurrentAdventure();
     };
-    
+
     history.replaceState = (...args) => {
-      originalReplaceState.apply(history, args);
-      this.abortCurrentOperation('Navigation detected (replaceState)');
+      this.originalReplaceState.apply(history, args);
       this.detectCurrentAdventure();
     };
   }
 
-  /**
-   * Sets up visibility change handling to abort operations when user switches tabs
-   */
   setupVisibilityHandling() {
     this.boundVisibilityHandler = () => {
       if (document.hidden && (this.isProcessing || this.isWaitingForAIResponse)) {
-        this.log('[AutoSee] Page hidden, aborting current operation');
         this.abortCurrentOperation('Page hidden');
       }
     };
     document.addEventListener('visibilitychange', this.boundVisibilityHandler);
   }
 
-  /**
-   * Sets up detection for unexpected user interactions that should abort Auto See
-   */
   setupUserInterruptDetection() {
-    this.boundUserInterruptHandler = (e) => {
-      // Only check during processing phase (not waiting for AI)
-      if (!this.isProcessing) return;
-      // Ignore synthetic clicks triggered by Auto See itself
-      if (!e.isTrusted) return;
-      
-      // Check if user clicked something that indicates they want to take control
-      const target = e.target.closest('[aria-label]');
+    this.boundUserInterruptHandler = (event) => {
+      if (!this.isProcessing && !this.isWaitingForAIResponse) return;
+      if (!event.isTrusted) return;
+      if (this.isSameObservedActionEvent(event)) return;
+
+      const target = event.target.closest('[aria-label]');
       if (!target) return;
-      
+
       const ariaLabel = target.getAttribute('aria-label');
       const interruptLabels = [
         'Command: take a turn',
@@ -338,43 +250,28 @@ class AutoSeeFeature {
         'Command: erase',
         'Close text input',
         'Undo change',
-        'Redo change'
+        'Redo change',
       ];
-      
+
       if (interruptLabels.includes(ariaLabel)) {
-        this.log('[AutoSee] User interaction detected during processing:', ariaLabel);
-        this.abortCurrentOperation('User interaction: ' + ariaLabel);
+        this.abortCurrentOperation(`User interaction: ${ariaLabel}`);
       }
     };
-    // Use capture phase with lower priority than action detection
+
     document.addEventListener('click', this.boundUserInterruptHandler, true);
   }
 
-  // ==================== ACTION DETECTION ====================
-  // Detects when user submits an action or clicks Continue to trigger Auto See
-
   setupActionDetection() {
-    this.log('[AutoSee] Setting up action detection listeners...');
-    
-    // Click handler for Submit and Continue buttons (event delegation)
-    this.boundClickHandler = (e) => this.handleActionClick(e);
-    
-    // Enter key handler for text input submissions
-    this.boundEnterKeyHandler = (e) => this.handleEnterKeySubmit(e);
-    
-    // Custom event handler for Continue hotkey from HotkeyFeature
+    this.boundClickHandler = (event) => this.handleActionClick(event);
+    this.boundEnterKeyHandler = (event) => this.handleEnterKeySubmit(event);
     this.boundContinueHotkeyHandler = () => this.handleContinueHotkey();
-    
-    // Attach listeners (capture phase to catch before action is processed)
+
     document.addEventListener('click', this.boundClickHandler, true);
     document.addEventListener('keydown', this.boundEnterKeyHandler, true);
     document.addEventListener('betterdungeon:continue-hotkey', this.boundContinueHotkeyHandler);
-    
-    this.log('[AutoSee] Action detection listeners attached (click + Enter key + Continue hotkey)');
   }
 
   cleanupActionDetection() {
-    this.log('[AutoSee] Cleaning up action detection listeners...');
     if (this.boundClickHandler) {
       document.removeEventListener('click', this.boundClickHandler, true);
       this.boundClickHandler = null;
@@ -389,699 +286,475 @@ class AutoSeeFeature {
     }
   }
 
-  /**
-   * Handles Continue action triggered via hotkey (from HotkeyFeature)
-   */
   handleContinueHotkey() {
     if (!this.canProcessAction('Continue hotkey')) return;
-    this.log('[AutoSee] === CONTINUE HOTKEY DETECTED ===');
-    this.prepareForAIResponse(false); // false = don't capture mode (Continue doesn't have input open)
+    this.prepareForAIResponse({ captureMode: false, source: 'continue hotkey' });
   }
 
-  /**
-   * Handles Enter key press to detect submit action when user presses Enter in the text input
-   */
-  handleEnterKeySubmit(e) {
-    // Only handle Enter key (not Shift+Enter which is typically newline)
-    if (e.key !== 'Enter' || e.shiftKey) return;
-    
-    // Check if the active element is the game text input
+  handleEnterKeySubmit(event) {
+    if (event.key !== 'Enter' || event.shiftKey) return;
     const activeElement = document.activeElement;
     if (!activeElement || activeElement.id !== 'game-text-input') return;
-    
-    // Check if input area is open (submit button should be visible)
-    if (!this.isInputAreaOpen()) return;
-    
     if (!this.canProcessAction('Enter key')) return;
-    this.log('[AutoSee] === ENTER KEY SUBMIT DETECTED ===');
-    this.prepareForAIResponse(true); // true = capture current mode
+    this.recordObservedActionEvent(event, 'Submit action');
+    this.prepareForAIResponse({ captureMode: true, source: 'enter key' });
   }
 
-  /**
-   * Handles click events on Submit and Continue buttons
-   */
-  handleActionClick(e) {
-    const target = e.target.closest('[aria-label]');
-    if (!target) return;
-    
-    const ariaLabel = target.getAttribute('aria-label');
-    
-    if (ariaLabel === 'Submit action') {
+  handleActionClick(event) {
+    if (event.target.closest(this.submitButtonSelector)) {
       if (!this.canProcessAction('click')) return;
-      this.log('[AutoSee] === SUBMIT ACTION DETECTED ===');
-      this.prepareForAIResponse(true); // true = capture current mode
-    } else if (ariaLabel === 'Command: continue') {
+      this.recordObservedActionEvent(event, 'Submit action');
+      this.prepareForAIResponse({ captureMode: true, source: 'submit click' });
+    } else if (event.target.closest(this.continueButtonSelector)) {
       if (!this.canProcessAction('click')) return;
-      this.log('[AutoSee] === CONTINUE ACTION DETECTED ===');
-      this.prepareForAIResponse(false); // false = don't capture mode
+      this.recordObservedActionEvent(event, 'Command: continue');
+      this.prepareForAIResponse({ captureMode: false, source: 'continue click' });
     }
   }
 
-  /**
-   * Checks if we can process a new action
-   * @param {string} source - Source of the action for logging
-   * @returns {boolean} True if action can be processed
-   */
+  recordObservedActionEvent(event, ariaLabel) {
+    this.lastObservedActionEvent = {
+      timeStamp: event?.timeStamp ?? null,
+      ariaLabel,
+      recordedAt: Date.now(),
+    };
+  }
+
+  isSameObservedActionEvent(event) {
+    const observed = this.lastObservedActionEvent;
+    if (!observed || observed.timeStamp == null || event?.timeStamp == null) return false;
+    return observed.timeStamp === event.timeStamp && Date.now() - observed.recordedAt < 1000;
+  }
+
   canProcessAction(source) {
     if (!this.enabled || !this.currentAdventureId) return false;
-    
-    // Rate limiting check
+
     const now = Date.now();
     if (now - this.lastTriggerAttempt < this.TIMEOUTS.RATE_LIMIT_COOLDOWN) {
-      this.log(`[AutoSee] Ignoring ${source} - rate limited (${now - this.lastTriggerAttempt}ms since last attempt)`);
+      this.log('[AutoSee] Ignoring', source, '- rate limited');
       return false;
     }
-    
-    if (this.isProcessing) {
-      this.log(`[AutoSee] Ignoring ${source} - currently processing Auto See`);
+    if (this.isProcessing || this.isWaitingForAIResponse) {
+      this.log('[AutoSee] Ignoring', source, '- operation already active');
       return false;
     }
-    if (this.isWaitingForAIResponse) {
-      this.log(`[AutoSee] Ignoring ${source} - already waiting for AI response`);
-      return false;
-    }
-    
+
     this.lastTriggerAttempt = now;
     return true;
   }
 
-  /**
-   * Prepares the feature to wait for an AI response after a user action
-   * @param {boolean} captureMode - Whether to capture the current input mode
-   */
-  prepareForAIResponse(captureMode) {
-    // Capture current input mode if requested (for Submit actions where input is open)
-    if (captureMode) {
-      const currentMode = this.detectCurrentInputMode();
-      if (currentMode && currentMode !== 'see') {
-        this.userOriginalMode = currentMode;
-        this.log('[AutoSee] Stored user original mode:', this.userOriginalMode);
-      } else {
-        this.log('[AutoSee] Current mode is "see" or unknown, keeping previous mode:', this.userOriginalMode);
-      }
-    } else {
-      this.log('[AutoSee] Using stored original mode:', this.userOriginalMode);
+  prepareForAIResponse({ captureMode, source }) {
+    if (captureMode && this.detectCurrentInputMode() === 'see') {
+      this.log('[AutoSee] Ignoring manual See submission');
+      return;
     }
-    
-    // Capture current story content as baseline for detecting AI response
-    this.captureCurrentStoryContent();
-    this.log('[AutoSee] Captured story content at action time, length:', this.lastStoryLength);
-    
-    // Set flag and increment turn counter
+
+    const gql = window.BetterDungeonGQL;
+    if (!gql?.waitForActionUpdate) {
+      console.warn('[AutoSee] BetterDungeonGQL is not available; cannot wait for action updates.');
+      return;
+    }
+
+    const baseline = this.getActionBaseline();
+    this.currentOperationId++;
+    const operationId = this.currentOperationId;
+    const adventureAtStart = this.currentAdventureId;
+
     this.isWaitingForAIResponse = true;
-    this.turnCounter++;
-    this.log('[AutoSee] Turn counter incremented to:', this.turnCounter);
-    this.log('[AutoSee] Waiting for AI response (content must change from current state)...');
-    
-    // Reset stability tracking
-    this.lastCheckedContent = this.lastStoryContent;
-    this.stableContentCount = 0;
-    
-    // Start stability checking as a backup detection mechanism
-    // This catches cases where MutationObserver misses updates or debounce timing is off
-    this.startStabilityChecking();
-    
-    // Set up timeout for waiting for AI response
-    if (this.waitingForAITimer) {
-      clearTimeout(this.waitingForAITimer);
-    }
+    this.log('[AutoSee] Waiting for AI response after', source, baseline);
+
     this.waitingForAITimer = setTimeout(() => {
-      if (this.isWaitingForAIResponse) {
-        console.warn('[AutoSee] Timeout waiting for AI response - resetting state');
-        this.stopStabilityChecking();
+      if (this.isWaitingForAIResponse && this.isOperationValid(operationId)) {
+        console.warn('[AutoSee] Timeout waiting for AI response');
         this.isWaitingForAIResponse = false;
-        this.turnCounter--; // Decrement since we didn't actually process this turn
-        this.log('[AutoSee] Turn counter decremented back to:', this.turnCounter);
       }
     }, this.TIMEOUTS.WAITING_FOR_AI);
-  }
 
-  /**
-   * Starts periodic stability checking as a backup to MutationObserver
-   * This ensures we catch AI responses even if mutation events are missed
-   */
-  startStabilityChecking() {
-    this.stopStabilityChecking(); // Clear any existing interval
-    
-    this.stabilityCheckTimer = setInterval(() => {
-      if (!this.isWaitingForAIResponse || this.isProcessing) {
-        this.stopStabilityChecking();
-        return;
+    gql.waitForActionUpdate(
+      (detail) => (
+        this.isOperationValid(operationId) &&
+        this.currentAdventureId === adventureAtStart &&
+        this.isUserTurnComplete(detail, baseline)
+      ),
+      this.TIMEOUTS.WAITING_FOR_AI
+    ).then((detail) => {
+      this.handleUserTurnComplete(operationId, adventureAtStart, detail);
+    }).catch((error) => {
+      if (this.isOperationValid(operationId) && this.isWaitingForAIResponse) {
+        console.warn('[AutoSee] Failed while waiting for AI response:', error);
+        this.isWaitingForAIResponse = false;
       }
-      this.performStabilityCheck();
-    }, this.STABILITY_CHECK_INTERVAL);
-    
-    this.log('[AutoSee] Stability checking started');
-  }
-
-  /**
-   * Stops the stability checking interval
-   */
-  stopStabilityChecking() {
-    if (this.stabilityCheckTimer) {
-      clearInterval(this.stabilityCheckTimer);
-      this.stabilityCheckTimer = null;
-      this.log('[AutoSee] Stability checking stopped');
-    }
-  }
-
-  /**
-   * Performs a stability check to detect when AI response is complete
-   * Content is considered stable when it hasn't changed for STABILITY_THRESHOLD consecutive checks
-   */
-  performStabilityCheck() {
-    // Skip if input area is open (user typing or AI still generating in some UI states)
-    if (this.isInputAreaOpen()) {
-      this.stableContentCount = 0; // Reset stability counter
-      this.log('[AutoSee] Stability check: input area open, resetting counter');
-      return;
-    }
-    
-    const storyOutput = document.querySelector(this.storyOutputSelector);
-    if (!storyOutput) return;
-    
-    const currentContent = storyOutput.textContent?.trim() || '';
-    
-    // Check if content has changed from baseline (AI has responded)
-    const hasChanged = currentContent !== this.lastStoryContent && currentContent.length > 0;
-    
-    if (!hasChanged) {
-      this.log('[AutoSee] Stability check: no change from baseline yet');
-      return;
-    }
-    
-    // Content has changed - now check if it's stable (stopped changing)
-    if (currentContent === this.lastCheckedContent) {
-      this.stableContentCount++;
-      this.log('[AutoSee] Stability check: content stable, count:', this.stableContentCount, '/', this.STABILITY_THRESHOLD);
-      
-      if (this.stableContentCount >= this.STABILITY_THRESHOLD) {
-        // Content is stable - trigger the response detection
-        this.log('[AutoSee] Stability check: content is stable, triggering AI response detection');
-        this.stopStabilityChecking();
-        this.handleAIResponseDetected(currentContent);
-      }
-    } else {
-      // Content still changing, reset counter
-      this.stableContentCount = 0;
-      this.lastCheckedContent = currentContent;
-      this.log('[AutoSee] Stability check: content still changing, length:', currentContent.length);
-    }
-  }
-
-  // ==================== OUTPUT OBSERVATION ====================
-  // Watches for AI response completion to trigger the See action
-
-  startObserving() {
-    this.log('[AutoSee] Starting output observation...');
-    
-    if (this.observer) {
-      this.observer.disconnect();
-    }
-
-    this.observer = new MutationObserver((mutations) => {
-      // Only process if we're on an adventure page and feature is enabled
-      if (!this.currentAdventureId || !this.enabled) return;
-      
-      // Only check for new output if we're waiting for an AI response
-      if (!this.isWaitingForAIResponse) return;
-      
-      // Debounce to avoid triggering on partial updates (streaming)
-      // Use a longer delay to let the AI finish generating
-      if (this.debounceTimer) {
-        clearTimeout(this.debounceTimer);
-      }
-      
-      this.debounceTimer = setTimeout(() => {
-        this.checkForAIResponseComplete();
-      }, this.delay);
     });
-
-    // Observe the entire document for story output changes
-    this.observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      characterData: true
-    });
-    
-    // NOTE: We do NOT capture initial content here anymore
-    // Content is captured when the user clicks Submit/Continue
-    // This prevents false positives from page load
-    this.log('[AutoSee] Output observation started (waiting for user action to capture baseline)');
   }
 
-  captureCurrentStoryContent() {
-    const storyOutput = document.querySelector(this.storyOutputSelector);
-    if (storyOutput) {
-      this.lastStoryContent = storyOutput.textContent?.trim() || '';
-      this.lastStoryLength = this.lastStoryContent.length;
-      this.log('[AutoSee] Captured story content, length:', this.lastStoryLength);
-    }
-  }
+  handleUserTurnComplete(operationId, adventureAtStart, detail) {
+    if (!this.isOperationValid(operationId) || !this.isWaitingForAIResponse) return;
 
-  checkForAIResponseComplete() {
-    // Don't trigger if already processing
-    if (this.isProcessing) {
-      this.log('[AutoSee] Skipping check - already processing');
-      return;
-    }
-    
-    // Don't trigger if input area is open (user is typing or about to submit something)
-    // Note: Input area is CLOSED during AI generation, this check prevents interference with user input
-    if (this.isInputAreaOpen()) {
-      this.log('[AutoSee] Skipping check - input area is open (user may be typing)');
-      return;
+    if (this.waitingForAITimer) {
+      clearTimeout(this.waitingForAITimer);
+      this.waitingForAITimer = null;
     }
 
-    const storyOutput = document.querySelector(this.storyOutputSelector);
-    if (!storyOutput) {
-      this.log('[AutoSee] Skipping check - story output not found');
-      return;
-    }
-
-    const currentContent = storyOutput.textContent?.trim() || '';
-    const currentLength = currentContent.length;
-    
-    // Must have a baseline to compare against
-    if (this.lastStoryLength === 0) {
-      this.log('[AutoSee] Skipping check - no baseline content captured yet');
-      return;
-    }
-    
-    // Check if content has changed from our captured baseline
-    // Use both length comparison AND content comparison for reliability
-    const hasGrown = currentLength > this.lastStoryLength;
-    const hasChanged = currentContent !== this.lastStoryContent;
-    
-    if (hasGrown || (hasChanged && currentLength > 0)) {
-      const changeType = hasGrown ? 'grew' : 'changed';
-      this.log('[AutoSee] AI response detected! Content', changeType, 'from', this.lastStoryLength, 'to', currentLength, 
-        hasGrown ? '(+' + (currentLength - this.lastStoryLength) + ' chars)' : '(content replaced)');
-      
-      // Stop stability checking since we detected via MutationObserver
-      this.stopStabilityChecking();
-      
-      this.handleAIResponseDetected(currentContent);
-    } else {
-      this.log('[AutoSee] Content unchanged - current:', currentLength, 'baseline:', this.lastStoryLength);
-    }
-  }
-
-  /**
-   * Handles when an AI response is detected (called by both MutationObserver and stability checker)
-   * @param {string} currentContent - The current story content
-   */
-  handleAIResponseDetected(currentContent) {
-    // Prevent double-triggering
-    if (!this.isWaitingForAIResponse) {
-      this.log('[AutoSee] handleAIResponseDetected called but not waiting - ignoring');
-      return;
-    }
-    
-    // Update tracked content
-    this.lastStoryContent = currentContent;
-    this.lastStoryLength = currentContent.length;
-    
-    // Clear the waiting flag
     this.isWaitingForAIResponse = false;
-    
-    // Check if we should trigger based on mode
-    if (this.shouldTriggerSee()) {
-      this.log('[AutoSee] AI response complete - waiting 300ms before triggering See action...');
-      // Add a small delay after AI response completes before triggering See
-      // This ensures the response is fully rendered and stable
-      setTimeout(() => {
-        this.log('[AutoSee] Delay complete - triggering See action now');
-        this.triggerSeeAction();
-      }, 300);
-    } else {
-      this.log('[AutoSee] Skipping See trigger - turn interval not reached (turn', this.turnCounter, ', interval', this.turnInterval, ')');
+    this.turnCounter++;
+    this.log('[AutoSee] User turn complete. Turn counter:', this.turnCounter, detail);
+
+    if (!this.shouldTriggerSee()) return;
+
+    setTimeout(() => {
+      if (this.currentAdventureId !== adventureAtStart) return;
+      this.triggerSeeAction();
+    }, 300);
+  }
+
+  isUserTurnComplete(detail, baseline) {
+    if (!detail || detail.source === 'initial') return false;
+
+    const candidates = Array.isArray(detail.changed) && detail.changed.length > 0
+      ? detail.changed
+      : (Array.isArray(detail.actions) ? detail.actions : []);
+
+    const newLiveActions = candidates.filter(action =>
+      this.isLiveAction(action) && this.isAfterBaseline(action.id, baseline)
+    );
+
+    if (newLiveActions.length > 0) {
+      return newLiveActions.some(action => String(action.type || '').toLowerCase() !== 'see');
     }
+
+    if (detail.tail && detail.tail !== baseline.tail) {
+      return true;
+    }
+
+    const liveCount = Number.isFinite(detail.liveCount)
+      ? detail.liveCount
+      : window.Ultrascripts?.ws?.getLiveCount?.();
+    return Number.isFinite(liveCount) && liveCount > baseline.liveCount;
   }
 
   shouldTriggerSee() {
-    if (this.triggerMode === 'everyTurn') {
-      this.log('[AutoSee] shouldTriggerSee: everyTurn mode - returning true');
-      return true;
-    } else if (this.triggerMode === 'afterNTurns') {
-      const shouldTrigger = this.turnCounter % this.turnInterval === 0;
-      this.log('[AutoSee] shouldTriggerSee: afterNTurns mode - turn', this.turnCounter, 'interval', this.turnInterval, '- returning', shouldTrigger);
-      return shouldTrigger;
-    }
-    this.log('[AutoSee] shouldTriggerSee: unknown mode - returning false');
+    if (this.triggerMode === 'everyTurn') return true;
+    if (this.triggerMode === 'afterNTurns') return this.turnCounter % this.turnInterval === 0;
     return false;
-  }
-
-  // ==================== SEE ACTION TRIGGERING ====================
-
-  isInputAreaOpen() {
-    return !!document.querySelector(this.inputAreaSelector);
-  }
-
-  /**
-   * Detects the current input mode from the mode button text
-   * @returns {string|null} The current mode name (lowercase) or null if not found
-   */
-  detectCurrentInputMode() {
-    const modeButton = document.querySelector(this.inputModeMenuSelector);
-    if (modeButton) {
-      const modeText = modeButton.querySelector('.font_body');
-      if (modeText) {
-        const mode = modeText.textContent.toLowerCase().trim();
-        this.log('[AutoSee] Detected current input mode:', mode);
-        return mode;
-      }
-    }
-    this.log('[AutoSee] Could not detect current input mode');
-    return null;
   }
 
   async triggerSeeAction() {
-    if (this.isProcessing) {
-      this.log('[AutoSee] triggerSeeAction called but already processing - skipping');
+    if (this.isProcessing || !this.currentAdventureId) return;
+
+    const gql = window.BetterDungeonGQL;
+    if (!gql?.requestBatch || !gql?.getAdventureIdentity) {
+      console.warn('[AutoSee] BetterDungeonGQL is not available; cannot send See action.');
       return;
     }
-    
-    // Start new operation with unique ID
+
     this.currentOperationId++;
     const operationId = this.currentOperationId;
+    const adventureAtStart = this.currentAdventureId;
+    const requestKey = this.createRequestKey();
+    const baseline = this.getActionBaseline();
+
     this.isProcessing = true;
     this.operationStartTime = Date.now();
-    
-    this.log('[AutoSee] ========== STARTING SEE ACTION (Op ID:', operationId, ') ==========');
-    this.log('[AutoSee] User original mode to restore:', this.userOriginalMode);
-    
-    // Set up overall operation timeout
-    this.setupSafetyTimeout(this.TIMEOUTS.PROCESSING_OPERATION, 'See action processing');
+    this.setupSafetyTimeout(this.TIMEOUTS.PROCESSING_OPERATION, 'See action');
 
     try {
-      // Step 1: Open the input area by clicking "Take a Turn"
-      this.log('[AutoSee] Step 1: Opening input area...');
-      if (!this.isOperationValid(operationId)) {
-        this.log('[AutoSee] Operation cancelled before step 1');
-        return;
-      }
-      
-      const takeATurnBtn = document.querySelector(this.takeATurnSelector);
-      if (!takeATurnBtn) {
-        this.log('[AutoSee] ERROR: Take a Turn button not found!');
-        return;
-      }
+      this.log('[AutoSee] Sending GraphQL See action', { operationId, requestKey, baseline });
+      const identity = await gql.getAdventureIdentity(adventureAtStart, { timeoutMs: 10000 });
+      const shortId = identity.shortId || adventureAtStart;
 
-      takeATurnBtn.click();
-      await this.waitWithValidation(300, operationId);
-      if (!this.isOperationValid(operationId)) return;
-      this.log('[AutoSee] Input area opened');
+      const completion = gql.waitForActionUpdate(
+        (detail) => (
+          this.isOperationValid(operationId) &&
+          this.currentAdventureId === adventureAtStart &&
+          this.isSeeActionComplete(detail, baseline, requestKey)
+        ),
+        this.TIMEOUTS.PROCESSING_OPERATION
+      ).catch((error) => {
+        if (this.isOperationValid(operationId) && this.isProcessing) {
+          console.warn('[AutoSee] Timed out waiting for See action update:', error.message || error);
+        }
+        return null;
+      });
 
-      // Step 2: Open the input mode menu
-      this.log('[AutoSee] Step 2: Opening input mode menu...');
-      const menuOpened = await this.openInputModeMenuWithValidation(operationId);
-      if (!this.isOperationValid(operationId)) return;
-      if (!menuOpened) {
-        console.error('[AutoSee] ERROR: Failed to open input mode menu!');
-        this.safeCleanupUI();
-        return;
-      }
-      this.log('[AutoSee] Input mode menu opened');
+      const batchResults = await gql.requestBatch([
+        this.createSubmitTelemetryOperation(identity),
+        this.createLatestActionOperation('GetLatestActionForTimeout', shortId),
+        this.createActionRequestOperation(identity, requestKey),
+      ], { timeoutMs: this.TIMEOUTS.PROCESSING_OPERATION });
 
-      // Step 3: Select "See" mode
-      this.log('[AutoSee] Step 3: Selecting See mode...');
-      await this.waitWithValidation(150, operationId);
-      if (!this.isOperationValid(operationId)) return;
-      
-      const seeModeSelector = this.modeSelectors['see'];
-      const seeModeBtn = document.querySelector(seeModeSelector);
-      if (!seeModeBtn) {
-        console.error('[AutoSee] ERROR: See mode button not found!');
-        this.safeCleanupUI();
-        return;
+      const actionRequest = this.findBatchResult(batchResults, 'actionRequest')?.data?.actionRequest;
+      if (actionRequest?.success === false) {
+        throw new Error(actionRequest.message || 'ActionRequest failed.');
       }
 
-      seeModeBtn.click();
-      await this.waitWithValidation(200, operationId);
-      if (!this.isOperationValid(operationId)) return;
-      this.log('[AutoSee] See mode selected');
+      const latestBefore = this.extractLatestActionSnapshot(
+        this.findBatchResult(batchResults, 'adventure')
+      );
+      const refetchCompletion = this.refetchLatestActionForTimeout(
+        gql,
+        shortId,
+        latestBefore,
+        operationId,
+        adventureAtStart,
+        this.TIMEOUTS.PROCESSING_OPERATION
+      )
+        .catch((error) => {
+          if (this.isOperationValid(operationId)) {
+            console.warn('[AutoSee] Failed to refetch latest action after See:', error.message || error);
+          }
+          return null;
+        });
 
-      // Step 4: Clear the input field (See with empty input generates current scene)
-      this.log('[AutoSee] Step 4: Clearing input field...');
-      const textInput = document.querySelector(this.textInputSelector);
-      if (textInput) {
-        textInput.value = '';
-        // Trigger React's onChange
-        textInput.dispatchEvent(new Event('input', { bubbles: true }));
-        this.log('[AutoSee] Input field cleared');
+      const completionResult = await this.waitForCompletionSignals([
+        completion.then(detail => detail ? { source: 'ws', detail } : null),
+        refetchCompletion,
+      ], this.TIMEOUTS.PROCESSING_OPERATION);
+
+      if (!completionResult) {
+        console.warn('[AutoSee] See action submitted, but no completion signal was observed.');
       } else {
-        this.log('[AutoSee] WARNING: Text input not found, proceeding anyway');
+        this.log('[AutoSee] See action completed through', completionResult.source);
       }
-
-      // Step 5: Submit the See action
-      this.log('[AutoSee] Step 5: Submitting See action...');
-      await this.waitWithValidation(100, operationId);
-      if (!this.isOperationValid(operationId)) return;
-      
-      const submitBtn = document.querySelector(this.submitButtonSelector);
-      if (!submitBtn) {
-        console.error('[AutoSee] ERROR: Submit button not found!');
-        this.safeCleanupUI();
-        return;
-      }
-
-      submitBtn.click();
-      this.log('[AutoSee] See action submitted!');
-
-      // Step 6: Wait for See/image generation to complete
-      this.log('[AutoSee] Step 6: Waiting for image generation to complete...');
-      await this.waitForImageGenerationCompleteWithValidation(operationId);
-      if (!this.isOperationValid(operationId)) return;
-      this.log('[AutoSee] Image generation complete');
-      
-      // Update the story content after See completes
-      this.captureCurrentStoryContent();
-
-      // Step 7: Restore the user's original input mode
-      this.log('[AutoSee] Step 7: Restoring original input mode:', this.userOriginalMode);
-      await this.restoreOriginalInputModeWithValidation(operationId);
-      
-      if (this.isOperationValid(operationId)) {
-        this.log('[AutoSee] ========== SEE ACTION COMPLETE (Op ID:', operationId, ') ==========');
-      }
-
     } catch (error) {
-      console.error('[AutoSee] ERROR during See action:', error);
+      if (this.isOperationValid(operationId)) {
+        console.error('[AutoSee] Error during GraphQL See action:', error);
+      }
     } finally {
-      // Only reset if this is still the current operation
       if (this.isOperationValid(operationId)) {
         this.isProcessing = false;
         this.operationStartTime = null;
-        this.clearSafetyTimeout();
-        this.log('[AutoSee] Processing flag cleared');
+        if (this.safetyResetTimer) {
+          clearTimeout(this.safetyResetTimer);
+          this.safetyResetTimer = null;
+        }
       }
     }
   }
 
-  /**
-   * Wait helper that checks operation validity
-   * @param {number} ms - Milliseconds to wait
-   * @param {number} operationId - Current operation ID
-   * @returns {Promise<boolean>} True if operation is still valid after wait
-   */
-  async waitWithValidation(ms, operationId) {
-    await this.wait(ms);
-    return this.isOperationValid(operationId);
+  async sendSubmitTelemetry(gql, identity) {
+    return gql.request(
+      'SendEvent',
+      this.createSubmitTelemetryOperation(identity).variables,
+      this.SEND_EVENT_QUERY,
+      { timeoutMs: 10000 }
+    );
   }
 
-  /**
-   * Waits for image generation with operation validity checking
-   * @param {number} operationId - Current operation ID
-   */
-  async waitForImageGenerationCompleteWithValidation(operationId) {
-    this.log('[AutoSee] Waiting for input area to close...');
-    
-    // Wait for input area to close (indicates action was accepted)
-    let attempts = 0;
-    while (this.isInputAreaOpen() && attempts < 60 && this.isOperationValid(operationId)) {
-      await this.wait(100);
-      attempts++;
-    }
-    
-    if (!this.isOperationValid(operationId)) {
-      this.log('[AutoSee] Operation cancelled while waiting for input area to close');
-      return;
-    }
-    
-    if (attempts >= 60) {
-      this.log('[AutoSee] WARNING: Input area did not close after 6 seconds');
-    } else {
-      this.log('[AutoSee] Input area closed after', attempts * 100, 'ms');
-    }
-    
-    // Additional wait for image generation (typically takes 2-5 seconds)
-    // Split into smaller chunks to allow for cancellation
-    this.log('[AutoSee] Waiting additional time for image generation...');
-    for (let i = 0; i < 6; i++) {
-      if (!this.isOperationValid(operationId)) {
-        this.log('[AutoSee] Operation cancelled during image generation wait');
-        return;
-      }
-      await this.wait(500);
-    }
+  createSubmitTelemetryOperation(identity) {
+    const clientInfo = {
+      platform: 'web',
+      userAgent: String(navigator.userAgent || '').toLowerCase(),
+      nativeAppPlatform: null,
+      surface: 'aidungeon',
+      adventureId: identity.adventureId,
+      actionType: 'see',
+    };
+
+    if (identity.scenarioId) clientInfo.scenarioId = identity.scenarioId;
+
+    return {
+      operationName: 'SendEvent',
+      variables: {
+        input: {
+          eventType: 'user',
+          eventName: 'submit_button_pressed',
+          metadata: { clientInfo },
+        },
+      },
+      query: this.SEND_EVENT_QUERY,
+    };
   }
 
-  /**
-   * Restores the user's original input mode with operation validity checking
-   * @param {number} operationId - Current operation ID
-   */
-  async restoreOriginalInputModeWithValidation(operationId) {
-    this.log('[AutoSee] Starting mode restoration to:', this.userOriginalMode);
-    
-    // Don't restore if the original mode was 'see' (unlikely but possible)
-    if (this.userOriginalMode === 'see') {
-      this.log('[AutoSee] Original mode was "see", no restoration needed');
-      return;
-    }
-    
-    // Check if mode selector exists for the original mode
-    const modeSelector = this.modeSelectors[this.userOriginalMode];
-    if (!modeSelector) {
-      this.log('[AutoSee] WARNING: No selector found for mode:', this.userOriginalMode);
-      return;
-    }
-    
-    try {
-      // Step 1: Open the input area by clicking "Take a Turn"
-      this.log('[AutoSee] Restore Step 1: Opening input area...');
-      if (!this.isOperationValid(operationId)) return;
-      
-      const takeATurnBtn = document.querySelector(this.takeATurnSelector);
-      if (!takeATurnBtn) {
-        this.log('[AutoSee] ERROR: Take a Turn button not found for restoration!');
-        return;
-      }
-      
-      takeATurnBtn.click();
-      await this.waitWithValidation(300, operationId);
-      if (!this.isOperationValid(operationId)) return;
-      this.log('[AutoSee] Input area opened for restoration');
-      
-      // Step 2: Open the input mode menu
-      this.log('[AutoSee] Restore Step 2: Opening input mode menu...');
-      const menuOpened = await this.openInputModeMenuWithValidation(operationId);
-      if (!this.isOperationValid(operationId)) return;
-      if (!menuOpened) {
-        this.log('[AutoSee] ERROR: Failed to open input mode menu for restoration!');
-        this.safeCleanupUI();
-        return;
-      }
-      this.log('[AutoSee] Input mode menu opened for restoration');
-      
-      // Step 3: Select the original mode
-      this.log('[AutoSee] Restore Step 3: Selecting original mode:', this.userOriginalMode);
-      await this.waitWithValidation(150, operationId);
-      if (!this.isOperationValid(operationId)) return;
-      
-      const modeBtn = document.querySelector(modeSelector);
-      if (!modeBtn) {
-        this.log('[AutoSee] ERROR: Mode button not found for:', this.userOriginalMode);
-        this.safeCleanupUI();
-        return;
-      }
-      
-      modeBtn.click();
-      await this.waitWithValidation(200, operationId);
-      if (!this.isOperationValid(operationId)) return;
-      this.log('[AutoSee] Original mode selected:', this.userOriginalMode);
-      
-      // Step 4: Close the input area
-      this.log('[AutoSee] Restore Step 4: Closing input area...');
-      this.closeInputArea();
-      await this.waitWithValidation(100, operationId);
-      this.log('[AutoSee] Mode restoration complete!');
-      
-    } catch (error) {
-      this.log('[AutoSee] ERROR during mode restoration:', error);
-    }
+  createLatestActionOperation(operationName, shortId) {
+    return {
+      operationName,
+      variables: {
+        shortId,
+        limit: 1,
+        desc: true,
+      },
+      query: operationName === 'RefetchLatestActionForTimeout'
+        ? this.REFETCH_LATEST_ACTION_FOR_TIMEOUT_QUERY
+        : this.GET_LATEST_ACTION_FOR_TIMEOUT_QUERY,
+    };
   }
 
-  /**
-   * Opens the input mode menu with operation validity checking
-   * @param {number} operationId - Current operation ID
-   * @returns {Promise<boolean>} True if menu was opened successfully
-   */
-  async openInputModeMenuWithValidation(operationId) {
-    if (!this.isOperationValid(operationId)) return false;
-    
-    const menuButton = document.querySelector(this.inputModeMenuSelector);
-    if (!menuButton) {
-      this.log('[AutoSee] openInputModeMenu: Menu button not found');
-      return false;
+  createActionRequestOperation(identity, requestKey) {
+    return {
+      operationName: 'ActionRequest',
+      variables: {
+        input: {
+          adventureId: identity.adventureId,
+          type: 'see',
+          classicStoryStreamingEnabled: false,
+          text: '',
+          key: requestKey,
+        },
+      },
+      query: this.ACTION_REQUEST_QUERY,
+    };
+  }
+
+  findBatchResult(batchResults, dataKey) {
+    const items = Array.isArray(batchResults) ? batchResults : [batchResults];
+    return items.find(item => item?.data && Object.prototype.hasOwnProperty.call(item.data, dataKey)) || null;
+  }
+
+  extractLatestActionSnapshot(result) {
+    const adventure = result?.data?.adventure;
+    const latest = Array.isArray(adventure?.actionWindow) ? adventure.actionWindow[0] : null;
+    return {
+      actionCount: Number.isFinite(adventure?.actionCount) ? adventure.actionCount : null,
+      latestActionId: latest?.id != null ? String(latest.id) : null,
+      latestUpdatedAt: latest?.updatedAt || null,
+      adventureId: adventure?.id != null ? String(adventure.id) : null,
+    };
+  }
+
+  async refetchLatestActionForTimeout(gql, shortId, baseline, operationId, adventureAtStart, timeoutMs) {
+    const deadline = Date.now() + timeoutMs;
+
+    while (Date.now() < deadline) {
+      if (!this.isOperationValid(operationId) || this.currentAdventureId !== adventureAtStart) return null;
+
+      const requestTimeoutMs = Math.max(1000, Math.min(15000, deadline - Date.now()));
+      const result = await gql.request(
+        'RefetchLatestActionForTimeout',
+        this.createLatestActionOperation('RefetchLatestActionForTimeout', shortId).variables,
+        this.REFETCH_LATEST_ACTION_FOR_TIMEOUT_QUERY,
+        { timeoutMs: requestTimeoutMs }
+      );
+      const snapshot = this.extractLatestActionSnapshot(result);
+
+      if (this.hasLatestActionAdvanced(snapshot, baseline)) {
+        return {
+          source: 'latest-action-refetch',
+          snapshot,
+        };
+      }
+
+      await this.wait(Math.min(1500, Math.max(0, deadline - Date.now())));
     }
-    
-    // Check if menu is already open by looking for any mode button
-    const existingMenu = document.querySelector(this.modeSelectors['do']);
-    if (existingMenu) {
-      this.log('[AutoSee] openInputModeMenu: Menu already open');
+
+    return null;
+  }
+
+  hasLatestActionAdvanced(snapshot, baseline) {
+    if (!snapshot || !baseline) return true;
+    if (Number.isFinite(snapshot.actionCount) && Number.isFinite(baseline.actionCount)) {
+      if (snapshot.actionCount > baseline.actionCount) return true;
+    }
+    if (snapshot.latestActionId && baseline.latestActionId && snapshot.latestActionId !== baseline.latestActionId) {
       return true;
     }
-    
-    this.log('[AutoSee] openInputModeMenu: Clicking menu button...');
-    menuButton.click();
-    
-    // Wait for menu to appear with validation
-    for (let i = 0; i < 20; i++) {
-      if (!this.isOperationValid(operationId)) {
-        this.log('[AutoSee] openInputModeMenu: Operation cancelled while waiting for menu');
-        return false;
-      }
-      await this.wait(50);
-      const menu = document.querySelector(this.modeSelectors['do']);
-      if (menu) {
-        this.log('[AutoSee] openInputModeMenu: Menu appeared after', (i + 1) * 50, 'ms');
-        return true;
-      }
+    if (snapshot.latestUpdatedAt && baseline.latestUpdatedAt && snapshot.latestUpdatedAt !== baseline.latestUpdatedAt) {
+      return true;
     }
-    
-    this.log('[AutoSee] openInputModeMenu: Menu did not appear after 1 second');
     return false;
   }
 
-  closeInputModeMenu() {
-    this.log('[AutoSee] Closing input mode menu...');
-    const closeButton = document.querySelector(this.closeInputModeMenuSelector);
-    if (closeButton) {
-      closeButton.click();
-      this.log('[AutoSee] Input mode menu close button clicked');
-    } else {
-      this.log('[AutoSee] Input mode menu close button not found');
-    }
+  waitForCompletionSignals(promises, timeoutMs) {
+    return new Promise((resolve) => {
+      let settled = false;
+      let remaining = promises.length;
+      const timer = setTimeout(() => finish(null), timeoutMs);
+
+      const finish = (result) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(result);
+      };
+
+      for (const promise of promises) {
+        Promise.resolve(promise).then((result) => {
+          if (result) {
+            finish(result);
+            return;
+          }
+          remaining--;
+          if (remaining <= 0) finish(null);
+        }).catch(() => {
+          remaining--;
+          if (remaining <= 0) finish(null);
+        });
+      }
+    });
   }
 
-  closeInputArea() {
-    this.log('[AutoSee] Closing input area...');
-    const closeButton = document.querySelector(this.closeInputSelector);
-    if (closeButton) {
-      closeButton.click();
-      this.log('[AutoSee] Input area close button clicked');
-    } else {
-      this.log('[AutoSee] Input area close button not found');
+  isSeeActionComplete(detail, baseline, requestKey) {
+    if (!detail || detail.source === 'initial') return false;
+    if (detail.key && requestKey && detail.key === requestKey) return true;
+
+    const candidates = Array.isArray(detail.changed) && detail.changed.length > 0
+      ? detail.changed
+      : (Array.isArray(detail.actions) ? detail.actions : []);
+
+    return candidates.some(action =>
+      this.isLiveAction(action) &&
+      String(action.type || '').toLowerCase() === 'see' &&
+      this.isAfterBaseline(action.id, baseline)
+    );
+  }
+
+  getActionBaseline() {
+    const ws = window.Ultrascripts?.ws;
+    const actions = ws?.getActions ? Array.from(ws.getActions().values()) : [];
+    const liveActions = actions.filter(action => this.isLiveAction(action));
+    const tail = ws?.getTail?.() || liveActions[liveActions.length - 1]?.id || null;
+    const liveCount = Number.isFinite(ws?.getLiveCount?.())
+      ? ws.getLiveCount()
+      : liveActions.length;
+
+    let tailNum = -Infinity;
+    for (const action of liveActions) {
+      const idNum = Number(action.id);
+      if (Number.isFinite(idNum) && idNum > tailNum) tailNum = idNum;
     }
+
+    return {
+      tail,
+      tailNum,
+      liveCount,
+    };
+  }
+
+  isLiveAction(action) {
+    return !!action && action.undoneAt == null && action.deletedAt == null;
+  }
+
+  isAfterBaseline(actionId, baseline) {
+    const idNum = Number(actionId);
+    if (Number.isFinite(idNum) && Number.isFinite(baseline.tailNum)) {
+      return idNum > baseline.tailNum;
+    }
+    return actionId !== baseline.tail;
+  }
+
+  createRequestKey() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
   }
 
   wait(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  /**
-   * Logs a message if debug mode is enabled
-   * @param {...any} args - Arguments to pass to console.log
-   */
+  isInputAreaOpen() {
+    return !!document.querySelector(this.inputAreaSelector);
+  }
+
+  detectCurrentInputMode() {
+    const modeButton = document.querySelector(this.inputModeMenuSelector);
+    const modeText = modeButton?.querySelector('.font_body');
+    return modeText ? modeText.textContent.toLowerCase().trim() : null;
+  }
+
   log(...args) {
-    if (this.debug) {
-      console.log(...args);
-    }
+    if (this.debug) console.log(...args);
   }
 }
 
-// Make available globally
 if (typeof window !== 'undefined') {
   window.AutoSeeFeature = AutoSeeFeature;
 }

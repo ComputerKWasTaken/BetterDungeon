@@ -214,7 +214,14 @@
       }
     }
 
-    emit('ultrascripts:actions:change', { actions: incoming, changed });
+    emit('ultrascripts:actions:change', {
+      actions: incoming,
+      changed,
+      key: payload?.key ?? null,
+      type: payload?.type ?? null,
+      retriedActionId: payload?.retriedActionId ?? null,
+      cachedOutputs: payload?.cachedOutputs || [],
+    });
 
     const prevTail = state.tail;
     if (newTail !== prevTail) {

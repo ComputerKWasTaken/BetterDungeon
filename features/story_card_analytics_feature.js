@@ -524,23 +524,7 @@ class StoryCardAnalyticsFeature {
     });
 
     try {
-      // Navigate to Story Cards tab using AIDungeonService
-      if (typeof AIDungeonService !== 'undefined') {
-        const service = new AIDungeonService();
-        const navResult = await service.navigateToStoryCardsSettings({
-          onStepUpdate: (message) => loadingScreen.updateSubtitle(message)
-        });
-        
-        if (!navResult.success) {
-          throw new Error(navResult.error || 'Failed to navigate to Story Cards');
-        }
-        
-        // Wait for Story Cards content to load
-        loadingScreen.updateSubtitle('Loading story cards...');
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-
-      loadingScreen.updateSubtitle('Starting scan...');
+      loadingScreen.updateSubtitle('Loading story cards...');
       
       const result = await storyCardScanner.scanAllCards(
         // onTriggerFound callback - not needed for analytics but keeping for card database population

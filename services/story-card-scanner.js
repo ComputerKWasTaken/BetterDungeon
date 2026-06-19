@@ -95,6 +95,186 @@ class StoryCardScanner {
     }
   }
 
+  getCurrentShortId() {
+    return window.Ultrascripts?.ws?.getAdventureShortId?.() || this.getCurrentAdventureId();
+  }
+
+  getSharedCache() {
+    if (typeof storyCardCache !== 'undefined') return storyCardCache;
+    return window.storyCardCache || null;
+  }
+
+  getWsStoryCards() {
+    const cards = window.Ultrascripts?.ws?.getCards?.();
+    if (!cards) return [];
+    return cards instanceof Map ? Array.from(cards.values()) : Array.from(cards);
+  }
+
+  async scanAllCardsViaGraphQL(onTriggerFound, onProgress, onCardScanned) {
+    if (this.abortController?.signal.aborted) {
+      return { success: false, error: 'Scan aborted by user', allowDomFallback: false };
+    }
+
+    const shortId = this.getCurrentShortId();
+    if (!shortId) {
+      return { success: false, error: 'Adventure shortId is unknown', allowDomFallback: false };
+    }
+
+    const wsCards = this.getWsStoryCards();
+    if (wsCards.length > 0) {
+      return this.consumeStoryCards(wsCards, shortId, onTriggerFound, onProgress, onCardScanned, 'ws');
+    }
+
+    const gql = window.BetterDungeonGQL;
+    if (!gql?.request) {
+      return { success: false, error: 'GraphQL service unavailable', allowDomFallback: true };
+    }
+
+    const cards = await this.fetchStoryCardsViaGraphQL(shortId);
+    return this.consumeStoryCards(cards, shortId, onTriggerFound, onProgress, onCardScanned, 'graphql');
+  }
+
+  async fetchStoryCardsViaGraphQL(shortId) {
+    const result = await window.BetterDungeonGQL.request(
+      'GetBetterDungeonStoryCards',
+      { shortId },
+      window.BetterDungeonGQLService?.QUERIES?.storyCards || `query GetBetterDungeonStoryCards($shortId: String) {
+        adventure(shortId: $shortId) {
+          id
+          shortId
+          storyCardCount
+          storyCards {
+            id
+            type
+            title
+            description
+            keys
+            value
+            deletedAt
+            updatedAt
+            useForCharacterCreation
+            __typename
+          }
+          __typename
+        }
+      }`,
+      { timeoutMs: 30000, signal: this.abortController?.signal }
+    );
+
+    const adventure = result?.data?.adventure;
+    if (!adventure) {
+      throw new Error('GraphQL story-card lookup returned no adventure data.');
+    }
+    return Array.isArray(adventure.storyCards) ? adventure.storyCards : [];
+  }
+
+  consumeStoryCards(cards, shortId, onTriggerFound, onProgress, onCardScanned, source) {
+    const results = new Map();
+    const normalizedCards = [];
+
+    for (const card of cards || []) {
+      if (this.abortController?.signal.aborted) {
+        return { success: false, error: 'Scan aborted by user', allowDomFallback: false };
+      }
+
+      const normalized = this.normalizeGraphQLCard(card);
+      if (!normalized) continue;
+      normalizedCards.push(normalized);
+    }
+
+    this.cardDatabase = new Map();
+    this.scannedNames = new Set();
+    this.scannedIndices = new Set();
+    this.lastScannedAdventureId = shortId;
+
+    const cache = this.getSharedCache();
+    if (cache?.importCards) {
+      cache.importCards(normalizedCards, shortId, { replace: true });
+    } else if (cache?.clear) {
+      cache.clear();
+    }
+
+    const total = normalizedCards.length;
+    normalizedCards.forEach((card, index) => {
+      this.cardDatabase.set(card.name, card);
+      this.scannedNames.add(card.name);
+
+      if (onProgress) {
+        onProgress(index + 1, total, `Scanning: ${card.name}`, null);
+      }
+
+      for (const trigger of card.triggers) {
+        this.addTriggerResult(results, trigger, card.name);
+        if (cache?.setTrigger) {
+          cache.setTrigger(trigger, card.name);
+        }
+        if (onTriggerFound) {
+          onTriggerFound(trigger, card.name);
+        }
+      }
+
+      if (onCardScanned) {
+        onCardScanned(card);
+      }
+    });
+
+    this.cardCount = total;
+    this.averageCardTime = 0;
+    this.totalCardTime = 0;
+    this.log(`Story-card scan hydrated ${total} cards from ${source}.`);
+
+    return {
+      success: true,
+      triggers: results,
+      scannedCount: total,
+      cardDatabase: this.cardDatabase,
+      source,
+      message: total === 0 ? 'No story cards found' : undefined,
+    };
+  }
+
+  normalizeGraphQLCard(card) {
+    if (!card || card.deletedAt) return null;
+
+    const id = card.id != null ? String(card.id) : null;
+    const value = String(card.value || card.entryText || '');
+    const title = String(card.title || card.name || card.keys || (id ? `Story Card ${id}` : 'Unknown Card')).trim();
+    const triggers = this.parseCardTriggers(Array.isArray(card.keys) ? card.keys.join(',') : card.keys);
+
+    return {
+      id,
+      name: title || 'Unknown Card',
+      type: String(card.type || 'other').toLowerCase(),
+      description: String(card.description || value || ''),
+      triggers,
+      keys: [...triggers],
+      entryText: value,
+      value,
+      hasImage: false,
+      updatedAt: card.updatedAt || null,
+      deletedAt: card.deletedAt || null,
+      useForCharacterCreation: !!card.useForCharacterCreation,
+      raw: card.raw || card,
+    };
+  }
+
+  parseCardTriggers(value) {
+    if (!value || typeof value !== 'string') return [];
+    return value
+      .split(',')
+      .map(part => part.trim().toLowerCase())
+      .filter(part => part.length > 0 && part.length < 50);
+  }
+
+  addTriggerResult(results, trigger, cardName) {
+    const existingCard = results.get(trigger);
+    if (existingCard && existingCard !== cardName && !existingCard.includes(cardName)) {
+      results.set(trigger, `${existingCard}, ${cardName}`);
+    } else if (!existingCard) {
+      results.set(trigger, cardName);
+    }
+  }
+
   // Main scan method - now returns rich card data
   // Callbacks: onCardScanned(cardData), onProgress(current, total, status, eta)
   async scanAllCards(onTriggerFound, onProgress, onCardScanned) {
@@ -120,6 +300,32 @@ class StoryCardScanner {
     const results = new Map(); // trigger -> cardName (kept for backward compatibility)
 
     try {
+      let gqlResult = null;
+      try {
+        gqlResult = await this.scanAllCardsViaGraphQL(onTriggerFound, onProgress, onCardScanned);
+      } catch (gqlError) {
+        gqlResult = {
+          success: false,
+          error: gqlError?.message || String(gqlError),
+          allowDomFallback: true,
+        };
+      }
+
+      if (gqlResult?.success || gqlResult?.allowDomFallback === false) {
+        return gqlResult;
+      }
+
+      this.log('GraphQL story-card hydration unavailable; falling back to DOM scanner:', gqlResult?.error);
+      if (typeof AIDungeonService !== 'undefined') {
+        const service = new AIDungeonService();
+        const navResult = await service.navigateToStoryCardsSettings();
+        if (!navResult.success) {
+          this.log('DOM fallback navigation failed:', navResult.error);
+        } else {
+          await this.wait(500);
+        }
+      }
+
       // First, navigate to the Story Cards section if not already there
       const storyCardsTab = await this.findAndClickStoryCardsTab();
       if (!storyCardsTab) {
