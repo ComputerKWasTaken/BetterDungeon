@@ -54,31 +54,7 @@ class StoryCardAnalyticsFeature {
 
     this.isOpen = true;
     this.createDashboardElement();
-    
-    // Show loading state briefly
-    this.updateDashboardContent(this.renderLoadingState());
-    
-    // Check page state to determine what to show
-    const validation = storyCardScanner.validatePageState();
-    
-    // Check if we have existing data for THIS adventure
-    const cardDatabase = storyCardScanner.getCardDatabase();
-    const currentAdventureId = storyCardScanner.getCurrentAdventureId();
-    const dataIsForCurrentAdventure = cardDatabase.size > 0 && 
-      storyCardScanner.lastScannedAdventureId === currentAdventureId;
-    
-    if (dataIsForCurrentAdventure) {
-      // Show existing analytics
-      this.lastAnalytics = storyCardScanner.getAnalytics();
-      this.lastScanTime = new Date();
-      this.updateDashboardContent(this.renderAnalytics(this.lastAnalytics));
-    } else if (!validation.valid) {
-      // Not on adventure page - show error state
-      this.updateDashboardContent(this.renderErrorState(validation.error));
-    } else {
-      // On adventure but no data yet - show empty state
-      this.updateDashboardContent(this.renderEmptyState());
-    }
+    await this.refreshAnalytics();
   }
 
   closeDashboard() {
@@ -98,8 +74,8 @@ class StoryCardAnalyticsFeature {
         <div class="bd-analytics-header">
           <h2>Story Card Analytics</h2>
           <div class="bd-analytics-header-actions">
-            <button class="bd-analytics-scan-btn" title="Scan Story Cards">
-              <span class="icon-scan"></span> Scan Cards
+            <button class="bd-analytics-scan-btn" title="Refresh Story Cards">
+              <span class="icon-scan"></span> Refresh
             </button>
             <button class="bd-analytics-close-btn" title="Close"><span class="icon-x"></span></button>
           </div>
@@ -166,8 +142,8 @@ class StoryCardAnalyticsFeature {
       <div class="bd-analytics-empty">
         <div class="bd-analytics-empty-icon"><span class="icon-chart-column"></span></div>
         <h3>No Story Card Data</h3>
-        <p>Click "Scan Cards" to analyze your story cards.</p>
-        <p class="bd-analytics-hint">The scan will open each card briefly to extract its data.</p>
+        <p>No story cards were found for this adventure.</p>
+        <p class="bd-analytics-hint">Story cards are loaded directly from AI Dungeon.</p>
       </div>
     `;
   }
@@ -475,7 +451,44 @@ class StoryCardAnalyticsFeature {
 
   // ==================== SCANNING ====================
 
+  async refreshAnalytics() {
+    if (typeof storyCardScanner === 'undefined') {
+      console.error('StoryCardAnalyticsFeature: Scanner not available');
+      return { success: false, error: 'Required services not loaded' };
+    }
+
+    const validation = storyCardScanner.validatePageState();
+    if (!validation.valid) {
+      console.warn('StoryCardAnalyticsFeature: Cannot scan -', validation.error);
+      this.updateDashboardContent(this.renderErrorState(validation.error));
+      return { success: false, error: validation.error };
+    }
+
+    try {
+      const result = await storyCardScanner.scanAllCards(null, null, null, { allowDomFallback: false });
+      if (!result.success) {
+        this.updateDashboardContent(this.renderErrorState(result.error || 'Story-card scan failed'));
+        return result;
+      }
+
+      this.lastAnalytics = storyCardScanner.getAnalytics();
+      this.lastScanTime = new Date();
+      this.updateDashboardContent(this.renderAnalytics(this.lastAnalytics));
+      return result;
+    } catch (error) {
+      console.error('StoryCardAnalyticsFeature: Scan error:', error);
+      this.updateDashboardContent(this.renderErrorState(error.message));
+      return { success: false, error: error.message };
+    }
+  }
+
   async runScan() {
+    return this.refreshAnalytics();
+  }
+
+  async runScanWithLoading() {
+    return this.refreshAnalytics();
+
     // Check service availability first
     if (typeof storyCardScanner === 'undefined' || typeof loadingScreen === 'undefined') {
       console.error('StoryCardAnalyticsFeature: Required services not available');
@@ -508,6 +521,8 @@ class StoryCardAnalyticsFeature {
 
   // Internal scan method - mirrors TriggerHighlightFeature._doScanStoryCards()
   async _doScanStoryCards() {
+    return this.refreshAnalytics();
+
     // Double-check page state in case it changed while queued
     const validation = storyCardScanner.validatePageState();
     if (!validation.valid) {

@@ -47,7 +47,7 @@ class StoryCardScanner {
     }
 
     // Check if we're on an adventure page
-    if (!window.location.pathname.includes('/adventure/')) {
+    if (!/\/(?:adventures?|play)\//.test(window.location.pathname)) {
       return { valid: false, error: 'Navigate to an adventure first' };
     }
 
@@ -61,7 +61,7 @@ class StoryCardScanner {
 
   // Get current adventure ID from URL
   getCurrentAdventureId() {
-    const match = window.location.pathname.match(/\/adventure\/([^\/]+)/);
+    const match = window.location.pathname.match(/\/(?:adventures?|play)\/([^\/]+)/);
     return match ? match[1] : null;
   }
 
@@ -277,7 +277,7 @@ class StoryCardScanner {
 
   // Main scan method - now returns rich card data
   // Callbacks: onCardScanned(cardData), onProgress(current, total, status, eta)
-  async scanAllCards(onTriggerFound, onProgress, onCardScanned) {
+  async scanAllCards(onTriggerFound, onProgress, onCardScanned, options = {}) {
     // Pre-validate page state
     const validation = this.validatePageState();
     if (!validation.valid) {
@@ -298,6 +298,7 @@ class StoryCardScanner {
     this.cardDatabase = new Map(); // Reset card database
     this.lastScannedAdventureId = this.getCurrentAdventureId();
     const results = new Map(); // trigger -> cardName (kept for backward compatibility)
+    let usedDomFallback = false;
 
     try {
       let gqlResult = null;
@@ -315,7 +316,16 @@ class StoryCardScanner {
         return gqlResult;
       }
 
+      if (options.allowDomFallback === false) {
+        return {
+          success: false,
+          error: gqlResult?.error || 'GraphQL story-card hydration unavailable',
+          allowDomFallback: false,
+        };
+      }
+
       this.log('GraphQL story-card hydration unavailable; falling back to DOM scanner:', gqlResult?.error);
+      usedDomFallback = true;
       if (typeof AIDungeonService !== 'undefined') {
         const service = new AIDungeonService();
         const navResult = await service.navigateToStoryCardsSettings();
@@ -464,7 +474,9 @@ class StoryCardScanner {
       return { success: false, error: error.message };
     } finally {
       // Ensure any open card editor is closed before finishing
-      await this.closeCardEditorAndWait();
+      if (usedDomFallback) {
+        await this.closeCardEditorAndWait();
+      }
       this.isScanning = false;
       this.abortController = null;
     }

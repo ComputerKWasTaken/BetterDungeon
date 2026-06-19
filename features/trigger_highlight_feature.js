@@ -9,6 +9,7 @@ class TriggerHighlightFeature {
     this.contextObserver = null;
     this.triggerScanObserver = null;
     this.processedElements = new WeakSet();
+    this.handledContextModals = new WeakSet();
     this.scanDebounceTimer = null;
     // Track current adventure to clear triggers on adventure change
     this.currentAdventureId = null;
@@ -87,51 +88,36 @@ class TriggerHighlightFeature {
       }
     }
     
-    // Auto-scan when entering a new adventure (either on change or initial load)
-    if (newAdventureId && adventureChanged && this.autoScanEnabled) {
-      // Delay to let the adventure page load fully
-      setTimeout(() => this.scanAllStoryCards(), 2500);
-    }
-    
     this.currentAdventureId = newAdventureId;
   }
 
-  // Scan all story cards automatically using the loading screen
+  // Hydrate story cards directly from Ultrascripts/GraphQL.
   async scanAllStoryCards() {
-    // Check service availability first
-    if (typeof loadingScreen === 'undefined' || typeof storyCardScanner === 'undefined') {
-      console.error('TriggerHighlightFeature: Loading screen or scanner not available');
+    if (typeof storyCardScanner === 'undefined') {
+      console.error('TriggerHighlightFeature: Scanner not available');
       return { success: false, error: 'Required services not loaded' };
     }
 
-    // Pre-validate page state BEFORE queueing/showing loading screen
     const validation = storyCardScanner.validatePageState();
     if (!validation.valid) {
       console.warn('TriggerHighlightFeature: Cannot scan -', validation.error);
       return { success: false, error: validation.error };
     }
 
-    // Use queue to ensure sequential execution with other features
-    return loadingScreen.queueOperation(() => this._doScanStoryCards());
+    try {
+      const result = await storyCardScanner.scanAllCards(null, null, null, { allowDomFallback: false });
+      if (!result.success) {
+        console.warn('TriggerHighlightFeature: Story-card hydration failed -', result.error);
+      }
+      return result;
+    } catch (error) {
+      console.error('TriggerHighlightFeature: Scan error:', error);
+      return { success: false, error: error.message };
+    }
   }
 
   async _doScanStoryCards() {
-    // Double-check page state in case it changed while queued
-    const validation = storyCardScanner.validatePageState();
-    if (!validation.valid) {
-      return { success: false, error: validation.error };
-    }
-
-    // Show loading screen with cancel button
-    loadingScreen.show({
-      title: 'Scanning Story Cards',
-      subtitle: 'Initializing...',
-      showProgress: true,
-      showCancel: true,
-      onCancel: () => {
-        storyCardScanner.abort();
-      }
-    });
+    return this.scanAllStoryCards();
 
     try {
       loadingScreen.updateSubtitle('Loading story cards...');
@@ -230,6 +216,7 @@ class TriggerHighlightFeature {
     if (this.scanDebounceTimer) {
       clearTimeout(this.scanDebounceTimer);
     }
+    this.handledContextModals = new WeakSet();
     if (typeof storyCardCache !== 'undefined') storyCardCache.clear();
     this.removeHighlights();
   }
@@ -406,6 +393,9 @@ class TriggerHighlightFeature {
     const headerText = header?.textContent?.trim() || '';
     if (headerText === 'Adventure' || headerText === 'Complete Text') return true;
 
+    const text = element.textContent || '';
+    if (text.includes('View Context') && text.includes('Context used for this action')) return true;
+
     // Fallback: check for Text/Tokens tab pair that identifies the context viewer
     const tabs = element.querySelectorAll('[role="tab"]');
     const tabTexts = Array.from(tabs).map(t => t.textContent?.trim().toLowerCase());
@@ -414,14 +404,19 @@ class TriggerHighlightFeature {
     return false;
   }
 
-  handleAdventureModal(modal) {
-    // Do a fresh scan in case triggers changed
+  async handleAdventureModal(modal) {
+    if (this.handledContextModals.has(modal)) return;
+    this.handledContextModals.add(modal);
+
+    const result = await this.scanAllStoryCards();
+    if (result?.success) {
+      this.processedElements = new WeakSet();
+    } else {
+      this.handledContextModals.delete(modal);
+    }
+
     this.scanForTriggers();
-    
-    // Highlight triggers in the adventure text
     this.highlightTriggersInModal(modal);
-    
-    // Watch for tab changes within the modal
     this.watchModalForChanges(modal);
   }
 
