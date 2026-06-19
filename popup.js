@@ -15,7 +15,6 @@ const STORAGE_KEYS = {
   settings: 'betterDungeonSettings',
   presets: 'betterDungeon_favoritePresets',
   characters: 'betterDungeon_characterPresets',
-  autoScan: 'betterDungeon_autoScanTriggers',
   autoApply: 'betterDungeon_autoApplyInstructions',
   ultrascriptsDebug: 'ultrascripts_debug',
   ultrascriptsModules: 'ultrascripts_enabled_modules',
@@ -238,12 +237,6 @@ function initToggles() {
     setUltrascriptsModuleControlsEnabled(features.ultrascripts !== false);
   });
 
-  // Load auto-scan setting
-  chrome.storage.sync.get(STORAGE_KEYS.autoScan, (result) => {
-    const toggle = document.getElementById('auto-scan-triggers');
-    if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.autoScan] ?? false;
-  });
-
   // Load auto-apply setting
   chrome.storage.sync.get(STORAGE_KEYS.autoApply, (result) => {
     const toggle = document.getElementById('auto-apply-instructions');
@@ -256,12 +249,6 @@ function initToggles() {
       const featureId = toggle.id.replace('feature-', '');
       saveFeatureState(featureId, toggle.checked);
     });
-  });
-
-  // Auto-scan toggle
-  document.getElementById('auto-scan-triggers')?.addEventListener('change', (e) => {
-    chrome.storage.sync.set({ [STORAGE_KEYS.autoScan]: e.target.checked });
-    notifyContentScript('SET_AUTO_SCAN', { enabled: e.target.checked });
   });
 
   // Auto-apply toggle
@@ -972,12 +959,6 @@ function initTools() {
     applyBtn.addEventListener('click', () => applyInstructions(applyBtn));
   }
 
-  // Scan Triggers button (in Trigger Highlighting feature card)
-  const scanBtn = document.getElementById('scan-triggers-btn');
-  if (scanBtn) {
-    scanBtn.addEventListener('click', () => scanTriggers(scanBtn));
-  }
-
   // Open Analytics button (in Tools section)
   const analyticsBtn = document.getElementById('open-analytics-btn');
   if (analyticsBtn) {
@@ -1007,31 +988,6 @@ async function applyInstructions(btn) {
     } else {
       showButtonStatus(btn, 'error', response?.error || 'Failed', originalText);
     }
-  } catch (error) {
-    showButtonStatus(btn, 'error', 'Error', originalText);
-  }
-}
-
-async function scanTriggers(btn) {
-  const originalText = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = '<span class="icon-loader"></span> Scanning...';
-
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
-    if (!tab?.url?.includes('aidungeon.com')) {
-      showButtonStatus(btn, 'error', 'Not on AI Dungeon', originalText);
-      return;
-    }
-
-    chrome.tabs.sendMessage(tab.id, { type: 'SCAN_STORY_CARDS' }, (response) => {
-      if (chrome.runtime.lastError || !response?.success) {
-        showButtonStatus(btn, 'error', response?.error || 'Failed', originalText);
-      } else {
-        showButtonStatus(btn, 'success', 'Done!', originalText);
-      }
-    });
   } catch (error) {
     showButtonStatus(btn, 'error', 'Error', originalText);
   }

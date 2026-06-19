@@ -110,7 +110,7 @@ class TutorialService {
         type: 'spotlight',
         target: '[data-feature="storyCardAnalytics"]',
         title: 'Story Card Analytics',
-        content: 'Displays detailed stats about your story cards including token counts, trigger analysis, and optimization tips. Always active!',
+        content: 'Opens a dashboard with story card stats, trigger analysis, and optimization tips. Cards load instantly when the dashboard opens.',
         position: 'top',
         expandCard: true
       },

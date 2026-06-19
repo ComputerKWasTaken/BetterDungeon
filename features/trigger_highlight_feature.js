@@ -29,7 +29,7 @@ class TriggerHighlightFeature {
 
   async init() {
     console.log('[TriggerHighlight] Initializing Trigger Highlight feature...');
-    // Load auto-scan setting FIRST before detecting adventure
+    // Load trigger-highlight settings before detecting adventure.
     await this.loadAutoScanSetting();
     this.detectCurrentAdventure();
     this.startObserving();
@@ -42,23 +42,15 @@ class TriggerHighlightFeature {
   async loadAutoScanSetting() {
     try {
       const result = await chrome.storage.sync.get([
-        'betterDungeon_autoScanTriggers',
         'betterDungeon_suggestedTriggers',
         'betterDungeon_suggestedTriggerThreshold'
       ]);
-      this.autoScanEnabled = (result || {}).betterDungeon_autoScanTriggers ?? false;
       this.suggestedTriggersEnabled = (result || {}).betterDungeon_suggestedTriggers ?? true;
       this.suggestedTriggerThreshold = (result || {}).betterDungeon_suggestedTriggerThreshold ?? 3;
     } catch (e) {
-      this.autoScanEnabled = false;
       this.suggestedTriggersEnabled = true;
       this.suggestedTriggerThreshold = 3;
     }
-  }
-
-  setAutoScan(enabled) {
-    this.autoScanEnabled = enabled;
-    chrome.storage.sync.set({ betterDungeon_autoScanTriggers: enabled });
   }
 
   setSuggestedTriggers(enabled) {
@@ -105,7 +97,7 @@ class TriggerHighlightFeature {
     }
 
     try {
-      const result = await storyCardScanner.scanAllCards(null, null, null, { allowDomFallback: false });
+      const result = await storyCardScanner.scanAllCards(null, null, null);
       if (!result.success) {
         console.warn('TriggerHighlightFeature: Story-card hydration failed -', result.error);
       }
@@ -113,70 +105,6 @@ class TriggerHighlightFeature {
     } catch (error) {
       console.error('TriggerHighlightFeature: Scan error:', error);
       return { success: false, error: error.message };
-    }
-  }
-
-  async _doScanStoryCards() {
-    return this.scanAllStoryCards();
-
-    try {
-      loadingScreen.updateSubtitle('Loading story cards...');
-      const result = await storyCardScanner.scanAllCards(
-        // onTriggerFound callback — the scanner also writes to storyCardCache
-        // directly, so this callback is kept for any additional per-feature logic.
-        null,
-        // onProgress callback
-        (current, total, status, estimatedTimeRemaining) => {
-          let progressText = status;
-          if (estimatedTimeRemaining !== null && estimatedTimeRemaining > 0) {
-            const minutes = Math.floor(estimatedTimeRemaining / 60);
-            const seconds = estimatedTimeRemaining % 60;
-            if (minutes > 0) {
-              progressText += ` (${minutes}m ${seconds}s remaining)`;
-            } else {
-              progressText += ` (${seconds}s remaining)`;
-            }
-          }
-          // Update subtitle to show actual progress
-          loadingScreen.updateSubtitle(`Scanning card ${current} of ${total}`);
-          loadingScreen.updateProgress(current, total, progressText);
-        }
-      );
-
-      if (result.success) {
-        loadingScreen.updateTitle('Scan Complete!');
-        loadingScreen.updateSubtitle(`Found ${typeof storyCardCache !== 'undefined' ? storyCardCache.size : 0} unique triggers`);
-        loadingScreen.updateStatus('Ready to highlight', 'success');
-        
-        
-        // Brief delay to show completion
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      } else {
-        // Check if scan was aborted
-        if (result.error && result.error.includes('aborted')) {
-          loadingScreen.updateTitle('Scan Cancelled');
-          loadingScreen.updateSubtitle('Scan was stopped by user');
-          loadingScreen.updateStatus('Cancelled', 'success');
-        } else {
-          loadingScreen.updateTitle('Scan Failed');
-          loadingScreen.updateSubtitle(result.error || 'Unknown error');
-          loadingScreen.updateStatus('Error', 'error');
-        }
-        
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
-
-      return result;
-
-    } catch (error) {
-      console.error('TriggerHighlightFeature: Scan error:', error);
-      loadingScreen.updateTitle('Scan Failed');
-      loadingScreen.updateSubtitle(error.message);
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      return { success: false, error: error.message };
-
-    } finally {
-      loadingScreen.hide();
     }
   }
 
