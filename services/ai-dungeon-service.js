@@ -110,6 +110,10 @@ class AIDungeonService {
     return window.BetterDungeonMarkdownConfig;
   }
 
+  static get MARKDOWN_PRESET_STORAGE_KEY() {
+    return 'betterDungeon_markdownInstructionPreset';
+  }
+
   static get MARKDOWN_FORMAT_OPTIONS() {
     return AIDungeonService.MARKDOWN_CONFIG?.formats || [];
   }
@@ -132,12 +136,12 @@ class AIDungeonService {
     return AIDungeonService.MARKDOWN_CONFIG?.noteMarker || '[BetterDungeon Markdown]';
   }
 
-  static buildMarkdownInstructions() {
-    return AIDungeonService.MARKDOWN_CONFIG?.buildInstructions?.() || '';
+  static buildMarkdownInstructions(presetId) {
+    return AIDungeonService.MARKDOWN_CONFIG?.buildInstructions?.(presetId) || '';
   }
 
-  static buildAuthorsNoteInstructions() {
-    return AIDungeonService.MARKDOWN_CONFIG?.buildAuthorsNote?.() || '';
+  static buildAuthorsNoteInstructions(presetId) {
+    return AIDungeonService.MARKDOWN_CONFIG?.buildAuthorsNote?.(presetId) || '';
   }
 
   // Legacy static property for backward compatibility
@@ -1048,15 +1052,35 @@ class AIDungeonService {
   // Legacy per-format storage is intentionally ignored.
   async fetchInstructionsFile() {
     try {
-      const instructions = AIDungeonService.buildMarkdownInstructions();
-      const authorsNote = AIDungeonService.buildAuthorsNoteInstructions();
-      return { success: true, data: instructions, authorsNoteData: authorsNote };
+      const config = AIDungeonService.MARKDOWN_CONFIG;
+      const selectedPreset = await this.getSelectedMarkdownInstructionPreset();
+      const preset = config?.getInstructionPreset?.(selectedPreset);
+      const presetId = preset?.id || config?.defaultInstructionPreset;
+      const instructions = AIDungeonService.buildMarkdownInstructions(presetId);
+      const authorsNote = AIDungeonService.buildAuthorsNoteInstructions(presetId);
+      return { success: true, data: instructions, authorsNoteData: authorsNote, presetId };
     } catch (e) {
       return {
         success: true,
         data: AIDungeonService.MARKDOWN_INSTRUCTIONS,
         authorsNoteData: AIDungeonService.buildAuthorsNoteInstructions(),
       };
+    }
+  }
+
+  async getSelectedMarkdownInstructionPreset() {
+    const config = AIDungeonService.MARKDOWN_CONFIG;
+    const fallback = config?.defaultInstructionPreset || '';
+
+    if (typeof chrome === 'undefined' || !chrome.storage?.sync) {
+      return fallback;
+    }
+
+    try {
+      const result = await chrome.storage.sync.get(AIDungeonService.MARKDOWN_PRESET_STORAGE_KEY);
+      return (result || {})[AIDungeonService.MARKDOWN_PRESET_STORAGE_KEY] || fallback;
+    } catch {
+      return fallback;
     }
   }
 

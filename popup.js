@@ -16,6 +16,7 @@ const STORAGE_KEYS = {
   presets: 'betterDungeon_favoritePresets',
   characters: 'betterDungeon_characterPresets',
   autoApply: 'betterDungeon_autoApplyInstructions',
+  markdownInstructionPreset: 'betterDungeon_markdownInstructionPreset',
   ultrascriptsDebug: 'ultrascripts_debug',
   ultrascriptsModules: 'ultrascripts_enabled_modules',
   webfetchAllowlist: 'ultrascripts_webfetch_allowlist',
@@ -1032,6 +1033,7 @@ function initMarkdownOptions() {
 
   chrome.storage.sync.remove(LEGACY_MARKDOWN_OPTIONS_KEY);
   renderMarkdownOptions(container);
+  initMarkdownInstructionPreset();
 }
 
 function renderMarkdownOptions(container) {
@@ -1052,6 +1054,54 @@ function renderMarkdownOptions(container) {
 
     container.appendChild(item);
   }
+}
+
+function initMarkdownInstructionPreset() {
+  const select = document.getElementById('markdown-instruction-preset');
+  if (!select) return;
+
+  const config = window.BetterDungeonMarkdownConfig;
+  const presets = config?.instructionPresets || [];
+  const defaultPreset = config?.defaultInstructionPreset || presets[0]?.id || '';
+
+  select.innerHTML = '';
+  for (const preset of presets) {
+    const option = document.createElement('option');
+    option.value = preset.id;
+    option.textContent = preset.label;
+    select.appendChild(option);
+  }
+
+  const updatePresetDetails = () => {
+    const desc = document.getElementById('markdown-instruction-preset-desc');
+    const preview = document.getElementById('markdown-instruction-preview');
+    const preset = presets.find(item => item.id === select.value);
+    if (desc) desc.textContent = preset?.description || '';
+
+    if (preview) {
+      const instructions = config?.buildInstructions?.(select.value) || '';
+      const authorsNote = config?.buildAuthorsNote?.(select.value) || '';
+      preview.textContent = [
+        'AI Instructions',
+        instructions,
+        '',
+        'Author\'s Note',
+        authorsNote,
+      ].join('\n');
+    }
+  };
+
+  chrome.storage.sync.get(STORAGE_KEYS.markdownInstructionPreset, (result) => {
+    const saved = (result || {})[STORAGE_KEYS.markdownInstructionPreset];
+    select.value = presets.some(item => item.id === saved) ? saved : defaultPreset;
+    updatePresetDetails();
+  });
+
+  select.addEventListener('change', () => {
+    const presetId = presets.some(item => item.id === select.value) ? select.value : defaultPreset;
+    chrome.storage.sync.set({ [STORAGE_KEYS.markdownInstructionPreset]: presetId });
+    updatePresetDetails();
+  });
 }
 
 function showButtonStatus(btn, status, text, originalText) {
