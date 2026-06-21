@@ -7,6 +7,7 @@ class AutoSeeFeature {
   constructor() {
     this.enabled = true;
     this.debug = false;
+    this.warnedKeys = new Set();
 
     this.currentAdventureId = null; // AI Dungeon URL shortId
     this.isProcessing = false;
@@ -18,7 +19,6 @@ class AutoSeeFeature {
     this.turnInterval = 2;
     this.turnCounter = 0;
 
-    this.inputAreaSelector = '[aria-label="Change input mode"]';
     this.inputModeMenuSelector = '[aria-label="Change input mode"]';
     this.submitButtonSelector = '[aria-label="Submit action"]';
     this.continueButtonSelector = '[aria-label="Command: continue"]';
@@ -89,7 +89,7 @@ class AutoSeeFeature {
   }
 
   async init() {
-    console.log('[AutoSee] Initializing Auto See feature...');
+    this.log('[AutoSee] Initializing Auto See feature...');
     await this.loadSettings();
     this.detectCurrentAdventure();
     this.startAdventureChangeDetection();
@@ -159,7 +159,7 @@ class AutoSeeFeature {
     if (this.safetyResetTimer) clearTimeout(this.safetyResetTimer);
     this.safetyResetTimer = setTimeout(() => {
       if (this.isProcessing || this.isWaitingForAIResponse) {
-        console.warn(`[AutoSee] Safety timeout triggered: ${context}`);
+        this.log(`[AutoSee] Safety timeout triggered: ${context}`);
         this.abortCurrentOperation(`Safety timeout: ${context}`);
       }
     }, timeout);
@@ -174,7 +174,7 @@ class AutoSeeFeature {
       this.triggerMode = (result || {}).betterDungeon_autoSeeTriggerMode ?? 'everyTurn';
       this.turnInterval = (result || {}).betterDungeon_autoSeeTurnInterval ?? 2;
     } catch (error) {
-      console.error('[AutoSee] Error loading settings:', error);
+      this.warnOnce('settings-load', '[AutoSee] Error loading settings:', error);
     }
   }
 
@@ -294,7 +294,7 @@ class AutoSeeFeature {
   handleEnterKeySubmit(event) {
     if (event.key !== 'Enter' || event.shiftKey) return;
     const activeElement = document.activeElement;
-    if (!activeElement || activeElement.id !== 'game-text-input') return;
+    if (!activeElement?.matches?.(this.textInputSelector)) return;
     if (!this.canProcessAction('Enter key')) return;
     this.recordObservedActionEvent(event, 'Submit action');
     this.prepareForAIResponse({ captureMode: true, source: 'enter key' });
@@ -351,7 +351,7 @@ class AutoSeeFeature {
 
     const gql = window.BetterDungeonGQL;
     if (!gql?.waitForActionUpdate) {
-      console.warn('[AutoSee] BetterDungeonGQL is not available; cannot wait for action updates.');
+      this.warnOnce('missing-gql-wait', '[AutoSee] BetterDungeonGQL is not available; cannot wait for action updates.');
       return;
     }
 
@@ -365,7 +365,8 @@ class AutoSeeFeature {
 
     this.waitingForAITimer = setTimeout(() => {
       if (this.isWaitingForAIResponse && this.isOperationValid(operationId)) {
-        console.warn('[AutoSee] Timeout waiting for AI response');
+        this.log('[AutoSee] Timeout waiting for AI response');
+        this.waitingForAITimer = null;
         this.isWaitingForAIResponse = false;
       }
     }, this.TIMEOUTS.WAITING_FOR_AI);
@@ -381,7 +382,11 @@ class AutoSeeFeature {
       this.handleUserTurnComplete(operationId, adventureAtStart, detail);
     }).catch((error) => {
       if (this.isOperationValid(operationId) && this.isWaitingForAIResponse) {
-        console.warn('[AutoSee] Failed while waiting for AI response:', error);
+        this.log('[AutoSee] Failed while waiting for AI response:', error);
+        if (this.waitingForAITimer) {
+          clearTimeout(this.waitingForAITimer);
+          this.waitingForAITimer = null;
+        }
         this.isWaitingForAIResponse = false;
       }
     });
@@ -443,7 +448,7 @@ class AutoSeeFeature {
 
     const gql = window.BetterDungeonGQL;
     if (!gql?.requestBatch || !gql?.getAdventureIdentity) {
-      console.warn('[AutoSee] BetterDungeonGQL is not available; cannot send See action.');
+      this.warnOnce('missing-gql-action', '[AutoSee] BetterDungeonGQL is not available; cannot send See action.');
       return;
     }
 
@@ -471,7 +476,7 @@ class AutoSeeFeature {
         this.TIMEOUTS.PROCESSING_OPERATION
       ).catch((error) => {
         if (this.isOperationValid(operationId) && this.isProcessing) {
-          console.warn('[AutoSee] Timed out waiting for See action update:', error.message || error);
+          this.log('[AutoSee] Timed out waiting for See action update:', error.message || error);
         }
         return null;
       });
@@ -499,8 +504,8 @@ class AutoSeeFeature {
         this.TIMEOUTS.PROCESSING_OPERATION
       )
         .catch((error) => {
-          if (this.isOperationValid(operationId)) {
-            console.warn('[AutoSee] Failed to refetch latest action after See:', error.message || error);
+          if (this.isOperationValid(operationId) && this.isProcessing) {
+            this.log('[AutoSee] Failed to refetch latest action after See:', error.message || error);
           }
           return null;
         });
@@ -511,7 +516,7 @@ class AutoSeeFeature {
       ], this.TIMEOUTS.PROCESSING_OPERATION);
 
       if (!completionResult) {
-        console.warn('[AutoSee] See action submitted, but no completion signal was observed.');
+        this.log('[AutoSee] See action submitted, but no completion signal was observed.');
       } else {
         this.log('[AutoSee] See action completed through', completionResult.source);
       }
@@ -529,15 +534,6 @@ class AutoSeeFeature {
         }
       }
     }
-  }
-
-  async sendSubmitTelemetry(gql, identity) {
-    return gql.request(
-      'SendEvent',
-      this.createSubmitTelemetryOperation(identity).variables,
-      this.SEND_EVENT_QUERY,
-      { timeoutMs: 10000 }
-    );
   }
 
   createSubmitTelemetryOperation(identity) {
@@ -615,7 +611,9 @@ class AutoSeeFeature {
     const deadline = Date.now() + timeoutMs;
 
     while (Date.now() < deadline) {
-      if (!this.isOperationValid(operationId) || this.currentAdventureId !== adventureAtStart) return null;
+      if (!this.isProcessing || !this.isOperationValid(operationId) || this.currentAdventureId !== adventureAtStart) {
+        return null;
+      }
 
       const requestTimeoutMs = Math.max(1000, Math.min(15000, deadline - Date.now()));
       const result = await gql.request(
@@ -740,10 +738,6 @@ class AutoSeeFeature {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  isInputAreaOpen() {
-    return !!document.querySelector(this.inputAreaSelector);
-  }
-
   detectCurrentInputMode() {
     const modeButton = document.querySelector(this.inputModeMenuSelector);
     const modeText = modeButton?.querySelector('.font_body');
@@ -752,6 +746,12 @@ class AutoSeeFeature {
 
   log(...args) {
     if (this.debug) console.log(...args);
+  }
+
+  warnOnce(key, ...args) {
+    if (this.warnedKeys.has(key)) return;
+    this.warnedKeys.add(key);
+    console.warn(...args);
   }
 }
 

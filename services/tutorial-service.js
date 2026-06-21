@@ -138,7 +138,7 @@ class TutorialService {
         type: 'spotlight',
         target: '[data-feature="autoSee"]',
         title: 'Auto See',
-        content: 'Automatically triggers a See action after AI responses to visualize the scene. Set it to run every turn or at custom intervals!',
+        content: 'Submits a background See action after AI responses to visualize the scene. Set it to run every turn or at custom intervals.',
         position: 'top',
         action: 'switchTab',
         actionTarget: 'features',
