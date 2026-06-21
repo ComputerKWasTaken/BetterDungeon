@@ -303,28 +303,30 @@
               </label>
             </div>
             <div class="feature-details">
-              <p>Renders <strong>bold</strong>, <em>italic</em>, <u>underline</u>, and more using a custom asterisk-free markdown syntax.</p>
+              <p>Renders AID-safe Markdown emphasis using focused custom syntax that AI Dungeon does not strip.</p>
 
               <div class="md-options-header">
-                <span class="md-options-title">AI Instructions</span>
-                <span class="md-options-hint">Toggle which formatting the AI is told to use</span>
+                <span class="md-options-title">Syntax</span>
+                <span class="md-options-hint">Used by rendering and AI instructions</span>
               </div>
-              <div class="md-options-grid" id="markdown-options-grid">
+              <div class="md-cheatsheet" id="markdown-cheatsheet">
                 <!-- Populated dynamically by popup.js -->
               </div>
 
-              <div class="feature-option">
-                <span class="option-label">Auto-apply on adventure</span>
-                <label class="toggle sm">
-                  <input type="checkbox" id="auto-apply-instructions">
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
+              <div class="md-actions">
+                <div class="feature-option">
+                  <span class="option-label">Auto-apply on adventure</span>
+                  <label class="toggle sm">
+                    <input type="checkbox" id="auto-apply-instructions">
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
 
-              <button class="btn btn-action" id="apply-instructions-btn">
-                <span class="icon-wand"></span>
-                Apply Instructions
-              </button>
+                <button class="btn btn-action" id="apply-instructions-btn">
+                  <span class="icon-wand"></span>
+                  Apply Instructions
+                </button>
+              </div>
 
               <p class="feature-credit">Thanks to <a href="https://play.aidungeon.com/profile/OffMetaGamer">OffMetaGamer</a> & <a href="https://play.aidungeon.com/profile/effortlyss">Shiny</a></p>
             </div>
@@ -1300,6 +1302,7 @@
 
   <script src="utils/browser-polyfill.js"></script>
   <script src="services/tutorial-service.js"></script>
+  <script src="utils/markdown-config.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

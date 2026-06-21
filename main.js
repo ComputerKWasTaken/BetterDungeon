@@ -315,7 +315,10 @@ class BetterDungeon {
         return { success: false, error: instructionsResult.error };
       }
 
-      return await this.aiDungeonService.applyInstructionsToTextareas(instructionsResult.data);
+      return await this.aiDungeonService.applyInstructionsToTextareas(instructionsResult.data, {
+        forceApply: true,
+        authorsNoteText: instructionsResult.authorsNoteData || null,
+      });
     } catch (error) {
       console.error('[BetterDungeon] Error applying instructions:', error);
       return { success: false, error: error.message };

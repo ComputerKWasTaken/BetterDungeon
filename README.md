@@ -54,10 +54,10 @@ For developers or if you prefer manual installation:
 
 ### ✨ Writing & Formatting
 
-- **Markdown Support** — Custom Markdown-like formatting system that works with AI models:
-  - Bold, italic, underline, whisper text, scene breaks, lists and more!
+- **Markdown Support** — Focused AID-safe Markdown rendering for AI responses:
+  - Core emphasis syntax: `++bold++`, `//italic//`, and `++//bold italic//++`
   - One-click AI instruction application
-  - Auto-apply on adventure option
+  - Optional auto-apply on adventure
 - **Adventure Notes** — Embedded Plot Components notes card that saves per adventure. Track plot points, character details, or session notes without AI interference.
 
 ### 🔧 Scenario Building

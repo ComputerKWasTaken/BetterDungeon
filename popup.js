@@ -22,7 +22,6 @@ const STORAGE_KEYS = {
   customHotkeys: 'betterDungeon_customHotkeys',
   customModeColors: 'betterDungeon_customModeColors',
   commandSubMode: 'betterDungeon_commandSubMode',
-  markdownOptions: 'betterDungeon_markdownOptions',
   textToSpeech: 'betterDungeon_textToSpeechSettings',
 };
 
@@ -1022,70 +1021,37 @@ async function openAnalyticsDashboard(btn) {
 }
 
 // ============================================
-// MARKDOWN OPTIONS
+// MARKDOWN CHEAT SHEET
 // ============================================
 
-// Markdown format option definitions (mirrors AIDungeonService.MARKDOWN_FORMAT_OPTIONS)
-const MARKDOWN_FORMAT_OPTIONS = [
-  { id: 'bold',          label: 'Bold',          syntax: '++text++',     preview: '<strong>bold</strong>' },
-  { id: 'italic',        label: 'Italic',        syntax: '//text//',     preview: '<em>italic</em>' },
-  { id: 'boldItalic',    label: 'Bold Italic',    syntax: '++//text//++', preview: '<strong><em>bold italic</em></strong>' },
-  { id: 'underline',     label: 'Underline',      syntax: '==text==',     preview: '<u>underline</u>' },
-  { id: 'strikethrough', label: 'Strikethrough',  syntax: '~~text~~',     preview: '<s style="opacity:.65">strikethrough</s>' },
-  { id: 'highlight',     label: 'Highlight',      syntax: '::text::',     preview: '<mark style="background:rgba(255,149,0,.15);padding:1px 4px;border-radius:3px;">highlight</mark>' },
-  { id: 'smallText',     label: 'Small Text',     syntax: '~text~',       preview: '<span style="font-size:10px;opacity:.6">whisper</span>' },
-  { id: 'horizontalRule',label: 'Scene Break',    syntax: '---',          preview: 'scene break' },
-  { id: 'blockquote',    label: 'Blockquote',     syntax: '>> text',      preview: '<span style="border-left:2px solid;padding-left:6px;opacity:.85;font-style:italic;">quoted</span>' },
-  { id: 'list',          label: 'List',           syntax: '- item',       preview: '&bull; list item' },
-];
-
-const DEFAULT_MARKDOWN_CONFIG = Object.fromEntries(
-  MARKDOWN_FORMAT_OPTIONS.map(opt => [opt.id, true])
-);
-
-let currentMarkdownConfig = { ...DEFAULT_MARKDOWN_CONFIG };
+const LEGACY_MARKDOWN_OPTIONS_KEY = 'betterDungeon_markdownOptions';
 
 function initMarkdownOptions() {
-  const grid = document.getElementById('markdown-options-grid');
-  if (!grid) return;
+  const container = document.getElementById('markdown-cheatsheet');
+  if (!container) return;
 
-  // Load saved config then render
-  chrome.storage.sync.get(STORAGE_KEYS.markdownOptions, (result) => {
-    const saved = (result || {})[STORAGE_KEYS.markdownOptions];
-    if (saved) {
-      currentMarkdownConfig = { ...DEFAULT_MARKDOWN_CONFIG, ...saved };
-    }
-    renderMarkdownOptions(grid);
-  });
+  chrome.storage.sync.remove(LEGACY_MARKDOWN_OPTIONS_KEY);
+  renderMarkdownOptions(container);
 }
 
-function renderMarkdownOptions(grid) {
-  grid.innerHTML = '';
+function renderMarkdownOptions(container) {
+  container.innerHTML = '';
+  const formats = window.BetterDungeonMarkdownConfig?.formats || [];
 
-  for (const opt of MARKDOWN_FORMAT_OPTIONS) {
-    const item = document.createElement('label');
-    item.className = 'md-option-item';
+  for (const opt of formats) {
+    const item = document.createElement('div');
+    item.className = 'md-cheatsheet-item';
     item.innerHTML = `
-      <input type="checkbox" class="md-option-check" data-md-id="${opt.id}"
-        ${currentMarkdownConfig[opt.id] ? 'checked' : ''}>
-      <span class="md-option-body">
-        <code class="md-option-syntax">${escapeHtml(opt.syntax)}</code>
-        <span class="md-option-preview">${opt.preview}</span>
-      </span>
+      <code class="md-cheatsheet-syntax">${escapeHtml(opt.syntax)}</code>
+      <div class="md-cheatsheet-content">
+        <span class="md-cheatsheet-label">${escapeHtml(opt.label)}</span>
+        <span class="md-cheatsheet-role">${escapeHtml(opt.role)}</span>
+      </div>
+      <span class="md-cheatsheet-preview">${opt.preview}</span>
     `;
 
-    const checkbox = item.querySelector('input');
-    checkbox.addEventListener('change', () => {
-      currentMarkdownConfig[opt.id] = checkbox.checked;
-      saveMarkdownOptions();
-    });
-
-    grid.appendChild(item);
+    container.appendChild(item);
   }
-}
-
-function saveMarkdownOptions() {
-  chrome.storage.sync.set({ [STORAGE_KEYS.markdownOptions]: currentMarkdownConfig });
 }
 
 function showButtonStatus(btn, status, text, originalText) {

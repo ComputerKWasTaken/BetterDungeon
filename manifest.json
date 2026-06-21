@@ -50,6 +50,7 @@
         "utils/browser-polyfill.js",
         "utils/dom.js",
         "utils/storage.js",
+        "utils/markdown-config.js",
         "services/graphql-service.js",
         "services/ai-dungeon-service.js",
         "services/ultrascripts/write-queue.js",

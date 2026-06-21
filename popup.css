@@ -844,7 +844,7 @@ body.mobile {
   opacity: 0.6;
 }
 
-/* === Markdown Options Grid === */
+/* === Markdown Cheat Sheet === */
 .md-options-header {
   display: flex;
   align-items: baseline;
@@ -867,62 +867,92 @@ body.mobile {
   font-style: italic;
 }
 
-.md-options-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
+.md-cheatsheet {
+  display: flex;
+  flex-direction: column;
   background: var(--bg-elevated);
   border-radius: var(--radius-md);
-  padding: 6px;
+  padding: 4px;
+  border: 1px solid var(--border);
 }
 
-.md-option-item {
-  display: flex;
+.md-cheatsheet-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 6px 10px;
   align-items: center;
-  gap: 6px;
-  padding: 5px 8px;
+  padding: 7px 8px;
   border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background 0.15s;
+  transition: background var(--transition-fast);
 }
 
-.md-option-item:hover {
-  background: var(--bg-active);
+.md-cheatsheet-item:not(:last-child) {
+  border-bottom: 1px solid var(--border);
 }
 
-.md-option-check {
-  width: 14px;
-  height: 14px;
-  accent-color: var(--accent);
-  flex-shrink: 0;
-  cursor: pointer;
+.md-cheatsheet-item:hover {
+  background: rgba(255, 255, 255, 0.03);
 }
 
-.md-option-body {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.md-option-syntax {
+.md-cheatsheet-syntax {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 10px;
   background: var(--bg-active);
-  padding: 1px 4px;
+  padding: 2px 6px;
   border-radius: var(--radius-sm);
   color: var(--accent);
   white-space: nowrap;
-  flex-shrink: 0;
+  border: 1px solid var(--border);
 }
 
-.md-option-preview {
+.md-cheatsheet-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.md-cheatsheet-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.md-cheatsheet-role {
   font-size: 10px;
   color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.35;
+}
+
+.md-cheatsheet-preview {
+  font-size: 11px;
+  color: var(--text-primary);
+  padding: 3px 8px;
+  background: var(--bg-active);
+  border-radius: var(--radius-sm);
   white-space: nowrap;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+}
+
+.md-cheatsheet-preview strong,
+.md-cheatsheet-preview em {
+  color: var(--accent);
+}
+
+/* === Markdown Actions Area === */
+.md-actions {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.md-actions .feature-option {
+  margin-top: 0;
+}
+
+.md-actions .btn-action {
+  margin-top: 8px;
 }
 
 /* === Color Grid === */

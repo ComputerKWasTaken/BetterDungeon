@@ -4,7 +4,6 @@
 class MarkdownFeature {
   static id = 'markdown';
   static PROCESSED_ATTR = 'data-bd-processed';
-  static ORIGINAL_ATTR = 'data-bd-original';
 
   constructor() {
     this.storyContainerSelector = '#gameplay-output';
@@ -21,6 +20,8 @@ class MarkdownFeature {
     // Auto-apply instructions state
     this.autoApplyEnabled = false;
     this.currentAdventureId = null;
+    this.applyRunId = 0;
+    this.applyQueue = Promise.resolve();
     this.debug = false;
   }
 
@@ -62,7 +63,7 @@ class MarkdownFeature {
     if (newAdventureId && adventureChanged && this.autoApplyEnabled) {
       // Wait for the adventure page to fully load before applying
       this.waitForAdventureReady().then(() => {
-        this.applyInstructionsWithLoadingScreen();
+        this.applyInstructionsQuietly();
       });
     }
     
@@ -110,16 +111,47 @@ class MarkdownFeature {
       return { success: false, error: 'Loading screen not available' };
     }
 
-    // Use queue to ensure sequential execution with other features
-    return loadingScreen.queueOperation(() => this._doApplyInstructions());
+    const token = ++this.applyRunId;
+    this.applyQueue = this.applyQueue
+      .catch(() => null)
+      .then(() => {
+        if (token !== this.applyRunId) return { success: false, canceled: true };
+        return loadingScreen.queueOperation(() => this._doApplyInstructions({
+          token,
+          forceApply: true,
+          showOverlay: true,
+        }));
+      });
+
+    return this.applyQueue;
   }
 
-  async _doApplyInstructions() {
-    loadingScreen.show({
-      title: 'Applying Instructions',
-      subtitle: 'Initializing...',
-      showProgress: false
-    });
+  async applyInstructionsQuietly() {
+    const token = ++this.applyRunId;
+    this.applyQueue = this.applyQueue
+      .catch(() => null)
+      .then(() => {
+        if (token !== this.applyRunId) return { success: false, canceled: true };
+        return this._doApplyInstructions({
+          token,
+          forceApply: false,
+          showOverlay: false,
+        });
+      });
+
+    return this.applyQueue;
+  }
+
+  async _doApplyInstructions(options = {}) {
+    const { token, forceApply = false, showOverlay = false } = options;
+
+    if (showOverlay) {
+      loadingScreen.show({
+        title: 'Applying Instructions',
+        subtitle: 'Initializing...',
+        showProgress: false
+      });
+    }
 
     try {
       if (typeof AIDungeonService === 'undefined') {
@@ -139,7 +171,7 @@ class MarkdownFeature {
       }
       
       // Step 3: Load instruction file
-      loadingScreen.updateSubtitle('Loading instruction file...');
+      if (showOverlay) loadingScreen.updateSubtitle('Loading instruction file...');
       const instructionsResult = await service.fetchInstructionsFile();
       
       if (!instructionsResult.success) {
@@ -151,18 +183,26 @@ class MarkdownFeature {
       
       // Pass callbacks to update loading screen during the process
       const applyResult = await service.applyInstructionsToTextareas(instructionsResult.data, {
+        forceApply,
         authorsNoteText: instructionsResult.authorsNoteData || null,
+        shouldCancel: () => token !== this.applyRunId,
         onStepUpdate: (message) => {
-          loadingScreen.updateSubtitle(message);
+          if (showOverlay) loadingScreen.updateSubtitle(message);
         },
         onCreatingComponents: (message) => {
-          if (message) {
-            loadingScreen.updateSubtitle(message);
-          } else {
-            loadingScreen.updateSubtitle('Creating plot components...');
+          if (showOverlay) {
+            if (message) {
+              loadingScreen.updateSubtitle(message);
+            } else {
+              loadingScreen.updateSubtitle('Creating plot components...');
+            }
           }
         }
       });
+
+      if (applyResult.canceled) {
+        return { success: false, canceled: true };
+      }
       
       if (!applyResult.success) {
         throw new Error(applyResult.error || 'Failed to apply instructions');
@@ -170,42 +210,77 @@ class MarkdownFeature {
 
       // Handle different outcomes
       if (applyResult.alreadyApplied) {
-        loadingScreen.updateTitle('Already Applied');
-        loadingScreen.updateSubtitle('Markdown instructions are already present');
-        await this.wait(1200);
+        if (showOverlay) {
+          loadingScreen.updateTitle('Already Applied');
+          loadingScreen.updateSubtitle('Markdown instructions are already present');
+          await this.wait(1200);
+        }
         return { success: true, alreadyApplied: true };
       }
 
       if (applyResult.appliedCount === 0) {
-        loadingScreen.updateTitle('Already Applied');
-        loadingScreen.updateSubtitle('Instructions were already in place');
-        await this.wait(1200);
-        return { success: true, alreadyApplied: true };
+        if (showOverlay) {
+          loadingScreen.updateTitle(applyResult.partial ? 'Partially Applied' : 'Already Applied');
+          loadingScreen.updateSubtitle(applyResult.partial ? "Author's Note was unavailable" : 'Instructions were already in place');
+          await this.wait(1200);
+        } else if (applyResult.partial) {
+          this.showToast('Markdown partially applied', 'info');
+        }
+        return { success: true, alreadyApplied: !applyResult.partial, partial: applyResult.partial };
       }
 
-      loadingScreen.updateTitle('Instructions Applied!');
-      if (applyResult.componentsCreated) {
-        loadingScreen.updateSubtitle('Created plot components & added formatting instructions');
+      if (showOverlay) {
+        loadingScreen.updateTitle(applyResult.partial ? 'Partially Applied' : 'Instructions Applied!');
+        if (applyResult.partial) {
+          loadingScreen.updateSubtitle("Author's Note was unavailable");
+        } else if (applyResult.componentsCreated) {
+          loadingScreen.updateSubtitle('Created plot components & added formatting instructions');
+        } else {
+          loadingScreen.updateSubtitle('Markdown formatting guidelines applied');
+        }
+        await this.wait(1500);
       } else {
-        loadingScreen.updateSubtitle('Markdown formatting guidelines applied');
+        this.showToast(applyResult.partial ? 'Markdown partially applied' : 'Markdown instructions applied', applyResult.partial ? 'info' : 'success');
       }
       
-      await this.wait(1500);
-      
-      return { success: true };
+      return { success: true, partial: applyResult.partial };
 
     } catch (error) {
       console.error('MarkdownFeature: Apply instructions error:', error);
-      loadingScreen.updateTitle('Failed to Apply');
-      loadingScreen.updateSubtitle(error.message);
-      
-      await this.wait(2000);
+      if (showOverlay) {
+        loadingScreen.updateTitle('Failed to Apply');
+        loadingScreen.updateSubtitle(error.message);
+        await this.wait(2000);
+      } else if (token === this.applyRunId) {
+        this.showToast('Markdown apply failed', 'error');
+      }
       
       return { success: false, error: error.message };
 
     } finally {
-      loadingScreen.hide();
+      if (showOverlay) {
+        loadingScreen.hide();
+      }
     }
+  }
+
+  showToast(message, type = 'info') {
+    const existingToast = document.querySelector('.bd-toast');
+    if (existingToast) existingToast.remove();
+
+    const toast = document.createElement('div');
+    toast.className = `bd-toast bd-toast-${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    requestAnimationFrame(() => {
+      toast.classList.add('bd-toast-visible');
+    });
+
+    setTimeout(() => {
+      toast.classList.remove('bd-toast-visible');
+      setTimeout(() => toast.remove(), 300);
+    }, 2500);
   }
 
   wait(ms) {
@@ -214,6 +289,7 @@ class MarkdownFeature {
 
   // Called when feature is unregistered
   destroy() {
+    this.applyRunId++;
     if (this.observer) {
       this.observer.disconnect();
       this.observer = null;
@@ -380,19 +456,9 @@ class MarkdownFeature {
     if (!text) return false;
 
     const markdownIndicators = [
-      /\+\+\/\/.+?\/\/\+\+/, // Bold Italic ++//text//++
-      /\/\/\+\+.+?\+\+\/\//, // Bold Italic //++text++//
-      /\+\+\/\/.+?\+\+\/\//, // Bold Italic ++//text++// (unordered)
-      /\/\/\+\+.+?\/\/\+\+/, // Bold Italic //++text//++ (unordered)
-      /(?:^|[^+])\+\+[^+]+?\+\+(?:[^+]|$)/, // Bold ++text++
-      /(?:^|[^\/])\/\/[^\/]+?\/\/(?:[^\/]|$)/, // Italic //text//
-      /==.+?==/,           // Underline ==text==
-      /~~.+?~~/,           // Strikethrough ~~text~~
-      /::.+?::/,           // Highlight ::text::
-      /(?:^|[^~])~[^~]+?~(?:[^~]|$)/, // Small text ~text~
-      /^\s*[-]{3,}\s*$/m,  // Horizontal rules ---
-      /^\s*>>\s/m,         // Blockquotes >> text
-      /^\s*[-]\s/m,        // Unordered lists
+      /\+\+\/\/[^\n]+?\/\/\+\+/, // Bold italic ++//text//++
+      /(?<![+])\+\+[^+\n]+?\+\+(?![+])/, // Bold ++text++
+      /(?<![:/])\/\/[^/\n]+?\/\/(?![/])/, // Italic //text//
     ];
 
     return markdownIndicators.some(pattern => pattern.test(text));
@@ -432,8 +498,6 @@ class MarkdownFeature {
         return false;
       }
 
-      element.setAttribute(MarkdownFeature.ORIGINAL_ATTR, originalText);
-
       const html = this.formatText(originalText);
 
       if (html !== originalText && element.parentNode && document.contains(element)) {
@@ -455,48 +519,14 @@ class MarkdownFeature {
 
     let html = this.escapeHtml(text);
 
-    // Bold + Italic combinations (support all nesting orders)
-    // Properly nested: ++//text//++ (bold outside, italic inside)
-    html = html.replace(/\+\+\/\/(.+?)\/\/\+\+/g, '<strong><em>$1</em></strong>');
-    // Properly nested: //++text++// (italic outside, bold inside)
-    html = html.replace(/\/\/\+\+(.+?)\+\+\/\//g, '<em><strong>$1</strong></em>');
-    // Unordered: ++//text++// (bold opens first, closes first)
-    html = html.replace(/\+\+\/\/(.+?)\+\+\/\//g, '<strong><em>$1</em></strong>');
-    // Unordered: //++text//++ (italic opens first, closes first)
-    html = html.replace(/\/\/\+\+(.+?)\/\/\+\+/g, '<em><strong>$1</strong></em>');
-
-    // Bold + Underline: ++==text==++ or ==++text++==
-    html = html.replace(/\+\+==(.+?)==\+\+/g, '<strong><u>$1</u></strong>');
-    html = html.replace(/==\+\+(.+?)\+\+==/g, '<u><strong>$1</strong></u>');
+    // Bold italic: ++//text//++
+    html = html.replace(/\+\+\/\/([^\n]+?)\/\/\+\+/g, '<strong><em>$1</em></strong>');
     
-    // Bold: ++text++ (not preceded/followed by another +)
-    // Use lookahead/lookbehind to avoid consuming characters needed for consecutive matches
-    html = html.replace(/(?<![+])\+\+([^+]+?)\+\+(?![+])/g, '<strong>$1</strong>');
+    // Bold: ++text++
+    html = html.replace(/(?<![+])\+\+([^+\n]+?)\+\+(?![+])/g, '<strong>$1</strong>');
 
-    // Italic: //text// (not preceded/followed by another /)
-    // Use lookahead/lookbehind to handle consecutive patterns like //test// //test//
-    html = html.replace(/(?<![/])\/\/([^/]+?)\/\/(?![/])/g, '<em>$1</em>');
-
-    // Underline: ==text==
-    html = html.replace(/==(.+?)==/g, '<u>$1</u>');
-
-    // Strikethrough: ~~text~~
-    html = html.replace(/~~(.+?)~~/g, '<s>$1</s>');
-
-    // Highlight: ::text::
-    html = html.replace(/::(.+?)::/g, '<mark class="bd-highlight">$1</mark>');
-
-    // Small/faint text: ~text~ (must come after strikethrough to avoid conflicts)
-    html = html.replace(/(?<![~])~([^~]+?)~(?![~])/g, '<span class="bd-small-text">$1</span>');
-
-    // Horizontal rules (--- only)
-    html = html.replace(/^(\s*)[-]{3,}\s*$/gm, '$1<hr class="bd-hr">');
-
-    // Blockquotes: >> text (uses &gt;&gt; after HTML escaping)
-    html = html.replace(/^(\s*)&gt;&gt;\s+(.+)$/gm, '$1<span class="bd-blockquote">$2</span>');
-
-    // Unordered lists
-    html = this.processLists(html);
+    // Italic: //text//
+    html = html.replace(/(?<![:/])\/\/([^/\n]+?)\/\/(?![/])/g, '<em>$1</em>');
 
     return html;
   }
@@ -508,29 +538,6 @@ class MarkdownFeature {
       '>': '&gt;',
     };
     return text.replace(/[&<>]/g, char => escapeMap[char]);
-  }
-
-  // Headers and blockquotes removed - they conflict with AI Dungeon's command system
-  // # headers are treated as commands by the AI
-  // > blockquotes conflict with player action syntax
-
-  processLists(html) {
-    // Unordered lists: - item (minus sign only)
-    // Each line starting with - followed by space becomes a bullet point
-    html = html.replace(/^(\s*)[-]\s+(.+)$/gm, '$1<span class="bd-list-item">• $2</span>');
-    return html;
-  }
-
-  restoreOriginal(element) {
-    if (!element) return;
-
-    const original = element.getAttribute(MarkdownFeature.ORIGINAL_ATTR);
-    if (original) {
-      element.textContent = original;
-      element.removeAttribute(MarkdownFeature.PROCESSED_ATTR);
-      element.removeAttribute(MarkdownFeature.ORIGINAL_ATTR);
-      element.classList.remove('bd-markdown');
-    }
   }
 }
 
