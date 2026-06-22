@@ -8,6 +8,7 @@
     constructor() {
       this.debug = false;
       this.identityCache = new Map();
+      this.deprecatedModelsEnabled = false;
     }
 
     static FORBIDDEN_REPLAY_HEADERS = new Set([
@@ -362,7 +363,12 @@
     }
 
     async enableDeprecatedModels(options = {}) {
-      return this.saveSettings({ showDeprecatedModels: true }, options);
+      if (this.deprecatedModelsEnabled) {
+        return { success: true, message: 'Deprecated models already enabled for this session.' };
+      }
+      const response = await this.saveSettings({ showDeprecatedModels: true }, options);
+      this.deprecatedModelsEnabled = true;
+      return response;
     }
 
     async saveStoryVersionSettings({ settings, versionName, adventureShortId }, options = {}) {
