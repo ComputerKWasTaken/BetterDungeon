@@ -132,21 +132,6 @@ const CUSTOM_DYNAMIC_MODEL_CATALOG = [
   'Atlas'
 ];
 
-const CUSTOM_DYNAMIC_CACHE_EFFICIENT_MODELS = [
-  'Equinox',
-  'Gemma 4 31B',
-  'DeepSeek V4 Flash',
-  'Deepseek v4 Pro',
-  'GLM 5.1',
-  'Raven',
-  'Atlas'
-];
-
-const CUSTOM_DYNAMIC_ALWAYS_OPTIMIZED_MODELS = [
-  'Raven',
-  'Atlas'
-];
-
 const DEFAULT_CUSTOM_DYNAMIC_CONFIG = {
   enabled: true,
   routingMode: 'weighted-random',
@@ -154,8 +139,6 @@ const DEFAULT_CUSTOM_DYNAMIC_CONFIG = {
   repeatPenalty: 0.2,
   failOpen: true,
   debug: false,
-  autoDisableOptimizedContext: true,
-  optimizedContextTokens: 4000,
   generationUrlPatterns: [],
   modelPaths: [],
   pool: []
@@ -167,8 +150,7 @@ const DEFAULT_CUSTOM_DYNAMIC_RUNTIME = {
   lastModelId: '',
   roundRobinCursor: 0,
   visibleVersions: [],
-  visibleVersionsRefreshedAt: '',
-  optimizedContextDisabled: {}
+  visibleVersionsRefreshedAt: ''
 };
 
 const DEFAULT_TEXT_TO_SPEECH_SETTINGS = {
@@ -776,7 +758,6 @@ function initCustomDynamicSettings() {
   document.getElementById('custom-dynamic-routing-mode')?.addEventListener('change', () => setCustomDynamicStatus('Unsaved changes.'));
   document.getElementById('custom-dynamic-switch-mode')?.addEventListener('change', () => setCustomDynamicStatus('Unsaved changes.'));
   document.getElementById('custom-dynamic-fail-open')?.addEventListener('change', () => setCustomDynamicStatus('Unsaved changes.'));
-  document.getElementById('custom-dynamic-auto-disable-optimized-context')?.addEventListener('change', () => setCustomDynamicStatus('Unsaved changes.'));
 }
 
 function loadCustomDynamicSettings() {
@@ -797,13 +778,11 @@ function renderCustomDynamicConfig() {
   const routingMode = document.getElementById('custom-dynamic-routing-mode');
   const switchMode = document.getElementById('custom-dynamic-switch-mode');
   const failOpen = document.getElementById('custom-dynamic-fail-open');
-  const autoDisableOptimizedContext = document.getElementById('custom-dynamic-auto-disable-optimized-context');
   const list = document.getElementById('custom-dynamic-model-list');
 
   if (routingMode) routingMode.value = config.routingMode;
   if (switchMode) switchMode.value = config.switchMode;
   if (failOpen) failOpen.checked = config.failOpen !== false;
-  if (autoDisableOptimizedContext) autoDisableOptimizedContext.checked = config.autoDisableOptimizedContext !== false;
 
   if (list) {
     list.innerHTML = '';
@@ -830,17 +809,13 @@ function addCustomDynamicModelRow(model = {}) {
   enabledSlider.className = 'toggle-slider';
   enabledLabel.append(enabledInput, enabledSlider);
 
-  const cacheWarning = document.createElement('span');
-  cacheWarning.className = 'custom-dynamic-cache-warning';
-
   const modelId = cleanPopupModelName(model.modelId || model.id || '');
   const modelName = document.createElement('span');
   modelName.className = 'custom-dynamic-model-name';
   modelName.dataset.field = 'modelId';
   modelName.dataset.modelId = modelId;
   modelName.textContent = modelId;
-  modelName.title = getCustomDynamicModelHint(modelId);
-  updateCustomDynamicCacheWarning(cacheWarning, modelId);
+  modelName.title = 'Model name';
 
   const weightSelect = document.createElement('select');
   weightSelect.className = 'form-select form-select-sm custom-dynamic-weight-select';
@@ -878,7 +853,7 @@ function addCustomDynamicModelRow(model = {}) {
     markDirty();
   });
 
-  row.append(enabledLabel, cacheWarning, modelName, weightSelect, remove);
+  row.append(enabledLabel, modelName, weightSelect, remove);
   list.appendChild(row);
 }
 
@@ -901,7 +876,6 @@ function collectCustomDynamicConfig() {
     routingMode: document.getElementById('custom-dynamic-routing-mode')?.value || 'weighted-random',
     switchMode: document.getElementById('custom-dynamic-switch-mode')?.value || 'auto',
     failOpen: document.getElementById('custom-dynamic-fail-open')?.checked !== false,
-    autoDisableOptimizedContext: document.getElementById('custom-dynamic-auto-disable-optimized-context')?.checked !== false,
     pool
   });
 }
@@ -953,8 +927,6 @@ function normalizeCustomDynamicConfig(value = {}) {
     repeatPenalty: clampPopupNumber(raw.repeatPenalty, DEFAULT_CUSTOM_DYNAMIC_CONFIG.repeatPenalty, 0, 1),
     failOpen: raw.failOpen !== false,
     debug: Boolean(raw.debug),
-    autoDisableOptimizedContext: raw.autoDisableOptimizedContext !== false,
-    optimizedContextTokens: clampPopupNumber(raw.optimizedContextTokens, DEFAULT_CUSTOM_DYNAMIC_CONFIG.optimizedContextTokens, 1000, 200000),
     generationUrlPatterns: Array.isArray(raw.generationUrlPatterns) ? raw.generationUrlPatterns.filter(Boolean) : [],
     modelPaths: Array.isArray(raw.modelPaths) ? raw.modelPaths.filter(Boolean) : [],
     pool: Array.isArray(raw.pool)
@@ -977,10 +949,7 @@ function normalizeCustomDynamicRuntime(value = {}) {
     lastModelId: cleanPopupModelName(raw.lastModelId || ''),
     roundRobinCursor: Number.isInteger(raw.roundRobinCursor) ? raw.roundRobinCursor : 0,
     visibleVersions: Array.isArray(raw.visibleVersions) ? raw.visibleVersions : [],
-    visibleVersionsRefreshedAt: cleanPopupModelName(raw.visibleVersionsRefreshedAt || ''),
-    optimizedContextDisabled: raw.optimizedContextDisabled && typeof raw.optimizedContextDisabled === 'object'
-      ? raw.optimizedContextDisabled
-      : {}
+    visibleVersionsRefreshedAt: cleanPopupModelName(raw.visibleVersionsRefreshedAt || '')
   };
 }
 
@@ -1018,46 +987,6 @@ function getCustomDynamicKnownModels() {
     .filter((version) => version?.available !== false)
     .forEach((version) => add(version.modelId || version.displayName || version.versionName));
   return models;
-}
-
-function getCustomDynamicModelHint(modelId) {
-  if (isCustomDynamicAlwaysOptimizedModel(modelId)) return 'Always uses optimized context. Switching models breaks the KV cache and can reduce the benefit.';
-  if (isCustomDynamicCacheEfficientModel(modelId)) return 'Can use Optimized Context. BetterDungeon can turn it off automatically for this model when possible.';
-  return 'Model name';
-}
-
-function updateCustomDynamicCacheWarning(element, modelId) {
-  if (!element) return;
-  element.className = 'custom-dynamic-cache-warning';
-  element.textContent = '';
-  element.removeAttribute('title');
-  element.removeAttribute('role');
-  element.removeAttribute('aria-label');
-  if (isCustomDynamicAlwaysOptimizedModel(modelId)) {
-    element.classList.add('is-critical');
-    element.innerHTML = '<span class="icon-triangle-alert"></span>';
-    element.title = getCustomDynamicModelHint(modelId);
-    element.setAttribute('role', 'img');
-    element.setAttribute('aria-label', 'Always optimized context warning');
-    return;
-  }
-  if (isCustomDynamicCacheEfficientModel(modelId)) {
-    element.classList.add('is-warning');
-    element.innerHTML = '<span class="icon-triangle-alert"></span>';
-    element.title = getCustomDynamicModelHint(modelId);
-    element.setAttribute('role', 'img');
-    element.setAttribute('aria-label', 'Optimized Context warning');
-  }
-}
-
-function isCustomDynamicCacheEfficientModel(modelId) {
-  const key = canonicalPopupModelName(modelId);
-  return CUSTOM_DYNAMIC_CACHE_EFFICIENT_MODELS.some((item) => canonicalPopupModelName(item) === key);
-}
-
-function isCustomDynamicAlwaysOptimizedModel(modelId) {
-  const key = canonicalPopupModelName(modelId);
-  return CUSTOM_DYNAMIC_ALWAYS_OPTIMIZED_MODELS.some((item) => canonicalPopupModelName(item) === key);
 }
 
 function getCustomDynamicWeightOption(weight) {

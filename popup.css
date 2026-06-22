@@ -768,7 +768,7 @@ body.mobile {
 
 .custom-dynamic-pool-labels {
   display: grid;
-  grid-template-columns: 30px 34px minmax(0, 1fr) 92px 30px;
+  grid-template-columns: 30px minmax(0, 1fr) 92px 30px;
   align-items: center;
   gap: 8px;
   margin-bottom: 4px;
@@ -779,7 +779,7 @@ body.mobile {
 }
 
 .custom-dynamic-pool-labels span:last-child {
-  grid-column: 4;
+  grid-column: 3;
 }
 
 .custom-dynamic-model-list {
@@ -789,31 +789,10 @@ body.mobile {
 
 .custom-dynamic-model-row {
   display: grid;
-  grid-template-columns: 30px 34px minmax(0, 1fr) 92px 30px;
+  grid-template-columns: 30px minmax(0, 1fr) 92px 30px;
   align-items: center;
   gap: 8px;
   min-height: 34px;
-}
-
-.custom-dynamic-cache-warning {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  margin-left: 8px;
-  color: transparent;
-  font-size: 14px;
-}
-
-.custom-dynamic-cache-warning.is-warning,
-.custom-dynamic-legend-item .is-warning {
-  color: var(--warning);
-}
-
-.custom-dynamic-cache-warning.is-critical,
-.custom-dynamic-legend-item .is-critical {
-  color: var(--error);
 }
 
 .custom-dynamic-model-row .form-input,
@@ -854,22 +833,6 @@ body.mobile {
 .custom-dynamic-add-row .btn {
   margin-top: 0;
   white-space: nowrap;
-}
-
-.custom-dynamic-warning-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 8px 0 0;
-  color: var(--text-muted);
-  font-size: 10px;
-  line-height: 1.3;
-}
-
-.custom-dynamic-legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
 }
 
 .custom-dynamic-actions {

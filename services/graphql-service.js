@@ -112,26 +112,6 @@
           __typename
         }
       }`,
-
-      saveStoryVersionSettings: `mutation SaveStoryVersionSettings($settings: JSONObject!, $versionName: String, $adventureShortId: String) {
-        saveVersionSettings(
-          settings: $settings
-          versionName: $versionName
-          adventureShortId: $adventureShortId
-        ) {
-          success
-          message
-          versionSettings
-          __typename
-        }
-      }`,
-
-      sendEvent: `mutation SendEvent($input: EventStreamInput) {
-        sendEvent(input: $input) {
-          success
-          __typename
-        }
-      }`,
     };
 
     log(...args) {
@@ -368,79 +348,6 @@
       }
       const response = await this.saveSettings({ showDeprecatedModels: true }, options);
       this.deprecatedModelsEnabled = true;
-      return response;
-    }
-
-    async saveStoryVersionSettings({ settings, versionName, adventureShortId }, options = {}) {
-      if (!settings || typeof settings !== 'object') {
-        throw new Error('saveStoryVersionSettings requires a settings object.');
-      }
-      if (!versionName) {
-        throw new Error('saveStoryVersionSettings requires a versionName.');
-      }
-
-      const result = await this.request(
-        'SaveStoryVersionSettings',
-        {
-          settings,
-          versionName,
-          adventureShortId: adventureShortId || null,
-        },
-        BetterDungeonGQLService.MUTATIONS.saveStoryVersionSettings,
-        options
-      );
-
-      const response = result?.data?.saveVersionSettings;
-      if (!response?.success) {
-        throw new Error(response?.message || `AI Dungeon rejected settings for ${versionName}.`);
-      }
-      return response;
-    }
-
-    async sendSettingsUpdatedEvent(updatedSettingNames = [], options = {}) {
-      const names = Array.isArray(updatedSettingNames) ? updatedSettingNames.filter(Boolean) : [];
-      const input = {
-        eventType: 'user',
-        eventName: 'settings_updated',
-        metadata: {
-          clientInfo: {
-            platform: 'web',
-            userAgent: navigator.userAgent,
-            nativeAppPlatform: null,
-            surface: 'aidungeon',
-            updatedSettingNames: names,
-          },
-        },
-      };
-
-      return this.request(
-        'SendEvent',
-        { input },
-        BetterDungeonGQLService.MUTATIONS.sendEvent,
-        options
-      );
-    }
-
-    async disableOptimizedContext({ versionName, adventureShortId, contextTokens = 4000 }, options = {}) {
-      const settings = {
-        userEnabledCacheEfficient: false,
-        contextTokens: Number.isFinite(contextTokens) ? contextTokens : 4000,
-      };
-
-      const response = await this.saveStoryVersionSettings({
-        settings,
-        versionName,
-        adventureShortId,
-      }, options);
-
-      try {
-        await this.sendSettingsUpdatedEvent(['userEnabledCacheEfficient', 'contextTokens'], {
-          timeoutMs: Math.min(Number(options.timeoutMs) || 30000, 10000),
-        });
-      } catch (error) {
-        this.log('settings_updated event failed after saveVersionSettings', error);
-      }
-
       return response;
     }
 

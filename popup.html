@@ -519,31 +519,12 @@
                 </label>
               </div>
 
-              <div class="alert alert-info alert-compact">
-                <span class="icon-brain-circuit"></span>
-                <span>Cache-efficient models can be pooled, but switching models breaks their KV cache. BetterDungeon can disable Optimized Context for supported pooled models.</span>
-              </div>
-
-              <div class="feature-option custom-dynamic-toggle-option">
-                <span class="option-label">
-                  <span>
-                    <strong>Auto-disable Optimized Context</strong>
-                    <small>Turns off Settings &gt; Gameplay &gt; AI Models &gt; Memory System &gt; Optimized Context for cache-efficient pool models when possible.</small>
-                  </span>
-                </span>
-                <label class="toggle sm">
-                  <input type="checkbox" id="custom-dynamic-auto-disable-optimized-context" checked>
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-
               <div class="custom-dynamic-pool-header">
                 <span>Pool</span>
                 <span id="custom-dynamic-pool-summary">0 models</span>
               </div>
               <div class="custom-dynamic-pool-labels">
                 <span>On</span>
-                <span>Cache</span>
                 <span>Model</span>
                 <span>Chance</span>
               </div>
@@ -556,11 +537,6 @@
                   Add
                 </button>
               </div>
-
-              <p class="custom-dynamic-warning-legend">
-                <span class="custom-dynamic-legend-item"><span class="icon-triangle-alert is-warning"></span> Optimized Context capable</span>
-                <span class="custom-dynamic-legend-item"><span class="icon-triangle-alert is-critical"></span> Always optimized</span>
-              </p>
 
               <div class="custom-dynamic-actions">
                 <span class="option-value" id="custom-dynamic-status">Changes stay local to this browser.</span>

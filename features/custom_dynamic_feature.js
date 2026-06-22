@@ -6,30 +6,12 @@
 class CustomDynamicFeature {
   static id = 'customDynamic';
   static versionRefreshTtlMs = 10 * 60 * 1000;
-  static optimizedContextCooldownMs = 10 * 60 * 1000;
-
-  static cacheEfficientModels = [
-    'Equinox',
-    'Gemma 4 31B',
-    'DeepSeek V4 Flash',
-    'Deepseek v4 Pro',
-    'GLM 5.1',
-    'Raven',
-    'Atlas'
-  ];
-
-  static alwaysOptimizedModels = [
-    'Raven',
-    'Atlas'
-  ];
 
   constructor() {
     this.enabled = true;
     this.namespace = 'betterdungeon-custom-dynamic-v1';
     this.configStorageKey = 'betterDungeon_customDynamicConfig';
     this.runtimeStorageKey = 'betterDungeon_customDynamicRuntime';
-    this.optimizedContextTimer = null;
-    this.optimizedContextInflight = new Set();
 
     this.defaultConfig = {
       enabled: true,
@@ -38,8 +20,6 @@ class CustomDynamicFeature {
       repeatPenalty: 0.2,
       failOpen: true,
       debug: false,
-      autoDisableOptimizedContext: true,
-      optimizedContextTokens: 4000,
       generationUrlPatterns: [],
       modelPaths: [],
       pool: []
@@ -51,8 +31,7 @@ class CustomDynamicFeature {
       lastModelId: '',
       roundRobinCursor: 0,
       visibleVersions: [],
-      visibleVersionsRefreshedAt: '',
-      optimizedContextDisabled: {}
+      visibleVersionsRefreshedAt: ''
     };
 
     this.boundMessageHandler = this.handlePageMessage.bind(this);
@@ -71,15 +50,12 @@ class CustomDynamicFeature {
     await this.ensureInitialState();
     await this.postState();
     void this.refreshVisibleVersions();
-    this.scheduleOptimizedContextSync('init');
   }
 
   destroy() {
     console.log('[CustomDynamic] Destroying Custom Dynamic feature...');
     this.enabled = false;
     window.removeEventListener('message', this.boundMessageHandler, false);
-    if (this.optimizedContextTimer) clearTimeout(this.optimizedContextTimer);
-    this.optimizedContextInflight.clear();
 
     if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
       chrome.storage.onChanged.removeListener(this.boundStorageHandler);
@@ -141,14 +117,12 @@ class CustomDynamicFeature {
     const configChanged = areaName === 'sync' && changes?.[this.configStorageKey];
     const runtimeChanged = areaName === 'local' && changes?.[this.runtimeStorageKey];
     if (configChanged || runtimeChanged) void this.postState();
-    if (configChanged) this.scheduleOptimizedContextSync('config-change');
   }
 
   async persistRuntimeEvent(event) {
     const result = await this.storageGet('local', this.runtimeStorageKey);
     const runtime = this.normalizeRuntime(result?.[this.runtimeStorageKey]);
     const timestamp = new Date().toISOString();
-    let modelToSync = '';
 
     if (event.kind === 'adapter-learned' && event.adapter) {
       runtime.adapter = {
@@ -165,7 +139,6 @@ class CustomDynamicFeature {
       runtime.lastModelId = this.cleanModelName(event.modelId);
       runtime.lastMechanism = event.mechanism || runtime.lastMechanism || '';
       runtime.lastRoutedAt = timestamp;
-      modelToSync = runtime.lastModelId;
     }
 
     if (event.kind === 'log') {
@@ -179,124 +152,6 @@ class CustomDynamicFeature {
     }
 
     await this.storageSet('local', { [this.runtimeStorageKey]: runtime });
-
-    if (modelToSync) {
-      void this.ensureOptimizedContextDisabledForModel(modelToSync, 'last-model');
-    }
-  }
-
-  scheduleOptimizedContextSync(reason) {
-    if (this.optimizedContextTimer) clearTimeout(this.optimizedContextTimer);
-    this.optimizedContextTimer = setTimeout(() => {
-      this.optimizedContextTimer = null;
-      void this.ensureOptimizedContextDisabledForPool(reason);
-    }, 600);
-  }
-
-  async ensureOptimizedContextDisabledForPool(reason) {
-    const configResult = await this.storageGet('sync', this.configStorageKey);
-    const config = this.normalizeConfig(configResult?.[this.configStorageKey]);
-    if (!config.autoDisableOptimizedContext) return;
-
-    const targets = (config.pool || [])
-      .filter((model) => model.enabled !== false)
-      .filter((model) => this.isDisableableCacheModel(model.modelId));
-    if (!targets.length) return;
-
-    await this.refreshVisibleVersions({ force: false });
-    for (const model of targets) {
-      await this.ensureOptimizedContextDisabledForModel(model.modelId, reason, config);
-    }
-  }
-
-  async ensureOptimizedContextDisabledForModel(modelId, reason, config = null) {
-    const normalizedModel = this.cleanModelName(modelId);
-    if (!normalizedModel || !this.isDisableableCacheModel(normalizedModel)) return;
-
-    const lockKey = this.canonicalModelName(normalizedModel);
-    if (this.optimizedContextInflight.has(lockKey)) return;
-    this.optimizedContextInflight.add(lockKey);
-
-    try {
-      const resolvedConfig = config || this.normalizeConfig((await this.storageGet('sync', this.configStorageKey))?.[this.configStorageKey]);
-      if (!resolvedConfig.autoDisableOptimizedContext) return;
-
-      const gql = await this.waitForGqlCredentials(8000);
-      if (!gql) {
-        await this.appendRuntimeLog('warn', 'Optimized Context auto-disable is waiting for AI Dungeon credentials.', { modelId: normalizedModel, reason });
-        return;
-      }
-
-      let runtime = this.normalizeRuntime((await this.storageGet('local', this.runtimeStorageKey))?.[this.runtimeStorageKey]);
-      if (!runtime.visibleVersions.length) {
-        await this.refreshVisibleVersions({ force: true });
-        runtime = this.normalizeRuntime((await this.storageGet('local', this.runtimeStorageKey))?.[this.runtimeStorageKey]);
-      }
-
-      const version = this.findVisibleVersionForModel(normalizedModel, runtime.visibleVersions);
-      if (!version?.versionName) {
-        await this.appendRuntimeLog('warn', 'Could not map cache-efficient model to an AI Dungeon version name.', {
-          modelId: normalizedModel,
-          reason
-        });
-        return;
-      }
-
-      let identity;
-      try {
-        identity = await gql.getAdventureIdentity(null, { timeoutMs: 10000 });
-      } catch (error) {
-        await this.appendRuntimeLog('warn', 'Could not resolve adventure id for Optimized Context automation.', {
-          modelId: normalizedModel,
-          versionName: version.versionName,
-          error: error?.message || String(error)
-        });
-        return;
-      }
-
-      const adventureShortId = identity?.shortId || gql.getShortIdFromUrl?.();
-      if (!adventureShortId) return;
-
-      const key = `${adventureShortId}:${version.versionName}`;
-      const existing = runtime.optimizedContextDisabled?.[key];
-      if (existing?.disabledAt && Date.now() - Date.parse(existing.disabledAt) < CustomDynamicFeature.optimizedContextCooldownMs) return;
-
-      try {
-        const response = await gql.disableOptimizedContext({
-          versionName: version.versionName,
-          adventureShortId,
-          contextTokens: resolvedConfig.optimizedContextTokens
-        }, { timeoutMs: 15000 });
-
-        runtime = this.normalizeRuntime((await this.storageGet('local', this.runtimeStorageKey))?.[this.runtimeStorageKey]);
-        runtime.optimizedContextDisabled = {
-          ...(runtime.optimizedContextDisabled || {}),
-          [key]: {
-            modelId: normalizedModel,
-            versionName: version.versionName,
-            adventureShortId,
-            disabledAt: new Date().toISOString(),
-            message: response?.message || ''
-          }
-        };
-        runtime.logs.unshift({
-          at: new Date().toISOString(),
-          level: 'info',
-          message: 'Disabled Optimized Context for a Custom Dynamic model.',
-          details: { modelId: normalizedModel, versionName: version.versionName, reason }
-        });
-        runtime.logs = runtime.logs.slice(0, 160);
-        await this.storageSet('local', { [this.runtimeStorageKey]: runtime });
-      } catch (error) {
-        await this.appendRuntimeLog('warn', 'Failed to auto-disable Optimized Context.', {
-          modelId: normalizedModel,
-          versionName: version.versionName,
-          error: error?.message || String(error)
-        });
-      }
-    } finally {
-      this.optimizedContextInflight.delete(lockKey);
-    }
   }
 
   async refreshVisibleVersions(options = {}) {
@@ -477,8 +332,6 @@ class CustomDynamicFeature {
       repeatPenalty: this.clampNumber(raw.repeatPenalty, this.defaultConfig.repeatPenalty, 0, 1),
       failOpen: raw.failOpen !== false,
       debug: Boolean(raw.debug),
-      autoDisableOptimizedContext: raw.autoDisableOptimizedContext !== false,
-      optimizedContextTokens: this.clampNumber(raw.optimizedContextTokens, this.defaultConfig.optimizedContextTokens, 1000, 200000),
       generationUrlPatterns: Array.isArray(raw.generationUrlPatterns) ? raw.generationUrlPatterns.filter(Boolean) : [],
       modelPaths: Array.isArray(raw.modelPaths) ? raw.modelPaths.filter(Boolean) : [],
       pool: Array.isArray(raw.pool)
@@ -501,10 +354,7 @@ class CustomDynamicFeature {
       lastModelId: this.cleanModelName(raw.lastModelId || ''),
       roundRobinCursor: Number.isInteger(raw.roundRobinCursor) ? raw.roundRobinCursor : 0,
       visibleVersions: Array.isArray(raw.visibleVersions) ? raw.visibleVersions : [],
-      visibleVersionsRefreshedAt: this.cleanModelName(raw.visibleVersionsRefreshedAt || ''),
-      optimizedContextDisabled: raw.optimizedContextDisabled && typeof raw.optimizedContextDisabled === 'object'
-        ? raw.optimizedContextDisabled
-        : {}
+      visibleVersionsRefreshedAt: this.cleanModelName(raw.visibleVersionsRefreshedAt || '')
     };
   }
 
@@ -570,18 +420,6 @@ class CustomDynamicFeature {
       (typeof chrome !== 'undefined' && chrome?.storage) ? chrome :
       null;
     return api?.storage?.[areaName] || null;
-  }
-
-  isCacheEfficientModel(modelId) {
-    return CustomDynamicFeature.cacheEfficientModels.some((item) => this.sameModel(item, modelId));
-  }
-
-  isAlwaysOptimizedModel(modelId) {
-    return CustomDynamicFeature.alwaysOptimizedModels.some((item) => this.sameModel(item, modelId));
-  }
-
-  isDisableableCacheModel(modelId) {
-    return this.isCacheEfficientModel(modelId) && !this.isAlwaysOptimizedModel(modelId);
   }
 
   cleanModelName(value) {
