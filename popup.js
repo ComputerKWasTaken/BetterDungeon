@@ -120,8 +120,12 @@ const CUSTOM_DYNAMIC_MODEL_CATALOG = [
   'Deepseek v4 Pro',
   'Fable',
   'Dynamic DeepSeek',
+  'Mistral Small',
+  'Mistral Small 3',
   'Hermes 3 405B',
+  'Wayfarer Small',
   'Wayfarer Small 2',
+  'WizardLM 8x22B',
   'Wayfarer Large',
   'Harbinger',
   'Muse',
@@ -150,6 +154,8 @@ const DEFAULT_CUSTOM_DYNAMIC_CONFIG = {
   repeatPenalty: 0.2,
   failOpen: true,
   debug: false,
+  autoDisableOptimizedContext: true,
+  optimizedContextTokens: 4000,
   generationUrlPatterns: [],
   modelPaths: [],
   pool: []
@@ -159,7 +165,10 @@ const DEFAULT_CUSTOM_DYNAMIC_RUNTIME = {
   adapter: null,
   logs: [],
   lastModelId: '',
-  roundRobinCursor: 0
+  roundRobinCursor: 0,
+  visibleVersions: [],
+  visibleVersionsRefreshedAt: '',
+  optimizedContextDisabled: {}
 };
 
 const DEFAULT_TEXT_TO_SPEECH_SETTINGS = {
@@ -767,6 +776,7 @@ function initCustomDynamicSettings() {
   document.getElementById('custom-dynamic-routing-mode')?.addEventListener('change', () => setCustomDynamicStatus('Unsaved changes.'));
   document.getElementById('custom-dynamic-switch-mode')?.addEventListener('change', () => setCustomDynamicStatus('Unsaved changes.'));
   document.getElementById('custom-dynamic-fail-open')?.addEventListener('change', () => setCustomDynamicStatus('Unsaved changes.'));
+  document.getElementById('custom-dynamic-auto-disable-optimized-context')?.addEventListener('change', () => setCustomDynamicStatus('Unsaved changes.'));
 }
 
 function loadCustomDynamicSettings() {
@@ -787,11 +797,13 @@ function renderCustomDynamicConfig() {
   const routingMode = document.getElementById('custom-dynamic-routing-mode');
   const switchMode = document.getElementById('custom-dynamic-switch-mode');
   const failOpen = document.getElementById('custom-dynamic-fail-open');
+  const autoDisableOptimizedContext = document.getElementById('custom-dynamic-auto-disable-optimized-context');
   const list = document.getElementById('custom-dynamic-model-list');
 
   if (routingMode) routingMode.value = config.routingMode;
   if (switchMode) switchMode.value = config.switchMode;
   if (failOpen) failOpen.checked = config.failOpen !== false;
+  if (autoDisableOptimizedContext) autoDisableOptimizedContext.checked = config.autoDisableOptimizedContext !== false;
 
   if (list) {
     list.innerHTML = '';
@@ -889,6 +901,7 @@ function collectCustomDynamicConfig() {
     routingMode: document.getElementById('custom-dynamic-routing-mode')?.value || 'weighted-random',
     switchMode: document.getElementById('custom-dynamic-switch-mode')?.value || 'auto',
     failOpen: document.getElementById('custom-dynamic-fail-open')?.checked !== false,
+    autoDisableOptimizedContext: document.getElementById('custom-dynamic-auto-disable-optimized-context')?.checked !== false,
     pool
   });
 }
@@ -940,6 +953,8 @@ function normalizeCustomDynamicConfig(value = {}) {
     repeatPenalty: clampPopupNumber(raw.repeatPenalty, DEFAULT_CUSTOM_DYNAMIC_CONFIG.repeatPenalty, 0, 1),
     failOpen: raw.failOpen !== false,
     debug: Boolean(raw.debug),
+    autoDisableOptimizedContext: raw.autoDisableOptimizedContext !== false,
+    optimizedContextTokens: clampPopupNumber(raw.optimizedContextTokens, DEFAULT_CUSTOM_DYNAMIC_CONFIG.optimizedContextTokens, 1000, 200000),
     generationUrlPatterns: Array.isArray(raw.generationUrlPatterns) ? raw.generationUrlPatterns.filter(Boolean) : [],
     modelPaths: Array.isArray(raw.modelPaths) ? raw.modelPaths.filter(Boolean) : [],
     pool: Array.isArray(raw.pool)
@@ -960,7 +975,12 @@ function normalizeCustomDynamicRuntime(value = {}) {
     ...raw,
     logs: Array.isArray(raw.logs) ? raw.logs : [],
     lastModelId: cleanPopupModelName(raw.lastModelId || ''),
-    roundRobinCursor: Number.isInteger(raw.roundRobinCursor) ? raw.roundRobinCursor : 0
+    roundRobinCursor: Number.isInteger(raw.roundRobinCursor) ? raw.roundRobinCursor : 0,
+    visibleVersions: Array.isArray(raw.visibleVersions) ? raw.visibleVersions : [],
+    visibleVersionsRefreshedAt: cleanPopupModelName(raw.visibleVersionsRefreshedAt || ''),
+    optimizedContextDisabled: raw.optimizedContextDisabled && typeof raw.optimizedContextDisabled === 'object'
+      ? raw.optimizedContextDisabled
+      : {}
   };
 }
 
@@ -994,12 +1014,15 @@ function getCustomDynamicKnownModels() {
     models.push(cleaned);
   };
   CUSTOM_DYNAMIC_MODEL_CATALOG.forEach(add);
+  (currentCustomDynamicRuntime.visibleVersions || [])
+    .filter((version) => version?.available !== false)
+    .forEach((version) => add(version.modelId || version.displayName || version.versionName));
   return models;
 }
 
 function getCustomDynamicModelHint(modelId) {
   if (isCustomDynamicAlwaysOptimizedModel(modelId)) return 'Always uses optimized context. Switching models breaks the KV cache and can reduce the benefit.';
-  if (isCustomDynamicCacheEfficientModel(modelId)) return 'Can use Optimized Context. Disable it in Settings > Gameplay > AI Models > Memory System > Optimized Context when rotating this model.';
+  if (isCustomDynamicCacheEfficientModel(modelId)) return 'Can use Optimized Context. BetterDungeon can turn it off automatically for this model when possible.';
   return 'Model name';
 }
 
@@ -1059,6 +1082,10 @@ function updateCustomDynamicPoolSummary() {
 function updateCustomDynamicRuntimeStatus() {
   if (currentCustomDynamicRuntime.lastModelId) {
     setCustomDynamicStatus(`Last routed: ${currentCustomDynamicRuntime.lastModelId}`);
+    return;
+  }
+  if (currentCustomDynamicRuntime.visibleVersions?.length) {
+    setCustomDynamicStatus(`Loaded ${currentCustomDynamicRuntime.visibleVersions.length} AI Dungeon models.`);
     return;
   }
   setCustomDynamicStatus('Changes stay local to this browser.');

@@ -6,11 +6,27 @@
 class CustomDynamicFeature {
   static id = 'customDynamic';
 
+  static cacheEfficientModels = [
+    'Equinox',
+    'Gemma 4 31B',
+    'DeepSeek V4 Flash',
+    'Deepseek v4 Pro',
+    'GLM 5.1',
+    'Raven',
+    'Atlas'
+  ];
+
+  static alwaysOptimizedModels = [
+    'Raven',
+    'Atlas'
+  ];
+
   constructor() {
     this.enabled = true;
     this.namespace = 'betterdungeon-custom-dynamic-v1';
     this.configStorageKey = 'betterDungeon_customDynamicConfig';
     this.runtimeStorageKey = 'betterDungeon_customDynamicRuntime';
+    this.optimizedContextTimer = null;
 
     this.defaultConfig = {
       enabled: true,
@@ -19,6 +35,8 @@ class CustomDynamicFeature {
       repeatPenalty: 0.2,
       failOpen: true,
       debug: false,
+      autoDisableOptimizedContext: true,
+      optimizedContextTokens: 4000,
       generationUrlPatterns: [],
       modelPaths: [],
       pool: []
@@ -28,7 +46,10 @@ class CustomDynamicFeature {
       adapter: null,
       logs: [],
       lastModelId: '',
-      roundRobinCursor: 0
+      roundRobinCursor: 0,
+      visibleVersions: [],
+      visibleVersionsRefreshedAt: '',
+      optimizedContextDisabled: {}
     };
 
     this.boundMessageHandler = this.handlePageMessage.bind(this);
@@ -46,12 +67,15 @@ class CustomDynamicFeature {
 
     await this.ensureInitialState();
     await this.postState();
+    void this.refreshVisibleVersions();
+    this.scheduleOptimizedContextSync('init');
   }
 
   destroy() {
     console.log('[CustomDynamic] Destroying Custom Dynamic feature...');
     this.enabled = false;
     window.removeEventListener('message', this.boundMessageHandler, false);
+    if (this.optimizedContextTimer) clearTimeout(this.optimizedContextTimer);
 
     if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
       chrome.storage.onChanged.removeListener(this.boundStorageHandler);
@@ -113,6 +137,7 @@ class CustomDynamicFeature {
     const configChanged = areaName === 'sync' && changes?.[this.configStorageKey];
     const runtimeChanged = areaName === 'local' && changes?.[this.runtimeStorageKey];
     if (configChanged || runtimeChanged) void this.postState();
+    if (configChanged) this.scheduleOptimizedContextSync('config-change');
   }
 
   async persistRuntimeEvent(event) {
@@ -135,6 +160,7 @@ class CustomDynamicFeature {
       runtime.lastModelId = this.cleanModelName(event.modelId);
       runtime.lastMechanism = event.mechanism || runtime.lastMechanism || '';
       runtime.lastRoutedAt = timestamp;
+      void this.ensureOptimizedContextDisabledForModel(runtime.lastModelId, 'last-model');
     }
 
     if (event.kind === 'log') {
@@ -147,6 +173,280 @@ class CustomDynamicFeature {
       runtime.logs = runtime.logs.slice(0, 160);
     }
 
+    await this.storageSet('local', { [this.runtimeStorageKey]: runtime });
+  }
+
+  scheduleOptimizedContextSync(reason) {
+    if (this.optimizedContextTimer) clearTimeout(this.optimizedContextTimer);
+    this.optimizedContextTimer = setTimeout(() => {
+      this.optimizedContextTimer = null;
+      void this.ensureOptimizedContextDisabledForPool(reason);
+    }, 600);
+  }
+
+  async ensureOptimizedContextDisabledForPool(reason) {
+    const configResult = await this.storageGet('sync', this.configStorageKey);
+    const config = this.normalizeConfig(configResult?.[this.configStorageKey]);
+    if (!config.autoDisableOptimizedContext) return;
+
+    const targets = (config.pool || [])
+      .filter((model) => model.enabled !== false)
+      .filter((model) => this.isDisableableCacheModel(model.modelId));
+    if (!targets.length) return;
+
+    await this.refreshVisibleVersions({ force: false });
+    for (const model of targets) {
+      await this.ensureOptimizedContextDisabledForModel(model.modelId, reason, config);
+    }
+  }
+
+  async ensureOptimizedContextDisabledForModel(modelId, reason, config = null) {
+    const normalizedModel = this.cleanModelName(modelId);
+    if (!normalizedModel || !this.isDisableableCacheModel(normalizedModel)) return;
+
+    const resolvedConfig = config || this.normalizeConfig((await this.storageGet('sync', this.configStorageKey))?.[this.configStorageKey]);
+    if (!resolvedConfig.autoDisableOptimizedContext) return;
+
+    const gql = await this.waitForGqlCredentials(8000);
+    if (!gql) {
+      await this.appendRuntimeLog('warn', 'Optimized Context auto-disable is waiting for AI Dungeon credentials.', { modelId: normalizedModel, reason });
+      return;
+    }
+
+    let runtime = this.normalizeRuntime((await this.storageGet('local', this.runtimeStorageKey))?.[this.runtimeStorageKey]);
+    if (!runtime.visibleVersions.length) {
+      await this.refreshVisibleVersions({ force: true });
+      runtime = this.normalizeRuntime((await this.storageGet('local', this.runtimeStorageKey))?.[this.runtimeStorageKey]);
+    }
+
+    const version = this.findVisibleVersionForModel(normalizedModel, runtime.visibleVersions);
+    if (!version?.versionName) {
+      await this.appendRuntimeLog('warn', 'Could not map cache-efficient model to an AI Dungeon version name.', {
+        modelId: normalizedModel,
+        reason
+      });
+      return;
+    }
+
+    let identity;
+    try {
+      identity = await gql.getAdventureIdentity(null, { timeoutMs: 10000 });
+    } catch (error) {
+      await this.appendRuntimeLog('warn', 'Could not resolve adventure id for Optimized Context automation.', {
+        modelId: normalizedModel,
+        versionName: version.versionName,
+        error: error?.message || String(error)
+      });
+      return;
+    }
+
+    const adventureShortId = identity?.shortId || gql.getShortIdFromUrl?.();
+    if (!adventureShortId) return;
+
+    const key = `${adventureShortId}:${version.versionName}`;
+    const existing = runtime.optimizedContextDisabled?.[key];
+    if (existing?.disabledAt && Date.now() - Date.parse(existing.disabledAt) < 30000) return;
+
+    try {
+      const response = await gql.disableOptimizedContext({
+        versionName: version.versionName,
+        adventureShortId,
+        contextTokens: resolvedConfig.optimizedContextTokens
+      }, { timeoutMs: 15000 });
+
+      runtime = this.normalizeRuntime((await this.storageGet('local', this.runtimeStorageKey))?.[this.runtimeStorageKey]);
+      runtime.optimizedContextDisabled = {
+        ...(runtime.optimizedContextDisabled || {}),
+        [key]: {
+          modelId: normalizedModel,
+          versionName: version.versionName,
+          adventureShortId,
+          disabledAt: new Date().toISOString(),
+          message: response?.message || ''
+        }
+      };
+      runtime.logs.unshift({
+        at: new Date().toISOString(),
+        level: 'info',
+        message: 'Disabled Optimized Context for a Custom Dynamic model.',
+        details: { modelId: normalizedModel, versionName: version.versionName, reason }
+      });
+      runtime.logs = runtime.logs.slice(0, 160);
+      await this.storageSet('local', { [this.runtimeStorageKey]: runtime });
+    } catch (error) {
+      await this.appendRuntimeLog('warn', 'Failed to auto-disable Optimized Context.', {
+        modelId: normalizedModel,
+        versionName: version.versionName,
+        error: error?.message || String(error)
+      });
+    }
+  }
+
+  async refreshVisibleVersions(options = {}) {
+    const runtimeResult = await this.storageGet('local', this.runtimeStorageKey);
+    const runtime = this.normalizeRuntime(runtimeResult?.[this.runtimeStorageKey]);
+    const refreshedAt = Date.parse(runtime.visibleVersionsRefreshedAt || '');
+    if (!options.force && runtime.visibleVersions.length && Number.isFinite(refreshedAt) && Date.now() - refreshedAt < 10 * 60 * 1000) {
+      return runtime.visibleVersions;
+    }
+
+    const gql = await this.waitForGqlCredentials(8000);
+    if (!gql) return runtime.visibleVersions;
+
+    try {
+      const versions = await gql.getAiVisibleVersions({ timeoutMs: 15000, includeDeprecated: true });
+      const visibleVersions = versions
+        .map((version) => this.normalizeVisibleVersion(version))
+        .filter((version) => version.versionName && version.modelId)
+        .filter((version) => version.available !== false);
+
+      const updated = this.normalizeRuntime((await this.storageGet('local', this.runtimeStorageKey))?.[this.runtimeStorageKey]);
+      updated.visibleVersions = this.dedupeVisibleVersions(visibleVersions);
+      updated.visibleVersionsRefreshedAt = new Date().toISOString();
+      await this.storageSet('local', { [this.runtimeStorageKey]: updated });
+      return updated.visibleVersions;
+    } catch (error) {
+      await this.appendRuntimeLog('warn', 'Could not refresh AI Dungeon model versions.', {
+        error: error?.message || String(error)
+      });
+      return runtime.visibleVersions;
+    }
+  }
+
+  normalizeVisibleVersion(version) {
+    const aliases = this.collectVersionAliases(version);
+    return {
+      modelId: this.displayNameFromVersion(version, aliases),
+      versionName: this.cleanModelName(version?.versionName || ''),
+      type: this.cleanModelName(version?.type || ''),
+      available: version?.available !== false,
+      isDeprecated: Boolean(version?.aiSettings?.isDeprecatedModel),
+      aliases: aliases.slice(0, 24)
+    };
+  }
+
+  displayNameFromVersion(version, aliases) {
+    const preferred = aliases.find((item) => item && !this.looksLikeVersionSlug(item));
+    if (preferred) return preferred;
+    return this.prettifyVersionName(version?.versionName || version?.id || '');
+  }
+
+  collectVersionAliases(version) {
+    const strings = [];
+    const push = (value) => {
+      const cleaned = this.cleanModelName(value);
+      if (cleaned && !strings.some((item) => this.sameModel(item, cleaned))) strings.push(cleaned);
+    };
+
+    push(version?.aiDetails?.displayName);
+    push(version?.aiDetails?.name);
+    push(version?.aiDetails?.title);
+    push(version?.aiDetails?.label);
+    push(version?.aiSettings?.displayName);
+    push(version?.engineNameEngine?.engineDetails?.displayName);
+    push(version?.engineNameEngine?.engineDetails?.name);
+    push(version?.engineNameEngine?.engineName);
+    push(version?.versionName);
+    this.collectStrings(version?.aiDetails, push);
+    this.collectStrings(version?.engineNameEngine?.engineDetails, push);
+    return strings;
+  }
+
+  collectStrings(value, push, depth = 0) {
+    if (depth > 4 || value == null) return;
+    if (typeof value === 'string') {
+      push(value);
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item) => this.collectStrings(item, push, depth + 1));
+      return;
+    }
+    if (typeof value === 'object') {
+      Object.values(value).forEach((item) => this.collectStrings(item, push, depth + 1));
+    }
+  }
+
+  dedupeVisibleVersions(versions) {
+    const seen = new Set();
+    const out = [];
+    for (const version of versions) {
+      const key = this.canonicalModelName(version.versionName);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(version);
+    }
+    return out;
+  }
+
+  findVisibleVersionForModel(modelId, versions = []) {
+    const model = this.cleanModelName(modelId);
+    if (!model) return null;
+
+    for (const version of versions) {
+      const aliases = [version.modelId, version.versionName, ...(version.aliases || [])];
+      if (aliases.some((alias) => this.sameModel(alias, model))) return version;
+    }
+
+    let best = null;
+    let bestScore = 0;
+    const modelTokens = this.modelTokens(model);
+    for (const version of versions) {
+      const versionTokens = this.modelTokens([version.modelId, version.versionName, ...(version.aliases || [])].join(' '));
+      if (!modelTokens.length || !versionTokens.length) continue;
+      const hits = modelTokens.filter((token) => versionTokens.includes(token)).length;
+      const score = hits / modelTokens.length;
+      if (score > bestScore) {
+        best = version;
+        bestScore = score;
+      }
+    }
+    return bestScore >= 0.66 ? best : null;
+  }
+
+  modelTokens(value) {
+    const raw = this.canonicalModelName(value)
+      .replace(/[^a-z0-9]+/g, ' ')
+      .split(/\s+/)
+      .filter(Boolean)
+      .filter((token) => !['ai', 'model', 'models', 'version', 'dynamic'].includes(token));
+    if (raw.includes('gemma')) return raw.filter((token) => token !== '4');
+    return raw;
+  }
+
+  looksLikeVersionSlug(value) {
+    return /^[a-z0-9]+(?:-[a-z0-9]+)+$/i.test(String(value || '').trim());
+  }
+
+  prettifyVersionName(value) {
+    return this.cleanModelName(value)
+      .replace(/\b\d+\.\d+\.\d+\b/g, '')
+      .replace(/[-_]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  async waitForGqlCredentials(timeoutMs = 0) {
+    const deadline = Date.now() + Math.max(0, timeoutMs);
+    while (true) {
+      const gql = window.BetterDungeonGQL;
+      if (gql?.hasBaseCredentials?.()) return gql;
+      if (!timeoutMs || Date.now() >= deadline) return null;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+
+  async appendRuntimeLog(level, message, details = null) {
+    const result = await this.storageGet('local', this.runtimeStorageKey);
+    const runtime = this.normalizeRuntime(result?.[this.runtimeStorageKey]);
+    runtime.logs.unshift({
+      at: new Date().toISOString(),
+      level,
+      message,
+      details
+    });
+    runtime.logs = runtime.logs.slice(0, 160);
     await this.storageSet('local', { [this.runtimeStorageKey]: runtime });
   }
 
@@ -165,6 +465,8 @@ class CustomDynamicFeature {
       repeatPenalty: this.clampNumber(raw.repeatPenalty, this.defaultConfig.repeatPenalty, 0, 1),
       failOpen: raw.failOpen !== false,
       debug: Boolean(raw.debug),
+      autoDisableOptimizedContext: raw.autoDisableOptimizedContext !== false,
+      optimizedContextTokens: this.clampNumber(raw.optimizedContextTokens, this.defaultConfig.optimizedContextTokens, 1000, 200000),
       generationUrlPatterns: Array.isArray(raw.generationUrlPatterns) ? raw.generationUrlPatterns.filter(Boolean) : [],
       modelPaths: Array.isArray(raw.modelPaths) ? raw.modelPaths.filter(Boolean) : [],
       pool: Array.isArray(raw.pool)
@@ -185,7 +487,12 @@ class CustomDynamicFeature {
       ...raw,
       logs: Array.isArray(raw.logs) ? raw.logs : [],
       lastModelId: this.cleanModelName(raw.lastModelId || ''),
-      roundRobinCursor: Number.isInteger(raw.roundRobinCursor) ? raw.roundRobinCursor : 0
+      roundRobinCursor: Number.isInteger(raw.roundRobinCursor) ? raw.roundRobinCursor : 0,
+      visibleVersions: Array.isArray(raw.visibleVersions) ? raw.visibleVersions : [],
+      visibleVersionsRefreshedAt: this.cleanModelName(raw.visibleVersionsRefreshedAt || ''),
+      optimizedContextDisabled: raw.optimizedContextDisabled && typeof raw.optimizedContextDisabled === 'object'
+        ? raw.optimizedContextDisabled
+        : {}
     };
   }
 
@@ -253,8 +560,36 @@ class CustomDynamicFeature {
     return api?.storage?.[areaName] || null;
   }
 
+  isCacheEfficientModel(modelId) {
+    return CustomDynamicFeature.cacheEfficientModels.some((item) => this.sameModel(item, modelId));
+  }
+
+  isAlwaysOptimizedModel(modelId) {
+    return CustomDynamicFeature.alwaysOptimizedModels.some((item) => this.sameModel(item, modelId));
+  }
+
+  isDisableableCacheModel(modelId) {
+    return this.isCacheEfficientModel(modelId) && !this.isAlwaysOptimizedModel(modelId);
+  }
+
   cleanModelName(value) {
     return String(value || '').replace(/\s+/g, ' ').trim();
+  }
+
+  canonicalModelName(value) {
+    return this.cleanModelName(value)
+      .normalize('NFKC')
+      .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
+      .replace(/[\u00A0\u202F]/g, ' ')
+      .replace(/[\u2010-\u2015]/g, '-')
+      .toLowerCase();
+  }
+
+  sameModel(left, right) {
+    const a = this.canonicalModelName(left);
+    const b = this.canonicalModelName(right);
+    if (!a || !b) return false;
+    return a === b || a.replace(/[^a-z0-9]+/g, '') === b.replace(/[^a-z0-9]+/g, '');
   }
 
   clampNumber(value, fallback, min, max) {

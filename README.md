@@ -70,7 +70,7 @@ For developers or if you prefer manual installation:
 
 ### ⚡ Automations
 
-- **Custom Dynamic** — Build a personal model pool and route each generation through weighted random, round-robin, or avoid-last model selection. Cache-efficient models stay available, with warnings when switching can break their KV cache behavior. Inspired by [Zoocata's PRISM](https://play.aidungeon.com/profile/Zoocata_).
+- **Custom Dynamic** — Build a personal model pool and route each generation through weighted random, round-robin, or avoid-last model selection. Cache-efficient models stay available with warnings, BetterDungeon can automatically disable Optimized Context for supported pooled models, and deprecated models like Wizard are enabled when needed. Inspired by [Zoocata's PRISM](https://play.aidungeon.com/profile/Zoocata_).
 - **Auto See** — Automatically triggers a See input command after every AI response or after a set number of turns. Configurable frequency with credit usage warnings.
 - **Auto Enable Scripts** — Automatically retoggles "Enable Scripts" in Scenario Creation. Saves you from manually re-enabling scripts every time.
 

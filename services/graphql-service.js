@@ -52,6 +52,85 @@
           __typename
         }
       }`,
+
+      aiVisibleVersions: `query GetBetterDungeonAiVisibleVersions {
+        aiVisibleVersions {
+          success
+          message
+          aiVisibleVersions {
+            id
+            type
+            versionName
+            access
+            release
+            aiDetails
+            aiSettings
+            available
+            engineNameEngine {
+              engineName
+              engineDetails
+              availableSettings
+              available
+              __typename
+            }
+            __typename
+          }
+          visibleTextVersions {
+            id
+            type
+            versionName
+            access
+            release
+            aiDetails
+            aiSettings
+            available
+            engineNameEngine {
+              engineName
+              engineDetails
+              availableSettings
+              available
+              __typename
+            }
+            __typename
+          }
+          __typename
+        }
+      }`,
+    };
+
+    static MUTATIONS = {
+      saveSettings: `mutation useSettingsSaveSettings($settings: JSONObject!, $adventureShortId: String) {
+        saveSettings(settings: $settings, adventureShortId: $adventureShortId) {
+          success
+          message
+          user {
+            id
+            settings
+            __typename
+          }
+          __typename
+        }
+      }`,
+
+      saveStoryVersionSettings: `mutation SaveStoryVersionSettings($settings: JSONObject!, $versionName: String, $adventureShortId: String) {
+        saveVersionSettings(
+          settings: $settings
+          versionName: $versionName
+          adventureShortId: $adventureShortId
+        ) {
+          success
+          message
+          versionSettings
+          __typename
+        }
+      }`,
+
+      sendEvent: `mutation SendEvent($input: EventStreamInput) {
+        sendEvent(input: $input) {
+          success
+          __typename
+        }
+      }`,
     };
 
     log(...args) {
@@ -229,6 +308,134 @@
       };
       this.identityCache.set(resolvedShortId, identity);
       return identity;
+    }
+
+    async getAiVisibleVersions(options = {}) {
+      if (options.includeDeprecated) {
+        try {
+          await this.enableDeprecatedModels({ timeoutMs: Math.min(Number(options.timeoutMs) || 30000, 10000) });
+        } catch (error) {
+          this.log('showDeprecatedModels save failed before aiVisibleVersions', error);
+        }
+      }
+
+      const result = await this.request(
+        'GetBetterDungeonAiVisibleVersions',
+        {},
+        BetterDungeonGQLService.QUERIES.aiVisibleVersions,
+        options
+      );
+      const payload = result?.data?.aiVisibleVersions || {};
+      const textVersions = Array.isArray(payload.visibleTextVersions) ? payload.visibleTextVersions : [];
+      const allVersions = Array.isArray(payload.aiVisibleVersions) ? payload.aiVisibleVersions : [];
+      const seen = new Set();
+      const out = [];
+      for (const version of [...textVersions, ...allVersions]) {
+        const key = String(version?.versionName || version?.id || '').trim();
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        out.push(version);
+      }
+      return out;
+    }
+
+    async saveSettings(settings, options = {}) {
+      if (!settings || typeof settings !== 'object') {
+        throw new Error('saveSettings requires a settings object.');
+      }
+
+      const result = await this.request(
+        'useSettingsSaveSettings',
+        {
+          settings,
+          adventureShortId: options.adventureShortId || null,
+        },
+        BetterDungeonGQLService.MUTATIONS.saveSettings,
+        options
+      );
+
+      const response = result?.data?.saveSettings;
+      if (!response?.success) {
+        throw new Error(response?.message || 'AI Dungeon rejected user settings.');
+      }
+      return response;
+    }
+
+    async enableDeprecatedModels(options = {}) {
+      return this.saveSettings({ showDeprecatedModels: true }, options);
+    }
+
+    async saveStoryVersionSettings({ settings, versionName, adventureShortId }, options = {}) {
+      if (!settings || typeof settings !== 'object') {
+        throw new Error('saveStoryVersionSettings requires a settings object.');
+      }
+      if (!versionName) {
+        throw new Error('saveStoryVersionSettings requires a versionName.');
+      }
+
+      const result = await this.request(
+        'SaveStoryVersionSettings',
+        {
+          settings,
+          versionName,
+          adventureShortId: adventureShortId || null,
+        },
+        BetterDungeonGQLService.MUTATIONS.saveStoryVersionSettings,
+        options
+      );
+
+      const response = result?.data?.saveVersionSettings;
+      if (!response?.success) {
+        throw new Error(response?.message || `AI Dungeon rejected settings for ${versionName}.`);
+      }
+      return response;
+    }
+
+    async sendSettingsUpdatedEvent(updatedSettingNames = [], options = {}) {
+      const names = Array.isArray(updatedSettingNames) ? updatedSettingNames.filter(Boolean) : [];
+      const input = {
+        eventType: 'user',
+        eventName: 'settings_updated',
+        metadata: {
+          clientInfo: {
+            platform: 'web',
+            userAgent: navigator.userAgent,
+            nativeAppPlatform: null,
+            surface: 'aidungeon',
+            updatedSettingNames: names,
+          },
+        },
+      };
+
+      return this.request(
+        'SendEvent',
+        { input },
+        BetterDungeonGQLService.MUTATIONS.sendEvent,
+        options
+      );
+    }
+
+    async disableOptimizedContext({ versionName, adventureShortId, contextTokens = 4000 }, options = {}) {
+      const settings = {
+        userEnabledCacheEfficient: false,
+        contextTokens: Number.isFinite(contextTokens) ? contextTokens : 4000,
+      };
+
+      const response = await this.saveStoryVersionSettings({
+        settings,
+        versionName,
+        adventureShortId,
+      }, options);
+
+      try {
+        await this.sendSettingsUpdatedEvent(['userEnabledCacheEfficient', 'contextTokens'], {
+          timeoutMs: Math.min(Number(options.timeoutMs) || 30000, 10000),
+        });
+      } catch (error) {
+        this.log('settings_updated event failed after saveVersionSettings', error);
+      }
+
+      return response;
     }
 
     waitForActionUpdate(predicate, timeoutMs = 30000) {
