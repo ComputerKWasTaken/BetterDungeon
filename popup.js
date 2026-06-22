@@ -24,6 +24,8 @@ const STORAGE_KEYS = {
   customModeColors: 'betterDungeon_customModeColors',
   commandSubMode: 'betterDungeon_commandSubMode',
   textToSpeech: 'betterDungeon_textToSpeechSettings',
+  customDynamicConfig: 'betterDungeon_customDynamicConfig',
+  customDynamicRuntime: 'betterDungeon_customDynamicRuntime',
 };
 
 // Default mode colors (hex format)
@@ -84,7 +86,8 @@ const DEFAULT_FEATURES = {
   notes: true,
   storyCardModalDock: true,
   inputHistory: true,
-  textToSpeech: false
+  textToSpeech: false,
+  customDynamic: false
 };
 
 const ULTRASCRIPTS_PUBLIC_MODULES = [
@@ -101,6 +104,62 @@ const ULTRASCRIPTS_PUBLIC_MODULES = [
 
 const DEFAULT_SETTINGS = {
   tryCriticalChance: 5
+};
+
+const CUSTOM_DYNAMIC_MODEL_CATALOG = [
+  'Gemma 4 31B',
+  'Equinox',
+  'Hearthfire',
+  'DeepSeek V4 Flash',
+  'Madness',
+  'Nova',
+  'Hermes 3 70B',
+  'DeepSeek',
+  'GLM 5.1',
+  'Raven',
+  'Deepseek v4 Pro',
+  'Fable',
+  'Dynamic DeepSeek',
+  'Hermes 3 405B',
+  'Wayfarer Small 2',
+  'Wayfarer Large',
+  'Harbinger',
+  'Muse',
+  'Atlas'
+];
+
+const CUSTOM_DYNAMIC_CACHE_EFFICIENT_MODELS = [
+  'Equinox',
+  'Gemma 4 31B',
+  'DeepSeek V4 Flash',
+  'Deepseek v4 Pro',
+  'GLM 5.1',
+  'Raven',
+  'Atlas'
+];
+
+const CUSTOM_DYNAMIC_ALWAYS_OPTIMIZED_MODELS = [
+  'Raven',
+  'Atlas'
+];
+
+const DEFAULT_CUSTOM_DYNAMIC_CONFIG = {
+  enabled: true,
+  routingMode: 'weighted-random',
+  switchMode: 'auto',
+  repeatPenalty: 0.2,
+  failOpen: true,
+  debug: false,
+  generationUrlPatterns: [],
+  modelPaths: [],
+  pool: []
+};
+
+const DEFAULT_CUSTOM_DYNAMIC_RUNTIME = {
+  adapter: null,
+  logs: [],
+  lastModelId: '',
+  roundRobinCursor: 0
 };
 
 const DEFAULT_TEXT_TO_SPEECH_SETTINGS = {
@@ -131,6 +190,10 @@ let currentModeColors = { ...DEFAULT_MODE_COLORS };
 // Text To Speech settings state
 let currentTextToSpeechSettings = { ...DEFAULT_TEXT_TO_SPEECH_SETTINGS };
 
+// Custom Dynamic settings state
+let currentCustomDynamicConfig = { ...DEFAULT_CUSTOM_DYNAMIC_CONFIG };
+let currentCustomDynamicRuntime = { ...DEFAULT_CUSTOM_DYNAMIC_RUNTIME };
+
 // ============================================
 // INITIALIZATION
 // ============================================
@@ -141,6 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initFeatureCards();
   initToggles();
   initSettings();
+  initCustomDynamicSettings();
   initPresets();
   initCharacters();
   initModals();
@@ -674,6 +738,362 @@ function initSettings() {
 
   // Auto See settings
   initAutoSeeSettings();
+}
+
+function initCustomDynamicSettings() {
+  if (!document.getElementById('custom-dynamic-save')) return;
+
+  populateCustomDynamicModelSelect();
+  loadCustomDynamicSettings();
+
+  document.getElementById('custom-dynamic-add-model')?.addEventListener('click', () => {
+    const select = document.getElementById('custom-dynamic-model-select');
+    const modelId = (select?.value || '').trim();
+    if (!modelId) {
+      setCustomDynamicStatus('Choose a model first.', true);
+      return;
+    }
+    if (customDynamicPoolContains(modelId)) {
+      setCustomDynamicStatus(`${modelId} is already in the pool.`, true);
+      return;
+    }
+    addCustomDynamicModelRow({ enabled: true, modelId, label: modelId, weight: 1 });
+    if (select) select.value = '';
+    updateCustomDynamicPoolSummary();
+    setCustomDynamicStatus('Unsaved changes.');
+  });
+
+  document.getElementById('custom-dynamic-save')?.addEventListener('click', saveCustomDynamicSettings);
+  document.getElementById('custom-dynamic-routing-mode')?.addEventListener('change', () => setCustomDynamicStatus('Unsaved changes.'));
+  document.getElementById('custom-dynamic-switch-mode')?.addEventListener('change', () => setCustomDynamicStatus('Unsaved changes.'));
+  document.getElementById('custom-dynamic-fail-open')?.addEventListener('change', () => setCustomDynamicStatus('Unsaved changes.'));
+}
+
+function loadCustomDynamicSettings() {
+  chrome.storage.sync.get(STORAGE_KEYS.customDynamicConfig, (configResult) => {
+    currentCustomDynamicConfig = normalizeCustomDynamicConfig((configResult || {})[STORAGE_KEYS.customDynamicConfig]);
+    renderCustomDynamicConfig();
+
+    chrome.storage.local.get(STORAGE_KEYS.customDynamicRuntime, (runtimeResult) => {
+      currentCustomDynamicRuntime = normalizeCustomDynamicRuntime((runtimeResult || {})[STORAGE_KEYS.customDynamicRuntime]);
+      populateCustomDynamicModelSelect();
+      updateCustomDynamicRuntimeStatus();
+    });
+  });
+}
+
+function renderCustomDynamicConfig() {
+  const config = currentCustomDynamicConfig;
+  const routingMode = document.getElementById('custom-dynamic-routing-mode');
+  const switchMode = document.getElementById('custom-dynamic-switch-mode');
+  const failOpen = document.getElementById('custom-dynamic-fail-open');
+  const list = document.getElementById('custom-dynamic-model-list');
+
+  if (routingMode) routingMode.value = config.routingMode;
+  if (switchMode) switchMode.value = config.switchMode;
+  if (failOpen) failOpen.checked = config.failOpen !== false;
+
+  if (list) {
+    list.innerHTML = '';
+    (config.pool || []).forEach(addCustomDynamicModelRow);
+  }
+
+  updateCustomDynamicPoolSummary();
+}
+
+function addCustomDynamicModelRow(model = {}) {
+  const list = document.getElementById('custom-dynamic-model-list');
+  if (!list) return;
+
+  const row = document.createElement('div');
+  row.className = 'custom-dynamic-model-row';
+
+  const enabledLabel = document.createElement('label');
+  enabledLabel.className = 'toggle xs';
+  const enabledInput = document.createElement('input');
+  enabledInput.type = 'checkbox';
+  enabledInput.dataset.field = 'enabled';
+  enabledInput.checked = model.enabled !== false;
+  const enabledSlider = document.createElement('span');
+  enabledSlider.className = 'toggle-slider';
+  enabledLabel.append(enabledInput, enabledSlider);
+
+  const cacheWarning = document.createElement('span');
+  cacheWarning.className = 'custom-dynamic-cache-warning';
+
+  const modelId = cleanPopupModelName(model.modelId || model.id || '');
+  const modelName = document.createElement('span');
+  modelName.className = 'custom-dynamic-model-name';
+  modelName.dataset.field = 'modelId';
+  modelName.dataset.modelId = modelId;
+  modelName.textContent = modelId;
+  modelName.title = getCustomDynamicModelHint(modelId);
+  updateCustomDynamicCacheWarning(cacheWarning, modelId);
+
+  const weightSelect = document.createElement('select');
+  weightSelect.className = 'form-select form-select-sm custom-dynamic-weight-select';
+  weightSelect.dataset.field = 'weight';
+  [
+    ['0.5', 'Less often'],
+    ['1', 'Normal'],
+    ['2', 'More often'],
+    ['4', 'Favorite']
+  ].forEach(([value, label]) => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    weightSelect.appendChild(option);
+  });
+  weightSelect.value = getCustomDynamicWeightOption(model.weight);
+  weightSelect.title = 'How often this model is picked in Weighted random mode';
+
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'btn btn-icon btn-ghost custom-dynamic-remove';
+  remove.setAttribute('aria-label', 'Remove model');
+  remove.title = 'Remove';
+  remove.innerHTML = '<span class="icon-trash-2"></span>';
+
+  const markDirty = () => {
+    updateCustomDynamicPoolSummary();
+    setCustomDynamicStatus('Unsaved changes.');
+  };
+
+  enabledInput.addEventListener('change', markDirty);
+  weightSelect.addEventListener('change', markDirty);
+  remove.addEventListener('click', () => {
+    row.remove();
+    markDirty();
+  });
+
+  row.append(enabledLabel, cacheWarning, modelName, weightSelect, remove);
+  list.appendChild(row);
+}
+
+function collectCustomDynamicConfig() {
+  const rows = Array.from(document.querySelectorAll('#custom-dynamic-model-list .custom-dynamic-model-row'));
+  const pool = rows.map((row) => {
+    const modelField = row.querySelector('[data-field="modelId"]');
+    const modelId = cleanPopupModelName(modelField?.dataset?.modelId || modelField?.value || modelField?.textContent || '');
+    return {
+      enabled: row.querySelector('[data-field="enabled"]')?.checked !== false,
+      modelId,
+      label: modelId,
+      weight: Number(row.querySelector('[data-field="weight"]')?.value || 1)
+    };
+  }).filter((model) => model.modelId);
+
+  return normalizeCustomDynamicConfig({
+    ...currentCustomDynamicConfig,
+    enabled: true,
+    routingMode: document.getElementById('custom-dynamic-routing-mode')?.value || 'weighted-random',
+    switchMode: document.getElementById('custom-dynamic-switch-mode')?.value || 'auto',
+    failOpen: document.getElementById('custom-dynamic-fail-open')?.checked !== false,
+    pool
+  });
+}
+
+function validateCustomDynamicConfig(config) {
+  const seen = new Set();
+  for (const model of config.pool) {
+    const key = canonicalPopupModelName(model.modelId);
+    if (!model.modelId) return 'Every pool row needs a model.';
+    if (seen.has(key)) return `Duplicate model: ${model.modelId}`;
+    seen.add(key);
+    if (!Number.isFinite(model.weight) || model.weight <= 0) return `Chance must be set for ${model.modelId}.`;
+  }
+  if (!config.pool.some((model) => model.enabled !== false)) {
+    return 'Add and enable at least one model before saving.';
+  }
+  return '';
+}
+
+function saveCustomDynamicSettings() {
+  const config = collectCustomDynamicConfig();
+  const error = validateCustomDynamicConfig(config);
+  if (error) {
+    setCustomDynamicStatus(error, true);
+    showToast(error, 'error');
+    return;
+  }
+
+  chrome.storage.sync.set({ [STORAGE_KEYS.customDynamicConfig]: config }, () => {
+    currentCustomDynamicConfig = config;
+    renderCustomDynamicConfig();
+    setCustomDynamicStatus('Custom Dynamic saved.');
+    showToast('Custom Dynamic saved', 'success');
+  });
+}
+
+function normalizeCustomDynamicConfig(value = {}) {
+  const raw = value && typeof value === 'object' ? value : {};
+  return {
+    ...DEFAULT_CUSTOM_DYNAMIC_CONFIG,
+    ...raw,
+    enabled: true,
+    routingMode: ['weighted-random', 'round-robin', 'avoid-last'].includes(raw.routingMode)
+      ? raw.routingMode
+      : DEFAULT_CUSTOM_DYNAMIC_CONFIG.routingMode,
+    switchMode: ['auto', 'request-body', 'learned-request', 'ui'].includes(raw.switchMode)
+      ? raw.switchMode
+      : DEFAULT_CUSTOM_DYNAMIC_CONFIG.switchMode,
+    repeatPenalty: clampPopupNumber(raw.repeatPenalty, DEFAULT_CUSTOM_DYNAMIC_CONFIG.repeatPenalty, 0, 1),
+    failOpen: raw.failOpen !== false,
+    debug: Boolean(raw.debug),
+    generationUrlPatterns: Array.isArray(raw.generationUrlPatterns) ? raw.generationUrlPatterns.filter(Boolean) : [],
+    modelPaths: Array.isArray(raw.modelPaths) ? raw.modelPaths.filter(Boolean) : [],
+    pool: Array.isArray(raw.pool)
+      ? raw.pool.map((model) => ({
+        enabled: model?.enabled !== false,
+        modelId: cleanPopupModelName(model?.modelId || model?.id || ''),
+        label: cleanPopupModelName(model?.label || model?.modelId || model?.id || ''),
+        weight: clampPopupNumber(model?.weight, 1, 0.01, 100)
+      })).filter((model) => model.modelId)
+      : []
+  };
+}
+
+function normalizeCustomDynamicRuntime(value = {}) {
+  const raw = value && typeof value === 'object' ? value : {};
+  return {
+    ...DEFAULT_CUSTOM_DYNAMIC_RUNTIME,
+    ...raw,
+    logs: Array.isArray(raw.logs) ? raw.logs : [],
+    lastModelId: cleanPopupModelName(raw.lastModelId || ''),
+    roundRobinCursor: Number.isInteger(raw.roundRobinCursor) ? raw.roundRobinCursor : 0
+  };
+}
+
+function populateCustomDynamicModelSelect() {
+  const select = document.getElementById('custom-dynamic-model-select');
+  if (!select) return;
+  const selected = select.value;
+  const models = getCustomDynamicKnownModels();
+  select.innerHTML = '';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = 'Known models';
+  select.appendChild(placeholder);
+  models.forEach((modelId) => {
+    const option = document.createElement('option');
+    option.value = modelId;
+    option.textContent = modelId;
+    select.appendChild(option);
+  });
+  if (models.includes(selected)) select.value = selected;
+}
+
+function getCustomDynamicKnownModels() {
+  const seen = new Set();
+  const models = [];
+  const add = (modelId) => {
+    const cleaned = cleanPopupModelName(modelId);
+    const key = canonicalPopupModelName(cleaned);
+    if (!cleaned || seen.has(key)) return;
+    seen.add(key);
+    models.push(cleaned);
+  };
+  CUSTOM_DYNAMIC_MODEL_CATALOG.forEach(add);
+  return models;
+}
+
+function getCustomDynamicModelHint(modelId) {
+  if (isCustomDynamicAlwaysOptimizedModel(modelId)) return 'Always uses optimized context. Switching models breaks the KV cache and can reduce the benefit.';
+  if (isCustomDynamicCacheEfficientModel(modelId)) return 'Can use Optimized Context. Disable it in Settings > Gameplay > AI Models > Memory System > Optimized Context when rotating this model.';
+  return 'Model name';
+}
+
+function updateCustomDynamicCacheWarning(element, modelId) {
+  if (!element) return;
+  element.className = 'custom-dynamic-cache-warning';
+  element.textContent = '';
+  element.removeAttribute('title');
+  element.removeAttribute('role');
+  element.removeAttribute('aria-label');
+  if (isCustomDynamicAlwaysOptimizedModel(modelId)) {
+    element.classList.add('is-critical');
+    element.innerHTML = '<span class="icon-triangle-alert"></span>';
+    element.title = getCustomDynamicModelHint(modelId);
+    element.setAttribute('role', 'img');
+    element.setAttribute('aria-label', 'Always optimized context warning');
+    return;
+  }
+  if (isCustomDynamicCacheEfficientModel(modelId)) {
+    element.classList.add('is-warning');
+    element.innerHTML = '<span class="icon-triangle-alert"></span>';
+    element.title = getCustomDynamicModelHint(modelId);
+    element.setAttribute('role', 'img');
+    element.setAttribute('aria-label', 'Optimized Context warning');
+  }
+}
+
+function isCustomDynamicCacheEfficientModel(modelId) {
+  const key = canonicalPopupModelName(modelId);
+  return CUSTOM_DYNAMIC_CACHE_EFFICIENT_MODELS.some((item) => canonicalPopupModelName(item) === key);
+}
+
+function isCustomDynamicAlwaysOptimizedModel(modelId) {
+  const key = canonicalPopupModelName(modelId);
+  return CUSTOM_DYNAMIC_ALWAYS_OPTIMIZED_MODELS.some((item) => canonicalPopupModelName(item) === key);
+}
+
+function getCustomDynamicWeightOption(weight) {
+  const value = Number(weight);
+  if (!Number.isFinite(value)) return '1';
+  if (value >= 3) return '4';
+  if (value >= 1.5) return '2';
+  if (value < 0.75) return '0.5';
+  return '1';
+}
+
+function updateCustomDynamicPoolSummary() {
+  const summary = document.getElementById('custom-dynamic-pool-summary');
+  if (!summary) return;
+  const rows = Array.from(document.querySelectorAll('#custom-dynamic-model-list .custom-dynamic-model-row'));
+  const active = rows.filter((row) => row.querySelector('[data-field="enabled"]')?.checked !== false).length;
+  summary.textContent = rows.length
+    ? `${rows.length} model${rows.length === 1 ? '' : 's'} / ${active} active`
+    : '0 models';
+}
+
+function updateCustomDynamicRuntimeStatus() {
+  if (currentCustomDynamicRuntime.lastModelId) {
+    setCustomDynamicStatus(`Last routed: ${currentCustomDynamicRuntime.lastModelId}`);
+    return;
+  }
+  setCustomDynamicStatus('Changes stay local to this browser.');
+}
+
+function setCustomDynamicStatus(message, isError = false) {
+  const status = document.getElementById('custom-dynamic-status');
+  if (!status) return;
+  status.textContent = message;
+  status.style.color = isError ? 'var(--error)' : '';
+}
+
+function customDynamicPoolContains(modelId) {
+  const key = canonicalPopupModelName(modelId);
+  return Array.from(document.querySelectorAll('#custom-dynamic-model-list [data-field="modelId"]'))
+    .some((field) => canonicalPopupModelName(field.dataset?.modelId || field.value || field.textContent) === key);
+}
+
+function cleanPopupModelName(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function canonicalPopupModelName(value) {
+  return cleanPopupModelName(value)
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
+    .replace(/[\u00A0\u202F]/g, ' ')
+    .replace(/[\u2010-\u2015]/g, '-')
+    .toLowerCase();
+}
+
+function clampPopupNumber(value, fallback, min, max) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, number));
 }
 
 function initAutoSeeSettings() {

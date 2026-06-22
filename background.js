@@ -66,6 +66,7 @@
     storyCardModalDock: true,
     inputHistory: true,
     textToSpeech: false,
+    customDynamic: false,
   };
   const SDK_ULTRASCRIPTS_MODULES = [
     'widget',

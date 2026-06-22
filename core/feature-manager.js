@@ -88,6 +88,10 @@ class FeatureManager {
     if (typeof TextToSpeechFeature !== 'undefined') {
       this.featureClasses.set('textToSpeech', TextToSpeechFeature);
     }
+
+    if (typeof CustomDynamicFeature !== 'undefined') {
+      this.featureClasses.set('customDynamic', CustomDynamicFeature);
+    }
   }
 
   async loadFeaturesFromStorage() {
@@ -97,7 +101,7 @@ class FeatureManager {
       // Always-on QOL features that don't need user toggling
       const alwaysEnabled = ['storyCardAnalytics', 'autoEnableScripts'];
       // Features that are disabled by default
-      const defaultOff = ['autoSee', 'textToSpeech'];
+      const defaultOff = ['autoSee', 'textToSpeech', 'customDynamic'];
       
       const enabled = alwaysEnabled.includes(id) || 
                       savedStates[id] === true || 

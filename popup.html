@@ -461,6 +461,105 @@
         </button>
         <div class="section-body" id="collapse-automations">
 
+          <!-- Custom Dynamic -->
+          <article class="feature-card" data-feature="customDynamic">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-section-automations);">
+                    <span class="icon-route"></span>
+                  </span>
+                  <h3 class="feature-title">Custom Dynamic</h3>
+                </div>
+                <p class="feature-desc">Route generations through your own model pool</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-customDynamic">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feature-details custom-dynamic-details">
+              <p class="feature-hint"><span class="icon-route"></span> Picks one model from your pool before each Take a Turn, Continue, Retry, or similar generation.</p>
+
+              <div class="custom-dynamic-setting">
+                <label class="option-label-inline" for="custom-dynamic-routing-mode">Selection</label>
+                <div class="custom-dynamic-control">
+                  <select class="form-select form-select-sm" id="custom-dynamic-routing-mode">
+                    <option value="weighted-random">Weighted random</option>
+                    <option value="round-robin">Cycle in order</option>
+                    <option value="avoid-last">Avoid repeats</option>
+                  </select>
+                  <p>Weighted random respects each model's chance setting. Cycle in order rotates evenly. Avoid repeats keeps the last model out when it can.</p>
+                </div>
+              </div>
+
+              <div class="custom-dynamic-setting">
+                <label class="option-label-inline" for="custom-dynamic-switch-mode">Switch method</label>
+                <div class="custom-dynamic-control">
+                  <select class="form-select form-select-sm" id="custom-dynamic-switch-mode">
+                    <option value="auto">Auto recommended</option>
+                    <option value="request-body">Edit generation request</option>
+                    <option value="learned-request">Replay model-setting request</option>
+                    <option value="ui">Use model picker</option>
+                  </select>
+                  <p>Auto tries the quiet request methods first, then falls back to the model picker if needed.</p>
+                </div>
+              </div>
+
+              <div class="feature-option custom-dynamic-toggle-option">
+                <span class="option-label">
+                  <span>
+                    <strong>Continue if switch fails</strong>
+                    <small>Send the turn with AI Dungeon's current model instead of blocking it.</small>
+                  </span>
+                </span>
+                <label class="toggle sm">
+                  <input type="checkbox" id="custom-dynamic-fail-open" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+
+              <div class="alert alert-info alert-compact">
+                <span class="icon-brain-circuit"></span>
+                <span>Cache-efficient models can be pooled, but switching models breaks their KV cache. Disable Optimized Context in Settings > Gameplay > AI Models > Memory System > Optimized Context when rotating them.</span>
+              </div>
+
+              <div class="custom-dynamic-pool-header">
+                <span>Pool</span>
+                <span id="custom-dynamic-pool-summary">0 models</span>
+              </div>
+              <div class="custom-dynamic-pool-labels">
+                <span>On</span>
+                <span>Cache</span>
+                <span>Model</span>
+                <span>Chance</span>
+              </div>
+              <div class="custom-dynamic-model-list" id="custom-dynamic-model-list"></div>
+
+              <div class="custom-dynamic-add-row">
+                <select class="form-select form-select-sm" id="custom-dynamic-model-select"></select>
+                <button class="btn btn-ghost" id="custom-dynamic-add-model" type="button">
+                  <span class="icon-list-plus"></span>
+                  Add
+                </button>
+              </div>
+
+              <p class="custom-dynamic-warning-legend">
+                <span class="custom-dynamic-legend-item"><span class="icon-triangle-alert is-warning"></span> Optimized Context capable</span>
+                <span class="custom-dynamic-legend-item"><span class="icon-triangle-alert is-critical"></span> Always optimized</span>
+              </p>
+
+              <div class="custom-dynamic-actions">
+                <span class="option-value" id="custom-dynamic-status">Changes stay local to this browser.</span>
+                <button class="btn btn-action" id="custom-dynamic-save" type="button">
+                  <span class="icon-save"></span>
+                  Save
+                </button>
+              </div>
+              <p class="feature-credit">Inspired by <a href="https://play.aidungeon.com/profile/Zoocata_" target="_blank" rel="noopener noreferrer">Zoocata's PRISM</a></p>
+            </div>
+          </article>
+
           <!-- Auto See -->
           <article class="feature-card" data-feature="autoSee">
             <div class="feature-row">

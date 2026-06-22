@@ -38,6 +38,12 @@
     },
     {
       "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"],
+      "js": ["services/custom-dynamic-router.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"],
       "js": [
         "utils/browser-polyfill.js",
         "services/ultrascripts/ws-stream.js"
@@ -92,6 +98,7 @@
         "features/story_card_modal_dock_feature.js",
         "features/input_history_feature.js",
         "features/text_to_speeech_feature.js",
+        "features/custom_dynamic_feature.js",
         "main.js"
       ],
       "css": ["core/theme-variables.css", "styles.css", "fonts/lucide/lucide.css"],
