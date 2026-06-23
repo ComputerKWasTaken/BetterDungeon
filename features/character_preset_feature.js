@@ -8,7 +8,7 @@ class CharacterPresetFeature {
     this.context = context;
     this.storageKey = 'betterDungeon_characterPresets';
     this.activePresetKey = 'betterDungeon_activeCharacterPreset';
-    this.sessionKey = 'betterDungeon_characterPresetSessionV2';
+    this.staleSessionStorageKey = 'betterDungeon_characterPresetSessionV2';
 
     this.presets = [];
     this.activePresetId = null;
@@ -41,7 +41,6 @@ class CharacterPresetFeature {
     await this.loadPresets();
     await this.clearLegacyStorage();
     await this.loadActivePreset();
-    await this.loadSession();
     this.setupObserver();
     this.startPolling();
     this.checkForEntryField();
@@ -160,6 +159,8 @@ class CharacterPresetFeature {
     await this._chromeRemove('sync', this.activePresetKey);
     await this._chromeRemove('local', 'betterDungeon_sessionCharacter');
     await this._chromeRemove('local', 'betterDungeon_scenarioSession');
+    // Generated answers are intentionally memory-only; remove persisted caches from older builds.
+    await this._chromeRemove('local', this.staleSessionStorageKey);
   }
 
   async savePresets() {
@@ -168,7 +169,8 @@ class CharacterPresetFeature {
 
   async loadActivePreset() {
     const activeId = await this._chromeGet('local', this.activePresetKey, null);
-    this.activePresetId = activeId && this.presets.some(p => p.id === activeId) ? activeId : null;
+    const fallbackId = this.presets[0]?.id || null;
+    this.activePresetId = activeId && this.presets.some(p => p.id === activeId) ? activeId : fallbackId;
     if (activeId !== this.activePresetId) {
       await this._chromeSet('local', { [this.activePresetKey]: this.activePresetId });
     }
@@ -180,19 +182,8 @@ class CharacterPresetFeature {
     await this._chromeSet('local', { [this.activePresetKey]: this.activePresetId });
   }
 
-  async loadSession() {
-    const session = await this._chromeGet('local', this.sessionKey, null);
-    this.session = this.isValidSession(session) ? session : null;
-    return this.session;
-  }
-
-  async saveSession() {
-    await this._chromeSet('local', { [this.sessionKey]: this.session });
-  }
-
-  async clearSession() {
+  clearSession() {
     this.session = null;
-    await this._chromeRemove('local', this.sessionKey);
   }
 
   isValidSession(session) {
@@ -257,7 +248,7 @@ class CharacterPresetFeature {
 
     this.presets.splice(index, 1);
     if (this.activePresetId === id) await this.setActivePreset(null);
-    if (this.session?.characterId === id) await this.clearSession();
+    if (this.session?.characterId === id) this.clearSession();
     await this.savePresets();
     return true;
   }
@@ -436,17 +427,16 @@ class CharacterPresetFeature {
     }
 
     await this.loadPresets();
-    await this.loadSession();
+    await this.loadActivePreset();
 
     if (this.sessionMatchesScenario(this.session)) {
       const character = this.presets.find(p => p.id === this.session.characterId);
       if (character) {
-        this.activePresetId = character.id;
         this.status = 'ready';
         this.statusMessage = '';
         return;
       }
-      await this.clearSession();
+      this.clearSession();
     }
 
     if (this.presets.length === 0) {
@@ -483,6 +473,7 @@ class CharacterPresetFeature {
     };
     this.scenarioSignature = signature;
     this.scenarioShortId = scenario.shortId || shortId;
+    this.session = null;
     this.manualDismissedQuestions.clear();
   }
 
@@ -608,8 +599,6 @@ class CharacterPresetFeature {
 
       this.session = this.normalizeAISession(character, result?.json);
       this.manualDismissedQuestions.clear();
-      await this.saveSession();
-      await this.setActivePreset(character.id);
       this.status = 'ready';
       this.statusMessage = '';
       this.showAnswerPanel(field);
@@ -717,13 +706,11 @@ class CharacterPresetFeature {
     }
 
     return {
-      schemaVersion: 1,
       scenarioShortId: this.scenarioShortId,
       scenarioSignature: this.scenarioSignature,
       characterId: character.id,
       placeholders: [...placeholders],
       answers,
-      generatedAt: Date.now(),
       status: 'ready',
     };
   }
@@ -759,29 +746,40 @@ class CharacterPresetFeature {
   }
 
   showCharacterPicker(field) {
-    const selectedId = this.activePresetId && this.presets.some(p => p.id === this.activePresetId)
+    const sessionCharacterId = this.sessionMatchesScenario(this.session) && this.presets.some(p => p.id === this.session.characterId)
+      ? this.session.characterId
+      : null;
+    const selectedId = sessionCharacterId || (this.activePresetId && this.presets.some(p => p.id === this.activePresetId)
       ? this.activePresetId
-      : this.presets[0]?.id || '';
+      : '');
+    const selectedCharacter = this.presets.find(character => character.id === selectedId) || null;
     const options = this.presets.map(character => `
       <option value="${this.escapeHtml(character.id)}"${character.id === selectedId ? ' selected' : ''}>
-        ${this.escapeHtml(character.name)}
+        ${this.escapeHtml(`${character.name}${character.id === this.activePresetId ? ' (Main)' : ''}`)}
       </option>
     `).join('');
+    const preview = selectedCharacter
+      ? (selectedCharacter.description || selectedCharacter.name)
+      : '';
 
     const panel = this.renderPanel(field, `
       <div class="bd-character-ai-header">
         <div>
           <div class="bd-character-ai-title">Character Prefill</div>
-          <div class="bd-character-ai-subtitle">${this.scenario?.placeholders?.length || 0} placeholder questions found</div>
+          <div class="bd-character-ai-subtitle">${this.scenario?.placeholders?.length || 0} placeholder questions found${this.activePresetId ? ' - Main character preselected' : ''}</div>
         </div>
       </div>
       <div class="bd-character-ai-body">
         <label class="bd-character-ai-label" for="bd-character-ai-select">Play as</label>
         <div class="bd-character-ai-picker">
           <select id="bd-character-ai-select" class="bd-character-ai-select">
+            <option value="">Select character...</option>
             ${options}
           </select>
-          <button id="bd-character-ai-generate" class="bd-character-ai-btn bd-character-ai-btn-primary">Generate</button>
+          <button id="bd-character-ai-generate" class="bd-character-ai-btn bd-character-ai-btn-primary"${selectedId ? '' : ' disabled'}>Generate</button>
+        </div>
+        <div id="bd-character-ai-character-preview" class="bd-character-ai-character-preview"${preview ? '' : ' hidden'}>
+          ${this.escapeHtml(preview)}
         </div>
       </div>
     `);
@@ -789,11 +787,29 @@ class CharacterPresetFeature {
 
     const select = panel.querySelector('#bd-character-ai-select');
     const generate = panel.querySelector('#bd-character-ai-generate');
+    const previewEl = panel.querySelector('#bd-character-ai-character-preview');
+    const previewById = new Map(this.presets.map(character => [
+      character.id,
+      character.description || character.name,
+    ]));
+
+    select?.addEventListener('change', () => {
+      const value = select.value;
+      if (generate) generate.disabled = !value;
+      if (previewEl) {
+        const text = previewById.get(value) || '';
+        previewEl.textContent = text;
+        previewEl.hidden = !text;
+      }
+    });
     generate?.addEventListener('click', async (event) => {
       event.preventDefault();
       event.stopPropagation();
-      const characterId = select?.value || selectedId;
-      if (!characterId) return;
+      const characterId = select?.value || '';
+      if (!characterId) {
+        this.showToast('Choose a character first', 'error');
+        return;
+      }
       await this.generateSessionForCharacter(characterId, field);
     });
   }
@@ -838,6 +854,7 @@ class CharacterPresetFeature {
             <div class="bd-character-ai-title">Answer Manually</div>
             <div class="bd-character-ai-subtitle">Gemini was not confident enough to answer this placeholder.</div>
           </div>
+          <button id="bd-character-ai-change" class="bd-character-ai-link-btn">Change</button>
         </div>
         ${answer?.reason ? `<div class="bd-character-ai-reason">${this.escapeHtml(answer.reason)}</div>` : ''}
         <div class="bd-character-ai-actions">
@@ -851,6 +868,11 @@ class CharacterPresetFeature {
         this.removePanel();
         field.input.focus();
       });
+      panel?.querySelector('#bd-character-ai-change')?.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.showCharacterPicker(field);
+      });
       return;
     }
 
@@ -860,6 +882,7 @@ class CharacterPresetFeature {
           <div class="bd-character-ai-title">${this.escapeHtml(character?.name || 'Character')} Suggestion</div>
           <div class="bd-character-ai-subtitle">${this.escapeHtml(field.question)}</div>
         </div>
+        <button id="bd-character-ai-change" class="bd-character-ai-link-btn">Change</button>
       </div>
       <div class="bd-character-ai-answer">${this.escapeHtml(answer.answer)}</div>
       ${answer.reason ? `<div class="bd-character-ai-reason">${this.escapeHtml(answer.reason)}</div>` : ''}
@@ -875,6 +898,12 @@ class CharacterPresetFeature {
       event.preventDefault();
       event.stopPropagation();
       await this.fillAndContinue(field, answer.answer);
+    });
+
+    panel.querySelector('#bd-character-ai-change')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.showCharacterPicker(field);
     });
 
     panel.querySelector('#bd-character-ai-manual')?.addEventListener('click', (event) => {
@@ -929,7 +958,6 @@ class CharacterPresetFeature {
           deferToPlayer: false,
           reason: 'Edited for this scenario session.',
         };
-        await this.saveSession();
       }
       await this.fillAndContinue(field, edited);
     });

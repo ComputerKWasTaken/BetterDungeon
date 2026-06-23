@@ -15,6 +15,7 @@ const STORAGE_KEYS = {
   settings: 'betterDungeonSettings',
   presets: 'betterDungeon_favoritePresets',
   characters: 'betterDungeon_characterPresets',
+  activeCharacter: 'betterDungeon_activeCharacterPreset',
   autoApply: 'betterDungeon_autoApplyInstructions',
   markdownInstructionPreset: 'betterDungeon_markdownInstructionPreset',
   ultrascriptsDebug: 'ultrascripts_debug',
@@ -168,6 +169,7 @@ const DEFAULT_TEXT_TO_SPEECH_SETTINGS = {
 // State
 let currentEditingPreset = null;
 let currentEditingCharacter = null;
+let currentMainCharacterId = null;
 let lastUndoState = null;
 
 // Hotkey editor state
@@ -2226,14 +2228,27 @@ function initCharacters() {
 
 async function loadCharacters() {
   chrome.storage.sync.remove(STORAGE_KEYS.characters);
-  chrome.storage.local.get(STORAGE_KEYS.characters, (localResult) => {
+  chrome.storage.sync.remove(STORAGE_KEYS.activeCharacter);
+  chrome.storage.local.get([STORAGE_KEYS.characters, STORAGE_KEYS.activeCharacter], (localResult) => {
     const raw = Array.isArray((localResult || {})[STORAGE_KEYS.characters])
       ? (localResult || {})[STORAGE_KEYS.characters]
       : [];
     const characters = normalizeCharacterList(raw);
-    if (characters.length !== raw.length) {
-      chrome.storage.local.set({ [STORAGE_KEYS.characters]: characters });
-      chrome.storage.sync.remove(STORAGE_KEYS.characters);
+    const storedMainId = typeof (localResult || {})[STORAGE_KEYS.activeCharacter] === 'string'
+      ? (localResult || {})[STORAGE_KEYS.activeCharacter]
+      : null;
+    const nextMainId = characters.some(char => char.id === storedMainId)
+      ? storedMainId
+      : (characters[0]?.id || null);
+
+    currentMainCharacterId = nextMainId;
+
+    const updates = {};
+    if (characters.length !== raw.length) updates[STORAGE_KEYS.characters] = characters;
+    if (storedMainId !== nextMainId) updates[STORAGE_KEYS.activeCharacter] = nextMainId;
+
+    if (Object.keys(updates).length > 0) {
+      chrome.storage.local.set(updates);
     }
     renderCharacters(characters);
   });
@@ -2300,6 +2315,8 @@ function renderCharacters(characters) {
 function createCharacterCard(character) {
   const card = document.createElement('div');
   card.className = 'character-card';
+  const isMain = character.id === currentMainCharacterId;
+  if (isMain) card.classList.add('character-card-is-main');
   
   const preview = character.description?.trim()
     ? character.description.trim()
@@ -2307,21 +2324,42 @@ function createCharacterCard(character) {
 
   card.innerHTML = `
     <div class="character-card-main">
-      <h4 class="character-name">${escapeHtml(character.name)}</h4>
+      <div class="character-title-row">
+        <h4 class="character-name">${escapeHtml(character.name)}</h4>
+        ${isMain ? '<span class="character-main-badge"><span class="icon-star"></span>Main</span>' : ''}
+      </div>
       <div class="character-meta">
         <span class="character-description-preview">${escapeHtml(preview)}</span>
       </div>
     </div>
-    <button class="character-edit-btn" aria-label="Edit">
-      <span class="icon-pencil"></span>
-    </button>
+    <div class="character-card-actions">
+      <button class="character-main-btn${isMain ? ' active' : ''}" aria-label="${isMain ? 'Main character' : 'Make main character'}" title="${isMain ? 'Main character' : 'Make main character'}"${isMain ? ' disabled' : ''}>
+        <span class="icon-star"></span>
+      </button>
+      <button class="character-edit-btn" aria-label="Edit" title="Edit">
+        <span class="icon-pencil"></span>
+      </button>
+    </div>
   `;
+
+  card.querySelector('.character-main-btn')?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (!isMain) setMainCharacter(character.id);
+  });
 
   card.querySelector('.character-edit-btn').addEventListener('click', () => {
     openCharacterModal(character);
   });
 
   return card;
+}
+
+function setMainCharacter(characterId) {
+  currentMainCharacterId = characterId || null;
+  chrome.storage.local.set({ [STORAGE_KEYS.activeCharacter]: currentMainCharacterId }, () => {
+    loadCharacters();
+    showToast('Main character updated', 'success');
+  });
 }
 
 function createCharacter(name) {
@@ -2340,7 +2378,13 @@ function createCharacter(name) {
     
     characters.unshift(newChar);
     
-    chrome.storage.local.set({ [STORAGE_KEYS.characters]: characters }, () => {
+    const updates = { [STORAGE_KEYS.characters]: characters };
+    if (!currentMainCharacterId) {
+      updates[STORAGE_KEYS.activeCharacter] = newChar.id;
+      currentMainCharacterId = newChar.id;
+    }
+
+    chrome.storage.local.set(updates, () => {
       loadCharacters();
       showToast('Character created!', 'success');
     });
@@ -2396,7 +2440,13 @@ function saveCharacterChanges() {
       characters.unshift(savedCharacter);
     }
 
-    chrome.storage.local.set({ [STORAGE_KEYS.characters]: characters }, () => {
+    const updates = { [STORAGE_KEYS.characters]: characters };
+    if (!currentMainCharacterId) {
+      updates[STORAGE_KEYS.activeCharacter] = savedCharacter.id;
+      currentMainCharacterId = savedCharacter.id;
+    }
+
+    chrome.storage.local.set(updates, () => {
       loadCharacters();
       showToast(currentEditingCharacter._isNew ? 'Character created' : 'Character updated', 'success');
       closeModal('character-modal');
@@ -2417,8 +2467,13 @@ async function deleteCharacter() {
   chrome.storage.local.get(STORAGE_KEYS.characters, (result) => {
     const characters = normalizeCharacterList((result || {})[STORAGE_KEYS.characters] || [])
       .filter(c => c.id !== currentEditingCharacter.id);
-    
-    chrome.storage.local.set({ [STORAGE_KEYS.characters]: characters }, () => {
+    const updates = { [STORAGE_KEYS.characters]: characters };
+    if (currentMainCharacterId === currentEditingCharacter.id) {
+      currentMainCharacterId = characters[0]?.id || null;
+      updates[STORAGE_KEYS.activeCharacter] = currentMainCharacterId;
+    }
+
+    chrome.storage.local.set(updates, () => {
       loadCharacters();
       showToast('Character deleted', 'success');
       closeModal('character-modal');

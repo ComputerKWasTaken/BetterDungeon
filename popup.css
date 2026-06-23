@@ -1573,8 +1573,19 @@ body.mobile {
   transition: border-color var(--transition-fast);
 }
 
+.character-card-is-main {
+  border-color: var(--border-accent);
+}
+
 .character-card:hover {
   border-color: var(--border-hover);
+}
+
+.character-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 
 .character-name {
@@ -1582,6 +1593,9 @@ body.mobile {
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .character-card-main {
@@ -1604,7 +1618,34 @@ body.mobile {
   line-height: 1.35;
 }
 
-.character-edit-btn {
+.character-main-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  background: var(--accent-muted);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.character-main-badge [class^="icon-"] {
+  font-size: 10px;
+}
+
+.character-card-actions {
+  display: flex;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.character-edit-btn,
+.character-main-btn {
   width: 28px;
   height: 28px;
   display: flex;
@@ -1618,9 +1659,18 @@ body.mobile {
   transition: all var(--transition-fast);
 }
 
-.character-edit-btn:hover {
+.character-edit-btn:hover,
+.character-main-btn:hover {
   color: var(--accent);
   border-color: var(--border-accent);
+}
+
+.character-main-btn.active,
+.character-main-btn:disabled {
+  color: var(--accent);
+  border-color: var(--border-accent);
+  background: var(--accent-muted);
+  cursor: default;
 }
 
 /* === Modal === */
