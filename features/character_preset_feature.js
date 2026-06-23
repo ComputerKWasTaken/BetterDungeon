@@ -40,7 +40,6 @@ class CharacterPresetFeature {
   }
 
   async init() {
-    console.log('[CharacterPreset] Initializing AI-assisted Character Presets feature...');
     await this.loadPresets();
     await this.clearLegacyStorage();
     await this.loadActivePreset();
@@ -395,6 +394,7 @@ class CharacterPresetFeature {
     const routeShortId = this.parseScenarioShortIdFromUrl();
     if (!routeShortId) return;
 
+    // Multiple-choice starts keep the root URL while fetching selected child nodes.
     this.latestScenarioStart = scenario;
     this.latestScenarioStartRootShortId = routeShortId;
     if (this.scenarioShortId && this.scenarioShortId !== scenario.shortId) {
