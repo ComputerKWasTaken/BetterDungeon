@@ -1003,28 +1003,28 @@
               <!-- Accordion -->
               <div class="bd-widget bd-widget-accordion" style="pointer-events:auto">
                 <div class="bd-widget-accordion-section" data-open="true">
-                  <div class="bd-widget-accordion-trigger" onclick="toggleAccordion(this)">
+                  <button type="button" class="bd-widget-accordion-trigger" aria-expanded="true" onclick="toggleAccordion(this)">
                     <span class="bd-widget-accordion-trigger-text">⚔️ Attributes</span>
                     <span class="bd-widget-accordion-trigger-icon">▶</span>
-                  </div>
+                  </button>
                   <div class="bd-widget-accordion-panel">
                     STR 16 · DEX 14 · CON 18<br>INT 20 · WIS 12 · CHA 10
                   </div>
                 </div>
                 <div class="bd-widget-accordion-section" data-open="false">
-                  <div class="bd-widget-accordion-trigger" onclick="toggleAccordion(this)">
+                  <button type="button" class="bd-widget-accordion-trigger" aria-expanded="false" onclick="toggleAccordion(this)">
                     <span class="bd-widget-accordion-trigger-text">🎒 Inventory</span>
                     <span class="bd-widget-accordion-trigger-icon">▶</span>
-                  </div>
+                  </button>
                   <div class="bd-widget-accordion-panel">
                     Flame Blade · Oak Shield · Mage Robes<br>Health Potion ×3 · Scroll of Fireball
                   </div>
                 </div>
                 <div class="bd-widget-accordion-section" data-open="false">
-                  <div class="bd-widget-accordion-trigger" onclick="toggleAccordion(this)">
+                  <button type="button" class="bd-widget-accordion-trigger" aria-expanded="false" onclick="toggleAccordion(this)">
                     <span class="bd-widget-accordion-trigger-text">📜 Quests</span>
                     <span class="bd-widget-accordion-trigger-icon">▶</span>
-                  </div>
+                  </button>
                   <div class="bd-widget-accordion-panel">
                     <strong style="color:var(--bd-warning)">The Dark Keep</strong> — Defeat the Shadow Lord<br>
                     <strong style="color:var(--bd-text-muted)">Lost Relic</strong> — Find the Crystal of Dawn
@@ -1034,18 +1034,18 @@
 
               <!-- Tabs -->
               <div class="bd-widget bd-widget-tabs" style="pointer-events:auto" id="demo-tabs-1">
-                <div class="bd-widget-tabs-bar">
-                  <button class="bd-widget-tab-btn" data-active="true" data-tab="stats" onclick="switchTab(this)">Stats</button>
-                  <button class="bd-widget-tab-btn" data-active="false" data-tab="skills" onclick="switchTab(this)">Skills</button>
-                  <button class="bd-widget-tab-btn" data-active="false" data-tab="perks" onclick="switchTab(this)">Perks</button>
+                <div class="bd-widget-tabs-bar" role="tablist" aria-label="Preview tabs">
+                  <button type="button" class="bd-widget-tab-btn" data-active="true" data-tab="stats" role="tab" aria-selected="true" onclick="switchTab(this)">Stats</button>
+                  <button type="button" class="bd-widget-tab-btn" data-active="false" data-tab="skills" role="tab" aria-selected="false" onclick="switchTab(this)">Skills</button>
+                  <button type="button" class="bd-widget-tab-btn" data-active="false" data-tab="perks" role="tab" aria-selected="false" onclick="switchTab(this)">Perks</button>
                 </div>
-                <div class="bd-widget-tabs-panel" data-tab="stats" data-active="true">
+                <div class="bd-widget-tabs-panel" data-tab="stats" data-active="true" role="tabpanel">
                   HP: 87/100 · MP: 23/100<br>Level 12 · XP: 1,240/2,000
                 </div>
-                <div class="bd-widget-tabs-panel" data-tab="skills" data-active="false">
+                <div class="bd-widget-tabs-panel" data-tab="skills" data-active="false" role="tabpanel" hidden>
                   Fireball (Lv 5) · Ice Shard (Lv 3)<br>Shield (Lv 4) · Heal (Lv 2)
                 </div>
-                <div class="bd-widget-tabs-panel" data-tab="perks" data-active="false">
+                <div class="bd-widget-tabs-panel" data-tab="perks" data-active="false" role="tabpanel" hidden>
                   Night Vision · Fire Affinity<br>Quick Reflexes · Iron Will
                 </div>
               </div>
@@ -1056,16 +1056,16 @@
 
               <!-- Dropdown Menu -->
               <div class="bd-widget bd-widget-dropdown bd-widget-interactive" data-open="false" style="pointer-events:auto">
-                <button class="bd-widget-dropdown-trigger" onclick="toggleDropdown(this)">
+                <button type="button" class="bd-widget-dropdown-trigger" aria-haspopup="menu" aria-expanded="false" onclick="toggleDropdown(this)">
                   ⋯ Actions <span style="font-size:10px;opacity:0.6">▾</span>
                 </button>
-                <div class="bd-widget-dropdown-menu">
-                  <div class="bd-widget-dropdown-item"><span class="bd-widget-dropdown-item-icon">🔍</span> Inspect</div>
-                  <div class="bd-widget-dropdown-item"><span class="bd-widget-dropdown-item-icon">💬</span> Talk</div>
-                  <div class="bd-widget-dropdown-item"><span class="bd-widget-dropdown-item-icon">🤝</span> Trade</div>
+                <div class="bd-widget-dropdown-menu" role="menu" hidden>
+                  <button type="button" class="bd-widget-dropdown-item" role="menuitem"><span class="bd-widget-dropdown-item-icon">🔍</span> Inspect</button>
+                  <button type="button" class="bd-widget-dropdown-item" role="menuitem"><span class="bd-widget-dropdown-item-icon">💬</span> Talk</button>
+                  <button type="button" class="bd-widget-dropdown-item" role="menuitem"><span class="bd-widget-dropdown-item-icon">🤝</span> Trade</button>
                   <div class="bd-widget-dropdown-divider"></div>
-                  <div class="bd-widget-dropdown-item" style="color:var(--bd-error-light)"><span class="bd-widget-dropdown-item-icon">🗡️</span> Attack</div>
-                  <div class="bd-widget-dropdown-item"><span class="bd-widget-dropdown-item-icon">🏃</span> Flee</div>
+                  <button type="button" class="bd-widget-dropdown-item" role="menuitem" style="color:var(--bd-error-light)"><span class="bd-widget-dropdown-item-icon">🗡️</span> Attack</button>
+                  <button type="button" class="bd-widget-dropdown-item" role="menuitem"><span class="bd-widget-dropdown-item-icon">🏃</span> Flee</button>
                 </div>
               </div>
 
@@ -1079,37 +1079,37 @@
                 <div class="bd-widget-sortable-item">
                   <span class="bd-widget-sortable-handle">⠿</span>
                   <span class="bd-widget-sortable-rank">1.</span>
-                  <span>⚔️ Attack</span>
+                  <span class="bd-widget-sortable-text">⚔️ Attack</span>
                   <div class="bd-widget-sortable-arrows">
-                    <span class="bd-widget-sortable-arrow" onclick="sortMove(this,-1)">▲</span>
-                    <span class="bd-widget-sortable-arrow" onclick="sortMove(this,1)">▼</span>
+                    <button type="button" class="bd-widget-sortable-arrow" onclick="sortMove(this,-1)" aria-label="Move Attack up">▲</button>
+                    <button type="button" class="bd-widget-sortable-arrow" onclick="sortMove(this,1)" aria-label="Move Attack down">▼</button>
                   </div>
                 </div>
                 <div class="bd-widget-sortable-item">
                   <span class="bd-widget-sortable-handle">⠿</span>
                   <span class="bd-widget-sortable-rank">2.</span>
-                  <span>🛡️ Defend</span>
+                  <span class="bd-widget-sortable-text">🛡️ Defend</span>
                   <div class="bd-widget-sortable-arrows">
-                    <span class="bd-widget-sortable-arrow" onclick="sortMove(this,-1)">▲</span>
-                    <span class="bd-widget-sortable-arrow" onclick="sortMove(this,1)">▼</span>
+                    <button type="button" class="bd-widget-sortable-arrow" onclick="sortMove(this,-1)" aria-label="Move Defend up">▲</button>
+                    <button type="button" class="bd-widget-sortable-arrow" onclick="sortMove(this,1)" aria-label="Move Defend down">▼</button>
                   </div>
                 </div>
                 <div class="bd-widget-sortable-item">
                   <span class="bd-widget-sortable-handle">⠿</span>
                   <span class="bd-widget-sortable-rank">3.</span>
-                  <span>🔥 Cast Spell</span>
+                  <span class="bd-widget-sortable-text">🔥 Cast Spell</span>
                   <div class="bd-widget-sortable-arrows">
-                    <span class="bd-widget-sortable-arrow" onclick="sortMove(this,-1)">▲</span>
-                    <span class="bd-widget-sortable-arrow" onclick="sortMove(this,1)">▼</span>
+                    <button type="button" class="bd-widget-sortable-arrow" onclick="sortMove(this,-1)" aria-label="Move Cast Spell up">▲</button>
+                    <button type="button" class="bd-widget-sortable-arrow" onclick="sortMove(this,1)" aria-label="Move Cast Spell down">▼</button>
                   </div>
                 </div>
                 <div class="bd-widget-sortable-item">
                   <span class="bd-widget-sortable-handle">⠿</span>
                   <span class="bd-widget-sortable-rank">4.</span>
-                  <span>🧪 Use Item</span>
+                  <span class="bd-widget-sortable-text">🧪 Use Item</span>
                   <div class="bd-widget-sortable-arrows">
-                    <span class="bd-widget-sortable-arrow" onclick="sortMove(this,-1)">▲</span>
-                    <span class="bd-widget-sortable-arrow" onclick="sortMove(this,1)">▼</span>
+                    <button type="button" class="bd-widget-sortable-arrow" onclick="sortMove(this,-1)" aria-label="Move Use Item up">▲</button>
+                    <button type="button" class="bd-widget-sortable-arrow" onclick="sortMove(this,1)" aria-label="Move Use Item down">▼</button>
                   </div>
                 </div>
               </div>
@@ -1180,6 +1180,7 @@
     function toggleChip(chip) {
       const selected = chip.dataset.selected === 'true';
       chip.dataset.selected = selected ? 'false' : 'true';
+      chip.setAttribute('aria-pressed', selected ? 'false' : 'true');
     }
 
     // Accordion: toggle section, close siblings
@@ -1187,27 +1188,55 @@
       const section = trigger.closest('.bd-widget-accordion-section');
       const accordion = section.closest('.bd-widget-accordion');
       const wasOpen = section.dataset.open === 'true';
-      accordion.querySelectorAll('.bd-widget-accordion-section').forEach(s => s.dataset.open = 'false');
-      if (!wasOpen) section.dataset.open = 'true';
+      accordion.querySelectorAll('.bd-widget-accordion-section').forEach(s => {
+        s.dataset.open = 'false';
+        const sectionTrigger = s.querySelector('.bd-widget-accordion-trigger');
+        if (sectionTrigger) sectionTrigger.setAttribute('aria-expanded', 'false');
+      });
+      if (!wasOpen) {
+        section.dataset.open = 'true';
+        trigger.setAttribute('aria-expanded', 'true');
+      }
     }
 
     // Tabs: switch active tab
     function switchTab(btn) {
       const tabs = btn.closest('.bd-widget-tabs');
       const tabName = btn.dataset.tab;
-      tabs.querySelectorAll('.bd-widget-tab-btn').forEach(b => b.dataset.active = 'false');
-      tabs.querySelectorAll('.bd-widget-tabs-panel').forEach(p => p.dataset.active = 'false');
+      tabs.querySelectorAll('.bd-widget-tab-btn').forEach(b => {
+        b.dataset.active = 'false';
+        b.setAttribute('aria-selected', 'false');
+      });
+      tabs.querySelectorAll('.bd-widget-tabs-panel').forEach(p => {
+        p.dataset.active = 'false';
+        p.hidden = true;
+      });
       btn.dataset.active = 'true';
+      btn.setAttribute('aria-selected', 'true');
       const panel = tabs.querySelector(`.bd-widget-tabs-panel[data-tab="${tabName}"]`);
-      if (panel) panel.dataset.active = 'true';
+      if (panel) {
+        panel.dataset.active = 'true';
+        panel.hidden = false;
+      }
     }
 
     // Dropdown Menu: toggle open/closed
     function toggleDropdown(trigger) {
       const widget = trigger.closest('.bd-widget-dropdown');
       const isOpen = widget.dataset.open === 'true';
-      document.querySelectorAll('.bd-widget-dropdown').forEach(d => d.dataset.open = 'false');
-      if (!isOpen) widget.dataset.open = 'true';
+      document.querySelectorAll('.bd-widget-dropdown').forEach(d => {
+        d.dataset.open = 'false';
+        const dTrigger = d.querySelector('.bd-widget-dropdown-trigger');
+        const dMenu = d.querySelector('.bd-widget-dropdown-menu');
+        if (dTrigger) dTrigger.setAttribute('aria-expanded', 'false');
+        if (dMenu) dMenu.hidden = true;
+      });
+      if (!isOpen) {
+        widget.dataset.open = 'true';
+        trigger.setAttribute('aria-expanded', 'true');
+        const menu = widget.querySelector('.bd-widget-dropdown-menu');
+        if (menu) menu.hidden = false;
+      }
     }
 
     // Sortable List: move item up/down
@@ -1243,7 +1272,13 @@
     // Close dropdown menus on outside click
     document.addEventListener('click', (e) => {
       if (!e.target.closest('.bd-widget-dropdown')) {
-        document.querySelectorAll('.bd-widget-dropdown').forEach(d => d.dataset.open = 'false');
+        document.querySelectorAll('.bd-widget-dropdown').forEach(d => {
+          d.dataset.open = 'false';
+          const trigger = d.querySelector('.bd-widget-dropdown-trigger');
+          const menu = d.querySelector('.bd-widget-dropdown-menu');
+          if (trigger) trigger.setAttribute('aria-expanded', 'false');
+          if (menu) menu.hidden = true;
+        });
       }
     });
   </script>

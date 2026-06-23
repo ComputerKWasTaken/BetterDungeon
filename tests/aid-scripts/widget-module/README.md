@@ -20,7 +20,7 @@ Use this suite when you change any of the following:
 | `/widget display` | stat, bar, counter, progress, taggroup, divider, icon, badge, text | All display widgets render with correct values, colors, alignment. Bars and progress fills animate smoothly. |
 | `/widget interactive` | radio, stepper, confirm, chipselect, button, toggle, select, slider, input, textarea | Each widget is interactive. Click them and check `ultrascripts:test:widget` → `interactions.recentEvents` for the emitted events. |
 | `/widget containers` | accordion, tabs, dropdown, sortable | Containers expand/collapse, switch tabs, open menus, and reorder items. Events carry the correct selected IDs. |
-| `/widget invalid` | stat, progress, plus intentionally broken configs | The module should skip `badmax` (negative max), `badtype` (unknown type), and `nostep` (string value for stepper) with console warnings. `ok` and `ok2` should still render. |
+| `/widget invalid` | valid stat/progress/badge plus intentionally broken configs | The module should skip duplicate IDs, malformed `items` / `options`, missing option values, oversized labels/HTML/options, and bad numeric fields with console warnings. `ok`, `ok2`, and the first `dup` should still render. |
 | `/widget transitions` | stat, bar, counter, progress | Values change every turn. Watch numbers count up/down and bars/progress fills smoothly animate. |
 | `/widget edge` | taggroup, stat, bar, divider, text, icon, counter | Edge cases: empty tag list, missing value, 0-width bar, over-max bar, negative bar, missing label, empty text, empty icon. |
 | `/widget custom` | custom (HTML), divider | Exercises the custom widget renderer: tables, lists, code blocks, formatted text, blockquotes, links, images, and inline CSS layouts. Verify that HTML is sanitized and styled correctly. |
@@ -115,6 +115,17 @@ Click each widget and verify events:
 - **Stepper** → `action: "change"`, value increments/decrements
 - **Confirm** → first click arms (`action: none, UI changes`), second click → `action: "confirm"`, `value: true`
 - **Chipselect** → `action: "change"`, value is an array of selected IDs
+
+### Invalid widget configs
+```
+/widget invalid
+```
+Check that:
+- `ok`, `ok2`, and the first `dup` render normally.
+- The second `dup` is skipped as a duplicate widget ID.
+- `badmax`, `badtype`, `nostep`, `badselect`, `badradio`, `badpanel`, `badlist`, `biglabel`, `bightml`, `too-many-options`, `baddropdown`, and `badsortable` are skipped with warnings.
+- The `ultrascripts:test:widget` trace includes `invalidExpectedSkip` so you can compare expected skips against what appears on screen.
+- Valid siblings keep rendering even when invalid widgets are present.
 
 ### Value transitions
 ```

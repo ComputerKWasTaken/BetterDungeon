@@ -1283,6 +1283,9 @@ html.bd-story-card-dock-active > body {
   font-size: var(--bd-font-size-sm);
   color: var(--bd-text-secondary);
   line-height: var(--bd-line-height-normal);
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .bd-widget-panel {
@@ -1301,6 +1304,9 @@ html.bd-story-card-dock-active > body {
   letter-spacing: 0;
   padding-bottom: 4px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .bd-widget-panel-content {
@@ -1320,6 +1326,10 @@ html.bd-story-card-dock-active > body {
 .bd-widget-panel-item-label {
   font-size: var(--bd-font-size-xs);
   color: rgba(255, 255, 255, 0.62);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .bd-widget-panel-item-value {
@@ -1329,12 +1339,15 @@ html.bd-story-card-dock-active > body {
   font-family: var(--bd-font-family-primary);
   font-variant-numeric: tabular-nums;
   min-width: 0;
+  max-width: 60%;
   overflow-wrap: anywhere;
   text-align: right;
 }
 
 .bd-widget-custom {
   padding: 8px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .bd-widget-custom ul,
@@ -1361,7 +1374,10 @@ html.bd-story-card-dock-active > body {
 .bd-widget-custom table {
   border-collapse: collapse;
   width: 100%;
+  max-width: 100%;
   margin: 4px 0;
+  display: block;
+  overflow-x: auto;
 }
 
 .bd-widget-custom th,
@@ -1369,6 +1385,7 @@ html.bd-story-card-dock-active > body {
   padding: 4px 8px;
   border: 1px solid var(--bd-border-default);
   text-align: left;
+  overflow-wrap: anywhere;
 }
 
 .bd-widget-custom th {
@@ -1533,6 +1550,9 @@ html.bd-story-card-dock-active > body {
   letter-spacing: 0;
   padding-bottom: 4px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .bd-widget-list-items {
@@ -1551,12 +1571,15 @@ html.bd-story-card-dock-active > body {
   font-size: var(--bd-font-size-xs);
   color: rgba(255, 255, 255, 0.72);
   padding: 2px 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .bd-widget-list-item-icon {
   font-size: 1em;
   line-height: 1;
   opacity: 0.8;
+  flex-shrink: 0;
 }
 
 .bd-widget-icon {
@@ -1658,6 +1681,20 @@ html.bd-story-card-dock-active > body {
   box-shadow: var(--bd-input-focus-ring);
 }
 
+.bd-widget-button-control:focus-visible,
+.bd-widget-stepper-btn:focus-visible,
+.bd-widget-confirm-btn:focus-visible,
+.bd-widget-chip:focus-visible,
+.bd-widget-accordion-trigger:focus-visible,
+.bd-widget-tab-btn:focus-visible,
+.bd-widget-dropdown-trigger:focus-visible,
+.bd-widget-dropdown-item:focus-visible,
+.bd-widget-sortable-arrow:focus-visible {
+  outline: 2px solid var(--bd-border-focus);
+  outline-offset: 2px;
+  box-shadow: var(--bd-input-focus-ring);
+}
+
 .bd-widget-button-control {
   display: inline-flex;
   align-items: center;
@@ -1702,6 +1739,11 @@ html.bd-story-card-dock-active > body {
   opacity: 0;
   inset: 0;
   margin: 0;
+}
+
+.bd-widget-toggle-control input:focus-visible + .bd-widget-toggle-slider {
+  border-color: var(--bd-border-focus);
+  box-shadow: var(--bd-input-focus-ring);
 }
 
 .bd-widget-toggle-slider {
@@ -1777,7 +1819,7 @@ html.bd-story-card-dock-active > body {
 
 .bd-widget-slider-control {
   flex: 1 1 auto;
-  min-width: 120px;
+  min-width: min(120px, 100%);
   accent-color: var(--bd-accent-primary);
   -webkit-appearance: none;
   appearance: none;
@@ -2229,7 +2271,7 @@ html.bd-story-card-dock-active > body {
     white-space: normal;
   }
 
-  .bd-widget-sortable-item > span:nth-child(3) {
+  .bd-widget-sortable-text {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2404,6 +2446,9 @@ html.bd-story-card-dock-active > body {
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: var(--bd-text-secondary);
   white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .bd-widget-tag[data-color="red"]    { background: rgba(239, 68, 68, 0.15);   color: var(--bd-error-light);   border-color: rgba(239, 68, 68, 0.25); }
@@ -2496,6 +2541,8 @@ html.bd-story-card-dock-active > body {
   padding: 3px 4px;
   border-radius: var(--bd-radius-md);
   transition: background var(--bd-transition-fast);
+  position: relative;
+  min-width: 0;
 }
 
 .bd-widget-radio-option:hover {
@@ -2503,7 +2550,17 @@ html.bd-story-card-dock-active > body {
 }
 
 .bd-widget-radio-option input[type="radio"] {
-  display: none;
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  pointer-events: none;
+}
+
+.bd-widget-radio-option input:focus-visible ~ .bd-widget-radio-dot {
+  border-color: var(--bd-border-focus);
+  box-shadow: var(--bd-input-focus-ring);
 }
 
 .bd-widget-radio-dot {
@@ -2531,6 +2588,9 @@ html.bd-story-card-dock-active > body {
 .bd-widget-radio-label {
   font-size: var(--bd-font-size-xs);
   color: var(--bd-text-secondary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .bd-widget-radio-option input:checked ~ .bd-widget-radio-label {
@@ -2564,6 +2624,7 @@ html.bd-story-card-dock-active > body {
   cursor: pointer;
   transition: background var(--bd-transition-fast), color var(--bd-transition-fast);
   flex-shrink: 0;
+  font-family: inherit;
 }
 
 .bd-widget-stepper-btn:hover:not(:disabled) {
@@ -2652,6 +2713,8 @@ html.bd-story-card-dock-active > body {
   font-family: inherit;
   cursor: pointer;
   transition: background var(--bd-transition-fast), border-color var(--bd-transition-fast), color var(--bd-transition-fast);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .bd-widget-chip:hover:not(:disabled) {
@@ -2685,12 +2748,18 @@ html.bd-story-card-dock-active > body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
   padding: 4px 2px;
   cursor: pointer;
   gap: 6px;
   user-select: none;
   transition: background var(--bd-transition-fast);
   border-radius: var(--bd-radius-sm);
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
 }
 
 .bd-widget-accordion-trigger:hover {
@@ -2701,6 +2770,9 @@ html.bd-story-card-dock-active > body {
   font-size: var(--bd-font-size-xs);
   font-weight: var(--bd-font-weight-semibold);
   color: var(--bd-text-primary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .bd-widget-accordion-trigger-icon {
@@ -2720,6 +2792,7 @@ html.bd-story-card-dock-active > body {
   font-size: var(--bd-font-size-xs);
   color: var(--bd-text-secondary);
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .bd-widget-accordion-section[data-open="true"] .bd-widget-accordion-panel {
@@ -2741,6 +2814,7 @@ html.bd-story-card-dock-active > body {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   padding-bottom: 0;
   margin-bottom: 0;
+  min-width: 0;
 }
 
 .bd-widget-tab-btn {
@@ -2756,6 +2830,9 @@ html.bd-story-card-dock-active > body {
   margin-bottom: -1px;
   transition: color var(--bd-transition-fast), border-color var(--bd-transition-fast);
   border-radius: var(--bd-radius-sm) var(--bd-radius-sm) 0 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .bd-widget-tab-btn:hover {
@@ -2773,6 +2850,7 @@ html.bd-story-card-dock-active > body {
   font-size: var(--bd-font-size-xs);
   color: var(--bd-text-secondary);
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .bd-widget-tabs-panel[data-active="true"] {
@@ -2783,6 +2861,7 @@ html.bd-story-card-dock-active > body {
 .bd-widget-dropdown {
   position: relative;
   display: inline-flex;
+  max-width: 100%;
 }
 
 .bd-widget-dropdown-trigger {
@@ -2798,6 +2877,10 @@ html.bd-story-card-dock-active > body {
   font-family: inherit;
   cursor: pointer;
   transition: background var(--bd-transition-fast), color var(--bd-transition-fast);
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .bd-widget-dropdown-trigger:hover:not(:disabled) {
@@ -2833,12 +2916,18 @@ html.bd-story-card-dock-active > body {
   display: flex;
   align-items: center;
   gap: 5px;
+  width: 100%;
   padding: 4px 6px;
+  border: none;
   border-radius: var(--bd-radius-sm);
+  background: transparent;
   font-size: var(--bd-font-size-xs);
+  font-family: inherit;
   color: var(--bd-text-secondary);
   cursor: pointer;
+  text-align: left;
   transition: background var(--bd-transition-fast), color var(--bd-transition-fast);
+  overflow-wrap: anywhere;
 }
 
 .bd-widget-dropdown-item:hover {
@@ -2884,6 +2973,7 @@ html.bd-story-card-dock-active > body {
   border-radius: var(--bd-radius-sm);
   font-size: var(--bd-font-size-xs);
   color: var(--bd-text-secondary);
+  min-width: 0;
 }
 
 .bd-widget-sortable-handle {
@@ -2901,8 +2991,12 @@ html.bd-story-card-dock-active > body {
   font-variant-numeric: tabular-nums;
 }
 
-.bd-widget-sortable-item > span:nth-child(3) {
+.bd-widget-sortable-text {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .bd-widget-sortable-arrows {
@@ -2914,16 +3008,24 @@ html.bd-story-card-dock-active > body {
 }
 
 .bd-widget-sortable-arrow {
+  border: none;
+  background: transparent;
   font-size: 8px;
   color: var(--bd-text-muted);
   cursor: pointer;
   line-height: 1;
   padding: 1px 3px;
   border-radius: 2px;
+  font-family: inherit;
   transition: background var(--bd-transition-fast), color var(--bd-transition-fast);
 }
 
-.bd-widget-sortable-arrow:hover {
+.bd-widget-sortable-arrow:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.08);
   color: var(--bd-text-primary);
+}
+
+.bd-widget-sortable-arrow:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
 }

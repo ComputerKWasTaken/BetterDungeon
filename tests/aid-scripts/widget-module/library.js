@@ -127,15 +127,56 @@ var WID_CONTAINERS_MANIFEST = {
   ],
 };
 
+function widRepeat(ch, count) {
+  var out = '';
+  for (var i = 0; i < count; i++) out += ch;
+  return out;
+}
+
+function widOptions(count) {
+  var out = [];
+  for (var i = 0; i < count; i++) {
+    out.push({ value: 'opt' + i, label: 'Option ' + i });
+  }
+  return out;
+}
+
+var WID_INVALID_EXPECTED_SKIP = [
+  'badmax',
+  'badtype',
+  'nostep',
+  'dup',
+  'badselect',
+  'badradio',
+  'badpanel',
+  'badlist',
+  'biglabel',
+  'bightml',
+  'too-many-options',
+  'baddropdown',
+  'badsortable',
+];
+
 var WID_INVALID_MANIFEST = {
   widgets: [
     // These should render
     { id: 'ok',      type: 'stat',     align: 'left',   label: 'OK',       value: '42' },
     { id: 'ok2',     type: 'progress', align: 'center', label: 'Quest',    value: 50, max: 100 },
+    { id: 'dup',     type: 'badge',    align: 'right',  text: 'First duplicate renders' },
     // These should be skipped with a console warning
     { id: 'badmax',  type: 'progress', align: 'center', label: 'BadMax',   value: 50, max: -1 },
     { id: 'badtype', type: 'notatype', align: 'right',  label: 'BadType',  value: 'x' },
     { id: 'nostep',  type: 'stepper',  align: 'right',  label: 'NoStep',   value: 'abc' },
+    { id: 'dup',     type: 'stat',     align: 'left',   label: 'Duplicate', value: 'should skip' },
+    { id: 'badselect', type: 'select', align: 'center', label: 'Bad Select', options: [{ label: 'Missing value' }] },
+    { id: 'badradio', type: 'radio', align: 'left', label: 'Bad Radio', options: 'not-array' },
+    { id: 'badpanel', type: 'panel', align: 'center', title: 'Bad Panel', items: ['not an object'] },
+    { id: 'badlist', type: 'list', align: 'right', title: 'Bad List', items: [123] },
+    { id: 'biglabel', type: 'stat', align: 'left', label: widRepeat('L', 121), value: 'too long' },
+    { id: 'bightml', type: 'custom', align: 'center', html: widRepeat('H', 20001) },
+    { id: 'too-many-options', type: 'select', align: 'right', label: 'Too Many', options: widOptions(41) },
+    { id: 'baddropdown', type: 'dropdown', align: 'left', label: 'Bad Drop', items: [{}] },
+    { id: 'badsortable', type: 'sortable', align: 'center', label: 'Bad Sort', items: [{ label: 'No id or value' }] },
   ],
 };
 
@@ -579,6 +620,7 @@ function widWriteTrace(envelope) {
       widgetAdvertised: widWidgetAdvertised(),
     },
     publishedEnvelope: summary,
+    invalidExpectedSkip: s.scenario === 'invalid' ? WID_INVALID_EXPECTED_SKIP : null,
     interactions: {
       ackSeq: s.ackSeq,
       lastSeqSeen: s.lastSeqSeen,

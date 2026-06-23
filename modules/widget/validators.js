@@ -124,6 +124,15 @@
     }
   }
 
+  function validateOptionalString(value, label, maxLength, errors) {
+    if (value === undefined) return;
+    if (typeof value !== 'string') {
+      errors.push(`${label} must be a string`);
+    } else if (value.length > maxLength) {
+      errors.push(`${label} must be ${maxLength} characters or fewer`);
+    }
+  }
+
   function validateSelectPrimitive(value, label, errors, maxStringLength = MAX_TEXT_LENGTH) {
     if (!stringOrNumberOrBoolean(value)) {
       errors.push(`${label} must be a string, number, or boolean`);
@@ -153,21 +162,124 @@
     return PRIMITIVE_STATE_FIELD_BY_TYPE[config?.type] || 'value';
   }
 
-  function validateOption(option, index, errors) {
+  function validatePrimitiveArray(value, label, maxItems, errors) {
+    if (!Array.isArray(value)) {
+      validateSelectPrimitive(value, label, errors);
+      return;
+    }
+    if (value.length > maxItems) {
+      errors.push(`${label} may contain at most ${maxItems} entries`);
+      return;
+    }
+    value.forEach((entry, index) => validateSelectPrimitive(entry, `${label} entry at index ${index}`, errors));
+  }
+
+  function validateOption(option, index, errors, owner = 'Select') {
     if (typeof option === 'string' || typeof option === 'number' || typeof option === 'boolean') {
-      validateSelectPrimitive(option, `Select option at index ${index}`, errors, MAX_LABEL_LENGTH);
+      validateSelectPrimitive(option, `${owner} option at index ${index}`, errors, MAX_LABEL_LENGTH);
       return;
     }
     if (!isPlainObject(option)) {
-      errors.push(`Select option at index ${index} must be a primitive or object`);
+      errors.push(`${owner} option at index ${index} must be a primitive or object`);
       return;
     }
-    validateSelectPrimitive(option.value, `Select option at index ${index} value`, errors);
-    if (option.label !== undefined && typeof option.label !== 'string') {
-      errors.push(`Select option at index ${index} label must be a string`);
-    } else if (typeof option.label === 'string' && option.label.length > MAX_LABEL_LENGTH) {
-      errors.push(`Select option at index ${index} label must be ${MAX_LABEL_LENGTH} characters or fewer`);
+    validateSelectPrimitive(option.value, `${owner} option at index ${index} value`, errors);
+    validateOptionalString(option.label, `${owner} option at index ${index} label`, MAX_LABEL_LENGTH, errors);
+    if (option.disabled !== undefined && typeof option.disabled !== 'boolean') {
+      errors.push(`${owner} option at index ${index} disabled must be a boolean`);
     }
+  }
+
+  function validatePanelItem(item, index, errors) {
+    if (!isPlainObject(item)) {
+      errors.push(`Panel item at index ${index} must be an object`);
+      return;
+    }
+    validateOptionalString(item.label, `Panel item at index ${index} label`, MAX_LABEL_LENGTH, errors);
+    if (item.value !== undefined) {
+      validateSelectPrimitive(item.value, `Panel item at index ${index} value`, errors, MAX_TEXT_LENGTH);
+    }
+    validateOptionalString(item.color, `Panel item at index ${index} color`, MAX_LABEL_LENGTH, errors);
+  }
+
+  function validateListItem(item, index, errors, owner = 'List') {
+    if (typeof item === 'string') {
+      if (item.length > MAX_TEXT_LENGTH) {
+        errors.push(`${owner} item at index ${index} must be ${MAX_TEXT_LENGTH} characters or fewer`);
+      }
+      return;
+    }
+    if (!isPlainObject(item)) {
+      errors.push(`${owner} item at index ${index} must be a string or object`);
+      return;
+    }
+    validateOptionalString(item.text, `${owner} item at index ${index} text`, MAX_TEXT_LENGTH, errors);
+    validateOptionalString(item.label, `${owner} item at index ${index} label`, MAX_LABEL_LENGTH, errors);
+    validateOptionalString(item.icon, `${owner} item at index ${index} icon`, MAX_LABEL_LENGTH, errors);
+    validateOptionalString(item.color, `${owner} item at index ${index} color`, MAX_LABEL_LENGTH, errors);
+  }
+
+  function validateContainerItem(item, index, errors, owner) {
+    if (!isPlainObject(item)) {
+      errors.push(`${owner} item at index ${index} must be an object`);
+      return;
+    }
+    if (item.id !== undefined) {
+      validateSelectPrimitive(item.id, `${owner} item at index ${index} id`, errors, MAX_LABEL_LENGTH);
+    }
+    validateOptionalString(item.label, `${owner} item at index ${index} label`, MAX_LABEL_LENGTH, errors);
+    validateOptionalString(item.title, `${owner} item at index ${index} title`, MAX_LABEL_LENGTH, errors);
+    validateOptionalString(item.text, `${owner} item at index ${index} text`, MAX_TEXT_LENGTH, errors);
+    validateOptionalString(item.content, `${owner} item at index ${index} content`, MAX_TEXT_LENGTH, errors);
+  }
+
+  function validateDropdownItem(item, index, errors) {
+    if (!isPlainObject(item)) {
+      errors.push(`Dropdown item at index ${index} must be an object`);
+      return;
+    }
+    if (item.divider !== undefined && typeof item.divider !== 'boolean') {
+      errors.push(`Dropdown item at index ${index} divider must be a boolean`);
+    }
+    if (item.divider) return;
+    if (
+      item.label === undefined &&
+      item.text === undefined &&
+      item.value === undefined &&
+      item.id === undefined
+    ) {
+      errors.push(`Dropdown item at index ${index} must include label, text, value, or id`);
+    }
+    if (item.value !== undefined) {
+      validateSelectPrimitive(item.value, `Dropdown item at index ${index} value`, errors);
+    }
+    if (item.id !== undefined) {
+      validateSelectPrimitive(item.id, `Dropdown item at index ${index} id`, errors, MAX_LABEL_LENGTH);
+    }
+    validateOptionalString(item.label, `Dropdown item at index ${index} label`, MAX_LABEL_LENGTH, errors);
+    validateOptionalString(item.text, `Dropdown item at index ${index} text`, MAX_TEXT_LENGTH, errors);
+    validateOptionalString(item.icon, `Dropdown item at index ${index} icon`, MAX_LABEL_LENGTH, errors);
+    if (item.danger !== undefined && typeof item.danger !== 'boolean') {
+      errors.push(`Dropdown item at index ${index} danger must be a boolean`);
+    }
+  }
+
+  function validateSortableItem(item, index, errors) {
+    if (!isPlainObject(item)) {
+      errors.push(`Sortable item at index ${index} must be an object`);
+      return;
+    }
+    if (item.id === undefined && item.value === undefined) {
+      errors.push(`Sortable item at index ${index} must include id or value`);
+    }
+    if (item.id !== undefined) {
+      validateSelectPrimitive(item.id, `Sortable item at index ${index} id`, errors, MAX_LABEL_LENGTH);
+    }
+    if (item.value !== undefined) {
+      validateSelectPrimitive(item.value, `Sortable item at index ${index} value`, errors, MAX_LABEL_LENGTH);
+    }
+    validateOptionalString(item.label, `Sortable item at index ${index} label`, MAX_LABEL_LENGTH, errors);
+    validateOptionalString(item.text, `Sortable item at index ${index} text`, MAX_TEXT_LENGTH, errors);
   }
 
   function validateWidgetConfig(widgetId, config) {
@@ -201,7 +313,12 @@
     validateStringField(config, 'title', MAX_LABEL_LENGTH, errors, 'title');
     validateStringField(config, 'tooltip', MAX_TEXT_LENGTH, errors, 'tooltip');
     validateStringField(config, 'placeholder', MAX_LABEL_LENGTH, errors, 'placeholder');
+    validateStringField(config, 'icon', MAX_LABEL_LENGTH, errors, 'icon');
     validateStyleObject(config.style, errors);
+
+    if (config.type === 'stat' && config.value !== undefined) {
+      validateSelectPrimitive(config.value, 'Stat widget "value"', errors);
+    }
 
     if (config.type === 'bar') {
       if (config.max !== undefined && (typeof config.max !== 'number' || config.max <= 0)) {
@@ -212,22 +329,44 @@
       }
     }
 
-    if (config.type === 'panel' && config.items !== undefined && !Array.isArray(config.items)) {
-      errors.push('Panel widget "items" must be an array');
-    } else if (config.type === 'panel' && Array.isArray(config.items) && config.items.length > MAX_PANEL_ITEMS) {
-      errors.push(`Panel widget "items" may contain at most ${MAX_PANEL_ITEMS} entries`);
+    if (config.type === 'panel') {
+      if (config.items !== undefined && !Array.isArray(config.items)) {
+        errors.push('Panel widget "items" must be an array');
+      } else if (Array.isArray(config.items) && config.items.length > MAX_PANEL_ITEMS) {
+        errors.push(`Panel widget "items" may contain at most ${MAX_PANEL_ITEMS} entries`);
+      } else if (Array.isArray(config.items)) {
+        config.items.forEach((item, index) => validatePanelItem(item, index, errors));
+      }
+      validateOptionalString(config.content, 'Panel widget "content"', MAX_TEXT_LENGTH, errors);
     }
 
-    if (config.type === 'list' && config.items !== undefined && !Array.isArray(config.items)) {
-      errors.push('List widget "items" must be an array');
-    } else if (config.type === 'list' && Array.isArray(config.items) && config.items.length > MAX_LIST_ITEMS) {
-      errors.push(`List widget "items" may contain at most ${MAX_LIST_ITEMS} entries`);
+    if (config.type === 'list') {
+      if (config.items !== undefined && !Array.isArray(config.items)) {
+        errors.push('List widget "items" must be an array');
+      } else if (Array.isArray(config.items) && config.items.length > MAX_LIST_ITEMS) {
+        errors.push(`List widget "items" may contain at most ${MAX_LIST_ITEMS} entries`);
+      } else if (Array.isArray(config.items)) {
+        config.items.forEach((item, index) => validateListItem(item, index, errors, 'List'));
+      }
     }
 
     if (config.type === 'custom' && config.html !== undefined && typeof config.html !== 'string') {
       errors.push('Custom widget "html" must be a string');
     } else if (config.type === 'custom' && typeof config.html === 'string' && config.html.length > MAX_HTML_LENGTH) {
       errors.push(`Custom widget "html" must be ${MAX_HTML_LENGTH} characters or fewer`);
+    }
+
+    if (config.type === 'badge') {
+      validateOptionalString(config.variant, 'Badge widget "variant"', MAX_LABEL_LENGTH, errors);
+    }
+
+    if (config.type === 'counter') {
+      if (config.value !== undefined) {
+        validateSelectPrimitive(config.value, 'Counter widget "value"', errors);
+      }
+      if (config.delta !== undefined && typeof config.delta !== 'number') {
+        errors.push('Counter widget "delta" must be a number');
+      }
     }
 
     if (config.type === 'button') {
@@ -251,7 +390,7 @@
       } else if (config.options.length > MAX_SELECT_OPTIONS) {
         errors.push(`Select widget "options" may contain at most ${MAX_SELECT_OPTIONS} entries`);
       } else {
-        config.options.forEach((option, index) => validateOption(option, index, errors));
+        config.options.forEach((option, index) => validateOption(option, index, errors, 'Select'));
       }
       if (config.value !== undefined) {
         validateSelectPrimitive(config.value, 'Select widget "value"', errors);
@@ -283,6 +422,8 @@
     if (config.type === 'input') {
       if (config.value !== undefined && typeof config.value !== 'string' && typeof config.value !== 'number') {
         errors.push('Input widget "value" must be a string or number');
+      } else if (typeof config.value === 'string' && config.value.length > MAX_INPUT_LENGTH) {
+        errors.push(`Input widget "value" must be ${MAX_INPUT_LENGTH} characters or fewer`);
       }
       if (config.inputType !== undefined && !INPUT_TYPES.has(config.inputType)) {
         errors.push(`Input widget "inputType" must be one of: ${[...INPUT_TYPES].join(', ')}`);
@@ -297,6 +438,8 @@
     if (config.type === 'textarea') {
       if (config.value !== undefined && typeof config.value !== 'string') {
         errors.push('Textarea widget "value" must be a string');
+      } else if (typeof config.value === 'string' && config.value.length > MAX_TEXTAREA_LENGTH) {
+        errors.push(`Textarea widget "value" must be ${MAX_TEXTAREA_LENGTH} characters or fewer`);
       }
       if (config.maxLength !== undefined && (!Number.isInteger(config.maxLength) || config.maxLength <= 0)) {
         errors.push('Textarea widget "maxLength" must be a positive integer');
@@ -322,6 +465,8 @@
         errors.push('Taggroup widget "items" must be an array');
       } else if (Array.isArray(config.items) && config.items.length > MAX_LIST_ITEMS) {
         errors.push(`Taggroup widget "items" may contain at most ${MAX_LIST_ITEMS} entries`);
+      } else if (Array.isArray(config.items)) {
+        config.items.forEach((item, index) => validateListItem(item, index, errors, 'Taggroup'));
       }
     }
 
@@ -331,7 +476,15 @@
       } else if (config.options.length > MAX_SELECT_OPTIONS) {
         errors.push(`${config.type} widget "options" may contain at most ${MAX_SELECT_OPTIONS} entries`);
       } else {
-        config.options.forEach((option, index) => validateOption(option, index, errors));
+        const owner = config.type === 'radio' ? 'Radio' : 'Chipselect';
+        config.options.forEach((option, index) => validateOption(option, index, errors, owner));
+      }
+      if (config.value !== undefined) {
+        if (config.type === 'chipselect') {
+          validatePrimitiveArray(config.value, 'Chipselect widget "value"', MAX_SELECT_OPTIONS, errors);
+        } else {
+          validateSelectPrimitive(config.value, 'Radio widget "value"', errors);
+        }
       }
     }
 
@@ -355,14 +508,42 @@
         errors.push(`${config.type} widget "items" must be an array`);
       } else if (config.items.length > MAX_PANEL_ITEMS) {
         errors.push(`${config.type} widget "items" may contain at most ${MAX_PANEL_ITEMS} entries`);
+      } else {
+        const owner = config.type === 'accordion' ? 'Accordion' : 'Tabs';
+        config.items.forEach((item, index) => validateContainerItem(item, index, errors, owner));
+      }
+      if (config.value !== undefined) {
+        validateSelectPrimitive(config.value, `${config.type} widget "value"`, errors, MAX_LABEL_LENGTH);
       }
     }
 
-    if (config.type === 'dropdown' || config.type === 'sortable') {
+    if (config.type === 'dropdown') {
       if (!Array.isArray(config.items)) {
-        errors.push(`${config.type} widget "items" must be an array`);
+        errors.push('Dropdown widget "items" must be an array');
       } else if (config.items.length > MAX_SELECT_OPTIONS) {
-        errors.push(`${config.type} widget "items" may contain at most ${MAX_SELECT_OPTIONS} entries`);
+        errors.push(`Dropdown widget "items" may contain at most ${MAX_SELECT_OPTIONS} entries`);
+      } else {
+        config.items.forEach((item, index) => validateDropdownItem(item, index, errors));
+      }
+      if (config.value !== undefined) {
+        validateSelectPrimitive(config.value, 'Dropdown widget "value"', errors);
+      }
+    }
+
+    if (config.type === 'sortable') {
+      if (!Array.isArray(config.items)) {
+        errors.push('Sortable widget "items" must be an array');
+      } else if (config.items.length > MAX_SELECT_OPTIONS) {
+        errors.push(`Sortable widget "items" may contain at most ${MAX_SELECT_OPTIONS} entries`);
+      } else {
+        config.items.forEach((item, index) => validateSortableItem(item, index, errors));
+      }
+      if (config.value !== undefined) {
+        if (!Array.isArray(config.value)) {
+          errors.push('Sortable widget "value" must be an array');
+        } else {
+          validatePrimitiveArray(config.value, 'Sortable widget "value"', MAX_SELECT_OPTIONS, errors);
+        }
       }
     }
 
@@ -390,6 +571,7 @@
     }
 
     const widgetsToValidate = manifest.widgets.slice(0, MAX_WIDGETS);
+    const seenIds = new Set();
     for (let i = 0; i < widgetsToValidate.length; i++) {
       const widget = widgetsToValidate[i];
       if (!isPlainObject(widget)) {
@@ -403,6 +585,12 @@
         continue;
       }
 
+      if (seenIds.has(widget.id)) {
+        errors.push(`Widget "${widget.id}" invalid: duplicate widget id`);
+        continue;
+      }
+
+      seenIds.add(widget.id);
       widgets.push(widget);
     }
 

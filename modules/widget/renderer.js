@@ -136,7 +136,58 @@
       element.classList.toggle('bd-widget-disabled', disabled);
       element.setAttribute('aria-disabled', String(disabled));
       element.querySelectorAll('button, input, select, textarea').forEach(control => {
-        control.disabled = disabled;
+        control.disabled = disabled || control.dataset.widgetLocalDisabled === 'true';
+      });
+    }
+
+    setAccordionSectionOpen(section, isOpen) {
+      section.dataset.open = String(isOpen);
+      const trigger = section.querySelector('.bd-widget-accordion-trigger');
+      const panel = section.querySelector('.bd-widget-accordion-panel');
+      if (trigger) trigger.setAttribute('aria-expanded', String(isOpen));
+      if (panel) panel.hidden = !isOpen;
+    }
+
+    setDropdownOpen(widget, isOpen) {
+      widget.dataset.open = String(isOpen);
+      const trigger = widget.querySelector('.bd-widget-dropdown-trigger');
+      const menu = widget.querySelector('.bd-widget-dropdown-menu');
+      if (trigger) trigger.setAttribute('aria-expanded', String(isOpen));
+      if (menu) menu.hidden = !isOpen;
+    }
+
+    activateTab(root, itemId) {
+      root.querySelectorAll('.bd-widget-tab-btn').forEach(button => {
+        const active = button.dataset.tab === String(itemId);
+        button.dataset.active = String(active);
+        button.setAttribute('aria-selected', String(active));
+        button.tabIndex = active ? 0 : -1;
+      });
+      root.querySelectorAll('.bd-widget-tabs-panel').forEach(panel => {
+        const active = panel.dataset.tab === String(itemId);
+        panel.dataset.active = String(active);
+        panel.hidden = !active;
+      });
+    }
+
+    syncSortableState(widget) {
+      const rows = Array.from(widget.querySelectorAll('.bd-widget-sortable-item'));
+      rows.forEach((row, index) => {
+        const rankEl = row.querySelector('.bd-widget-sortable-rank');
+        if (rankEl) rankEl.textContent = `${index + 1}.`;
+        const label = row.querySelector('.bd-widget-sortable-text')?.textContent?.trim() || `item ${index + 1}`;
+        const up = row.querySelector('.bd-widget-sortable-arrow[data-dir="up"]');
+        const down = row.querySelector('.bd-widget-sortable-arrow[data-dir="down"]');
+        if (up) {
+          up.dataset.widgetLocalDisabled = String(index === 0);
+          up.disabled = index === 0;
+          up.setAttribute('aria-label', `Move ${label} up`);
+        }
+        if (down) {
+          down.dataset.widgetLocalDisabled = String(index === rows.length - 1);
+          down.disabled = index === rows.length - 1;
+          down.setAttribute('aria-label', `Move ${label} down`);
+        }
       });
     }
 
@@ -764,9 +815,10 @@
       return widget;
     }
 
-    createControlLabel(config, fallback) {
+    createControlLabel(config, fallback, id) {
       const label = document.createElement('span');
       label.className = 'bd-widget-control-label';
+      if (id) label.id = id;
       label.textContent = config.label ?? fallback;
       return label;
     }
@@ -794,7 +846,7 @@
         const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
         if (currentConfig.disabled) return;
         const value = currentConfig.value !== undefined ? currentConfig.value : true;
-        this.emitInteraction(currentConfig, 'press', value, undefined, { coalesce: !!currentConfig.coalesce });
+        this.emitInteraction(currentConfig, 'click', value, undefined, { coalesce: !!currentConfig.coalesce });
       });
 
       widget.appendChild(button);
@@ -804,17 +856,19 @@
 
     createToggleWidget(widgetId, config) {
       const widget = this.createInteractiveShell(widgetId, 'bd-widget-toggle', config);
+      const labelId = `bd-widget-${widgetId}-label`;
       const wrap = document.createElement('label');
       wrap.className = 'bd-widget-toggle-control';
 
       const input = document.createElement('input');
       input.type = 'checkbox';
       input.checked = !!config.value;
+      input.setAttribute('aria-labelledby', labelId);
 
       const slider = document.createElement('span');
       slider.className = 'bd-widget-toggle-slider';
 
-      const label = this.createControlLabel(config, 'Toggle');
+      const label = this.createControlLabel(config, 'Toggle', labelId);
 
       input.addEventListener('change', () => {
         const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
@@ -833,9 +887,11 @@
 
     createSelectWidget(widgetId, config) {
       const widget = this.createInteractiveShell(widgetId, 'bd-widget-select', config);
-      const label = this.createControlLabel(config, 'Select');
+      const labelId = `bd-widget-${widgetId}-label`;
+      const label = this.createControlLabel(config, 'Select', labelId);
       const select = document.createElement('select');
       select.className = 'bd-widget-control bd-widget-select-control';
+      select.setAttribute('aria-labelledby', labelId);
       this.populateSelectOptions(select, config.options, config.value);
 
       select.addEventListener('change', () => {
@@ -853,13 +909,16 @@
 
     createSliderWidget(widgetId, config) {
       const widget = this.createInteractiveShell(widgetId, 'bd-widget-slider', config);
-      const label = this.createControlLabel(config, 'Slider');
+      const labelId = `bd-widget-${widgetId}-label`;
+      const label = this.createControlLabel(config, 'Slider', labelId);
       const valueText = document.createElement('span');
       valueText.className = 'bd-widget-slider-value';
+      valueText.setAttribute('aria-live', 'polite');
 
       const range = document.createElement('input');
       range.type = 'range';
       range.className = 'bd-widget-control bd-widget-slider-control';
+      range.setAttribute('aria-labelledby', labelId);
       const min = config.min ?? 0;
       const max = config.max ?? 100;
       const step = config.step ?? 1;
@@ -887,9 +946,11 @@
 
     createInputWidget(widgetId, config) {
       const widget = this.createInteractiveShell(widgetId, 'bd-widget-input', config);
-      const label = this.createControlLabel(config, 'Input');
+      const labelId = `bd-widget-${widgetId}-label`;
+      const label = this.createControlLabel(config, 'Input', labelId);
       const input = document.createElement('input');
       input.className = 'bd-widget-control bd-widget-input-control';
+      input.setAttribute('aria-labelledby', labelId);
       input.type = config.inputType || 'text';
       input.value = config.value ?? '';
       input.placeholder = config.placeholder || '';
@@ -910,9 +971,11 @@
 
     createTextareaWidget(widgetId, config) {
       const widget = this.createInteractiveShell(widgetId, 'bd-widget-textarea', config);
-      const label = this.createControlLabel(config, 'Text');
+      const labelId = `bd-widget-${widgetId}-label`;
+      const label = this.createControlLabel(config, 'Text', labelId);
       const textarea = document.createElement('textarea');
       textarea.className = 'bd-widget-control bd-widget-textarea-control';
+      textarea.setAttribute('aria-labelledby', labelId);
       textarea.value = config.value ?? '';
       textarea.placeholder = config.placeholder || '';
       textarea.rows = config.rows || 2;
@@ -1461,6 +1524,13 @@
 
     readSelectValue(select) {
       const option = select.selectedOptions?.[0];
+      if (!option && select?.dataset?.type) {
+        const type = select.dataset.type;
+        const raw = select.dataset.value;
+        if (type === 'number') return Number(raw);
+        if (type === 'boolean') return raw === 'true';
+        return raw;
+      }
       if (!option) return select.value;
       const type = option.dataset.type;
       const raw = option.dataset.value;
@@ -1774,10 +1844,13 @@
 
     createRadioWidget(widgetId, config) {
       const widget = this.createInteractiveShell(widgetId, 'bd-widget-radio', config);
-      const label = this.createControlLabel(config, 'Choose');
+      const labelId = `bd-widget-${widgetId}-label`;
+      const label = this.createControlLabel(config, 'Choose', labelId);
       widget.appendChild(label);
       const group = document.createElement('div');
       group.className = 'bd-widget-radio-group';
+      group.setAttribute('role', 'radiogroup');
+      group.setAttribute('aria-labelledby', labelId);
       this._buildRadioOptions(group, widgetId, config);
       widget.appendChild(group);
       this.setInteractiveDisabled(widget, config);
@@ -1798,6 +1871,7 @@
         input.dataset.type = typeof norm.value;
         input.dataset.value = String(norm.value);
         input.checked = norm.value === config.value;
+        input.dataset.widgetLocalDisabled = String(!!norm.disabled);
         input.disabled = norm.disabled;
 
         input.addEventListener('change', () => {
@@ -1827,6 +1901,8 @@
       const group = element.querySelector('.bd-widget-radio-group');
       if (group) {
         group.innerHTML = '';
+        group.setAttribute('role', 'radiogroup');
+        group.setAttribute('aria-labelledby', `bd-widget-${widgetId}-label`);
         this._buildRadioOptions(group, widgetId, config);
       }
       this.setInteractiveDisabled(element, config);
@@ -1834,28 +1910,33 @@
 
     createStepperWidget(widgetId, config) {
       const widget = this.createInteractiveShell(widgetId, 'bd-widget-stepper', config);
-      const label = this.createControlLabel(config, 'Value');
+      const labelId = `bd-widget-${widgetId}-label`;
+      const label = this.createControlLabel(config, 'Value', labelId);
 
       const controls = document.createElement('div');
       controls.className = 'bd-widget-stepper-controls';
+      controls.setAttribute('role', 'group');
+      controls.setAttribute('aria-labelledby', labelId);
 
       const btnDec = document.createElement('button');
       btnDec.type = 'button';
       btnDec.className = 'bd-widget-stepper-btn';
       btnDec.dataset.dir = 'dec';
+      btnDec.setAttribute('aria-label', `Decrease ${config.label ?? 'value'}`);
       btnDec.textContent = '−';
 
       const display = document.createElement('span');
       display.className = 'bd-widget-stepper-value';
+      display.setAttribute('aria-live', 'polite');
       display.textContent = config.value ?? config.min ?? 0;
 
       const btnInc = document.createElement('button');
       btnInc.type = 'button';
       btnInc.className = 'bd-widget-stepper-btn';
       btnInc.dataset.dir = 'inc';
+      btnInc.setAttribute('aria-label', `Increase ${config.label ?? 'value'}`);
       btnInc.textContent = '+';
 
-      const step = () => config.step ?? 1;
       const clamp = (v, cfg) => {
         const mn = cfg.min ?? -Infinity;
         const mx = cfg.max ?? Infinity;
@@ -1866,7 +1947,8 @@
         const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
         if (currentConfig.disabled) return;
         const prev = Number(currentConfig.value ?? currentConfig.min ?? 0);
-        const next = clamp(prev + (dir === 'inc' ? step() : -step()), currentConfig);
+        const step = currentConfig.step ?? 1;
+        const next = clamp(prev + (dir === 'inc' ? step : -step), currentConfig);
         display.textContent = next;
         this.emitInteraction(currentConfig, 'change', next, prev, { coalesce: true, optimisticValue: next });
       };
@@ -1887,6 +1969,10 @@
       this.updateControlLabel(element, config, 'Value');
       const display = element.querySelector('.bd-widget-stepper-value');
       if (display) display.textContent = config.value ?? config.min ?? 0;
+      const dec = element.querySelector('.bd-widget-stepper-btn[data-dir="dec"]');
+      const inc = element.querySelector('.bd-widget-stepper-btn[data-dir="inc"]');
+      if (dec) dec.setAttribute('aria-label', `Decrease ${config.label ?? 'value'}`);
+      if (inc) inc.setAttribute('aria-label', `Increase ${config.label ?? 'value'}`);
       this.setInteractiveDisabled(element, config);
     }
 
@@ -1897,6 +1983,7 @@
       btn.type = 'button';
       btn.className = 'bd-widget-confirm-btn';
       btn.dataset.confirmState = 'idle';
+      btn.setAttribute('aria-pressed', 'false');
 
       const icon = document.createElement('span');
       icon.className = 'bd-widget-confirm-icon';
@@ -1917,15 +2004,18 @@
         if (btn.dataset.confirmState === 'idle') {
           // First click — arm it
           btn.dataset.confirmState = 'confirming';
+          btn.setAttribute('aria-pressed', 'true');
           text.textContent = 'Confirm?';
           confirmTimer = setTimeout(() => {
             btn.dataset.confirmState = 'idle';
+            btn.setAttribute('aria-pressed', 'false');
             text.textContent = currentConfig.text ?? currentConfig.label ?? 'Confirm';
           }, 3000);
         } else {
           // Second click — fire
           clearTimeout(confirmTimer);
           btn.dataset.confirmState = 'idle';
+          btn.setAttribute('aria-pressed', 'false');
           text.textContent = currentConfig.text ?? currentConfig.label ?? 'Confirm';
           const value = currentConfig.value !== undefined ? currentConfig.value : true;
           this.emitInteraction(currentConfig, 'confirm', value, undefined, { coalesce: false });
@@ -1948,10 +2038,13 @@
 
     createChipselectWidget(widgetId, config) {
       const widget = this.createInteractiveShell(widgetId, 'bd-widget-chipselect', config);
-      const label = this.createControlLabel(config, 'Select');
+      const labelId = `bd-widget-${widgetId}-label`;
+      const label = this.createControlLabel(config, 'Select', labelId);
       widget.appendChild(label);
       const group = document.createElement('div');
       group.className = 'bd-widget-chipselect-group';
+      group.setAttribute('role', 'group');
+      group.setAttribute('aria-labelledby', labelId);
       // value may be an array (multi) or single primitive
       const selected = this._normalizeChipValue(config.value);
       this._buildChips(group, widgetId, config, selected);
@@ -1975,6 +2068,7 @@
         chip.className = 'bd-widget-chip';
         chip.dataset.value = String(norm.value);
         chip.dataset.selected = selectedSet.has(String(norm.value)) ? 'true' : 'false';
+        chip.setAttribute('aria-pressed', chip.dataset.selected);
         chip.textContent = norm.label;
 
         chip.addEventListener('click', () => {
@@ -1985,9 +2079,11 @@
           if (currentSelected.has(key)) {
             currentSelected.delete(key);
             chip.dataset.selected = 'false';
+            chip.setAttribute('aria-pressed', 'false');
           } else {
             currentSelected.add(key);
             chip.dataset.selected = 'true';
+            chip.setAttribute('aria-pressed', 'true');
           }
           const nextValue = [...currentSelected];
           this.emitInteraction(currentConfig, 'change', nextValue, currentConfig.value, { optimisticValue: nextValue });
@@ -2002,6 +2098,8 @@
       const group = element.querySelector('.bd-widget-chipselect-group');
       if (group) {
         group.innerHTML = '';
+        group.setAttribute('role', 'group');
+        group.setAttribute('aria-labelledby', `bd-widget-${widgetId}-label`);
         const selected = this._normalizeChipValue(config.value);
         this._buildChips(group, widgetId, config, selected);
       }
@@ -2029,8 +2127,11 @@
       section.dataset.open = String(isOpen);
       if (item.id !== undefined) section.dataset.id = String(item.id);
 
-      const trigger = document.createElement('div');
+      const trigger = document.createElement('button');
+      trigger.type = 'button';
       trigger.className = 'bd-widget-accordion-trigger';
+      trigger.setAttribute('aria-expanded', String(isOpen));
+      trigger.setAttribute('aria-controls', `bd-widget-${widgetId}-accordion-panel-${index}`);
 
       const triggerText = document.createElement('span');
       triggerText.className = 'bd-widget-accordion-trigger-text';
@@ -2048,14 +2149,16 @@
         const widget = section.closest('.bd-widget-accordion');
         if (!widget) return;
         const wasOpen = section.dataset.open === 'true';
-        widget.querySelectorAll('.bd-widget-accordion-section').forEach(s => s.dataset.open = 'false');
-        if (!wasOpen) section.dataset.open = 'true';
+        widget.querySelectorAll('.bd-widget-accordion-section').forEach(s => this.setAccordionSectionOpen(s, false));
+        if (!wasOpen) this.setAccordionSectionOpen(section, true);
         const newOpen = !wasOpen ? (item.id ?? index) : null;
         this.emitInteraction(currentConfig || { id: widgetId, type: 'accordion' }, 'change', newOpen, currentConfig?.value);
       });
 
       const panel = document.createElement('div');
       panel.className = 'bd-widget-accordion-panel';
+      panel.id = `bd-widget-${widgetId}-accordion-panel-${index}`;
+      panel.hidden = !isOpen;
       panel.textContent = item.content ?? item.text ?? '';
 
       section.appendChild(trigger);
@@ -2079,24 +2182,27 @@
 
       const bar = document.createElement('div');
       bar.className = 'bd-widget-tabs-bar';
+      bar.setAttribute('role', 'tablist');
 
       items.forEach((item, i) => {
         const itemId = item.id ?? i;
+        const active = itemId === activeId;
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'bd-widget-tab-btn';
         btn.dataset.tab = String(itemId);
-        btn.dataset.active = String(itemId === activeId);
+        btn.dataset.active = String(active);
+        btn.id = `bd-widget-${widgetId}-tab-${itemId}`;
+        btn.setAttribute('role', 'tab');
+        btn.setAttribute('aria-selected', String(active));
+        btn.setAttribute('aria-controls', `bd-widget-${widgetId}-panel-${itemId}`);
+        btn.tabIndex = active ? 0 : -1;
         btn.textContent = item.label ?? item.title ?? `Tab ${i + 1}`;
 
         btn.addEventListener('click', () => {
           const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
           const prev = currentConfig.value ?? items[0]?.id ?? 0;
-          widget.querySelectorAll('.bd-widget-tab-btn').forEach(b => b.dataset.active = 'false');
-          widget.querySelectorAll('.bd-widget-tabs-panel').forEach(p => p.dataset.active = 'false');
-          btn.dataset.active = 'true';
-          const panel = widget.querySelector(`.bd-widget-tabs-panel[data-tab="${itemId}"]`);
-          if (panel) panel.dataset.active = 'true';
+          this.activateTab(widget, itemId);
           this.emitInteraction(currentConfig, 'change', itemId, prev, { optimisticValue: itemId });
         });
 
@@ -2107,10 +2213,15 @@
 
       items.forEach((item, i) => {
         const itemId = item.id ?? i;
+        const active = itemId === activeId;
         const panel = document.createElement('div');
         panel.className = 'bd-widget-tabs-panel';
+        panel.id = `bd-widget-${widgetId}-panel-${itemId}`;
         panel.dataset.tab = String(itemId);
-        panel.dataset.active = String(itemId === activeId);
+        panel.dataset.active = String(active);
+        panel.setAttribute('role', 'tabpanel');
+        panel.setAttribute('aria-labelledby', `bd-widget-${widgetId}-tab-${itemId}`);
+        panel.hidden = !active;
         panel.textContent = item.content ?? item.text ?? '';
         widget.appendChild(panel);
       });
@@ -2125,24 +2236,27 @@
 
       const bar = document.createElement('div');
       bar.className = 'bd-widget-tabs-bar';
+      bar.setAttribute('role', 'tablist');
 
       items.forEach((item, i) => {
         const itemId = item.id ?? i;
+        const active = itemId === activeId;
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'bd-widget-tab-btn';
         btn.dataset.tab = String(itemId);
-        btn.dataset.active = String(itemId === activeId);
+        btn.dataset.active = String(active);
+        btn.id = `bd-widget-${widgetId}-tab-${itemId}`;
+        btn.setAttribute('role', 'tab');
+        btn.setAttribute('aria-selected', String(active));
+        btn.setAttribute('aria-controls', `bd-widget-${widgetId}-panel-${itemId}`);
+        btn.tabIndex = active ? 0 : -1;
         btn.textContent = item.label ?? item.title ?? `Tab ${i + 1}`;
 
         btn.addEventListener('click', () => {
           const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
           const prev = currentConfig.value ?? items[0]?.id ?? 0;
-          element.querySelectorAll('.bd-widget-tab-btn').forEach(b => b.dataset.active = 'false');
-          element.querySelectorAll('.bd-widget-tabs-panel').forEach(p => p.dataset.active = 'false');
-          btn.dataset.active = 'true';
-          const panel = element.querySelector(`.bd-widget-tabs-panel[data-tab="${itemId}"]`);
-          if (panel) panel.dataset.active = 'true';
+          this.activateTab(element, itemId);
           this.emitInteraction(currentConfig, 'change', itemId, prev, { optimisticValue: itemId });
         });
 
@@ -2153,10 +2267,15 @@
 
       items.forEach((item, i) => {
         const itemId = item.id ?? i;
+        const active = itemId === activeId;
         const panel = document.createElement('div');
         panel.className = 'bd-widget-tabs-panel';
+        panel.id = `bd-widget-${widgetId}-panel-${itemId}`;
         panel.dataset.tab = String(itemId);
-        panel.dataset.active = String(itemId === activeId);
+        panel.dataset.active = String(active);
+        panel.setAttribute('role', 'tabpanel');
+        panel.setAttribute('aria-labelledby', `bd-widget-${widgetId}-tab-${itemId}`);
+        panel.hidden = !active;
         panel.textContent = item.content ?? item.text ?? '';
         element.appendChild(panel);
       });
@@ -2169,10 +2288,16 @@
       const trigger = document.createElement('button');
       trigger.type = 'button';
       trigger.className = 'bd-widget-dropdown-trigger';
+      trigger.setAttribute('aria-haspopup', 'menu');
+      trigger.setAttribute('aria-expanded', 'false');
+      trigger.setAttribute('aria-controls', `bd-widget-${widgetId}-menu`);
       trigger.textContent = config.label ?? config.text ?? 'Actions';
 
       const menu = document.createElement('div');
       menu.className = 'bd-widget-dropdown-menu';
+      menu.id = `bd-widget-${widgetId}-menu`;
+      menu.setAttribute('role', 'menu');
+      menu.hidden = true;
       this._buildDropdownItems(menu, widgetId, config);
 
       trigger.addEventListener('click', (e) => {
@@ -2181,8 +2306,8 @@
         if (currentConfig.disabled) return;
         const isOpen = widget.dataset.open === 'true';
         // Close all other dropdowns
-        document.querySelectorAll('.bd-widget-dropdown').forEach(d => d.dataset.open = 'false');
-        widget.dataset.open = String(!isOpen);
+        document.querySelectorAll('.bd-widget-dropdown').forEach(d => this.setDropdownOpen(d, false));
+        this.setDropdownOpen(widget, !isOpen);
       });
 
       widget.appendChild(trigger);
@@ -2197,11 +2322,14 @@
         if (item.divider) {
           const div = document.createElement('div');
           div.className = 'bd-widget-dropdown-divider';
+          div.setAttribute('role', 'separator');
           menu.appendChild(div);
           return;
         }
-        const row = document.createElement('div');
+        const row = document.createElement('button');
+        row.type = 'button';
         row.className = 'bd-widget-dropdown-item';
+        row.setAttribute('role', 'menuitem');
         if (item.danger) row.dataset.danger = 'true';
 
         if (item.icon) {
@@ -2219,7 +2347,7 @@
           const val = item.value ?? item.id ?? item.label ?? item.text;
           this.emitInteraction(currentConfig, 'select', val, currentConfig.value, { coalesce: false });
           const widgetEl = row.closest('.bd-widget-dropdown');
-          if (widgetEl) widgetEl.dataset.open = 'false';
+          if (widgetEl) this.setDropdownOpen(widgetEl, false);
         });
 
         menu.appendChild(row);
@@ -2228,10 +2356,18 @@
 
     updateDropdownWidget(element, widgetId, config) {
       const trigger = element.querySelector('.bd-widget-dropdown-trigger');
-      if (trigger) trigger.textContent = config.label ?? config.text ?? 'Actions';
+      if (trigger) {
+        trigger.textContent = config.label ?? config.text ?? 'Actions';
+        trigger.setAttribute('aria-haspopup', 'menu');
+        trigger.setAttribute('aria-expanded', String(element.dataset.open === 'true'));
+        trigger.setAttribute('aria-controls', `bd-widget-${widgetId}-menu`);
+      }
       const menu = element.querySelector('.bd-widget-dropdown-menu');
       if (menu) {
         menu.innerHTML = '';
+        menu.id = `bd-widget-${widgetId}-menu`;
+        menu.setAttribute('role', 'menu');
+        menu.hidden = element.dataset.open !== 'true';
         this._buildDropdownItems(menu, widgetId, config);
       }
       this.setInteractiveDisabled(element, config);
@@ -2239,7 +2375,10 @@
 
     createSortableWidget(widgetId, config) {
       const widget = this.createInteractiveShell(widgetId, 'bd-widget-sortable', config);
-      const label = this.createControlLabel(config, 'Order');
+      const labelId = `bd-widget-${widgetId}-label`;
+      const label = this.createControlLabel(config, 'Order', labelId);
+      widget.setAttribute('role', 'group');
+      widget.setAttribute('aria-labelledby', labelId);
       widget.appendChild(label);
       this._buildSortableItems(widget, widgetId, config);
       this.setInteractiveDisabled(widget, config);
@@ -2261,6 +2400,7 @@
 
         const handle = document.createElement('span');
         handle.className = 'bd-widget-sortable-handle';
+        handle.setAttribute('aria-hidden', 'true');
         handle.textContent = '⠿';
 
         const rank = document.createElement('span');
@@ -2268,17 +2408,22 @@
         rank.textContent = `${i + 1}.`;
 
         const text = document.createElement('span');
+        text.className = 'bd-widget-sortable-text';
         text.textContent = item.label ?? item.text ?? String(item);
 
         const arrows = document.createElement('div');
         arrows.className = 'bd-widget-sortable-arrows';
 
-        const up = document.createElement('span');
+        const up = document.createElement('button');
+        up.type = 'button';
         up.className = 'bd-widget-sortable-arrow';
+        up.dataset.dir = 'up';
         up.textContent = '▲';
 
-        const down = document.createElement('span');
+        const down = document.createElement('button');
+        down.type = 'button';
         down.className = 'bd-widget-sortable-arrow';
+        down.dataset.dir = 'down';
         down.textContent = '▼';
 
         const moveHandler = (dir) => () => {
@@ -2290,12 +2435,8 @@
           if (target < 0 || target >= allRows.length) return;
           if (dir === -1) widget.insertBefore(row, allRows[target]);
           else widget.insertBefore(allRows[target], row);
-          // Re-number and emit new order
+          this.syncSortableState(widget);
           const reordered = Array.from(widget.querySelectorAll('.bd-widget-sortable-item'));
-          reordered.forEach((r, n) => {
-            const rankEl = r.querySelector('.bd-widget-sortable-rank');
-            if (rankEl) rankEl.textContent = `${n + 1}.`;
-          });
           const nextValue = reordered.map(r => r.dataset.id);
           this.emitInteraction(currentConfig, 'reorder', nextValue, currentConfig.value, { coalesce: true, optimisticValue: nextValue });
         };
@@ -2312,10 +2453,13 @@
         row.appendChild(arrows);
         widget.appendChild(row);
       });
+      this.syncSortableState(widget);
     }
 
     updateSortableWidget(element, widgetId, config) {
       // Remove existing item rows but keep the label
+      element.setAttribute('role', 'group');
+      element.setAttribute('aria-labelledby', `bd-widget-${widgetId}-label`);
       element.querySelectorAll('.bd-widget-sortable-item').forEach(r => r.remove());
       this._buildSortableItems(element, widgetId, config);
       this.setInteractiveDisabled(element, config);
