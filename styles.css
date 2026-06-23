@@ -653,8 +653,14 @@
    ============================================ */
 
 .bd-character-ai-panel {
+  position: fixed;
+  top: calc(18px + env(safe-area-inset-top));
+  left: 50%;
   width: min(640px, calc(100vw - 32px));
-  margin: 16px auto 0;
+  max-height: calc(100vh - 36px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  max-height: calc(100dvh - 36px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  overflow-y: auto;
+  margin: 0;
   padding: 14px;
   box-sizing: border-box;
   background: var(--bd-bg-elevated);
@@ -664,15 +670,15 @@
   color: var(--bd-text-primary);
   font-family: var(--bd-font-family-primary);
   opacity: 0;
-  transform: translateY(4px);
+  transform: translate(-50%, -8px);
   transition: opacity var(--bd-transition-fast), transform var(--bd-transition-fast);
   pointer-events: auto !important;
-  z-index: 20;
+  z-index: 9999;
 }
 
 .bd-character-ai-panel.bd-character-ai-panel-visible {
   opacity: 1;
-  transform: translateY(0);
+  transform: translate(-50%, 0);
 }
 
 .bd-character-ai-panel * {
@@ -817,15 +823,11 @@
 
 @media (max-width: 640px) {
   .bd-character-ai-panel {
-    position: fixed;
-    left: 12px;
-    right: 12px;
-    bottom: calc(12px + env(safe-area-inset-bottom));
-    width: auto;
-    max-height: min(46vh, 360px);
-    overflow-y: auto;
-    margin: 0;
-    z-index: 9999;
+    top: calc(68px + env(safe-area-inset-top));
+    width: calc(100vw - 20px);
+    max-height: calc(100vh - 84px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    max-height: calc(100dvh - 84px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    padding: 12px;
   }
 
   .bd-character-ai-picker,

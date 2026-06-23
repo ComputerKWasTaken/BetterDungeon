@@ -733,7 +733,7 @@ class CharacterPresetFeature {
   // ============================================
 
   renderPanel(field, html) {
-    const container = this.getFieldContainer(field);
+    const container = document.body;
     if (!container) return null;
 
     this.removePanel();
