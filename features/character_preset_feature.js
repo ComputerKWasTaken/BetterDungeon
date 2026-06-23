@@ -384,6 +384,11 @@ class CharacterPresetFeature {
     return match ? match[1] : null;
   }
 
+  getGeminiSetupMessage(detail = '') {
+    const prefix = detail ? `${detail} ` : '';
+    return `${prefix}Get a key at https://aistudio.google.com/api-keys, then open the BetterDungeon popup and go to Ultrascripts > AI > Gemini API Key.`;
+  }
+
   async handleField(field) {
     const token = ++this._handleToken;
     try {
@@ -448,7 +453,7 @@ class CharacterPresetFeature {
     const aiReady = await this.ensureAIReady();
     if (!aiReady.ready) {
       this.status = 'blocked';
-      this.statusMessage = aiReady.message || 'Configure a Gemini API key in BetterDungeon AI settings to use Character Presets.';
+      this.statusMessage = aiReady.message || this.getGeminiSetupMessage('Gemini is required for Character Prefill.');
       return;
     }
 
@@ -557,12 +562,12 @@ class CharacterPresetFeature {
       if (status?.ready) return { ready: true };
       return {
         ready: false,
-        message: status?.message || 'Configure a Gemini API key in BetterDungeon AI settings to use Character Presets.',
+        message: this.getGeminiSetupMessage(status?.message || 'Gemini API key required.'),
       };
     } catch (error) {
       return {
         ready: false,
-        message: error?.message || 'Gemini status could not be checked.',
+        message: this.getGeminiSetupMessage(error?.message || 'Gemini status could not be checked.'),
       };
     }
   }

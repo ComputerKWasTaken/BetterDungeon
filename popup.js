@@ -229,22 +229,22 @@ function log(message, ...args) {
 // ============================================
 
 function initNavigation() {
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+      activateTab(item.dataset.tab);
+    });
+  });
+}
+
+function activateTab(tab) {
+  if (!tab) return;
   const navItems = document.querySelectorAll('.nav-item');
   const panels = document.querySelectorAll('.tab-panel');
-
   navItems.forEach(item => {
-    item.addEventListener('click', () => {
-      const tab = item.dataset.tab;
-      
-      // Update nav
-      navItems.forEach(n => n.classList.remove('active'));
-      item.classList.add('active');
-      
-      // Update panels
-      panels.forEach(p => {
-        p.classList.toggle('active', p.id === `tab-${tab}`);
-      });
-    });
+    item.classList.toggle('active', item.dataset.tab === tab);
+  });
+  panels.forEach(panel => {
+    panel.classList.toggle('active', panel.id === `tab-${tab}`);
   });
 }
 
@@ -363,25 +363,45 @@ function sendGeminiMessage(request) {
 
 function setGeminiStatusText(status, pendingText) {
   const el = document.getElementById('ai-gemini-status');
-  if (!el) return;
   if (pendingText) {
-    el.textContent = pendingText;
+    if (el) el.textContent = pendingText;
+    setCharacterGeminiStatus(pendingText, 'pending');
     return;
   }
   if (!status) {
-    el.textContent = 'Not checked';
+    if (el) el.textContent = 'Not checked';
+    setCharacterGeminiStatus('Gemini not checked', 'unknown');
     return;
   }
   const modelMode = status.config?.modelMode || AI_DEFAULT_GEMINI_MODEL_MODE;
   const selectedModel = status.config?.selectedModel || status.config?.model || AI_DEFAULT_GEMINI_MODEL;
   const activeModel = status.config?.activeModel || status.config?.lastResolvedModel || null;
-  el.textContent = status.ready
+  const text = status.ready
     ? (
       modelMode === 'manual'
         ? `Ready (manual: ${selectedModel})`
         : `Ready (auto: ${activeModel || selectedModel})`
     )
     : 'API key required';
+  if (el) el.textContent = text;
+  setCharacterGeminiStatus(status.ready ? 'Gemini ready' : 'Gemini key required', status.ready ? 'ready' : 'missing');
+}
+
+function setCharacterGeminiStatus(text, state = 'unknown') {
+  const el = document.getElementById('character-gemini-status');
+  if (!el) return;
+  el.textContent = text;
+  el.dataset.state = state;
+}
+
+function openGeminiSettingsFromCharacters() {
+  activateTab('ultrascripts');
+  requestAnimationFrame(() => {
+    const card = document.getElementById('ai-gemini-settings-card');
+    card?.classList.add('expanded');
+    card?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => document.getElementById('ai-gemini-api-key')?.focus(), 250);
+  });
 }
 
 function updateGeminiModelModeUi(mode) {
@@ -2224,6 +2244,7 @@ function initCharacters() {
   document.getElementById('create-character-btn')?.addEventListener('click', async () => {
     openCharacterModal(createBlankCharacter(), true);
   });
+  document.getElementById('character-open-ai-settings')?.addEventListener('click', openGeminiSettingsFromCharacters);
 }
 
 async function loadCharacters() {

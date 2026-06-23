@@ -863,7 +863,7 @@
         </div>
         <div class="section-body">
           <div class="ultrascripts-module-list">
-            <article class="feature-card ultrascripts-module-card" data-ultrascripts-module-card="ai">
+            <article class="feature-card ultrascripts-module-card" id="ai-gemini-settings-card" data-ultrascripts-module-card="ai">
               <div class="feature-row">
                 <div class="feature-info">
                   <div class="feature-title-row">
@@ -881,7 +881,7 @@
               </div>
               <div class="feature-details">
                 <p>AI lets scripts send asynchronous model queries and receive text or schema-backed JSON results on a later turn.</p>
-                <p class="feature-hint"><span class="icon-brain-circuit"></span> Add an API key to enable <code>ai.query</code>. BetterDungeon currently uses Gemini by default and keeps the key in local extension storage.</p>
+                <p class="feature-hint"><span class="icon-brain-circuit"></span> Add an API key to enable <code>ai.query</code>. Get a key from <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer">Google AI Studio</a>.</p>
                 <div class="form-group">
                   <label class="form-label" for="ai-gemini-api-key">Gemini API Key</label>
                   <input type="password" class="form-input" id="ai-gemini-api-key" placeholder="AIza...">
@@ -1072,6 +1072,23 @@
           <span class="icon-plus"></span>
           Create Character
         </button>
+
+        <div class="character-ai-dependency">
+          <div class="character-ai-dependency-main">
+            <span class="icon-brain-circuit"></span>
+            <div>
+              <strong>Gemini powers Character Prefill</strong>
+              <span>Add a Gemini API key in Ultrascripts > AI before generating scenario answers. Get one from <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer">Google AI Studio</a>.</span>
+            </div>
+          </div>
+          <div class="character-ai-dependency-footer">
+            <span class="character-ai-status" id="character-gemini-status">Checking Gemini...</span>
+            <button class="btn btn-ghost btn-sm" id="character-open-ai-settings" type="button">
+              <span class="icon-key-round"></span>
+              Gemini Key
+            </button>
+          </div>
+        </div>
 
         <div class="character-list" id="character-list">
           <div class="empty-state" id="character-empty">
