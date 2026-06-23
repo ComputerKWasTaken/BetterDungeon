@@ -16,6 +16,8 @@ class CharacterPresetFeature {
     this.scenario = null;
     this.scenarioSignature = null;
     this.scenarioShortId = null;
+    this.latestScenarioStart = null;
+    this.latestScenarioStartRootShortId = null;
 
     this.status = 'idle';
     this.statusMessage = '';
@@ -30,6 +32,7 @@ class CharacterPresetFeature {
     this._handleToken = 0;
     this.isApplying = false;
     this.debug = false;
+    this.boundScenarioStartHandler = (event) => this.handleScenarioStartEvent(event);
   }
 
   log(message, ...args) {
@@ -41,6 +44,7 @@ class CharacterPresetFeature {
     await this.loadPresets();
     await this.clearLegacyStorage();
     await this.loadActivePreset();
+    document.addEventListener('ultrascripts:scenario:start', this.boundScenarioStartHandler);
     this.setupObserver();
     this.startPolling();
     this.checkForEntryField();
@@ -63,6 +67,7 @@ class CharacterPresetFeature {
       clearTimeout(this._fieldGraceTimer);
       this._fieldGraceTimer = null;
     }
+    document.removeEventListener('ultrascripts:scenario:start', this.boundScenarioStartHandler);
     this.removePanel();
   }
 
@@ -384,6 +389,47 @@ class CharacterPresetFeature {
     return match ? match[1] : null;
   }
 
+  handleScenarioStartEvent(event) {
+    const scenario = event?.detail;
+    if (!this.isScenarioStartShape(scenario)) return;
+    const routeShortId = this.parseScenarioShortIdFromUrl();
+    if (!routeShortId) return;
+
+    this.latestScenarioStart = scenario;
+    this.latestScenarioStartRootShortId = routeShortId;
+    if (this.scenarioShortId && this.scenarioShortId !== scenario.shortId) {
+      this.scenario = null;
+      this.scenarioSignature = null;
+      this.scenarioShortId = null;
+      this.clearSession();
+      this.manualDismissedQuestions.clear();
+      this.currentFieldLabel = null;
+      this.currentFieldKey = null;
+    }
+    this.debouncedCheck();
+  }
+
+  isScenarioStartShape(scenario) {
+    return !!(
+      scenario &&
+      typeof scenario === 'object' &&
+      typeof scenario.shortId === 'string' &&
+      typeof scenario.id !== 'undefined' &&
+      scenario.state &&
+      typeof scenario.state === 'object' &&
+      Array.isArray(scenario.options) &&
+      Array.isArray(scenario.storyCards)
+    );
+  }
+
+  resolveScenarioShortId() {
+    const routeShortId = this.parseScenarioShortIdFromUrl();
+    if (this.latestScenarioStartRootShortId === routeShortId && this.latestScenarioStart?.shortId) {
+      return this.latestScenarioStart.shortId;
+    }
+    return routeShortId;
+  }
+
   getGeminiSetupMessage(detail = '') {
     const prefix = detail ? `${detail} ` : '';
     return `${prefix}Get a key at https://aistudio.google.com/api-keys, then open the BetterDungeon popup and go to Ultrascripts > AI > Gemini API Key.`;
@@ -414,7 +460,7 @@ class CharacterPresetFeature {
   }
 
   async prepareScenarioState() {
-    const shortId = this.parseScenarioShortIdFromUrl();
+    const shortId = this.resolveScenarioShortId();
     if (!shortId) {
       this.status = 'blocked';
       this.statusMessage = 'Character Presets only works on scenario start pages.';
@@ -467,7 +513,9 @@ class CharacterPresetFeature {
       throw new Error('BetterDungeon GraphQL service is not available.');
     }
 
-    const scenario = await gql.getScenarioStart(shortId, { timeoutMs: 30000, viewPublished: true });
+    const scenario = this.latestScenarioStartRootShortId === this.parseScenarioShortIdFromUrl() && this.latestScenarioStart?.shortId === shortId
+      ? this.latestScenarioStart
+      : await gql.getScenarioStart(shortId, { timeoutMs: 30000, viewPublished: true });
     const placeholders = this.extractPlaceholders(scenario);
     const signature = this.computeScenarioSignature(scenario, placeholders);
 

@@ -21,7 +21,7 @@
     installed: true,
     installedAt: Date.now(),
     nativeWebSocketName: NativeWebSocket.name || 'WebSocket',
-    frames: { open: 0, cards: 0, 'cards:hydrate': 0, 'cards:upsert': 0, 'cards:enrich': 0, context: 0, actions: 0, 'actions:hydrate': 0, 'adventure:change': 0, hello: 0, baseCredentials: 0 },
+    frames: { open: 0, cards: 0, 'cards:hydrate': 0, 'cards:upsert': 0, 'cards:enrich': 0, context: 0, actions: 0, 'actions:hydrate': 0, 'adventure:change': 0, 'scenario:start': 0, hello: 0, baseCredentials: 0 },
     urls: new Set(),
     baseCredentials: null,
     cardEnrichment: Object.create(null),
@@ -150,6 +150,17 @@
 
   // ---------- scan responses ----------
 
+  function scanAndForwardScenarioStart(root) {
+    const items = Array.isArray(root) ? root : [root];
+    for (const item of items) {
+      const scenario = item?.data?.scenario;
+      if (!scenario || typeof scenario !== 'object') continue;
+      if (typeof scenario.shortId !== 'string' || typeof scenario.id === 'undefined') continue;
+      if (!('state' in scenario) || !('options' in scenario) || !('storyCards' in scenario)) continue;
+      post('scenario:start', scenario);
+    }
+  }
+
   // Scans response trees for story cards or other entities
   function scanAndForwardCards(root, maxDepth = 6) {
     if (!root || typeof root !== 'object') return;
@@ -230,6 +241,7 @@
         try { respJson = JSON.parse(respText); } catch { /* non-JSON */ }
 
         if (respJson) {
+          scanAndForwardScenarioStart(respJson);
           scanAndForwardCards(respJson);
           updateBaseCredentials(url, method, init?.headers);
         }
@@ -280,6 +292,7 @@
           let respJson = null;
           try { respJson = JSON.parse(xhr.responseText); } catch { /* non-JSON */ }
           if (respJson) {
+            scanAndForwardScenarioStart(respJson);
             scanAndForwardCards(respJson);
             updateBaseCredentials(meta.url, meta.method, meta.headers);
           }

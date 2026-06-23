@@ -275,6 +275,11 @@
             onAdventureBoundary(msg.payload.adventureId, msg.payload.shortId);
           }
           break;
+        case 'scenario:start':
+          if (msg.payload?.shortId) {
+            emit('ultrascripts:scenario:start', msg.payload);
+          }
+          break;
         case 'baseCredentials':
           if (msg.payload) {
             state.baseCredentials = msg.payload;
