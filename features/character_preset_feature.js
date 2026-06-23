@@ -1,45 +1,47 @@
 // BetterDungeon - Character Preset Feature
-// Allows users to save character presets and auto-fill scenario entry fields
+// AI-assisted scenario placeholder prefill using simple character dossiers.
 
 class CharacterPresetFeature {
   static id = 'characterPreset';
 
-  constructor() {
-    this.observer = null;
-    this.checkInterval = null;
+  constructor(context = {}) {
+    this.context = context;
     this.storageKey = 'betterDungeon_characterPresets';
     this.activePresetKey = 'betterDungeon_activeCharacterPreset';
-    this.sessionCharacterKey = 'betterDungeon_sessionCharacter';
+    this.sessionKey = 'betterDungeon_characterPresetSessionV2';
+
     this.presets = [];
     this.activePresetId = null;
-    this.sessionCharacterId = null; // The character selected for THIS scenario session
-    this.currentFieldKey = null;
+    this.session = null;
+    this.scenario = null;
+    this.scenarioSignature = null;
+    this.scenarioShortId = null;
+
+    this.status = 'idle';
+    this.statusMessage = '';
     this.currentFieldLabel = null;
-    this.overlayElement = null;
-    this.saveButtonElement = null;
-    this.characterIndicator = null;
-    this.approvalElement = null;
-    this.isProcessing = false;
-    this.hasAutoFilled = false; // Track if we already auto-filled current field
-    this.scenarioSessionUrl = null; // Track the scenario URL to detect new scenarios
+    this.currentFieldKey = null;
+    this.panelElement = null;
+    this.manualDismissedQuestions = new Set();
+    this.observer = null;
+    this.checkInterval = null;
+    this._checkDebounceTimer = null;
+    this._fieldGraceTimer = null;
+    this._handleToken = 0;
+    this.isApplying = false;
     this.debug = false;
-    this._checkDebounceTimer = null; // Debounce timer for checkForEntryField
-    this._fieldGraceTimer = null; // Grace period before tearing down UI when field disappears
-    this._indicatorCharacterId = null; // Track which character the indicator is showing
   }
 
   log(message, ...args) {
-    if (this.debug) {
-      console.log(message, ...args);
-    }
+    if (this.debug) console.log('[CharacterPreset]', message, ...args);
   }
 
   async init() {
-    console.log('[CharacterPreset] Initializing Character Presets feature...');
+    console.log('[CharacterPreset] Initializing AI-assisted Character Presets feature...');
     await this.loadPresets();
+    await this.clearLegacyStorage();
     await this.loadActivePreset();
-    await this.loadSessionCharacter();
-    await this.loadScenarioSession();
+    await this.loadSession();
     this.setupObserver();
     this.startPolling();
     this.checkForEntryField();
@@ -62,96 +64,102 @@ class CharacterPresetFeature {
       clearTimeout(this._fieldGraceTimer);
       this._fieldGraceTimer = null;
     }
-    this.removeOverlay();
-    this.removeSaveButton();
-    this.removeCharacterIndicator();
-    this.removeApproval();
-    this.sessionCharacterId = null;
-  }
-
-  // Shared helper: fade out a tracked UI element, null the reference, then
-  // remove it from the DOM after the CSS transition and sweep any orphans.
-  _removeUIElement(refName, visibleClass, sweepSelector) {
-    const el = this[refName];
-    if (el) {
-      el.classList.remove(visibleClass);
-      this[refName] = null;
-      setTimeout(() => {
-        el?.remove();
-        // Sweep orphans, but protect any freshly-created element now tracked by this ref
-        const current = this[refName];
-        document.querySelectorAll(sweepSelector).forEach(e => {
-          if (e !== current) e.remove();
-        });
-      }, 300); // Match CSS transition duration (0.3s)
-    } else {
-      document.querySelectorAll(sweepSelector).forEach(e => e.remove());
-    }
-  }
-
-  removeSaveButton() {
-    this._removeUIElement('saveButtonElement', 'bd-save-visible', '.bd-save-continue-wrapper');
-  }
-
-  startPolling() {
-    // Poll every 500ms as a fallback for detection
-    this.checkInterval = setInterval(() => {
-      this.debouncedCheck();
-    }, 500);
-  }
-
-  // Debounce checkForEntryField to avoid excessive calls from MutationObserver
-  debouncedCheck() {
-    if (this._checkDebounceTimer) return;
-    this._checkDebounceTimer = setTimeout(() => {
-      this._checkDebounceTimer = null;
-      this.checkForEntryField();
-    }, 250);
+    this.removePanel();
   }
 
   // ============================================
-  // STORAGE OPERATIONS
+  // STORAGE
   // ============================================
 
-  // Generic chrome storage get that returns the value for `key`, or `fallback` on any error.
   _chromeGet(area, key, fallback = null) {
     return new Promise((resolve) => {
       try {
-        if (!chrome.runtime?.id) { resolve(fallback); return; }
+        if (!chrome.runtime?.id) {
+          resolve(fallback);
+          return;
+        }
         chrome.storage[area].get(key, (result) => {
           resolve(chrome.runtime.lastError ? fallback : ((result || {})[key] ?? fallback));
         });
-      } catch { resolve(fallback); }
+      } catch {
+        resolve(fallback);
+      }
     });
   }
 
-  // Generic chrome storage set that silently resolves on error.
   _chromeSet(area, data) {
     return new Promise((resolve) => {
       try {
-        if (!chrome.runtime?.id) { resolve(); return; }
+        if (!chrome.runtime?.id) {
+          resolve();
+          return;
+        }
         chrome.storage[area].set(data, () => resolve());
-      } catch { resolve(); }
+      } catch {
+        resolve();
+      }
     });
   }
 
-  async loadPresets() {
-    // Use local storage (no per-item size limit) instead of sync (8KB cap)
-    let presets = await this._chromeGet('local', this.storageKey, null);
-
-    // One-time migration: pull legacy presets from sync storage
-    if (!presets || presets.length === 0) {
-      const syncPresets = await this._chromeGet('sync', this.storageKey, []);
-      if (syncPresets.length > 0) {
-        await this._chromeSet('local', { [this.storageKey]: syncPresets });
-        try { chrome.storage.sync.remove(this.storageKey); } catch { /* ignore */ }
-        this.log('[CharacterPreset] Migrated presets from sync to local storage');
+  _chromeRemove(area, key) {
+    return new Promise((resolve) => {
+      try {
+        if (!chrome.runtime?.id) {
+          resolve();
+          return;
+        }
+        chrome.storage[area].remove(key, () => resolve());
+      } catch {
+        resolve();
       }
-      presets = syncPresets;
+    });
+  }
+
+  isV2Character(value) {
+    return !!(
+      value &&
+      typeof value === 'object' &&
+      value.schemaVersion === 2 &&
+      typeof value.id === 'string' &&
+      typeof value.name === 'string' &&
+      typeof value.description === 'string' &&
+      !value.fields
+    );
+  }
+
+  normalizeCharacter(value) {
+    const now = Date.now();
+    return {
+      schemaVersion: 2,
+      id: String(value.id),
+      name: String(value.name || 'Unnamed Character').trim() || 'Unnamed Character',
+      description: String(value.description || ''),
+      createdAt: Number(value.createdAt) || now,
+      updatedAt: Number(value.updatedAt) || now,
+    };
+  }
+
+  async loadPresets() {
+    const raw = await this._chromeGet('local', this.storageKey, []);
+    const list = Array.isArray(raw) ? raw : [];
+    const v2Presets = list.filter(item => this.isV2Character(item)).map(item => this.normalizeCharacter(item));
+
+    if (v2Presets.length !== list.length) {
+      await this._chromeSet('local', { [this.storageKey]: v2Presets });
+      if (this.activePresetId && !v2Presets.some(p => p.id === this.activePresetId)) {
+        await this.setActivePreset(null);
+      }
     }
 
-    this.presets = presets || [];
+    this.presets = v2Presets;
     return this.presets;
+  }
+
+  async clearLegacyStorage() {
+    await this._chromeRemove('sync', this.storageKey);
+    await this._chromeRemove('sync', this.activePresetKey);
+    await this._chromeRemove('local', 'betterDungeon_sessionCharacter');
+    await this._chromeRemove('local', 'betterDungeon_scenarioSession');
   }
 
   async savePresets() {
@@ -159,120 +167,109 @@ class CharacterPresetFeature {
   }
 
   async loadActivePreset() {
-    let activeId = await this._chromeGet('local', this.activePresetKey, null);
-
-    // One-time migration for the active preset ID
-    if (activeId === null) {
-      const syncActiveId = await this._chromeGet('sync', this.activePresetKey, null);
-      if (syncActiveId !== null) {
-        await this._chromeSet('local', { [this.activePresetKey]: syncActiveId });
-        try { chrome.storage.sync.remove(this.activePresetKey); } catch { /* ignore */ }
-        this.log('[CharacterPreset] Migrated active preset ID from sync to local storage');
-      }
-      activeId = syncActiveId;
+    const activeId = await this._chromeGet('local', this.activePresetKey, null);
+    this.activePresetId = activeId && this.presets.some(p => p.id === activeId) ? activeId : null;
+    if (activeId !== this.activePresetId) {
+      await this._chromeSet('local', { [this.activePresetKey]: this.activePresetId });
     }
-
-    this.activePresetId = activeId;
     return this.activePresetId;
   }
 
   async setActivePreset(presetId) {
-    this.activePresetId = presetId;
-    await this._chromeSet('local', { [this.activePresetKey]: presetId });
+    this.activePresetId = presetId || null;
+    await this._chromeSet('local', { [this.activePresetKey]: this.activePresetId });
   }
 
-  async loadSessionCharacter() {
-    this.sessionCharacterId = await this._chromeGet('local', this.sessionCharacterKey, null);
-    return this.sessionCharacterId;
+  async loadSession() {
+    const session = await this._chromeGet('local', this.sessionKey, null);
+    this.session = this.isValidSession(session) ? session : null;
+    return this.session;
   }
 
-  async setSessionCharacter(presetId) {
-    this.sessionCharacterId = presetId;
-    await this._chromeSet('local', { [this.sessionCharacterKey]: presetId });
+  async saveSession() {
+    await this._chromeSet('local', { [this.sessionKey]: this.session });
   }
 
-  // ============================================
-  // SCENARIO SESSION TRACKING
-  // ============================================
-
-  async loadScenarioSession() {
-    const session = await this._chromeGet('local', 'betterDungeon_scenarioSession', null);
-    if (session) this.scenarioSessionUrl = session.url;
+  async clearSession() {
+    this.session = null;
+    await this._chromeRemove('local', this.sessionKey);
   }
 
-  async saveScenarioSession() {
-    await this._chromeSet('local', {
-      'betterDungeon_scenarioSession': { url: this.scenarioSessionUrl }
-    });
+  isValidSession(session) {
+    return !!(
+      session &&
+      typeof session === 'object' &&
+      typeof session.scenarioShortId === 'string' &&
+      typeof session.scenarioSignature === 'string' &&
+      typeof session.characterId === 'string' &&
+      Array.isArray(session.placeholders) &&
+      session.answers &&
+      typeof session.answers === 'object'
+    );
   }
 
-  isNewScenario() {
-    const currentUrl = window.location.href;
-    // Check if URL has changed (different scenario)
-    if (this.scenarioSessionUrl !== currentUrl) {
-      return true;
-    }
-    return false;
+  createId() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   }
 
-  async startNewScenarioSession() {
-    this.scenarioSessionUrl = window.location.href;
-    await this.setSessionCharacter(null);
-    await this.saveScenarioSession();
-  }
-
-  async createPreset(name) {
+  async createPreset(name, description = '') {
+    await this.loadPresets();
+    const now = Date.now();
     const preset = {
-      id: Date.now().toString(36) + Math.random().toString(36).substring(2, 7),
-      name: name,
-      fields: {},
-      createdAt: Date.now(),
-      updatedAt: Date.now()
+      schemaVersion: 2,
+      id: this.createId(),
+      name: String(name || 'Unnamed Character').trim() || 'Unnamed Character',
+      description: String(description || ''),
+      createdAt: now,
+      updatedAt: now,
     };
-    
     this.presets.unshift(preset);
     await this.savePresets();
     return preset;
   }
 
-  async updatePresetField(presetId, fieldKey, value) {
-    const preset = this.presets.find(p => p.id === presetId);
-    if (!preset) return null;
-    
-    preset.fields[fieldKey] = value;
-    preset.updatedAt = Date.now();
-    
-    await this.savePresets();
-    return preset;
-  }
-
-  async updatePreset(id, updates) {
+  async updatePreset(id, updates = {}) {
+    await this.loadPresets();
     const index = this.presets.findIndex(p => p.id === id);
     if (index === -1) return null;
-    
+
+    const current = this.presets[index];
     this.presets[index] = {
-      ...this.presets[index],
-      ...updates,
-      updatedAt: Date.now()
+      ...current,
+      schemaVersion: 2,
+      name: updates.name !== undefined
+        ? (String(updates.name).trim() || current.name)
+        : current.name,
+      description: updates.description !== undefined
+        ? String(updates.description || '')
+        : current.description,
+      updatedAt: Date.now(),
     };
-    
+
     await this.savePresets();
     return this.presets[index];
   }
 
   async deletePreset(id) {
+    await this.loadPresets();
     const index = this.presets.findIndex(p => p.id === id);
     if (index === -1) return false;
-    
+
     this.presets.splice(index, 1);
-    
-    if (this.activePresetId === id) {
-      this.activePresetId = null;
-      await this.setActivePreset(null);
-    }
-    
+    if (this.activePresetId === id) await this.setActivePreset(null);
+    if (this.session?.characterId === id) await this.clearSession();
     await this.savePresets();
     return true;
+  }
+
+  async getAllPresets() {
+    await this.loadPresets();
+    return [...this.presets].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  }
+
+  async getPresetById(id) {
+    await this.loadPresets();
+    return this.presets.find(p => p.id === id) || null;
   }
 
   getActivePreset() {
@@ -281,56 +278,12 @@ class CharacterPresetFeature {
   }
 
   // ============================================
-  // FIELD KEY NORMALIZATION
-  // ============================================
-  // Simple approach: sanitize the question label and use it as the field key.
-  // Same question = same key = auto-filled. Different question = different key.
-
-  // Normalize a label into a consistent field key
-  normalizeFieldKey(label) {
-    if (!label) return null;
-    
-    return label.toLowerCase()
-      .replace(/\s*\([^)]*\)/g, '')           // Remove (parenthetical content)
-      .replace(/[?!.:;,"']/g, '')             // Remove punctuation
-      .replace(/[^a-z0-9\s]/g, '')            // Remove special chars
-      .trim()
-      .replace(/\s+/g, '_');                  // Spaces to underscores
-  }
-
-  // Check if a field key looks like a "name" field
-  isNameFieldKey(fieldKey) {
-    if (!fieldKey) return false;
-    // Check for "name" as a distinct word segment in the underscore-separated key
-    // Matches: "name", "your_name", "characters_name", "character_name"
-    // Avoids: "username", "rename", "filename", "unnamed"
-    return fieldKey === 'name' || fieldKey.startsWith('name_') ||
-           fieldKey.endsWith('_name') || fieldKey.includes('_name_');
-  }
-
-  // Look up a saved value for a field
-  lookupFieldValue(preset, label) {
-    if (!preset || !preset.fields) return undefined;
-    
-    const fieldKey = this.normalizeFieldKey(label);
-    
-    if (fieldKey && preset.fields[fieldKey] !== undefined) {
-      this.log(`[CharacterPreset] Found match for "${fieldKey}"`);
-      return preset.fields[fieldKey];
-    }
-    
-    this.log(`[CharacterPreset] No match found for "${label}" (key: ${fieldKey})`);
-    return undefined;
-  }
-
-  // ============================================
-  // DOM DETECTION
+  // DETECTION
   // ============================================
 
   setupObserver() {
     this.observer = new MutationObserver((mutations) => {
-      if (this.isProcessing) return;
-      
+      if (this.isApplying) return;
       for (const mutation of mutations) {
         if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
           this.debouncedCheck();
@@ -341,54 +294,36 @@ class CharacterPresetFeature {
 
     this.observer.observe(document.body, {
       childList: true,
-      subtree: true
+      subtree: true,
     });
   }
 
-  // Find a suitable parent container for injecting UI elements near the input.
-  // Walks up the DOM from the input until it finds a layout boundary
-  // (an ancestor whose parent has multiple children), rather than relying
-  // on fragile CSS-in-JS class names that can change between builds.
-  getFieldContainer(field) {
-    if (!field?.input) return null;
-    
-    let el = field.input.parentElement;
-    let depth = 0;
-    
-    while (el && el !== document.body && depth < 10) {
-      // A layout boundary is reached when the parent has sibling elements,
-      // meaning we've exited the single-child wrapper chain around the input.
-      if (el.parentElement && el.parentElement.children.length > 1) {
-        return el.parentElement;
-      }
-      el = el.parentElement;
-      depth++;
-    }
-    
-    // Fallback: two levels up from the input
-    return field.input.parentElement?.parentElement || null;
+  startPolling() {
+    this.checkInterval = setInterval(() => this.debouncedCheck(), 500);
+  }
+
+  debouncedCheck() {
+    if (this._checkDebounceTimer) return;
+    this._checkDebounceTimer = setTimeout(() => {
+      this._checkDebounceTimer = null;
+      this.checkForEntryField();
+    }, 250);
   }
 
   findScenarioEntryField() {
     const input = document.getElementById('full-screen-text-input');
     if (!input) return null;
 
-    // Check if this is a scenario entry field by looking at its context
-    // The input should have an aria-label describing what it's asking for
     const ariaLabel = input.getAttribute('aria-label');
     if (!ariaLabel) return null;
 
-    // Look for the question/prompt text - scope to the input's ancestor to avoid
-    // picking up unrelated headings (e.g. story title in the nav bar).
     let questionText = ariaLabel;
-    
-    // Walk up from the input to find a reasonable ancestor to scope heading search
     const searchRoot = input.closest('[style*="max-width"]') || input.parentElement?.parentElement?.parentElement;
     if (searchRoot) {
       const headings = searchRoot.querySelectorAll('h1, h2, [role="heading"]');
       for (const heading of headings) {
         const text = heading.textContent?.trim();
-        if (text && text.length > 0 && text.length < 100) {
+        if (text && text.length > 0 && text.length < 160) {
           questionText = text;
           break;
         }
@@ -396,643 +331,688 @@ class CharacterPresetFeature {
     }
 
     return {
-      input: input,
+      input,
       label: questionText,
-      ariaLabel: ariaLabel,
-      fieldKey: this.normalizeFieldKey(ariaLabel) // Use aria-label for key normalization
+      ariaLabel,
+      question: ariaLabel.trim(),
     };
   }
 
+  getFieldContainer(field) {
+    if (!field?.input) return null;
+
+    let el = field.input.parentElement;
+    let depth = 0;
+    while (el && el !== document.body && depth < 10) {
+      if (el.parentElement && el.parentElement.children.length > 1) {
+        return el.parentElement;
+      }
+      el = el.parentElement;
+      depth++;
+    }
+    return field.input.parentElement?.parentElement || null;
+  }
+
   async checkForEntryField() {
-    if (this.isProcessing) return; // Don't re-detect fields mid-fill
+    if (this.isApplying) return;
     const field = this.findScenarioEntryField();
-    
+
     if (field) {
-      const fieldId = field.ariaLabel;
-      
-      // Field found, so cancel any pending teardown grace timer
       if (this._fieldGraceTimer) {
         clearTimeout(this._fieldGraceTimer);
         this._fieldGraceTimer = null;
       }
-      
-      // Check if this is a new field
-      if (this.currentFieldLabel !== fieldId) {
+
+      const fieldId = field.ariaLabel;
+      if (this.currentFieldLabel !== fieldId || !this.panelElement?.isConnected) {
         this.currentFieldLabel = fieldId;
-        this.currentFieldKey = field.fieldKey;
-        this.hasAutoFilled = false;
-        
-        // Clean up previous UI
-        this.removeOverlay();
-        this.removeSaveButton();
-        this.removeApproval();
-        
-        // Determine what to show based on the field type and state
+        this.currentFieldKey = field.question;
         await this.handleField(field);
       }
-    } else {
-      // Field not found, so use a grace period before tearing down UI.
-      // React re-renders can cause the input to briefly disappear from the DOM.
-      if (this.currentFieldLabel !== null && !this._fieldGraceTimer) {
-        this._fieldGraceTimer = setTimeout(() => {
-          this._fieldGraceTimer = null;
-          // Re-check: if field is genuinely gone, tear down
-          if (!this.findScenarioEntryField()) {
-            this.currentFieldLabel = null;
-            this.currentFieldKey = null;
-            this.hasAutoFilled = false;
-            this._indicatorCharacterId = null;
-            this.removeOverlay();
-            this.removeSaveButton();
-            this.removeCharacterIndicator();
-            this.removeApproval();
-          }
-        }, 400);
-      }
+      return;
     }
+
+    if (this.currentFieldLabel !== null && !this._fieldGraceTimer) {
+      this._fieldGraceTimer = setTimeout(() => {
+        this._fieldGraceTimer = null;
+        if (!this.findScenarioEntryField()) {
+          this.currentFieldLabel = null;
+          this.currentFieldKey = null;
+          this.removePanel();
+        }
+      }, 400);
+    }
+  }
+
+  // ============================================
+  // SCENARIO + AI SESSION
+  // ============================================
+
+  parseScenarioShortIdFromUrl() {
+    const match = window.location.pathname.match(/\/scenario\/([^/]+)/);
+    return match ? match[1] : null;
   }
 
   async handleField(field) {
-    // Check if this is a name field
-    const fieldKey = this.normalizeFieldKey(field.ariaLabel);
-    const isNameField = this.isNameFieldKey(fieldKey);
-    const sessionCharacter = this.getSessionCharacter();
-    
-    // Check if this is a new scenario (URL changed)
-    if (this.isNewScenario()) {
-      await this.startNewScenarioSession();
-    }
-    
-    // Only show the character selector when we detect a name field
-    if (isNameField) {
-      // Name field resets the session (user might want to switch characters)
-      await this.setSessionCharacter(null);
-      this.removeCharacterIndicator();
-      
-      // Show character selector overlay
-      await this.showCharacterSelectorOverlay(field);
-    } else if (sessionCharacter) {
-      // We have a session character - show indicator and handle auto-fill
-      this.showCharacterIndicator(field, sessionCharacter);
-      
-      // Look up saved value for this field
-      const savedValue = this.lookupFieldValue(sessionCharacter, field.ariaLabel);
-      
-      if (savedValue !== undefined && savedValue !== '') {
-        // We have a saved value - show approval UI instead of auto-filling
-        this.showAutoFillApproval(field, savedValue);
+    const token = ++this._handleToken;
+    try {
+      await this.prepareScenarioState();
+      if (token !== this._handleToken) return;
+
+      if (this.status === 'ready') {
+        this.showAnswerPanel(field);
+      } else if (this.status === 'needCharacter') {
+        this.showCharacterPicker(field);
+      } else if (this.status === 'generating') {
+        this.showGeneratingPanel(field);
+      } else if (this.status === 'blocked' || this.status === 'error') {
+        this.showBlockedPanel(field, this.statusMessage);
       } else {
-        // No saved value - show "Save & Continue" button
-        this.showSaveAndContinueButton(field);
+        this.showCharacterPicker(field);
       }
+    } catch (error) {
+      this.status = 'error';
+      this.statusMessage = error?.message || 'Character Presets could not prepare this scenario.';
+      this.showBlockedPanel(field, this.statusMessage);
     }
-    // If no session character and not a name field, show nothing
   }
 
-  getSessionCharacter() {
-    if (!this.sessionCharacterId) return null;
-    return this.presets.find(p => p.id === this.sessionCharacterId) || null;
-  }
-
-  // ============================================
-  // UI - CHARACTER SELECTOR (integrated into page)
-  // ============================================
-
-  async showCharacterSelectorOverlay(field) {
-    this.removeOverlay();
-    document.querySelectorAll('.bd-character-selector').forEach(el => el.remove());
-    
-    // Reload presets to ensure we have the latest
-    await this.loadPresets();
-    
-    // Find the input container to place our selector near it
-    const inputContainer = this.getFieldContainer(field);
-    if (!inputContainer) {
+  async prepareScenarioState() {
+    const shortId = this.parseScenarioShortIdFromUrl();
+    if (!shortId) {
+      this.status = 'blocked';
+      this.statusMessage = 'Character Presets only works on scenario start pages.';
       return;
     }
-    
-    this.overlayElement = document.createElement('div');
-    this.overlayElement.className = 'bd-character-selector';
-    this.overlayElement.innerHTML = this.buildCharacterSelectorHTML();
-    
-    // Insert below the input
-    inputContainer.appendChild(this.overlayElement);
-    
-    requestAnimationFrame(() => {
-      this.overlayElement?.classList.add('bd-selector-visible');
-    });
-    
-    this.setupCharacterSelectorHandlers(field);
-    
+
+    if (!this.scenario || this.scenarioShortId !== shortId) {
+      await this.loadScenario(shortId);
+    }
+
+    if (!this.scenario?.placeholders?.length) {
+      this.status = 'blocked';
+      this.statusMessage = 'This scenario has no placeholder questions to prefill.';
+      return;
+    }
+
+    await this.loadPresets();
+    await this.loadSession();
+
+    if (this.sessionMatchesScenario(this.session)) {
+      const character = this.presets.find(p => p.id === this.session.characterId);
+      if (character) {
+        this.activePresetId = character.id;
+        this.status = 'ready';
+        this.statusMessage = '';
+        return;
+      }
+      await this.clearSession();
+    }
+
+    if (this.presets.length === 0) {
+      this.status = 'blocked';
+      this.statusMessage = 'Create a character in the BetterDungeon popup before using AI prefill.';
+      return;
+    }
+
+    const aiReady = await this.ensureAIReady();
+    if (!aiReady.ready) {
+      this.status = 'blocked';
+      this.statusMessage = aiReady.message || 'Configure a Gemini API key in BetterDungeon AI settings to use Character Presets.';
+      return;
+    }
+
+    this.status = 'needCharacter';
+    this.statusMessage = '';
   }
 
-  buildCharacterSelectorHTML() {
-    const hasPresets = this.presets.length > 0;
-    
-    if (hasPresets) {
-      // Auto-select if we have a session character (e.g., just created one)
-      const optionStyle = 'background: var(--bd-bg-secondary); color: var(--bd-text-primary);';
-      const options = this.presets.map(p => {
-        const isSelected = this.sessionCharacterId === p.id;
-        return `<option value="${p.id}" style="${optionStyle}"${isSelected ? ' selected' : ''}>${this.escapeHtml(p.name)}</option>`;
-      }).join('');
-      
-      return `
-        <div class="bd-selector-row" style="font-family: var(--bd-font-family-primary);">
-          <span class="bd-selector-label" style="color: var(--bd-text-secondary);">Character:</span>
-          <select class="bd-selector-dropdown" id="bd-preset-selector" style="
-            font-family: var(--bd-font-family-primary);
-            color: var(--bd-text-primary);
-            background: var(--bd-bg-elevated);
-            border: 1px solid var(--bd-border-default);
-            border-radius: var(--bd-radius-md);
-          ">
-            <option value="" style="background: var(--bd-bg-secondary); color: var(--bd-text-primary);">Select...</option>
+  async loadScenario(shortId) {
+    const gql = window.BetterDungeonGQL;
+    if (!gql?.getScenarioStart) {
+      throw new Error('BetterDungeon GraphQL service is not available.');
+    }
+
+    const scenario = await gql.getScenarioStart(shortId, { timeoutMs: 30000, viewPublished: true });
+    const placeholders = this.extractPlaceholders(scenario);
+    const signature = this.computeScenarioSignature(scenario, placeholders);
+
+    this.scenario = {
+      raw: scenario,
+      placeholders,
+      signature,
+    };
+    this.scenarioSignature = signature;
+    this.scenarioShortId = scenario.shortId || shortId;
+    this.manualDismissedQuestions.clear();
+  }
+
+  sessionMatchesScenario(session) {
+    return !!(
+      this.isValidSession(session) &&
+      session.scenarioShortId === this.scenarioShortId &&
+      session.scenarioSignature === this.scenarioSignature &&
+      session.status === 'ready'
+    );
+  }
+
+  extractPlaceholders(scenario) {
+    const seen = new Set();
+    const out = [];
+    const addFromText = (text) => {
+      if (typeof text !== 'string' || !text) return;
+      const re = /\$\{([^{}]+)\}/g;
+      let match;
+      while ((match = re.exec(text))) {
+        const question = String(match[1] || '').trim();
+        if (!question || seen.has(question)) continue;
+        seen.add(question);
+        out.push(question);
+      }
+    };
+
+    const state = scenario?.state || {};
+    addFromText(state.plotEssentials);
+    addFromText(state.prompt);
+    addFromText(state.authorsNote);
+
+    const cards = Array.isArray(scenario?.storyCards) ? scenario.storyCards : [];
+    for (const card of cards) {
+      addFromText(card?.value);
+      addFromText(card?.description);
+      addFromText(card?.title);
+      if (Array.isArray(card?.keys)) addFromText(card.keys.join('\n'));
+    }
+
+    return out;
+  }
+
+  computeScenarioSignature(scenario, placeholders) {
+    const state = scenario?.state || {};
+    const cards = Array.isArray(scenario?.storyCards) ? scenario.storyCards : [];
+    const payload = JSON.stringify({
+      id: scenario?.id || null,
+      shortId: scenario?.shortId || null,
+      editedAt: scenario?.editedAt || null,
+      publishedUpdatedAt: scenario?.publishedUpdatedAt || null,
+      title: scenario?.title || '',
+      placeholders,
+      prompt: state.prompt || '',
+      plotEssentials: state.plotEssentials || '',
+      authorsNote: state.authorsNote || '',
+      storyCards: cards.map(card => ({
+        id: card?.id || null,
+        updatedAt: card?.updatedAt || null,
+        value: card?.value || '',
+        description: card?.description || '',
+      })),
+    });
+    return String(this.hashString(payload));
+  }
+
+  hashString(text) {
+    let hash = 2166136261;
+    for (let i = 0; i < text.length; i++) {
+      hash ^= text.charCodeAt(i);
+      hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+    }
+    return hash >>> 0;
+  }
+
+  async ensureAIReady() {
+    try {
+      window.UltrascriptsAIGeminiBackend?.register?.();
+      await window.UltrascriptsAIGeminiBackend?.refreshStatus?.();
+      const status = window.UltrascriptsAIExecutor?.status?.();
+      if (status?.ready) return { ready: true };
+      return {
+        ready: false,
+        message: status?.message || 'Configure a Gemini API key in BetterDungeon AI settings to use Character Presets.',
+      };
+    } catch (error) {
+      return {
+        ready: false,
+        message: error?.message || 'Gemini status could not be checked.',
+      };
+    }
+  }
+
+  async generateSessionForCharacter(characterId, field) {
+    const character = this.presets.find(p => p.id === characterId);
+    if (!character) {
+      this.showToast('Character not found', 'error');
+      return;
+    }
+
+    const aiReady = await this.ensureAIReady();
+    if (!aiReady.ready) {
+      this.status = 'blocked';
+      this.statusMessage = aiReady.message;
+      this.showBlockedPanel(field, this.statusMessage);
+      return;
+    }
+
+    this.status = 'generating';
+    this.showGeneratingPanel(field);
+
+    try {
+      const result = await window.UltrascriptsAIExecutor.query({
+        prompt: this.buildAIPrompt(character),
+        output: {
+          type: 'json',
+          schema: this.buildAnswerSchema(),
+        },
+        thinking: { level: 'low' },
+      }, {
+        requestId: `character-prefill-${this.scenarioShortId}-${Date.now()}`,
+      });
+
+      this.session = this.normalizeAISession(character, result?.json);
+      this.manualDismissedQuestions.clear();
+      await this.saveSession();
+      await this.setActivePreset(character.id);
+      this.status = 'ready';
+      this.statusMessage = '';
+      this.showAnswerPanel(field);
+      this.showToast(`Generated answers for ${character.name}`, 'success');
+    } catch (error) {
+      console.error('[CharacterPreset] AI generation failed:', error);
+      this.status = 'error';
+      this.statusMessage = error?.message || 'Gemini could not generate placeholder answers.';
+      this.showBlockedPanel(field, this.statusMessage);
+    }
+  }
+
+  buildAIPrompt(character) {
+    const scenario = this.scenario?.raw || {};
+    const state = scenario.state || {};
+    const placeholders = this.scenario?.placeholders || [];
+    const storyCards = Array.isArray(scenario.storyCards) ? scenario.storyCards : [];
+
+    const context = [
+      `Title: ${scenario.title || '(untitled)'}`,
+      scenario.description ? `Description:\n${scenario.description}` : '',
+      scenario.advancedDescription ? `Advanced Description:\n${scenario.advancedDescription}` : '',
+      state.plotEssentials ? `Plot Essentials:\n${state.plotEssentials}` : '',
+      state.prompt ? `Opening Prompt:\n${state.prompt}` : '',
+      state.authorsNote ? `Author's Note:\n${state.authorsNote}` : '',
+      state.instructions ? `Instructions:\n${typeof state.instructions === 'string' ? state.instructions : JSON.stringify(state.instructions)}` : '',
+      storyCards.length ? `Story Cards:\n${this.formatStoryCardsForPrompt(storyCards)}` : '',
+    ].filter(Boolean).join('\n\n');
+
+    const maxContextChars = Math.max(2000, 10500 - character.description.length - placeholders.join('\n').length);
+    const trimmedContext = this.truncate(context, maxContextChars);
+
+    return [
+      'You generate AI Dungeon scenario placeholder prefill answers.',
+      'Use the selected character profile and scenario context to answer each placeholder question.',
+      'Return JSON that exactly matches the provided schema.',
+      'Rules:',
+      '- Include one answer object for every placeholder question, using the exact question text.',
+      '- If the question can be answered from or reasonably adapted from the character profile, set deferToPlayer to false and provide a concise answer.',
+      '- If the question is a scenario choice, asks about another entity not described, requires personal preference, or cannot be answered safely, set deferToPlayer to true and use an empty answer.',
+      '- Do not invent major biographical facts that are not implied by the character profile.',
+      '- Keep answers ready to paste directly into the scenario prefill field.',
+      '',
+      `Character Name: ${character.name}`,
+      `Character Profile:\n${character.description || character.name}`,
+      '',
+      `Placeholder Questions:\n${placeholders.map(q => `- ${q}`).join('\n')}`,
+      '',
+      `Scenario Context:\n${trimmedContext}`,
+    ].join('\n');
+  }
+
+  formatStoryCardsForPrompt(cards) {
+    return cards.slice(0, 20).map((card, index) => {
+      const parts = [
+        `Card ${index + 1}: ${card?.title || '(untitled)'}`,
+        Array.isArray(card?.keys) && card.keys.length ? `Keys: ${card.keys.join(', ')}` : '',
+        card?.description ? `Description: ${card.description}` : '',
+        card?.value ? `Value: ${card.value}` : '',
+      ].filter(Boolean);
+      return parts.join('\n');
+    }).join('\n\n');
+  }
+
+  buildAnswerSchema() {
+    return {
+      type: 'object',
+      properties: {
+        answers: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              question: { type: 'string' },
+              answer: { type: 'string' },
+              deferToPlayer: { type: 'boolean' },
+              reason: { type: 'string' },
+            },
+            required: ['question', 'answer', 'deferToPlayer', 'reason'],
+          },
+        },
+      },
+      required: ['answers'],
+    };
+  }
+
+  normalizeAISession(character, json) {
+    const placeholders = this.scenario?.placeholders || [];
+    const returned = Array.isArray(json?.answers) ? json.answers : [];
+    const byQuestion = new Map();
+    for (const item of returned) {
+      if (!item || typeof item.question !== 'string') continue;
+      byQuestion.set(item.question.trim(), item);
+    }
+
+    const answers = {};
+    for (const question of placeholders) {
+      const item = byQuestion.get(question) || null;
+      answers[question] = {
+        answer: String(item?.answer || '').trim(),
+        deferToPlayer: item ? item.deferToPlayer === true : true,
+        reason: String(item?.reason || ''),
+      };
+      if (answers[question].deferToPlayer) answers[question].answer = '';
+    }
+
+    return {
+      schemaVersion: 1,
+      scenarioShortId: this.scenarioShortId,
+      scenarioSignature: this.scenarioSignature,
+      characterId: character.id,
+      placeholders: [...placeholders],
+      answers,
+      generatedAt: Date.now(),
+      status: 'ready',
+    };
+  }
+
+  // ============================================
+  // UI
+  // ============================================
+
+  renderPanel(field, html) {
+    const container = this.getFieldContainer(field);
+    if (!container) return null;
+
+    this.removePanel();
+    const panel = document.createElement('div');
+    panel.className = 'bd-character-ai-panel';
+    panel.innerHTML = html;
+    container.appendChild(panel);
+    this.panelElement = panel;
+    requestAnimationFrame(() => panel.classList.add('bd-character-ai-panel-visible'));
+    return panel;
+  }
+
+  removePanel() {
+    const current = this.panelElement;
+    this.panelElement = null;
+    if (current) {
+      current.classList.remove('bd-character-ai-panel-visible');
+      setTimeout(() => current.remove(), 200);
+    }
+    document.querySelectorAll('.bd-character-ai-panel').forEach(el => {
+      if (el !== current) el.remove();
+    });
+  }
+
+  showCharacterPicker(field) {
+    const selectedId = this.activePresetId && this.presets.some(p => p.id === this.activePresetId)
+      ? this.activePresetId
+      : this.presets[0]?.id || '';
+    const options = this.presets.map(character => `
+      <option value="${this.escapeHtml(character.id)}"${character.id === selectedId ? ' selected' : ''}>
+        ${this.escapeHtml(character.name)}
+      </option>
+    `).join('');
+
+    const panel = this.renderPanel(field, `
+      <div class="bd-character-ai-header">
+        <div>
+          <div class="bd-character-ai-title">Character Prefill</div>
+          <div class="bd-character-ai-subtitle">${this.scenario?.placeholders?.length || 0} placeholder questions found</div>
+        </div>
+      </div>
+      <div class="bd-character-ai-body">
+        <label class="bd-character-ai-label" for="bd-character-ai-select">Play as</label>
+        <div class="bd-character-ai-picker">
+          <select id="bd-character-ai-select" class="bd-character-ai-select">
             ${options}
           </select>
-          <button class="bd-selector-add" id="bd-new-preset-btn" title="Create new character" style="
-            color: var(--bd-text-secondary);
-            background: var(--bd-bg-tertiary);
-            border: 1px solid var(--bd-border-default);
-            border-radius: var(--bd-radius-md);
-          ">+</button>
+          <button id="bd-character-ai-generate" class="bd-character-ai-btn bd-character-ai-btn-primary">Generate</button>
         </div>
-      `;
-    } else {
-      return `
-        <div class="bd-selector-row" style="font-family: var(--bd-font-family-primary);">
-          <button class="bd-selector-create" id="bd-new-preset-btn" style="
-            font-family: var(--bd-font-family-primary);
-            color: #fff;
-            background: var(--bd-btn-primary-bg);
-            border: none;
-            border-radius: var(--bd-radius-md);
-          ">
-            <span>+ Create Character Preset</span>
-          </button>
-        </div>
-      `;
-    }
-  }
+      </div>
+    `);
+    if (!panel) return;
 
-  setupCharacterSelectorHandlers(field) {
-    const selector = this.overlayElement.querySelector('#bd-preset-selector');
-    const newPresetBtn = this.overlayElement.querySelector('#bd-new-preset-btn');
-
-    if (selector) {
-      selector.addEventListener('change', async (e) => {
-        const presetId = e.target.value;
-        if (presetId) {
-          await this.setSessionCharacter(presetId);
-          await this.setActivePreset(presetId);
-          
-          const character = this.getSessionCharacter();
-          if (character) {
-            const nameValue = character.fields.name || character.name;
-            // Use typewriter effect to properly trigger Continue button
-            this.typewriterFill(field.input, nameValue).then(() => {
-              this.showToast(`Playing as ${character.name}`, 'success');
-            });
-          }
-        } else {
-          await this.setSessionCharacter(null);
-        }
-      });
-    }
-
-    if (newPresetBtn) {
-      newPresetBtn.addEventListener('click', async () => {
-        await this.createNewCharacterFromNameField(field);
-      });
-    }
-  }
-
-  async createNewCharacterFromNameField(field) {
-    const name = field.input.value?.trim();
-    
-    // Require user to type a name in the field first
-    if (!name) {
-      this.showToast('Type a character name first', 'error');
-      field.input.focus();
-      return;
-    }
-    
-    const preset = await this.createPreset(name);
-    await this.updatePresetField(preset.id, 'name', name);
-    
-    await this.setSessionCharacter(preset.id);
-    await this.setActivePreset(preset.id);
-    
-    this.showToast(`Created: ${name}`, 'success');
-    this.showCharacterSelectorOverlay(field);
-  }
-
-  // ============================================
-  // UI - SAVE & CONTINUE BUTTON (for new fields)
-  // ============================================
-
-  showSaveAndContinueButton(field) {
-    this.removeSaveButton();
-    
-    const sessionCharacter = this.getSessionCharacter();
-    if (!sessionCharacter) return;
-    
-    // Find the Next/Start button and the field container
-    const continueBtn = this.findAdvanceButton(field);
-    if (!continueBtn) {
-      return;
-    }
-    
-    // Walk up from the Continue button to find the wrapper that is a
-    // direct child of the field container (avoids fragile CSS-in-JS selectors)
-    const fieldContainer = this.getFieldContainer(field);
-    if (!fieldContainer) return;
-    
-    let continueBtnWrapper = continueBtn;
-    while (continueBtnWrapper && continueBtnWrapper.parentElement !== fieldContainer) {
-      continueBtnWrapper = continueBtnWrapper.parentElement;
-    }
-    if (!continueBtnWrapper || continueBtnWrapper.parentElement !== fieldContainer) return;
-    
-    // Create Save & Continue button
-    this.saveButtonElement = document.createElement('div');
-    this.saveButtonElement.className = 'bd-save-continue-wrapper';
-    this.saveButtonElement.innerHTML = `
-      <button class="bd-save-continue-btn" id="bd-save-continue" title="Save to ${this.escapeHtml(sessionCharacter.name)} and continue" style="
-        font-family: var(--bd-font-family-primary);
-        font-size: var(--bd-font-size-md);
-        font-weight: var(--bd-font-weight-medium);
-        color: #fff;
-        background: var(--bd-success);
-        border: 1px solid var(--bd-success-border);
-        border-radius: var(--bd-radius-lg);
-        padding: var(--bd-space-3) var(--bd-space-6);
-        cursor: pointer;
-        transition: all var(--bd-transition-fast);
-        display: flex;
-        align-items: center;
-        gap: var(--bd-space-2);
-        box-shadow: var(--bd-shadow-md);
-      ">
-        <span style="font-size: 1.2em;">✓</span>
-        <span>Save & Continue</span>
-      </button>
-    `;
-    
-    // Insert after the Continue button wrapper within the field container
-    fieldContainer.insertBefore(this.saveButtonElement, continueBtnWrapper.nextSibling);
-    
-    requestAnimationFrame(() => {
-      this.saveButtonElement?.classList.add('bd-save-visible');
+    const select = panel.querySelector('#bd-character-ai-select');
+    const generate = panel.querySelector('#bd-character-ai-generate');
+    generate?.addEventListener('click', async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const characterId = select?.value || selectedId;
+      if (!characterId) return;
+      await this.generateSessionForCharacter(characterId, field);
     });
-    
-    // Setup click handler and re-query continueBtn at click time to avoid stale references
-    const saveBtn = this.saveButtonElement.querySelector('#bd-save-continue');
-    if (saveBtn) {
-      saveBtn.addEventListener('click', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const freshContinueBtn = this.findAdvanceButton(field);
-        if (freshContinueBtn) {
-          await this.saveFieldAndContinue(field, freshContinueBtn);
-        }
+  }
+
+  showGeneratingPanel(field) {
+    this.renderPanel(field, `
+      <div class="bd-character-ai-header">
+        <div>
+          <div class="bd-character-ai-title">Generating Character Answers</div>
+          <div class="bd-character-ai-subtitle">Gemini is reading the scenario placeholders.</div>
+        </div>
+        <div class="bd-character-ai-spinner"></div>
+      </div>
+    `);
+  }
+
+  showBlockedPanel(field, message) {
+    this.renderPanel(field, `
+      <div class="bd-character-ai-header">
+        <div>
+          <div class="bd-character-ai-title">Character Prefill Unavailable</div>
+          <div class="bd-character-ai-subtitle">${this.escapeHtml(message || 'Character Presets cannot run right now.')}</div>
+        </div>
+      </div>
+    `);
+  }
+
+  showAnswerPanel(field) {
+    if (this.manualDismissedQuestions.has(field.question)) {
+      this.removePanel();
+      return;
+    }
+
+    const question = this.findBestQuestionMatch(field.question);
+    const answer = question ? this.session?.answers?.[question] : null;
+    const character = this.presets.find(p => p.id === this.session?.characterId);
+
+    if (!question || !answer || answer.deferToPlayer || !answer.answer) {
+      const panel = this.renderPanel(field, `
+        <div class="bd-character-ai-header">
+          <div>
+            <div class="bd-character-ai-title">Answer Manually</div>
+            <div class="bd-character-ai-subtitle">Gemini was not confident enough to answer this placeholder.</div>
+          </div>
+        </div>
+        ${answer?.reason ? `<div class="bd-character-ai-reason">${this.escapeHtml(answer.reason)}</div>` : ''}
+        <div class="bd-character-ai-actions">
+          <button id="bd-character-ai-manual" class="bd-character-ai-btn bd-character-ai-btn-secondary">Answer Manually</button>
+        </div>
+      `);
+      panel?.querySelector('#bd-character-ai-manual')?.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.manualDismissedQuestions.add(field.question);
+        this.removePanel();
+        field.input.focus();
       });
-    }
-    
-  }
-
-  async saveFieldAndContinue(field, continueBtn) {
-    const value = field.input.value?.trim();
-    
-    if (!value) {
-      this.showToast('Enter a value first', 'error');
       return;
     }
-    
-    const sessionCharacter = this.getSessionCharacter();
-    if (!sessionCharacter) {
-      this.showToast('No character selected', 'error');
-      return;
-    }
-    
-    // Save the field value
-    await this.saveField(sessionCharacter.id, field.ariaLabel, value);
-    this.showToast(`Saved to ${sessionCharacter.name}`, 'success');
-    this.removeSaveButton();
-    
-    // Click continue
-    setTimeout(() => continueBtn.click(), 100);
+
+    const panel = this.renderPanel(field, `
+      <div class="bd-character-ai-header">
+        <div>
+          <div class="bd-character-ai-title">${this.escapeHtml(character?.name || 'Character')} Suggestion</div>
+          <div class="bd-character-ai-subtitle">${this.escapeHtml(field.question)}</div>
+        </div>
+      </div>
+      <div class="bd-character-ai-answer">${this.escapeHtml(answer.answer)}</div>
+      ${answer.reason ? `<div class="bd-character-ai-reason">${this.escapeHtml(answer.reason)}</div>` : ''}
+      <div class="bd-character-ai-actions">
+        <button id="bd-character-ai-manual" class="bd-character-ai-btn bd-character-ai-btn-secondary">Answer Manually</button>
+        <button id="bd-character-ai-edit" class="bd-character-ai-btn bd-character-ai-btn-secondary">Edit</button>
+        <button id="bd-character-ai-use" class="bd-character-ai-btn bd-character-ai-btn-primary">Use</button>
+      </div>
+    `);
+    if (!panel) return;
+
+    panel.querySelector('#bd-character-ai-use')?.addEventListener('click', async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      await this.fillAndContinue(field, answer.answer);
+    });
+
+    panel.querySelector('#bd-character-ai-manual')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.manualDismissedQuestions.add(field.question);
+      this.removePanel();
+      field.input.focus();
+    });
+
+    panel.querySelector('#bd-character-ai-edit')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.showEditPanel(field, question, answer.answer);
+    });
   }
 
-  // Save a field value under its normalized key
-  async saveField(presetId, label, value) {
-    const fieldKey = this.normalizeFieldKey(label);
-    
-    const preset = this.presets.find(p => p.id === presetId);
-    if (!preset) return null;
-    
-    if (fieldKey) {
-      preset.fields[fieldKey] = value;
-      this.log(`[CharacterPreset] Saved field: "${fieldKey}"`);
-    }
-    
-    preset.updatedAt = Date.now();
-    await this.savePresets();
-    return preset;
+  showEditPanel(field, question, value) {
+    const panel = this.renderPanel(field, `
+      <div class="bd-character-ai-header">
+        <div>
+          <div class="bd-character-ai-title">Edit Suggested Answer</div>
+          <div class="bd-character-ai-subtitle">${this.escapeHtml(field.question)}</div>
+        </div>
+      </div>
+      <textarea id="bd-character-ai-edit-text" class="bd-character-ai-textarea">${this.escapeHtml(value)}</textarea>
+      <div class="bd-character-ai-actions">
+        <button id="bd-character-ai-cancel" class="bd-character-ai-btn bd-character-ai-btn-secondary">Cancel</button>
+        <button id="bd-character-ai-use-edit" class="bd-character-ai-btn bd-character-ai-btn-primary">Use Edited</button>
+      </div>
+    `);
+    if (!panel) return;
+
+    const textarea = panel.querySelector('#bd-character-ai-edit-text');
+    textarea?.focus();
+    textarea?.select();
+
+    panel.querySelector('#bd-character-ai-cancel')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.showAnswerPanel(field);
+    });
+
+    panel.querySelector('#bd-character-ai-use-edit')?.addEventListener('click', async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const edited = textarea?.value?.trim() || value;
+      if (this.session?.answers?.[question]) {
+        this.session.answers[question] = {
+          ...this.session.answers[question],
+          answer: edited,
+          deferToPlayer: false,
+          reason: 'Edited for this scenario session.',
+        };
+        await this.saveSession();
+      }
+      await this.fillAndContinue(field, edited);
+    });
   }
 
-  // Delete a field from a character preset by its label
-  async deleteField(presetId, label) {
-    const fieldKey = this.normalizeFieldKey(label);
-    
-    const preset = this.presets.find(p => p.id === presetId);
-    if (!preset || !fieldKey) return null;
-    
-    if (preset.fields.hasOwnProperty(fieldKey)) {
-      delete preset.fields[fieldKey];
-      this.log(`[CharacterPreset] Deleted field: "${fieldKey}"`);
+  findBestQuestionMatch(question) {
+    if (!this.session?.answers) return null;
+    if (this.session.answers[question]) return question;
+    const trimmed = String(question || '').trim();
+    if (this.session.answers[trimmed]) return trimmed;
+    const lower = trimmed.toLowerCase();
+    return Object.keys(this.session.answers).find(key => key.trim().toLowerCase() === lower) || null;
+  }
+
+  async fillAndContinue(field, value) {
+    if (this.isApplying) return;
+    this.isApplying = true;
+    this.removePanel();
+
+    try {
+      const input = document.getElementById('full-screen-text-input') || field.input;
+      await this.typewriterFill(input, value);
+      const continueBtn = this.findAdvanceButton(field);
+      if (continueBtn) {
+        setTimeout(() => continueBtn.click(), 150);
+      }
+    } catch (error) {
+      console.error('[CharacterPreset] Fill failed:', error);
+      this.showToast('Could not fill the answer', 'error');
+    } finally {
+      setTimeout(() => {
+        this.isApplying = false;
+        this.debouncedCheck();
+      }, 300);
     }
-    
-    preset.updatedAt = Date.now();
-    await this.savePresets();
-    return preset;
   }
 
   findAdvanceButton(field) {
-    // Find the button that advances to the next placeholder step.
-    // The new placeholder UI uses "Next" (mid-flow) and "Start" (final step)
-    // instead of the old "Continue". We match all three for backward compat.
-    // When a field is provided, scope the search to its container to avoid
-    // matching unrelated buttons elsewhere on the page.
     const searchRoot = field ? (this.getFieldContainer(field) || document) : document;
     const buttons = searchRoot.querySelectorAll('[role="button"], button');
     for (const btn of buttons) {
       const text = btn.textContent?.toLowerCase() || '';
-      if (text.includes('next') || text.includes('start') || text.includes('continue')) {
-        // Exclude the Back button so we don't accidentally match it
-        if (text.includes('back')) continue;
+      if ((text.includes('next') || text.includes('start') || text.includes('continue')) && !text.includes('back')) {
         return btn;
       }
     }
     return null;
   }
 
-  removeOverlay() {
-    this._removeUIElement('overlayElement', 'bd-selector-visible', '.bd-character-selector');
-  }
-
-  // ============================================
-  // UI - ACTIVE CHARACTER INDICATOR
-  // ============================================
-
-  showCharacterIndicator(field, character) {
-    // Skip rebuild if already showing indicator for the same character
-    if (this._indicatorCharacterId === character.id && this.characterIndicator?.isConnected) return;
-    this.removeCharacterIndicator();
-    this._indicatorCharacterId = character.id;
-    
-    // Find the input container
-    const inputContainer = this.getFieldContainer(field);
-    if (!inputContainer) return;
-    
-    this.characterIndicator = document.createElement('div');
-    this.characterIndicator.className = 'bd-character-indicator';
-    this.characterIndicator.innerHTML = `
-      <div class="bd-indicator-content">
-        <span style="color: var(--bd-accent-primary);">●</span>
-        <span>Playing as <strong style="color: var(--bd-text-primary);">${this.escapeHtml(character.name)}</strong></span>
-      </div>
-    `;
-    
-    inputContainer.appendChild(this.characterIndicator);
-    
-    requestAnimationFrame(() => {
-      this.characterIndicator?.classList.add('bd-indicator-visible');
-    });
-  }
-
-  removeCharacterIndicator() {
-    this._indicatorCharacterId = null;
-    this._removeUIElement('characterIndicator', 'bd-indicator-visible', '.bd-character-indicator');
-  }
-
-  // ============================================
-  // AUTO-FILL APPROVAL UI
-  // ============================================
-
-  showAutoFillApproval(field, savedValue) {
-    if (this.hasAutoFilled) return; // Prevent showing approval twice for same field
-    this.hasAutoFilled = true;
-    this.removeApproval();
-    
-    const sessionCharacter = this.getSessionCharacter();
-    if (!sessionCharacter) return;
-    
-    // Find the input container to place the approval near the input
-    const inputContainer = this.getFieldContainer(field);
-    if (!inputContainer) return;
-    
-    this.approvalElement = document.createElement('div');
-    this.approvalElement.className = 'bd-autofill-approval';
-    this.approvalElement.innerHTML = `
-      <div class="bd-approval-content">
-        <div class="bd-approval-header">
-          <span style="color: var(--bd-accent-primary);">&#9679;</span>
-          <span>Suggested answer from <strong style="color: var(--bd-text-primary);">${this.escapeHtml(sessionCharacter.name)}</strong>:</span>
-        </div>
-        <div class="bd-approval-value-container">
-          <div class="bd-approval-value-display">${this.escapeHtml(savedValue)}</div>
-        </div>
-        <div class="bd-approval-actions">
-          <button class="bd-approval-delete"><span>&#128465;</span> Forget</button>
-          <button class="bd-approval-edit"><span>&#9998;</span> Edit</button>
-          <button class="bd-approval-accept"><span>&#10003;</span> Use This</button>
-        </div>
-      </div>
-    `;
-    
-    inputContainer.appendChild(this.approvalElement);
-    
-    requestAnimationFrame(() => {
-      this.approvalElement?.classList.add('bd-approval-visible');
-    });
-    
-    // Helper: fill the field with a value, then click Continue
-    const fillAndContinue = async (value) => {
-      if (this.isProcessing) return; // Guard against double-clicks
-      this.removeApproval();
-      this.isProcessing = true;
-      
-      try {
-        // Re-query the input element to avoid stale DOM references
-        const freshInput = document.getElementById('full-screen-text-input') || field.input;
-        await this.typewriterFill(freshInput, value);
-        this.showToast(`Filled: ${this.truncate(value, 25)}`, 'success');
-        
-        setTimeout(() => {
-          const continueBtn = this.findAdvanceButton(field);
-          if (continueBtn) continueBtn.click();
-        }, 300);
-      } catch (err) {
-        this.showToast('Auto-fill failed', 'error');
-      } finally {
-        this.isProcessing = false;
-      }
-    };
-    
-    // Bind all button handlers (extracted so edit-cancel can re-bind after restoring HTML)
-    this._bindApprovalHandlers(field, savedValue, sessionCharacter, fillAndContinue);
-  }
-
-  // Binds click handlers for Accept, Edit, and Forget buttons on the approval element.
-  // Called both on initial render and after edit-cancel restores the original buttons.
-  _bindApprovalHandlers(field, savedValue, sessionCharacter, fillAndContinue) {
-    if (!this.approvalElement) return;
-    
-    // Use This button: fill the saved value and click Continue
-    const acceptBtn = this.approvalElement.querySelector('.bd-approval-accept');
-    if (acceptBtn) {
-      acceptBtn.addEventListener('click', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        await fillAndContinue(savedValue);
-      });
-    }
-    
-    // Edit button: swap value display into an editable textarea, then fill + continue
-    const editBtn = this.approvalElement.querySelector('.bd-approval-edit');
-    if (editBtn) {
-      editBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!this.approvalElement) return;
-        
-        // Replace the static value display with an editable textarea
-        const valueContainer = this.approvalElement.querySelector('.bd-approval-value-container');
-        if (!valueContainer) return;
-        
-        valueContainer.innerHTML = `
-          <textarea class="bd-approval-edit-textarea">${this.escapeHtml(savedValue)}</textarea>
-        `;
-        
-        // Focus the textarea and select all text for easy editing
-        const textarea = valueContainer.querySelector('.bd-approval-edit-textarea');
-        if (textarea) {
-          textarea.focus();
-          textarea.select();
-        }
-        
-        // Replace the action buttons with Cancel + Confirm
-        const actionsContainer = this.approvalElement?.querySelector('.bd-approval-actions');
-        if (!actionsContainer) return;
-        
-        actionsContainer.innerHTML = `
-          <button class="bd-approval-cancel">Cancel</button>
-          <button class="bd-approval-confirm"><span>&#10003;</span> Confirm</button>
-        `;
-        
-        // Cancel: revert back to the original approval view in-place (no destroy/recreate)
-        const cancelBtn = actionsContainer.querySelector('.bd-approval-cancel');
-        if (cancelBtn) {
-          cancelBtn.addEventListener('click', (ce) => {
-            ce.preventDefault();
-            ce.stopPropagation();
-            if (!this.approvalElement) return;
-            
-            // Restore original value display and buttons
-            valueContainer.innerHTML = `<div class="bd-approval-value-display">${this.escapeHtml(savedValue)}</div>`;
-            actionsContainer.innerHTML = `
-              <button class="bd-approval-delete"><span>&#128465;</span> Forget</button>
-              <button class="bd-approval-edit"><span>&#9998;</span> Edit</button>
-              <button class="bd-approval-accept"><span>&#10003;</span> Use This</button>
-            `;
-            // Re-bind handlers on the restored buttons
-            this._bindApprovalHandlers(field, savedValue, sessionCharacter, fillAndContinue);
-          });
-        }
-        
-        // Confirm: save edited value to preset, then fill + continue
-        const confirmBtn = actionsContainer.querySelector('.bd-approval-confirm');
-        if (confirmBtn) {
-          confirmBtn.addEventListener('click', async (ce) => {
-            ce.preventDefault();
-            ce.stopPropagation();
-            
-            const editedValue = textarea?.value?.trim() || savedValue;
-            
-            // Save the edited value back to the character preset
-            await this.saveField(sessionCharacter.id, field.ariaLabel, editedValue);
-            
-            await fillAndContinue(editedValue);
-          });
-        }
-      });
-    }
-    
-    // Forget button: delete this field from the preset and dismiss the approval UI
-    const deleteBtn = this.approvalElement.querySelector('.bd-approval-delete');
-    if (deleteBtn) {
-      deleteBtn.addEventListener('click', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!this.approvalElement) return;
-        this.hasAutoFilled = false; // Reset so the field can be re-detected if revisited
-        this.removeApproval();
-        
-        // Delete the field key from the character preset
-        await this.deleteField(sessionCharacter.id, field.ariaLabel);
-        this.showToast(`Removed saved field from ${sessionCharacter.name}`, 'success');
-      });
-    }
-  }
-
-  removeApproval() {
-    this._removeUIElement('approvalElement', 'bd-approval-visible', '.bd-autofill-approval');
-  }
-  
   typewriterFill(input, text) {
     return new Promise((resolve) => {
       input.focus();
-      
-      // Determine the correct native value setter based on the element type.
-      // Using the wrong prototype's setter can fail to trigger React's synthetic events.
+
       const proto = input instanceof HTMLTextAreaElement
         ? HTMLTextAreaElement.prototype
         : HTMLInputElement.prototype;
       const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-      
+      const value = String(text || '');
+
       if (!nativeSetter) {
-        // Fallback: direct assignment if native setter is unavailable
-        input.value = text;
+        input.value = value;
         input.dispatchEvent(new Event('input', { bubbles: true }));
         input.dispatchEvent(new Event('change', { bubbles: true }));
         resolve();
         return;
       }
-      
-      // Step 1: Simulate a single keystroke to trigger React's state update.
-      // This ensures React's internal state stays in sync with the DOM value.
-      // (In older builds this also made the Continue button appear; the new
-      //  placeholder UI always shows Next/Start, but the two-step fill
-      //  remains necessary for React's controlled-input change detection.)
-      const firstChar = text.charAt(0) || ' ';
+
+      const firstChar = value.charAt(0) || ' ';
       nativeSetter.call(input, firstChar);
       input.dispatchEvent(new InputEvent('input', {
         bubbles: true,
         cancelable: true,
         inputType: 'insertText',
-        data: firstChar
+        data: firstChar,
       }));
-      
-      // Step 2: Brief pause for React to process the state change
+
       setTimeout(() => {
-        // Now set the full text instantly using the native setter
-        nativeSetter.call(input, text);
+        nativeSetter.call(input, value);
         input.dispatchEvent(new InputEvent('input', {
           bubbles: true,
           cancelable: true,
           inputType: 'insertText',
-          data: text
+          data: value,
         }));
         input.dispatchEvent(new Event('change', { bubbles: true }));
         resolve();
@@ -1041,33 +1021,19 @@ class CharacterPresetFeature {
   }
 
   // ============================================
-  // API FOR POPUP
-  // ============================================
-
-  async getAllPresets() {
-    await this.loadPresets();
-    return this.presets;
-  }
-
-  async getPresetById(id) {
-    await this.loadPresets();
-    return this.presets.find(p => p.id === id) || null;
-  }
-
-  // ============================================
   // UTILITIES
   // ============================================
 
   escapeHtml(text) {
     const div = document.createElement('div');
-    div.textContent = text;
+    div.textContent = String(text ?? '');
     return div.innerHTML;
   }
 
   truncate(text, maxLength) {
-    if (!text) return '';
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
+    const value = String(text || '');
+    if (value.length <= maxLength) return value;
+    return value.slice(0, Math.max(0, maxLength - 24)) + '\n[truncated for length]';
   }
 
   showToast(message, type = 'info') {
@@ -1079,9 +1045,7 @@ class CharacterPresetFeature {
     toast.textContent = message;
     document.body.appendChild(toast);
 
-    requestAnimationFrame(() => {
-      toast.classList.add('bd-toast-visible');
-    });
+    requestAnimationFrame(() => toast.classList.add('bd-toast-visible'));
 
     setTimeout(() => {
       toast.classList.remove('bd-toast-visible');
@@ -1090,7 +1054,6 @@ class CharacterPresetFeature {
   }
 }
 
-// Make available globally
 if (typeof window !== 'undefined') {
   window.CharacterPresetFeature = CharacterPresetFeature;
 }

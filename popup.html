@@ -1077,7 +1077,7 @@
           <div class="empty-state" id="character-empty">
             <span class="empty-icon icon-user-plus"></span>
             <p class="empty-title">No characters saved</p>
-            <p class="empty-desc">Create a character to auto-fill scenario entry fields.</p>
+            <p class="empty-desc">Create a character description to generate scenario prefill answers.</p>
           </div>
         </div>
       </div>
@@ -1195,24 +1195,8 @@
           <input type="text" class="form-input" id="character-name-input" placeholder="Enter character name">
         </div>
         <div class="form-group">
-          <div class="fields-header">
-            <label class="form-label">Saved Fields</label>
-            <span class="fields-count" id="character-fields-count"></span>
-          </div>
-          <div class="fields-search-wrapper" id="fields-search-wrapper" style="display: none;">
-            <span class="icon-search fields-search-icon"></span>
-            <input type="text" class="form-input fields-search" id="character-fields-search" placeholder="Search fields...">
-          </div>
-          <div class="fields-list" id="character-fields-list">
-            <p class="fields-empty">No fields saved yet. Fields are saved automatically when you fill in scenario entry questions.</p>
-          </div>
-          <div class="field-add">
-            <input type="text" class="form-input" id="new-field-key" placeholder="Field name (e.g. age)">
-            <input type="text" class="form-input" id="new-field-value" placeholder="Value (e.g. 25)">
-            <button class="btn btn-icon btn-primary" id="add-field-btn" aria-label="Add field" title="Add field">
-              <span class="icon-plus"></span>
-            </button>
-          </div>
+          <label class="form-label">Character Description</label>
+          <textarea class="form-textarea character-description-textarea" id="character-description-input" placeholder="Describe the character in natural language. Include identity, appearance, personality, background, role, abilities, gear, relationships, or anything else Gemini should know."></textarea>
         </div>
       </div>
       <div class="modal-footer">

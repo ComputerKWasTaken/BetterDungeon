@@ -2220,40 +2220,61 @@ function initCharacters() {
   loadCharacters();
   
   document.getElementById('create-character-btn')?.addEventListener('click', async () => {
-    const name = await showDialog({
-      title: 'New Character',
-      message: 'Enter a name for the new character:',
-      confirmText: 'Create',
-      inputPlaceholder: 'Character name'
-    });
-    if (!name) return;
-    
-    createCharacter(name);
+    openCharacterModal(createBlankCharacter(), true);
   });
 }
 
 async function loadCharacters() {
-  // Read from local storage (content script writes here after sync→local migration)
+  chrome.storage.sync.remove(STORAGE_KEYS.characters);
   chrome.storage.local.get(STORAGE_KEYS.characters, (localResult) => {
-    const localChars = (localResult || {})[STORAGE_KEYS.characters];
-
-    if (localChars && localChars.length > 0) {
-      renderCharacters(localChars);
-      return;
+    const raw = Array.isArray((localResult || {})[STORAGE_KEYS.characters])
+      ? (localResult || {})[STORAGE_KEYS.characters]
+      : [];
+    const characters = normalizeCharacterList(raw);
+    if (characters.length !== raw.length) {
+      chrome.storage.local.set({ [STORAGE_KEYS.characters]: characters });
+      chrome.storage.sync.remove(STORAGE_KEYS.characters);
     }
-
-    // One-time migration: pull legacy characters from sync storage
-    chrome.storage.sync.get(STORAGE_KEYS.characters, (syncResult) => {
-      const syncChars = (syncResult || {})[STORAGE_KEYS.characters] || [];
-      if (syncChars.length > 0) {
-        chrome.storage.local.set({ [STORAGE_KEYS.characters]: syncChars }, () => {
-          chrome.storage.sync.remove(STORAGE_KEYS.characters);
-          log('[Popup] Migrated characters from sync to local storage');
-        });
-      }
-      renderCharacters(syncChars);
-    });
+    renderCharacters(characters);
   });
+}
+
+function createCharacterId() {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2, 6);
+}
+
+function createBlankCharacter() {
+  const now = Date.now();
+  return {
+    schemaVersion: 2,
+    id: createCharacterId(),
+    name: '',
+    description: '',
+    createdAt: now,
+    updatedAt: now,
+    _isNew: true
+  };
+}
+
+function normalizeCharacterList(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(char => (
+      char &&
+      char.schemaVersion === 2 &&
+      typeof char.id === 'string' &&
+      typeof char.name === 'string' &&
+      typeof char.description === 'string' &&
+      !char.fields
+    ))
+    .map(char => ({
+      schemaVersion: 2,
+      id: char.id,
+      name: char.name.trim() || 'Unnamed Character',
+      description: char.description || '',
+      createdAt: Number(char.createdAt) || Date.now(),
+      updatedAt: Number(char.updatedAt) || Date.now()
+    }));
 }
 
 function renderCharacters(characters) {
@@ -2280,13 +2301,15 @@ function createCharacterCard(character) {
   const card = document.createElement('div');
   card.className = 'character-card';
   
-  const fieldCount = Object.keys(character.fields || {}).length;
+  const preview = character.description?.trim()
+    ? character.description.trim()
+    : 'No description yet';
 
   card.innerHTML = `
-    <div>
+    <div class="character-card-main">
       <h4 class="character-name">${escapeHtml(character.name)}</h4>
       <div class="character-meta">
-        <span class="character-field-count">${fieldCount} field${fieldCount !== 1 ? 's' : ''}</span>
+        <span class="character-description-preview">${escapeHtml(preview)}</span>
       </div>
     </div>
     <button class="character-edit-btn" aria-label="Edit">
@@ -2303,14 +2326,16 @@ function createCharacterCard(character) {
 
 function createCharacter(name) {
   chrome.storage.local.get(STORAGE_KEYS.characters, (result) => {
-    const characters = (result || {})[STORAGE_KEYS.characters] || [];
+    const characters = normalizeCharacterList((result || {})[STORAGE_KEYS.characters] || []);
+    const now = Date.now();
     
     const newChar = {
-      id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
+      schemaVersion: 2,
+      id: createCharacterId(),
       name,
-      fields: {},
-      createdAt: Date.now(),
-      updatedAt: Date.now()
+      description: '',
+      createdAt: now,
+      updatedAt: now
     };
     
     characters.unshift(newChar);
@@ -2322,172 +2347,65 @@ function createCharacter(name) {
   });
 }
 
-function openCharacterModal(character) {
-  currentEditingCharacter = character;
+function openCharacterModal(character, isNew = false) {
+  currentEditingCharacter = { ...character, _isNew: isNew };
   
-  document.getElementById('character-name-input').value = character.name;
-  
-  // Reset search state
-  const searchWrapper = document.getElementById('fields-search-wrapper');
-  const searchInput = document.getElementById('character-fields-search');
-  if (searchInput) searchInput.value = '';
-  
-  renderCharacterFields(character.fields || {});
-  setupFieldSearch();
+  const title = document.getElementById('character-modal-title');
+  const nameInput = document.getElementById('character-name-input');
+  const descriptionInput = document.getElementById('character-description-input');
+  const deleteBtn = document.getElementById('character-delete-btn');
+
+  if (title) title.textContent = isNew ? 'New Character' : 'Edit Character';
+  if (nameInput) nameInput.value = character.name || '';
+  if (descriptionInput) descriptionInput.value = character.description || '';
+  if (deleteBtn) deleteBtn.style.display = isNew ? 'none' : '';
   
   openModal('character-modal');
-}
-
-// Humanize a normalized field key for display (e.g. "whats_your_age" -> "Whats Your Age")
-function humanizeFieldKey(key) {
-  if (!key) return '';
-  return key
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, c => c.toUpperCase());
-}
-
-// Setup search/filter for character fields
-function setupFieldSearch() {
-  const searchInput = document.getElementById('character-fields-search');
-  if (!searchInput) return;
-  
-  // Remove old listeners by cloning
-  const newSearch = searchInput.cloneNode(true);
-  searchInput.parentNode.replaceChild(newSearch, searchInput);
-  
-  newSearch.addEventListener('input', () => {
-    const query = newSearch.value.toLowerCase().trim();
-    const items = document.querySelectorAll('#character-fields-list .field-item');
-    
-    items.forEach(item => {
-      const key = (item.dataset.key || '').toLowerCase();
-      const value = (item.querySelector('.field-value')?.value || '').toLowerCase();
-      const matches = !query || key.includes(query) || value.includes(query);
-      item.classList.toggle('field-item-hidden', !matches);
-    });
-  });
-}
-
-function renderCharacterFields(fields) {
-  const container = document.getElementById('character-fields-list');
-  const countEl = document.getElementById('character-fields-count');
-  const searchWrapper = document.getElementById('fields-search-wrapper');
-  if (!container) return;
-
-  const entries = Object.entries(fields);
-  
-  // Update field count badge
-  if (countEl) {
-    countEl.textContent = entries.length > 0 ? `${entries.length} field${entries.length !== 1 ? 's' : ''}` : '';
-  }
-  
-  // Show search bar only when there are enough fields to warrant it
-  if (searchWrapper) {
-    searchWrapper.style.display = entries.length >= 4 ? 'block' : 'none';
-  }
-  
-  if (entries.length === 0) {
-    container.innerHTML = '<p class="fields-empty">No fields saved yet. Fields are saved automatically when you fill in scenario entry questions.</p>';
-    return;
-  }
-
-  // Sort alphabetically by key
-  const sorted = entries.sort((a, b) => a[0].localeCompare(b[0]));
-
-  container.innerHTML = sorted.map(([key, value]) => {
-    const displayKey = humanizeFieldKey(key);
-    // Show raw key only if it differs meaningfully from the display key
-    const showRaw = displayKey.toLowerCase().replace(/\s/g, '') !== key.replace(/_/g, '');
-    return `
-      <div class="field-item" data-key="${escapeHtml(key)}">
-        <div class="field-item-header">
-          <span class="field-key">
-            ${escapeHtml(displayKey)}${showRaw ? `<span class="field-key-raw">${escapeHtml(key)}</span>` : ''}
-          </span>
-          <button class="field-delete" data-key="${escapeHtml(key)}" title="Delete field">×</button>
-        </div>
-        <textarea class="field-value" data-key="${escapeHtml(key)}" rows="1">${escapeHtml(value)}</textarea>
-      </div>
-    `;
-  }).join('');
-
-  // Auto-resize textareas to fit content
-  container.querySelectorAll('.field-value').forEach(textarea => {
-    autoResizeTextarea(textarea);
-    textarea.addEventListener('input', () => autoResizeTextarea(textarea));
-  });
-
-  // Delete handlers
-  container.querySelectorAll('.field-delete').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const key = btn.dataset.key;
-      delete currentEditingCharacter.fields[key];
-      renderCharacterFields(currentEditingCharacter.fields);
-    });
-  });
-}
-
-// Auto-resize a textarea to fit its content (up to max-height set in CSS)
-function autoResizeTextarea(textarea) {
-  textarea.style.height = 'auto';
-  textarea.style.height = Math.min(textarea.scrollHeight, 100) + 'px';
-}
-
-function addCharacterField() {
-  if (!currentEditingCharacter) return;
-
-  const keyInput = document.getElementById('new-field-key');
-  const valueInput = document.getElementById('new-field-value');
-  
-  const key = keyInput.value.trim().toLowerCase().replace(/\s+/g, '_');
-  const value = valueInput.value.trim();
-
-  if (!key) {
-    keyInput.focus();
-    return;
-  }
-
-  currentEditingCharacter.fields[key] = value;
-  renderCharacterFields(currentEditingCharacter.fields);
-  
-  keyInput.value = '';
-  valueInput.value = '';
-  keyInput.focus();
 }
 
 function saveCharacterChanges() {
   if (!currentEditingCharacter) return;
 
   const nameInput = document.getElementById('character-name-input');
-  currentEditingCharacter.name = nameInput.value.trim() || currentEditingCharacter.name;
+  const descriptionInput = document.getElementById('character-description-input');
+  const name = nameInput?.value?.trim() || '';
+  const description = descriptionInput?.value?.trim() || '';
 
-  // Update field values from textareas
-  document.querySelectorAll('#character-fields-list .field-value').forEach(textarea => {
-    const key = textarea.dataset.key;
-    if (key && currentEditingCharacter.fields.hasOwnProperty(key)) {
-      currentEditingCharacter.fields[key] = textarea.value;
-    }
-  });
+  if (!name) {
+    nameInput?.focus();
+    showToast('Character name is required', 'error');
+    return;
+  }
 
-  currentEditingCharacter.updatedAt = Date.now();
+  const savedCharacter = {
+    schemaVersion: 2,
+    id: currentEditingCharacter.id || createCharacterId(),
+    name,
+    description,
+    createdAt: Number(currentEditingCharacter.createdAt) || Date.now(),
+    updatedAt: Date.now()
+  };
 
   chrome.storage.local.get(STORAGE_KEYS.characters, (result) => {
-    const characters = (result || {})[STORAGE_KEYS.characters] || [];
-    const index = characters.findIndex(c => c.id === currentEditingCharacter.id);
+    const characters = normalizeCharacterList((result || {})[STORAGE_KEYS.characters] || []);
+    const index = characters.findIndex(c => c.id === savedCharacter.id);
     
     if (index !== -1) {
-      characters[index] = currentEditingCharacter;
-      chrome.storage.local.set({ [STORAGE_KEYS.characters]: characters }, () => {
-        loadCharacters();
-        showToast('Character updated', 'success');
-        closeModal('character-modal');
-      });
+      characters[index] = savedCharacter;
+    } else {
+      characters.unshift(savedCharacter);
     }
+
+    chrome.storage.local.set({ [STORAGE_KEYS.characters]: characters }, () => {
+      loadCharacters();
+      showToast(currentEditingCharacter._isNew ? 'Character created' : 'Character updated', 'success');
+      closeModal('character-modal');
+    });
   });
 }
 
 async function deleteCharacter() {
-  if (!currentEditingCharacter) return;
+  if (!currentEditingCharacter || currentEditingCharacter._isNew) return;
   const confirmed = await showDialog({
     title: 'Delete Character',
     message: `Delete "${currentEditingCharacter.name}"? This cannot be undone.`,
@@ -2497,7 +2415,7 @@ async function deleteCharacter() {
   if (!confirmed) return;
 
   chrome.storage.local.get(STORAGE_KEYS.characters, (result) => {
-    const characters = ((result || {})[STORAGE_KEYS.characters] || [])
+    const characters = normalizeCharacterList((result || {})[STORAGE_KEYS.characters] || [])
       .filter(c => c.id !== currentEditingCharacter.id);
     
     chrome.storage.local.set({ [STORAGE_KEYS.characters]: characters }, () => {
@@ -2542,11 +2460,6 @@ function initModals() {
   // Character modal
   document.getElementById('character-modal-save')?.addEventListener('click', saveCharacterChanges);
   document.getElementById('character-delete-btn')?.addEventListener('click', deleteCharacter);
-  document.getElementById('add-field-btn')?.addEventListener('click', addCharacterField);
-  
-  document.getElementById('new-field-value')?.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') addCharacterField();
-  });
 }
 
 function openModal(id) {

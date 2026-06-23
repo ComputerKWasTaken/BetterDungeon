@@ -54,6 +54,54 @@
         }
       }`,
 
+      scenarioStart: `query BetterDungeonScenarioStartViewGetScenario($shortId: String, $viewPublished: Boolean) {
+        scenario(shortId: $shortId, viewPublished: $viewPublished) {
+          id
+          type
+          shortId
+          title
+          description
+          advancedDescription
+          image
+          parentScenario {
+            id
+            __typename
+          }
+          deletedAt
+          editedAt
+          publishedUpdatedAt
+          state(viewPublished: $viewPublished) {
+            prompt
+            plotEssentials
+            authorsNote
+            instructions
+            storySummary
+            __typename
+          }
+          options(viewPublished: $viewPublished) {
+            id
+            shortId
+            title
+            parentScenarioId
+            deletedAt
+            __typename
+          }
+          storyCards(viewPublished: $viewPublished) {
+            id
+            type
+            keys
+            value
+            title
+            useForCharacterCreation
+            description
+            updatedAt
+            deletedAt
+            __typename
+          }
+          __typename
+        }
+      }`,
+
       aiVisibleVersions: `query GetBetterDungeonAiVisibleVersions {
         aiVisibleVersions {
           success
@@ -236,6 +284,33 @@
     getShortIdFromUrl() {
       const match = window.location.pathname.match(/\/(?:adventure|adventures|play)\/([^/]+)/);
       return match ? match[1] : null;
+    }
+
+    getScenarioShortIdFromUrl() {
+      const match = window.location.pathname.match(/\/scenario\/([^/]+)/);
+      return match ? match[1] : null;
+    }
+
+    async getScenarioStart(shortId = null, options = {}) {
+      const resolvedShortId = shortId || this.getScenarioShortIdFromUrl();
+      if (!resolvedShortId) {
+        throw new Error('Scenario shortId is unknown. Open a scenario start page first.');
+      }
+
+      const result = await this.request(
+        'BetterDungeonScenarioStartViewGetScenario',
+        {
+          shortId: resolvedShortId,
+          viewPublished: options.viewPublished !== false,
+        },
+        BetterDungeonGQLService.QUERIES.scenarioStart,
+        options
+      );
+      const scenario = result?.data?.scenario;
+      if (!scenario?.id) {
+        throw new Error(`Scenario lookup returned no data for ${resolvedShortId}.`);
+      }
+      return scenario;
     }
 
     isNumericId(value) {
