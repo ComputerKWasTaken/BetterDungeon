@@ -116,6 +116,11 @@ Click each widget and verify events:
 - **Confirm** → first click arms (`action: none, UI changes`), second click → `action: "confirm"`, `value: true`
 - **Chipselect** → `action: "change"`, value is an array of selected IDs
 
+The suite applies stateful interactive event values back into `state.widgetTest.overrides`
+before acking them. After the next turn, toggles, selects, sliders, inputs,
+radio, stepper, chipselect, accordion, tabs, dropdown, and sortable should keep
+the player's selected value instead of snapping back to the default.
+
 ### Invalid widget configs
 ```
 /widget invalid

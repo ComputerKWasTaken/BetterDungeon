@@ -441,6 +441,33 @@ function widPublishState() {
 
 // ---------- inbox poller ----------
 
+function widEventShouldUpdateValue(event) {
+  if (!event || event.value === undefined) return false;
+  switch (event.widgetType) {
+    case 'toggle':
+    case 'select':
+    case 'slider':
+    case 'input':
+    case 'textarea':
+    case 'radio':
+    case 'stepper':
+    case 'chipselect':
+    case 'accordion':
+    case 'tabs':
+    case 'dropdown':
+    case 'sortable':
+      return true;
+  }
+  return false;
+}
+
+function widApplyInteractiveEventValue(event) {
+  if (!widEventShouldUpdateValue(event)) return;
+  var s = state.widgetTest;
+  s.overrides = s.overrides || {};
+  s.overrides[event.widgetId] = event.value;
+}
+
 function widPollInbox() {
   var s = state.widgetTest;
   var card = widReadJson('ultrascripts:in:widget');
@@ -459,6 +486,9 @@ function widPollInbox() {
   }
 
   if (newEvents.length) {
+    for (var j = 0; j < newEvents.length; j++) {
+      widApplyInteractiveEventValue(newEvents[j]);
+    }
     s.lastSeqSeen = Math.max.apply(null, newEvents.map(function (e) { return Number(e.seq || 0); }).concat([s.lastSeqSeen]));
     s.observedEvents = s.observedEvents.concat(newEvents.map(function (e) {
       return {

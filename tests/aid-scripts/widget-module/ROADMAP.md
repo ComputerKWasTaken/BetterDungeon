@@ -87,6 +87,7 @@ Do not start these before V2 unless a showcase script proves a hard need:
 
 | Date | Changes |
 |---|---|
+| 2026-06-23 | Added interactive accepted-value bridge, improved the local minimize control, and added suite-side stateful event persistence. |
 | 2026-06-23 | Tightened validation for duplicate IDs and malformed item/option arrays; added keyboard/focus/ARIA polish for custom interactive controls; expanded `/widget invalid` coverage. |
 | 2026-06-16 | Removed manual layout controls from the V2 roadmap; refocused on automatic responsive behavior, interaction confidence, accessibility, validation, and showcase readiness. |
 | 2026-05-11 | Added panel widget test scenario; added entrance/exit animations; stripped inline script execution; updated sanitizer and docs. |

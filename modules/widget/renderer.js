@@ -8,6 +8,27 @@
   if (window.UltrascriptsWidgetRenderer) return;
 
   const validators = () => window.UltrascriptsWidgetValidators;
+  const MINIMIZED_STORAGE_KEY = 'bd.widget.minimized';
+  const ACKED_VALUE_TTL_MS = 30000;
+
+  function cloneForCompare(value) {
+    if (value === undefined || value === null) return value;
+    if (typeof value !== 'object') return value;
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch {
+      return Array.isArray(value) ? value.slice() : { ...value };
+    }
+  }
+
+  function valuesEqual(a, b) {
+    if (a === b) return true;
+    try {
+      return JSON.stringify(a) === JSON.stringify(b);
+    } catch {
+      return false;
+    }
+  }
 
   class UltrascriptsWidgetRenderer {
     constructor(options = {}) {
@@ -18,14 +39,20 @@
       // until its seq is <= ackSeq. Optional `value` carries the player's
       // optimistic change across re-renders.
       this.pendingInteractionValues = new Map();
+      // Map<widgetId, { value, previousValue, seq, expiresAt }>. Acknowledged
+      // values bridge the stale-history turn where the script has seen the
+      // interaction but its next published values have not caught up yet.
+      this.ackedInteractionValues = new Map();
       this.widgetContainer = null;
       this.widgetWrapper = null;
+      this.minimizeButton = null;
       this.widgetZones = { left: null, center: null, right: null };
       this.boundResizeHandler = null;
       this.resizeDebounceTimer = null;
       this.layoutObserver = null;
       this.gameTextMaskObserver = null;
       this.cachedLayout = null;
+      this.isMinimized = this.loadMinimizedPreference();
       this._densityRafId = null;
       this._lastLayoutLogKey = '';
       this._lastDensityLogKey = '';
@@ -56,6 +83,17 @@
       return validators().INTERACTIVE_WIDGET_TYPES?.has?.(type);
     }
 
+    readConfigValue(config) {
+      if (!config) return undefined;
+      const field = validators().getPrimitiveStateField?.(config) || 'value';
+      return config[field];
+    }
+
+    withConfigValue(config, value) {
+      const field = validators().getPrimitiveStateField?.(config) || 'value';
+      return { ...config, [field]: value };
+    }
+
     // Optimistically swap in the player's pending value so re-renders keep
     // showing their change until the AI acks. UI-only pending records (button
     // presses, dropdown picks, etc.) have no stored value, so the config
@@ -65,7 +103,40 @@
       if (!this.isInteractiveType(config.type)) return config;
       const pending = this.pendingInteractionValues.get(config.id);
       if (pending.value === undefined) return config;
-      return { ...config, value: pending.value };
+      return this.withConfigValue(config, pending.value);
+    }
+
+    applyAckedInteractionValue(config) {
+      if (!config?.id || !this.ackedInteractionValues.has(config.id)) return config;
+      if (!this.isInteractiveType(config.type)) return config;
+
+      const accepted = this.ackedInteractionValues.get(config.id);
+      const now = Date.now();
+      if (!accepted || now > Number(accepted.expiresAt || 0)) {
+        this.ackedInteractionValues.delete(config.id);
+        return config;
+      }
+
+      const sourceValue = this.readConfigValue(config);
+      if (valuesEqual(sourceValue, accepted.value)) {
+        this.ackedInteractionValues.delete(config.id);
+        return config;
+      }
+
+      const sourceStillStale = accepted.previousValue === undefined
+        ? sourceValue === undefined
+        : valuesEqual(sourceValue, accepted.previousValue);
+
+      if (!sourceStillStale) {
+        this.ackedInteractionValues.delete(config.id);
+        return config;
+      }
+
+      return this.withConfigValue(config, accepted.value);
+    }
+
+    applyInteractionValue(config) {
+      return this.applyPendingInteractionValue(this.applyAckedInteractionValue(config));
     }
 
     // Clear pending state for any interactions the AI has now acknowledged.
@@ -73,8 +144,17 @@
     ackInteractions(ackSeq) {
       const n = Number(ackSeq || 0);
       if (!Number.isFinite(n)) return;
+      const now = Date.now();
       for (const [widgetId, pending] of [...this.pendingInteractionValues.entries()]) {
         if (Number(pending.seq || 0) <= n) {
+          if (pending.value !== undefined) {
+            this.ackedInteractionValues.set(widgetId, {
+              value: cloneForCompare(pending.value),
+              previousValue: cloneForCompare(pending.previousValue),
+              seq: Number(pending.seq || 0),
+              expiresAt: now + ACKED_VALUE_TTL_MS,
+            });
+          }
           this.pendingInteractionValues.delete(widgetId);
           const data = this.registeredWidgets.get(widgetId);
           if (data?.element && data.element.dataset.state === 'pending') {
@@ -82,22 +162,26 @@
           }
         }
       }
+      this.updateMinimizeButton();
     }
 
     // Mark a widget as pending. Optionally remembers an optimistic value so
     // re-renders keep showing the player's change until the AI acks. Without
     // a value (fire-and-forget interactions like button presses), the pulse
     // still appears but no value override is stored.
-    setPending(widgetId, record, value) {
+    setPending(widgetId, record, value, previousValue) {
       if (!widgetId || !record?.seq) return;
       const seq = Number(record.seq);
       const existing = this.pendingInteractionValues.get(widgetId);
       this.pendingInteractionValues.set(widgetId, {
-        value: value !== undefined ? value : existing?.value,
+        value: value !== undefined ? cloneForCompare(value) : existing?.value,
+        previousValue: previousValue !== undefined ? cloneForCompare(previousValue) : existing?.previousValue,
         seq: Math.max(seq, Number(existing?.seq || 0)),
       });
+      if (value !== undefined) this.ackedInteractionValues.delete(widgetId);
       const data = this.registeredWidgets.get(widgetId);
       if (data?.element) data.element.dataset.state = 'pending';
+      this.updateMinimizeButton();
     }
 
     emitInteraction(config, action, value, previousValue, extra = {}) {
@@ -125,7 +209,7 @@
       // value to persist visually across re-renders pass it via
       // extra.optimisticValue. Opt out entirely with extra.skipPending.
       if (record && !extra.skipPending && this.isInteractiveType(widgetType)) {
-        this.setPending(config.id, record, extra.optimisticValue);
+        this.setPending(config.id, record, extra.optimisticValue, previousValue);
       }
 
       return record;
@@ -154,6 +238,78 @@
       const menu = widget.querySelector('.bd-widget-dropdown-menu');
       if (trigger) trigger.setAttribute('aria-expanded', String(isOpen));
       if (menu) menu.hidden = !isOpen;
+    }
+
+    loadMinimizedPreference() {
+      try {
+        return window.localStorage?.getItem(MINIMIZED_STORAGE_KEY) === '1';
+      } catch {
+        return false;
+      }
+    }
+
+    saveMinimizedPreference() {
+      try {
+        window.localStorage?.setItem(MINIMIZED_STORAGE_KEY, this.isMinimized ? '1' : '0');
+      } catch { /* storage may be unavailable in hardened contexts */ }
+    }
+
+    setMinimized(minimized) {
+      this.isMinimized = !!minimized;
+      this.saveMinimizedPreference();
+      this.syncWrapperState();
+      this.recalculateWidgetDensity();
+    }
+
+    updateMinimizeButton() {
+      if (!this.minimizeButton) return;
+      const minimized = !!this.isMinimized;
+      const widgetCount = this.registeredWidgets.size;
+      const pendingCount = [...this.pendingInteractionValues.keys()]
+        .filter(widgetId => this.registeredWidgets.has(widgetId))
+        .length;
+      const countLabel = widgetCount === 1 ? '1 widget' : `${widgetCount} widgets`;
+      const pendingLabel = pendingCount === 1 ? '1 pending' : `${pendingCount} pending`;
+      const actionLabel = minimized ? 'Show widgets' : 'Hide widgets';
+
+      this.minimizeButton.dataset.pending = String(pendingCount > 0);
+      this.minimizeButton.dataset.widgetCount = String(widgetCount);
+      this.minimizeButton.dataset.pendingCount = String(pendingCount);
+      this.minimizeButton.replaceChildren();
+
+      const text = document.createElement('span');
+      text.className = 'bd-widget-minimize-text';
+      text.textContent = minimized ? 'Show widgets' : 'Hide widgets';
+
+      const count = document.createElement('span');
+      count.className = 'bd-widget-minimize-count';
+      count.textContent = String(widgetCount);
+
+      const icon = document.createElement('span');
+      icon.className = 'bd-widget-minimize-icon';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.textContent = minimized ? '+' : '−';
+
+      this.minimizeButton.appendChild(text);
+      this.minimizeButton.appendChild(count);
+      if (pendingCount > 0) {
+        const pending = document.createElement('span');
+        pending.className = 'bd-widget-minimize-pending';
+        pending.textContent = String(pendingCount);
+        this.minimizeButton.appendChild(pending);
+      }
+      this.minimizeButton.appendChild(icon);
+
+      const pendingSuffix = pendingCount > 0 ? `, ${pendingLabel}` : '';
+      this.minimizeButton.title = `${actionLabel} (${countLabel}${pendingSuffix})`;
+      this.minimizeButton.setAttribute('aria-label', `${actionLabel} (${countLabel}${pendingSuffix})`);
+      this.minimizeButton.setAttribute('aria-expanded', String(!minimized));
+    }
+
+    syncWrapperState() {
+      if (!this.widgetWrapper) return;
+      this.widgetWrapper.dataset.minimized = String(!!this.isMinimized);
+      this.updateMinimizeButton();
     }
 
     activateTab(root, itemId) {
@@ -197,7 +353,7 @@
         return;
       }
 
-      const renderWidgets = widgets.map(config => this.applyPendingInteractionValue(config));
+      const renderWidgets = widgets.map(config => this.applyInteractionValue(config));
       const desiredIds = new Set();
       for (const config of renderWidgets) {
         desiredIds.add(config.id);
@@ -214,6 +370,7 @@
       }
 
       this.reorderWidgets(renderWidgets);
+      this.syncWrapperState();
       this.recalculateWidgetDensity();
     }
 
@@ -253,6 +410,20 @@
         flexDirection: 'column',
       });
 
+      const controls = document.createElement('div');
+      controls.className = 'bd-widget-module-controls';
+
+      const minimizeButton = document.createElement('button');
+      minimizeButton.type = 'button';
+      minimizeButton.className = 'bd-widget-minimize-toggle';
+      minimizeButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.setMinimized(!this.isMinimized);
+      });
+      controls.appendChild(minimizeButton);
+      this.minimizeButton = minimizeButton;
+
       this.widgetContainer = document.createElement('div');
       this.widgetContainer.className = 'bd-betterscripts-container bd-widget-module-container';
       this.widgetContainer.id = 'bd-betterscripts-top';
@@ -271,9 +442,11 @@
       this.widgetContainer.appendChild(rightZone);
       this.widgetZones = { left: leftZone, center: centerZone, right: rightZone };
 
+      wrapper.appendChild(controls);
       wrapper.appendChild(this.widgetContainer);
       document.body.appendChild(wrapper);
       this.widgetWrapper = wrapper;
+      this.syncWrapperState();
 
       this.updateContainerPosition();
       this.setupLayoutMonitoring();
@@ -454,6 +627,7 @@
         this.boundResizeHandler = () => {
           if (this.resizeDebounceTimer) clearTimeout(this.resizeDebounceTimer);
           this.resizeDebounceTimer = setTimeout(() => {
+            this.syncWrapperState();
             this.updateContainerPosition();
             this.recalculateWidgetDensity();
           }, 50);
@@ -498,6 +672,7 @@
         this.widgetWrapper.remove();
         this.widgetWrapper = null;
       }
+      this.minimizeButton = null;
 
       this.widgetContainer = null;
       this.widgetZones = { left: null, center: null, right: null };
@@ -1668,8 +1843,10 @@
         if (!el.parentNode) return;
         this.registeredWidgets.delete(widgetId);
         this.pendingInteractionValues.delete(widgetId);
+        this.ackedInteractionValues.delete(widgetId);
         el.remove();
         this.emitWidget('destroyed', widgetId);
+        this.syncWrapperState();
         if (this.registeredWidgets.size === 0) this.removeWidgetContainer();
         else this.recalculateWidgetDensity();
       };
@@ -1690,6 +1867,7 @@
         });
         this.registeredWidgets.clear();
         this.pendingInteractionValues.clear();
+        this.ackedInteractionValues.clear();
         this._warnedMessages.clear();
         this.removeWidgetContainer();
         this.log('All widgets cleared');
@@ -2152,7 +2330,13 @@
         widget.querySelectorAll('.bd-widget-accordion-section').forEach(s => this.setAccordionSectionOpen(s, false));
         if (!wasOpen) this.setAccordionSectionOpen(section, true);
         const newOpen = !wasOpen ? (item.id ?? index) : null;
-        this.emitInteraction(currentConfig || { id: widgetId, type: 'accordion' }, 'change', newOpen, currentConfig?.value);
+        this.emitInteraction(
+          currentConfig || { id: widgetId, type: 'accordion' },
+          'change',
+          newOpen,
+          currentConfig?.value,
+          { optimisticValue: newOpen },
+        );
       });
 
       const panel = document.createElement('div');
