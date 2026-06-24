@@ -12,7 +12,6 @@ var bd = globalThis.bd;
 
 globalThis.UltrascriptsRequiredTemplate = function UltrascriptsRequiredTemplate(hook, inputText) {
   var text = inputText;
-  var stop = false;
 
   var CONFIG = {
     commandPrefix: ':us-required',
@@ -39,7 +38,6 @@ globalThis.UltrascriptsRequiredTemplate = function UltrascriptsRequiredTemplate(
     if (command) {
       var handled = handleTemplateCommand(command, us, templateState);
       text = handled.text;
-      stop = handled.stop;
       us.commit();
       return { text: text };
     }
@@ -69,9 +67,10 @@ globalThis.UltrascriptsRequiredTemplate = function UltrascriptsRequiredTemplate(
     CONFIG.requestSdkConfig &&
     runtimeOnline &&
     us.has('sdk', 'config') &&
-    !templateState.requestedSdkConfig
+    !cfg &&
+    templateState.lastSdkConfigRequestLiveCount !== us.liveCount()
   ) {
-    templateState.requestedSdkConfig = true;
+    templateState.lastSdkConfigRequestLiveCount = us.liveCount();
     us.call('sdk', 'config');
   }
 
@@ -140,7 +139,11 @@ function createUltrascriptsSdk() {
   }
 
   function cardText(card) {
-    return card ? (card.value || card.entry || card.description || '') : '';
+    if (!card) return '';
+    if (card.value !== undefined && card.value !== null) return card.value;
+    if (card.entry !== undefined && card.entry !== null) return card.entry;
+    if (card.description !== undefined && card.description !== null) return card.description;
+    return '';
   }
 
   function upsertCard(title, value) {
@@ -149,12 +152,13 @@ function createUltrascriptsSdk() {
       var card = storyCards[index];
       if (typeof updateStoryCard === 'function') {
         updateStoryCard(index, card.keys || card.key || card.title || title, value, card.type || 'Ultrascripts');
-      } else {
-        card.value = value;
-        card.entry = value;
+      } else if (typeof log === 'function') {
+        log('Ultrascripts required template could not update story card: updateStoryCard is unavailable.');
       }
     } else if (typeof addStoryCard === 'function') {
       addStoryCard(title, value, 'Ultrascripts');
+    } else if (typeof log === 'function') {
+      log('Ultrascripts required template could not add story card: addStoryCard is unavailable.');
     }
   }
 
@@ -349,6 +353,7 @@ function createUltrascriptsSdk() {
       Number(store.widget.interactions.ackSeq || 0),
       Number(seq || 0)
     );
+    upsertCard('ultrascripts:state:widget', JSON.stringify(store.widget));
   }
 
   function commit() {
@@ -402,16 +407,16 @@ function handleTemplateCommand(command, us, templateState) {
     state.ultrascriptsRequiredTemplate = {};
     state.__ultrascriptsRequiredSdk = {};
     state.message = 'Ultrascripts required template state reset.';
-    return { text: 'I pause for a moment while the required scenario state resets.', stop: false };
+    return { text: 'I pause for a moment while the required scenario state resets.' };
   }
 
   if (command.name === 'status') {
     state.message = buildStatusLine(us, us.latest('sdk', 'config'), us.latest('clock', 'now'));
-    return { text: 'I check the required scenario status.', stop: false };
+    return { text: 'I check the required scenario status.' };
   }
 
   state.message = 'Unknown required template command. Try :us-required status or :us-required reset.';
-  return { text: 'I try an unknown required scenario command.', stop: false };
+  return { text: 'I try an unknown required scenario command.' };
 }
 
 function getMissingRequiredCapabilities(us, requiredCapabilities) {
