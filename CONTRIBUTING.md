@@ -32,35 +32,47 @@ Developer documentation for contributors and maintainers.
 
 ```
 BetterDungeon/
-├── manifest.json           # Extension configuration
-├── main.js                 # Core orchestrator - manages feature lifecycle
-├── core/                   # Core system components
+├── manifest.json           # Extension configuration and metadata
+├── main.js                 # Core content script orchestrator: manages feature lifecycle
+├── background.js           # Extension background worker: handles API keys, dynamic routing, and cross-contexts
+├── popup.html/js/css       # Extension popup user interface and settings coordinator
+├── styles.css              # Main injected styling rules for content script features
+├── core/                   # Core system engines
 │   ├── feature-manager.js  # Feature registration and lifecycle management
-│   └── theme-variables.css # Design system variables
-├── services/               # External service integrations
-│   ├── ai-dungeon-service.js   # AI Dungeon specific operations
-│   ├── loading-screen.js       # Loading screen management
-│   ├── story-card-scanner.js   # Story card scanning
-│   └── tutorial-service.js     # Tutorial management
-├── utils/                  # Utility functions
-│   ├── browser-polyfill.js     # Browser API polyfill for Firefox compatibility
-│   ├── dom.js                  # DOM manipulation helpers
-│   └── storage.js              # Chrome storage abstraction
-├── features/               # Self-contained feature modules
-├── styles.css              # CSS for all features
-├── popup.html/js/css       # Extension popup interface
-└── icons/                  # Extension icons (16, 32, 48, 128px)
+│   └── theme-variables.css # Design system variables and color tokens
+├── services/               # Internal services and backend integrations
+│   ├── ai-dungeon-service.js # Native AI Dungeon interaction APIs
+│   ├── custom-dynamic-router.js # Background network dynamic router
+│   ├── graphql-service.js  # GraphQL query and mutation helper backend
+│   ├── loading-screen.js   # Loading screen state UI overlays
+│   ├── story-card-cache.js # Local caching of story card data
+│   ├── story-card-scanner.js # Scrapes and indexes adventure cards via GraphQL
+│   ├── tutorial-service.js # Tutorial walkthrough coordinator
+│   └── ultrascripts/       # Communication bridge between scenario scripts and extension
+├── modules/                # Permission-gated script modules loaded by Ultrascripts (ai, widget, clock, etc.)
+├── features/               # Modular, self-contained feature scripts (markdown, try mode, etc.)
+├── utils/                  # Shared utility functions and storage interfaces
+│   ├── browser-polyfill.js # Browser API polyfill for Firefox compatibility
+│   ├── dom.js              # DOM selection and mutation wrappers
+│   ├── markdown-config.js  # Markdown presets and configurations
+│   └── storage.js          # Storage interfaces (sync and local)
+├── fonts/                  # Embedded local typography and icons (IBM Plex Sans, Roboto Mono, Lucide)
+├── icons/                  # Extension icons for Chrome and Firefox store listings
+├── examples/               # Example configurations, templates, and HUD guides
+├── tests/                  # Integration and verification test suites for Ultrascripts
+└── scripts/                # Developer automation scripts (empty)
 ```
 
 ### Architecture Patterns
 
-BetterDungeon uses a modular, service-oriented architecture. Each feature is self-contained and independently managed.
+BetterDungeon uses a modular, service-oriented architecture. I divide responsibilities between central orchestration, permission-gated script modules, and feature plugins:
 
-- **main.js** - Core orchestrator that initializes the system and handles message passing from the popup
-- **core/feature-manager.js** - Manages feature registration, lifecycle, and storage-based enable/disable
-- **services/** - Handles AI Dungeon-specific operations like instruction application
-- **utils/** - Shared utility functions for DOM manipulation and Chrome storage abstraction
-- **features/** - Self-contained modules that manage their own DOM observation, state, and cleanup
+- **main.js**: Core orchestrator that initializes content script features and passes runtime messages.
+- **background.js**: Extension background service worker managing cross-context communication, API calls, and custom routing adapters.
+- **core/feature-manager.js**: Manages lifecycle hooks (`init`, `destroy`) for all registered features based on user configuration.
+- **services/ultrascripts/**: Coordinates the message passing, intercepting, and dispatching pipeline between running scenario scripts and the extension core.
+- **modules/**: Gated modules that execute script requests (like Weather, Clock, Geolocation, and Gemini queries) after verifying user preferences and permissions.
+- **features/**: Self-contained feature components that handle their own DOM observation, UI mutations, and state management.
 
 Each feature implements:
 - `static id` - Unique identifier (e.g., `'markdown'`, `'command'`)
@@ -72,6 +84,20 @@ Each feature implements:
 ## Version History
 
 ### Changelog
+
+### v2.0.0
+- **Ultrascripts Subsystem:** Introduced the next-generation two-way extension-to-script communication bridge, replacing BetterScripts entirely.
+  - Added modules: `ai` (Gemini API queries), `widget` (UI elements, buttons, mobile layouts), `webfetch` (consent-gated HTTP GET requests), `clock` (real-world time and offsets), `sdk` (extension metadata queries), `geolocation` (location context), `weather` (weather forecast queries), `network` (connection details), and `system` (device context details).
+- **Mobile Support (Android Port):** Released the official native Android APK build.
+- **Firefox Port:** Released on the official Firefox Browser Add-ons Store.
+- **Custom Dynamic Rework:** Rebuilt to support user-configured model pools with weighted-random, round-robin, and avoid-repeats routing.
+- **Text to Speech:** Added narration features for adventure text.
+- **UI Redesign:** Reworked popups and settings panels for a sleeker look.
+- **Markdown Rework:** Rewrote the backend to prevent AI refusals and added 6 new instructions sets.
+- **Character Presets Rework:** Powered character prefill using Gemini API from the Ultrascripts AI module.
+- **Story Card Scanner Rework:** Rewrote scanner to run instantly via GraphQL, supporting 500+ cards.
+- **Story Card Analytics & Trigger Highlighting Rework:** Instant loading for dashboards and trigger overlays.
+- **Auto See Rework:** Rewrote the auto see engine using a robust GraphQL backend.
 
 ### v1.2.2
 - Fixed Story Card Dashboard button for AI Dungeon's reworked Story Card menu
