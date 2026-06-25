@@ -3264,8 +3264,9 @@ kbd.hotkey-unbound {
 }
 
 .whats-new-expandable.expanded {
-  max-height: 400px;
+  max-height: 350px;
   padding-top: 8px;
+  overflow-y: auto;
 }
 
 .whats-new-list {
