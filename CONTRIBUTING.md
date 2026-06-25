@@ -10,12 +10,13 @@ Developer documentation for contributors and maintainers.
 
 #### Prerequisites
 - Chrome, Edge, or any Chromium-based browser
+- Firefox 109+ for Firefox compatibility testing
 - Git
 - Basic knowledge of JavaScript and browser extensions
 
 ### Development Workflow
 
-#### Setup
+#### Chromium Setup
 1. Fork/clone this repository
 2. Open your browser and navigate to `chrome://extensions/`
 3. Enable "Developer mode" (top right)
@@ -23,6 +24,15 @@ Developer documentation for contributors and maintainers.
 5. Make changes to the code
 6. Click the reload icon in the extensions page to update
 7. Test on [AI Dungeon](https://aidungeon.com)
+
+#### Firefox Setup
+1. Fork/clone this repository
+2. Open Firefox and navigate to `about:debugging#/runtime/this-firefox`
+3. Click "Load Temporary Add-on..."
+4. Select `manifest.json` inside the `BetterDungeon` folder
+5. Make changes to the code
+6. Click "Reload" for the temporary add-on
+7. Test the popup and AI Dungeon content scripts on [AI Dungeon](https://aidungeon.com)
 
 ---
 
