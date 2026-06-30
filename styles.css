@@ -849,6 +849,30 @@
   animation: bd-character-ai-spin 0.8s linear infinite;
 }
 
+.bd-character-ai-close {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--bd-border-default);
+  border-radius: var(--bd-radius-md);
+  color: var(--bd-text-secondary);
+  background: var(--bd-bg-tertiary);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  transition: color var(--bd-transition-fast), background var(--bd-transition-fast), border-color var(--bd-transition-fast);
+}
+
+.bd-character-ai-close:hover {
+  color: var(--bd-text-primary);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--bd-border-accent);
+}
+
 @keyframes bd-character-ai-spin {
   to {
     transform: rotate(360deg);

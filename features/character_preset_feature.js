@@ -25,6 +25,7 @@ class CharacterPresetFeature {
     this.currentFieldKey = null;
     this.panelElement = null;
     this.manualDismissedQuestions = new Set();
+    this.sessionDismissed = false;
     this.observer = null;
     this.checkInterval = null;
     this._checkDebounceTimer = null;
@@ -190,6 +191,17 @@ class CharacterPresetFeature {
     this.session = null;
   }
 
+  cleanupSession() {
+    this.sessionDismissed = true;
+    this.clearSession();
+    this.manualDismissedQuestions.clear();
+    this.status = 'idle';
+    this.statusMessage = '';
+    this.currentFieldLabel = null;
+    this.currentFieldKey = null;
+    this.removePanel();
+  }
+
   isValidSession(session) {
     return !!(
       session &&
@@ -350,6 +362,7 @@ class CharacterPresetFeature {
 
   async checkForEntryField() {
     if (this.isApplying) return;
+    if (this.sessionDismissed) return;
     const field = this.findScenarioEntryField();
 
     if (field) {
@@ -403,6 +416,7 @@ class CharacterPresetFeature {
       this.scenarioShortId = null;
       this.clearSession();
       this.manualDismissedQuestions.clear();
+      this.sessionDismissed = false;
       this.currentFieldLabel = null;
       this.currentFieldKey = null;
     }
@@ -821,6 +835,7 @@ class CharacterPresetFeature {
           <div class="bd-character-ai-title">Character Prefill</div>
           <div class="bd-character-ai-subtitle">${this.scenario?.placeholders?.length || 0} placeholder questions found${this.activePresetId ? ' - Main character preselected' : ''}</div>
         </div>
+        <button class="bd-character-ai-close" aria-label="Close">&times;</button>
       </div>
       <div class="bd-character-ai-body">
         <label class="bd-character-ai-label" for="bd-character-ai-select">Play as</label>
@@ -837,6 +852,7 @@ class CharacterPresetFeature {
       </div>
     `);
     if (!panel) return;
+    this.bindCloseButton(panel);
 
     const select = panel.querySelector('#bd-character-ai-select');
     const generate = panel.querySelector('#bd-character-ai-generate');
@@ -868,7 +884,7 @@ class CharacterPresetFeature {
   }
 
   showGeneratingPanel(field) {
-    this.renderPanel(field, `
+    const genPanel = this.renderPanel(field, `
       <div class="bd-character-ai-header">
         <div>
           <div class="bd-character-ai-title">Generating Character Answers</div>
@@ -877,17 +893,20 @@ class CharacterPresetFeature {
         <div class="bd-character-ai-spinner"></div>
       </div>
     `);
+    if (genPanel) this.bindCloseButton(genPanel);
   }
 
   showBlockedPanel(field, message) {
-    this.renderPanel(field, `
+    const blockedPanel = this.renderPanel(field, `
       <div class="bd-character-ai-header">
         <div>
           <div class="bd-character-ai-title">Character Prefill Unavailable</div>
           <div class="bd-character-ai-subtitle">${this.escapeHtml(message || 'Character Presets cannot run right now.')}</div>
         </div>
+        <button class="bd-character-ai-close" aria-label="Close">&times;</button>
       </div>
     `);
+    if (blockedPanel) this.bindCloseButton(blockedPanel);
   }
 
   showAnswerPanel(field) {
@@ -908,12 +927,14 @@ class CharacterPresetFeature {
             <div class="bd-character-ai-subtitle">Gemini was not confident enough to answer this placeholder.</div>
           </div>
           <button id="bd-character-ai-change" class="bd-character-ai-link-btn">Change</button>
+          <button class="bd-character-ai-close" aria-label="Close">&times;</button>
         </div>
         ${answer?.reason ? `<div class="bd-character-ai-reason">${this.escapeHtml(answer.reason)}</div>` : ''}
         <div class="bd-character-ai-actions">
           <button id="bd-character-ai-manual" class="bd-character-ai-btn bd-character-ai-btn-secondary">Answer Manually</button>
         </div>
       `);
+      this.bindCloseButton(panel);
       panel?.querySelector('#bd-character-ai-manual')?.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -936,6 +957,7 @@ class CharacterPresetFeature {
           <div class="bd-character-ai-subtitle">${this.escapeHtml(field.question)}</div>
         </div>
         <button id="bd-character-ai-change" class="bd-character-ai-link-btn">Change</button>
+        <button class="bd-character-ai-close" aria-label="Close">&times;</button>
       </div>
       <div class="bd-character-ai-answer">${this.escapeHtml(answer.answer)}</div>
       ${answer.reason ? `<div class="bd-character-ai-reason">${this.escapeHtml(answer.reason)}</div>` : ''}
@@ -946,6 +968,7 @@ class CharacterPresetFeature {
       </div>
     `);
     if (!panel) return;
+    this.bindCloseButton(panel);
 
     panel.querySelector('#bd-character-ai-use')?.addEventListener('click', async (event) => {
       event.preventDefault();
@@ -981,6 +1004,7 @@ class CharacterPresetFeature {
           <div class="bd-character-ai-title">Edit Suggested Answer</div>
           <div class="bd-character-ai-subtitle">${this.escapeHtml(field.question)}</div>
         </div>
+        <button class="bd-character-ai-close" aria-label="Close">&times;</button>
       </div>
       <textarea id="bd-character-ai-edit-text" class="bd-character-ai-textarea">${this.escapeHtml(value)}</textarea>
       <div class="bd-character-ai-actions">
@@ -989,6 +1013,7 @@ class CharacterPresetFeature {
       </div>
     `);
     if (!panel) return;
+    this.bindCloseButton(panel);
 
     const textarea = panel.querySelector('#bd-character-ai-edit-text');
     textarea?.focus();
@@ -1013,6 +1038,14 @@ class CharacterPresetFeature {
         };
       }
       await this.fillAndContinue(field, edited);
+    });
+  }
+
+  bindCloseButton(panel) {
+    panel?.querySelector('.bd-character-ai-close')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.cleanupSession();
     });
   }
 
