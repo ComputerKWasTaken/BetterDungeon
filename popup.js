@@ -7,7 +7,7 @@
 
 const DEBUG = false;
 const AI_GEMINI_MESSAGE = 'ULTRASCRIPTS_AI_GEMINI';
-const AI_DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash';
+const AI_DEFAULT_GEMINI_MODEL = 'gemini-3.1-flash-lite';
 const AI_DEFAULT_GEMINI_MODEL_MODE = 'auto';
 
 const STORAGE_KEYS = {

@@ -25,13 +25,12 @@
   const MAX_TIMEOUT_MS = 30000;
   const GEMINI_DEFAULT_TIMEOUT_MS = 120000;
   const GEMINI_PROMPT_MAX_CHARS = 12000;
-  const GEMINI_DEFAULT_MODEL = 'gemini-3.5-flash';
+  const GEMINI_DEFAULT_MODEL = 'gemini-3.1-flash-lite';
   const GEMINI_DEFAULT_MODEL_MODE = 'auto';
   const GEMINI_DEFAULT_THINKING_LEVEL = 'minimal';
   const GEMINI_THINKING_LEVELS = Object.freeze(['minimal', 'low', 'medium', 'high']);
   const GEMINI_OUTPUT_TYPES = Object.freeze(['text', 'json']);
   const GEMINI_AUTO_STEPDOWN_MODELS = Object.freeze([
-    'gemini-3.5-flash',
     'gemini-3.1-flash-lite',
     'gemma-4-31b-it',
     'gemma-4-26b-a4b-it',
