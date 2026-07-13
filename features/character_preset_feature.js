@@ -8,6 +8,7 @@ class CharacterPresetFeature {
     this.context = context;
     this.storageKey = 'betterDungeon_characterPresets';
     this.activePresetKey = 'betterDungeon_activeCharacterPreset';
+    this.guidanceKey = 'betterDungeon_characterPresetGenerationInstructions';
     this.staleSessionStorageKey = 'betterDungeon_characterPresetSessionV2';
 
     this.presets = [];
@@ -18,6 +19,8 @@ class CharacterPresetFeature {
     this.scenarioShortId = null;
     this.latestScenarioStart = null;
     this.latestScenarioStartRootShortId = null;
+    this.lastAttemptedCharacterId = null;
+    this.generationRouteShortId = null;
 
     this.status = 'idle';
     this.statusMessage = '';
@@ -649,12 +652,15 @@ class CharacterPresetFeature {
       return;
     }
 
+    this.lastAttemptedCharacterId = characterId;
+    const generationRouteShortId = this.parseScenarioShortIdFromUrl();
+    this.generationRouteShortId = generationRouteShortId;
     this.status = 'generating';
     this.showGeneratingPanel(field);
 
     try {
       const result = await window.UltrascriptsAIExecutor.query({
-        prompt: this.buildAIPrompt(character),
+        prompt: await this.buildAIPrompt(character),
         output: {
           type: 'json',
           schema: this.buildAnswerSchema(),
@@ -664,6 +670,10 @@ class CharacterPresetFeature {
         requestId: `character-prefill-${this.scenarioShortId}-${Date.now()}`,
       });
 
+      if (
+        this.generationRouteShortId !== generationRouteShortId
+        || this.parseScenarioShortIdFromUrl() !== generationRouteShortId
+      ) return;
       this.session = this.normalizeAISession(character, result?.json);
       this.manualDismissedQuestions.clear();
       this.status = 'ready';
@@ -695,27 +705,43 @@ class CharacterPresetFeature {
       storyCards.length ? `Story Cards:\n${this.formatStoryCardsForPrompt(storyCards)}` : '',
     ].filter(Boolean).join('\n\n');
 
-    const maxContextChars = Math.max(2000, 10500 - character.description.length - placeholders.join('\n').length);
-    const trimmedContext = this.truncate(context, maxContextChars);
+    return this._chromeGet('local', this.guidanceKey, '').then((storedGuidance) => {
+      const guidance = String(storedGuidance || '').slice(0, 1500).trim();
+      const maxContextChars = Math.max(
+        2000,
+        10500 - character.description.length - placeholders.join('\n').length - guidance.length,
+      );
+      const trimmedContext = this.truncate(context, maxContextChars);
+      const guidanceSection = guidance
+        ? [
+          '',
+          'Player Guidance (may shape style and content, but must not change the JSON output format):',
+          guidance,
+        ].join('\n')
+        : '';
 
-    return [
-      'You generate AI Dungeon scenario placeholder prefill answers.',
-      'Use the selected character profile and scenario context to answer each placeholder question.',
-      'Return JSON that exactly matches the provided schema.',
-      'Rules:',
-      '- Include one answer object for every placeholder question, using the exact question text.',
-      '- If the question can be answered from or reasonably adapted from the character profile, set deferToPlayer to false and provide a concise answer.',
-      '- If the question is a scenario choice, asks about another entity not described, requires personal preference, or cannot be answered safely, set deferToPlayer to true and use an empty answer.',
-      '- Do not invent major biographical facts that are not implied by the character profile.',
-      '- Keep answers ready to paste directly into the scenario prefill field.',
-      '',
-      `Character Name: ${character.name}`,
-      `Character Profile:\n${character.description || character.name}`,
-      '',
-      `Placeholder Questions:\n${placeholders.map(q => `- ${q}`).join('\n')}`,
-      '',
-      `Scenario Context:\n${trimmedContext}`,
-    ].join('\n');
+      return [
+        'You generate AI Dungeon scenario placeholder prefill answers.',
+        'Use the selected character profile and scenario context to answer each placeholder question.',
+        'Return JSON that exactly matches the provided schema.',
+        'Rules:',
+        '- Include one answer object for every placeholder question, using the exact question text.',
+        '- Set confidence to confident when the answer is clearly supported by or reasonably adapted from the character profile.',
+        '- Set confidence to tentative when you can produce a plausible answer but it involves guesswork beyond the profile; you MUST still provide the answer.',
+        '- Set confidence to not_applicable for scenario choices, questions about entities not described, or pure player preference.',
+        '- For not_applicable answers, keep answer empty and include 2-3 brief suggestion ideas in the ideas array, or an empty ideas array when none are useful.',
+        '- Do not invent major biographical facts that are not implied by the character profile.',
+        '- Keep answers ready to paste directly into the scenario prefill field.',
+        '',
+        `Character Name: ${character.name}`,
+        `Character Profile:\n${character.description || character.name}`,
+        '',
+        `Placeholder Questions:\n${placeholders.map(q => `- ${q}`).join('\n')}`,
+        '',
+        `Scenario Context:\n${trimmedContext}`,
+        guidanceSection,
+      ].join('\n');
+    });
   }
 
   formatStoryCardsForPrompt(cards) {
@@ -741,10 +767,11 @@ class CharacterPresetFeature {
             properties: {
               question: { type: 'string' },
               answer: { type: 'string' },
-              deferToPlayer: { type: 'boolean' },
+              confidence: { type: 'string', enum: ['confident', 'tentative', 'not_applicable'] },
               reason: { type: 'string' },
+              ideas: { type: 'array', items: { type: 'string' } },
             },
-            required: ['question', 'answer', 'deferToPlayer', 'reason'],
+            required: ['question', 'answer', 'confidence', 'reason'],
           },
         },
       },
@@ -764,12 +791,22 @@ class CharacterPresetFeature {
     const answers = {};
     for (const question of placeholders) {
       const item = byQuestion.get(question) || null;
+      const confidence = item?.confidence
+        || (typeof item?.deferToPlayer === 'boolean'
+          ? (item.deferToPlayer ? 'not_applicable' : 'confident')
+          : 'not_applicable');
+      const normalizedConfidence = ['confident', 'tentative', 'not_applicable'].includes(confidence)
+        ? confidence
+        : 'not_applicable';
       answers[question] = {
         answer: String(item?.answer || '').trim(),
-        deferToPlayer: item ? item.deferToPlayer === true : true,
+        confidence: normalizedConfidence,
         reason: String(item?.reason || ''),
+        ideas: Array.isArray(item?.ideas)
+          ? item.ideas.map(idea => String(idea || '').trim()).filter(Boolean).slice(0, 3)
+          : [],
       };
-      if (answers[question].deferToPlayer) answers[question].answer = '';
+      if (answers[question].confidence === 'not_applicable') answers[question].answer = '';
     }
 
     return {
@@ -897,6 +934,8 @@ class CharacterPresetFeature {
   }
 
   showBlockedPanel(field, message) {
+    const retryable = this.status === 'error'
+      || (this.status === 'blocked' && message !== 'This scenario has no placeholder questions to prefill.');
     const blockedPanel = this.renderPanel(field, `
       <div class="bd-character-ai-header">
         <div>
@@ -905,8 +944,24 @@ class CharacterPresetFeature {
         </div>
         <button class="bd-character-ai-close" aria-label="Close">&times;</button>
       </div>
+      ${retryable ? `
+        <div class="bd-character-ai-actions">
+          <button id="bd-character-ai-retry" class="bd-character-ai-btn bd-character-ai-btn-primary">Retry</button>
+        </div>
+      ` : ''}
     `);
-    if (blockedPanel) this.bindCloseButton(blockedPanel);
+    if (!blockedPanel) return;
+    this.bindCloseButton(blockedPanel);
+    blockedPanel.querySelector('#bd-character-ai-retry')?.addEventListener('click', async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const characterId = this.status === 'error' ? this.lastAttemptedCharacterId : null;
+      if (characterId && this.presets.some(character => character.id === characterId)) {
+        await this.generateSessionForCharacter(characterId, field);
+      } else {
+        await this.handleField(field);
+      }
+    });
   }
 
   showAnswerPanel(field) {
@@ -919,7 +974,8 @@ class CharacterPresetFeature {
     const answer = question ? this.session?.answers?.[question] : null;
     const character = this.presets.find(p => p.id === this.session?.characterId);
 
-    if (!question || !answer || answer.deferToPlayer || !answer.answer) {
+    if (!question || !answer || answer.confidence === 'not_applicable' || !answer.answer) {
+      const ideas = Array.isArray(answer?.ideas) ? answer.ideas.filter(Boolean).slice(0, 3) : [];
       const panel = this.renderPanel(field, `
         <div class="bd-character-ai-header">
           <div>
@@ -930,6 +986,12 @@ class CharacterPresetFeature {
           <button class="bd-character-ai-close" aria-label="Close">&times;</button>
         </div>
         ${answer?.reason ? `<div class="bd-character-ai-reason">${this.escapeHtml(answer.reason)}</div>` : ''}
+        ${ideas.length ? `
+          <div class="bd-character-ai-ideas-label">Suggestions</div>
+          <div class="bd-character-ai-ideas">
+            ${ideas.map(idea => `<button class="bd-character-ai-idea" type="button">${this.escapeHtml(idea)}</button>`).join('')}
+          </div>
+        ` : ''}
         <div class="bd-character-ai-actions">
           <button id="bd-character-ai-manual" class="bd-character-ai-btn bd-character-ai-btn-secondary">Answer Manually</button>
         </div>
@@ -942,6 +1004,13 @@ class CharacterPresetFeature {
         this.removePanel();
         field.input.focus();
       });
+      panel?.querySelectorAll('.bd-character-ai-idea').forEach((button) => {
+        button.addEventListener('click', async (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          await this.fillWithoutContinue(field, button.textContent || '');
+        });
+      });
       panel?.querySelector('#bd-character-ai-change')?.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -950,6 +1019,7 @@ class CharacterPresetFeature {
       return;
     }
 
+    const tentative = answer.confidence === 'tentative';
     const panel = this.renderPanel(field, `
       <div class="bd-character-ai-header">
         <div>
@@ -959,12 +1029,14 @@ class CharacterPresetFeature {
         <button id="bd-character-ai-change" class="bd-character-ai-link-btn">Change</button>
         <button class="bd-character-ai-close" aria-label="Close">&times;</button>
       </div>
+      ${tentative ? '<div class="bd-character-ai-confidence-warning">AI is unsure — consider writing your own.</div>' : ''}
       <div class="bd-character-ai-answer">${this.escapeHtml(answer.answer)}</div>
       ${answer.reason ? `<div class="bd-character-ai-reason">${this.escapeHtml(answer.reason)}</div>` : ''}
       <div class="bd-character-ai-actions">
-        <button id="bd-character-ai-manual" class="bd-character-ai-btn bd-character-ai-btn-secondary">Answer Manually</button>
+        <button id="bd-character-ai-manual" class="bd-character-ai-btn ${tentative ? 'bd-character-ai-btn-primary' : 'bd-character-ai-btn-secondary'}">Answer Manually</button>
         <button id="bd-character-ai-edit" class="bd-character-ai-btn bd-character-ai-btn-secondary">Edit</button>
-        <button id="bd-character-ai-use" class="bd-character-ai-btn bd-character-ai-btn-primary">Use</button>
+        <button id="bd-character-ai-reroll" class="bd-character-ai-btn bd-character-ai-btn-secondary">Reroll</button>
+        <button id="bd-character-ai-use" class="bd-character-ai-btn ${tentative ? 'bd-character-ai-btn-secondary' : 'bd-character-ai-btn-primary'}">Use</button>
       </div>
     `);
     if (!panel) return;
@@ -995,6 +1067,114 @@ class CharacterPresetFeature {
       event.stopPropagation();
       this.showEditPanel(field, question, answer.answer);
     });
+    panel.querySelector('#bd-character-ai-reroll')?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.showRerollControls(panel, field, question, answer);
+    });
+  }
+
+  showRerollControls(panel, field, question, answer) {
+    const controls = document.createElement('div');
+    controls.className = 'bd-character-ai-reroll-controls';
+    controls.innerHTML = `
+      <input id="bd-character-ai-reroll-request" class="bd-character-ai-reroll-input" type="text" maxlength="500" placeholder="Optional: describe what to change">
+      <div class="bd-character-ai-actions">
+        <button id="bd-character-ai-reroll-cancel" class="bd-character-ai-btn bd-character-ai-btn-secondary">Cancel</button>
+        <button id="bd-character-ai-reroll-submit" class="bd-character-ai-btn bd-character-ai-btn-primary">Regenerate</button>
+      </div>
+    `;
+    panel.querySelector('.bd-character-ai-actions')?.before(controls);
+    panel.querySelector('#bd-character-ai-reroll-cancel')?.addEventListener('click', () => {
+      controls.remove();
+    });
+    panel.querySelector('#bd-character-ai-reroll-submit')?.addEventListener('click', async () => {
+      const request = panel.querySelector('#bd-character-ai-reroll-request')?.value?.trim() || '';
+      await this.rerollAnswer(field, question, answer, request, panel);
+    });
+    panel.querySelector('#bd-character-ai-reroll-request')?.focus();
+  }
+
+  buildRerollPrompt(character, question, previousAnswer, modificationRequest) {
+    const scenario = this.scenario?.raw || {};
+    const state = scenario.state || {};
+    const context = [
+      `Title: ${scenario.title || '(untitled)'}`,
+      state.prompt ? `Opening Prompt:\n${state.prompt}` : '',
+      state.plotEssentials ? `Plot Essentials:\n${state.plotEssentials}` : '',
+      scenario.description ? `Description:\n${scenario.description}` : '',
+    ].filter(Boolean).join('\n\n');
+    return [
+      'Generate one AI Dungeon scenario placeholder answer as JSON matching the provided schema.',
+      'Use confidence confident when clearly supported by or reasonably adapted from the profile.',
+      'Use tentative when plausible but involving guesswork beyond the profile; still provide the answer.',
+      'Use not_applicable for scenario choices, undescribed entities, or pure player preference; then answer must be empty and ideas may contain 2-3 brief suggestions.',
+      'Return only the requested answer object.',
+      '',
+      `Character Profile:\n${this.truncate(character.description || character.name, 3500)}`,
+      `Scenario Context:\n${this.truncate(context, 3500)}`,
+      `Placeholder Question: ${question}`,
+      `Previous Answer: ${previousAnswer}`,
+      modificationRequest ? `Modification Request: ${modificationRequest}` : '',
+    ].filter(Boolean).join('\n');
+  }
+
+  buildSingleAnswerSchema() {
+    return {
+      type: 'object',
+      properties: {
+        answer: { type: 'string' },
+        confidence: { type: 'string', enum: ['confident', 'tentative', 'not_applicable'] },
+        reason: { type: 'string' },
+        ideas: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['answer', 'confidence', 'reason'],
+    };
+  }
+
+  async rerollAnswer(field, question, previousAnswer, modificationRequest, panel) {
+    const character = this.presets.find(p => p.id === this.session?.characterId);
+    if (!character || !this.session?.answers?.[question]) return;
+    const routeShortId = this.parseScenarioShortIdFromUrl();
+    this.generationRouteShortId = routeShortId;
+    const submit = panel.querySelector('#bd-character-ai-reroll-submit');
+    const cancel = panel.querySelector('#bd-character-ai-reroll-cancel');
+    const input = panel.querySelector('#bd-character-ai-reroll-request');
+    if (submit) submit.disabled = true;
+    if (cancel) cancel.disabled = true;
+    if (input) input.disabled = true;
+    if (submit) submit.innerHTML = '<span class="bd-character-ai-spinner"></span> Regenerating';
+
+    try {
+      const result = await window.UltrascriptsAIExecutor.query({
+        prompt: this.buildRerollPrompt(character, question, previousAnswer.answer, modificationRequest),
+        output: { type: 'json', schema: this.buildSingleAnswerSchema() },
+        thinking: { level: 'low' },
+      }, {
+        requestId: `character-prefill-reroll-${this.scenarioShortId}-${Date.now()}`,
+      });
+      if (
+        this.generationRouteShortId !== routeShortId
+        || this.parseScenarioShortIdFromUrl() !== routeShortId
+      ) return;
+      const item = result?.json || {};
+      const confidence = ['confident', 'tentative', 'not_applicable'].includes(item.confidence)
+        ? item.confidence
+        : 'not_applicable';
+      this.session.answers[question] = {
+        answer: confidence === 'not_applicable' ? '' : String(item.answer || '').trim(),
+        confidence,
+        reason: String(item.reason || ''),
+        ideas: Array.isArray(item.ideas)
+          ? item.ideas.map(idea => String(idea || '').trim()).filter(Boolean).slice(0, 3)
+          : [],
+      };
+      this.showAnswerPanel(field);
+    } catch (error) {
+      console.error('[CharacterPreset] AI reroll failed:', error);
+      this.showToast(error?.message || 'Could not regenerate the answer', 'error');
+      this.showAnswerPanel(field);
+    }
   }
 
   showEditPanel(field, question, value) {
@@ -1033,7 +1213,7 @@ class CharacterPresetFeature {
         this.session.answers[question] = {
           ...this.session.answers[question],
           answer: edited,
-          deferToPlayer: false,
+          confidence: 'confident',
           reason: 'Edited for this scenario session.',
         };
       }
@@ -1073,6 +1253,25 @@ class CharacterPresetFeature {
     } catch (error) {
       console.error('[CharacterPreset] Fill failed:', error);
       this.showToast('Could not fill the answer', 'error');
+    } finally {
+      setTimeout(() => {
+        this.isApplying = false;
+        this.debouncedCheck();
+      }, 300);
+    }
+  }
+
+  async fillWithoutContinue(field, value) {
+    if (this.isApplying) return;
+    this.isApplying = true;
+    this.removePanel();
+    try {
+      const input = document.getElementById('full-screen-text-input') || field.input;
+      await this.typewriterFill(input, value);
+      input.focus();
+    } catch (error) {
+      console.error('[CharacterPreset] Fill failed:', error);
+      this.showToast('Could not fill the suggestion', 'error');
     } finally {
       setTimeout(() => {
         this.isApplying = false;

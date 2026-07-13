@@ -762,6 +762,69 @@
   margin-top: 6px;
 }
 
+.bd-character-ai-confidence-warning {
+  margin-top: 10px;
+  padding: 7px 9px;
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: var(--bd-radius-md);
+  font-size: var(--bd-font-size-sm);
+}
+
+.bd-character-ai-ideas-label {
+  margin-top: 10px;
+  color: var(--bd-text-secondary);
+  font-size: var(--bd-font-size-sm);
+  font-weight: var(--bd-font-weight-medium);
+}
+
+.bd-character-ai-ideas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.bd-character-ai-idea {
+  padding: 6px 9px;
+  color: var(--bd-text-primary);
+  background: var(--bd-bg-tertiary);
+  border: 1px solid var(--bd-border-default);
+  border-radius: var(--bd-radius-md);
+  cursor: pointer;
+  font-size: var(--bd-font-size-sm);
+  text-align: left;
+}
+
+.bd-character-ai-idea:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--bd-border-accent);
+}
+
+.bd-character-ai-reroll-controls {
+  margin-top: 10px;
+}
+
+.bd-character-ai-reroll-input {
+  width: 100%;
+  padding: 8px 10px;
+  color: var(--bd-text-primary);
+  background: var(--bd-bg-tertiary);
+  border: 1px solid var(--bd-border-default);
+  border-radius: var(--bd-radius-md);
+  font-size: var(--bd-font-size-sm);
+}
+
+.bd-character-ai-reroll-input:focus {
+  outline: none;
+  border-color: var(--bd-border-focus);
+}
+
+.bd-character-ai-reroll-controls .bd-character-ai-actions {
+  margin-top: 8px;
+}
+
 .bd-character-ai-actions {
   display: flex;
   justify-content: flex-end;
