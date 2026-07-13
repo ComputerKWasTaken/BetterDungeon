@@ -730,6 +730,7 @@ class CharacterPresetFeature {
         '- Set confidence to tentative when you can produce a plausible answer but it involves guesswork beyond the profile; you MUST still provide the answer.',
         '- Set confidence to not_applicable for scenario choices, questions about entities not described, or pure player preference.',
         '- For not_applicable answers, keep answer empty and include 2-3 brief suggestion ideas in the ideas array, or an empty ideas array when none are useful.',
+        '- Write your responses to the placeholder questions in the second person.',
         '- Do not invent major biographical facts that are not implied by the character profile.',
         '- Keep answers ready to paste directly into the scenario prefill field.',
         '',
