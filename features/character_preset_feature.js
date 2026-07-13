@@ -1008,6 +1008,7 @@ class CharacterPresetFeature {
         button.addEventListener('click', async (event) => {
           event.preventDefault();
           event.stopPropagation();
+          this.manualDismissedQuestions.add(field.question);
           await this.fillWithoutContinue(field, button.textContent || '');
         });
       });

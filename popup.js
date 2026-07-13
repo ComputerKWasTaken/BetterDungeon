@@ -2252,6 +2252,7 @@ function initCharacters() {
 function loadCharacterGenerationInstructions() {
   const input = document.getElementById('character-generation-instructions');
   const counter = document.getElementById('character-generation-instructions-count');
+  let saveTimer = null;
   if (!input) return;
   chrome.storage.local.get(STORAGE_KEYS.characterGenerationInstructions, (result) => {
     input.value = String((result || {})[STORAGE_KEYS.characterGenerationInstructions] || '').slice(0, 1500);
@@ -2260,7 +2261,11 @@ function loadCharacterGenerationInstructions() {
   input.addEventListener('input', () => {
     if (input.value.length > 1500) input.value = input.value.slice(0, 1500);
     if (counter) counter.textContent = `${input.value.length}/1500`;
-    chrome.storage.local.set({ [STORAGE_KEYS.characterGenerationInstructions]: input.value });
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      chrome.storage.local.set({ [STORAGE_KEYS.characterGenerationInstructions]: input.value });
+      saveTimer = null;
+    }, 350);
   });
 }
 
