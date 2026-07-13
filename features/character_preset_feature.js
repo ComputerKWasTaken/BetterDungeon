@@ -1085,6 +1085,7 @@ class CharacterPresetFeature {
         <button id="bd-character-ai-reroll-submit" class="bd-character-ai-btn bd-character-ai-btn-primary">Regenerate</button>
       </div>
     `;
+    panel.querySelector('.bd-character-ai-reroll-controls')?.remove();
     panel.querySelector('.bd-character-ai-actions')?.before(controls);
     panel.querySelector('#bd-character-ai-reroll-cancel')?.addEventListener('click', () => {
       controls.remove();
