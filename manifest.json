@@ -17,16 +17,15 @@
     "scripts": [
       "utils/browser-polyfill.js",
       "background.js"
-    ],
-    "preferred_environment": [
-      "service_worker",
-      "document"
     ]
   },
   "browser_specific_settings": {
     "gecko": {
       "id": "betterdungeon@computerkwastaken",
-      "strict_min_version": "109.0"
+      "strict_min_version": "109.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
     }
   },
   "content_scripts": [
