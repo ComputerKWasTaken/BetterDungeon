@@ -7,7 +7,6 @@
 An all-in-one browser extension for AI Dungeon that adds quality-of-life improvements, powerful scenario tools, and features I genuinely wished the game had built in.
 
 [![Version](https://img.shields.io/badge/version-2.0.0-7c3aed?style=for-the-badge)](manifest.json)
-[![License](https://img.shields.io/github/license/computerkwastaken/BetterDungeon?style=for-the-badge)](LICENSE)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-install-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/betterdungeon/ppliljfopejamemejnnchehpbacpebjf)
 
 </div>
