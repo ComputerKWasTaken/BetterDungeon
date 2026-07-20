@@ -321,13 +321,273 @@
     .marquee-popup{position:absolute;width:400px;height:440px;right:92px;top:72px;transform:rotate(1.25deg);box-shadow:0 32px 90px rgb(0 0 0 / 48%)}
     .marquee-popup .popup-main{display:grid;gap:var(--bd-space-2)}
     .marquee-popup .feature-row{padding:10px var(--bd-space-3)}
+
+    /* ============================================================
+       Draft 06 — clarity pass: fewer, larger proof points
+       ============================================================ */
+    .screenshot>.product-bar .header-version,.screenshot>.product-bar>.badge,.marquee>.product-bar .header-version,.marquee>.product-bar>.badge{display:none}
+    .screenshot>.product-bar .header-logo,.marquee>.product-bar .header-logo{width:40px;height:40px}
+    .screenshot>.product-bar .header-name,.marquee>.product-bar .header-name{font-size:20px}
+    .wall-heading .slide-title,.ultra-heading .slide-title,.play-heading .slide-title,.create-heading .slide-title{font-size:48px;line-height:1;letter-spacing:-1.5px}
+    .wall-heading .slide-lead{display:none}
+    .ultra-heading .slide-lead,.play-heading .slide-lead,.create-heading .slide-lead{max-width:430px;font-size:16px;line-height:1.45}
+    .wall-heading .slide-kicker,.play-heading .slide-kicker,.create-heading .slide-kicker{display:none}
+    .asset .popup-actions,.hero-popup .toggle,.marquee-popup .toggle,.module-mini-grid .toggle{display:none}
+
+    /* Overview: headline + Try input + one authentic popup. */
+    .hero-proof{display:none}
+    .hero-copy{top:150px;width:650px}
+    .hero-copy h2{font-size:84px}
+    .hero-copy p{width:500px;font-size:21px}
+    .hero-input{bottom:58px;width:620px;padding:18px 18px 50px}
+    .hero-input .typed-text{font-size:16px}
+    .hero-popup{width:420px;height:520px;top:132px;right:52px}
+    .hero-popup .feature-details{display:none}
+    .hero-popup .feature-row{padding:14px 16px}
+
+    /* Feature wall: four large groups, not twenty-five miniature cards. */
+    #shot-wall{padding-top:var(--bd-space-7)}
+    .wall-heading{margin-top:var(--bd-space-4)}
+    .wall{gap:14px;margin-top:18px}
+    .wall-column{padding:18px 20px;background:color-mix(in srgb,var(--bd-bg-secondary) 58%,transparent)}
+    .wall-column-head{margin-bottom:8px;font-size:14px}
+    .wall-list{gap:0}
+    .wall-item{min-height:48px;padding:10px 4px;border:0;border-top:1px solid var(--bd-border-subtle);border-radius:0;background:transparent}
+    .wall-list .wall-item:first-child,.wall-modules .wall-item:nth-child(-n+5){border-top-color:transparent}
+    .wall-item i{width:24px;font-size:20px}
+    .wall-item strong{font-size:15px;line-height:1.25}
+    .wall-item span{display:none}
+    .wall-column.modules{padding:14px 20px}
+    .wall-modules{grid-template-columns:repeat(5,minmax(0,1fr));gap:0 18px}
+    .wall-modules .wall-item{display:flex;min-height:54px;padding:9px 2px}
+    .wall-count{display:none}
+
+    /* Ultrascripts: four representative modules and one large live output. */
+    .ultra-layout{grid-template-columns:390px 1fr;height:535px;margin-top:18px}
+    .ultra-popup{height:535px}
+    .module-mini-grid{gap:12px}
+    .module-mini-grid .feature-card:nth-child(n+4):not(:last-child){display:none}
+    .module-mini-grid .feature-card:last-child{grid-column:auto!important}
+    .module-mini-grid .feature-row{min-height:72px;padding:14px}
+    .module-mini-grid .feature-title{font-size:16px}
+    .ultra-demo{display:block}
+    .ultra-demo .transport-strip,.ultra-demo .code-window,.ultra-demo .permission-row{display:none}
+    .widget-preview{height:100%;padding:36px}
+    .widget-head{margin-bottom:20px}
+    .widget-head strong{font-size:20px}
+    .widget-card{padding:28px}
+    .widget-character{grid-template-columns:60px 1fr auto;gap:18px}
+    .avatar{width:60px;height:60px;font-size:28px}
+    .stat-line{margin-top:12px;font-size:14px}
+    .stat-track{height:10px}
+    .widget-actions{margin-top:22px}
+    .widget-actions .btn{padding:12px 18px;font-size:14px}
+    .widget-actions .btn:nth-child(3){display:none}
+
+    /* Play: the adventure proves Try + Markdown; the side proves Presets + Command. */
+    .play-layout{grid-template-columns:1.28fr .72fr;height:560px;margin-top:18px}
+    .play-adventure{height:560px}
+    .play-adventure .story{height:382px;font-size:16px}
+    .play-adventure .story+div{display:none!important}
+    .play-side{grid-template-rows:250px 1fr;gap:16px}
+    .character-panel{padding:22px}
+    .character-panel-head strong{font-size:18px}
+    .character-answer{font-size:16px;line-height:1.55}
+    .character-reason{display:none}
+    .play-feature-grid{display:block}
+    .play-feature-grid .feature-card:nth-child(n+2){display:none}
+    .play-feature-grid .feature-card:first-child{height:100%}
+    .play-feature-grid .feature-row{min-height:82px;padding:18px}
+    .play-feature-grid .feature-title{font-size:18px}
+    .play-feature-grid .feature-details{padding:16px 18px}
+    .syntax-row{padding:10px 12px;font-size:13px}
+
+    /* Creation: Analytics and Trigger Highlighting carry the whole image. */
+    .create-layout{grid-template-columns:1.18fr .82fr;height:560px;margin-top:18px;gap:18px}
+    .analytics-header{padding:18px 22px}
+    .analytics-content{padding:20px}
+    .analytics-section{margin-bottom:14px;padding:18px}
+    .stats-grid{grid-template-columns:repeat(3,1fr);gap:12px}
+    .stats-grid .stat-card:nth-child(4){display:none}
+    .stat-card{padding:18px}
+    .stat-value{font-size:34px}
+    .stat-label{font-size:11px}
+    .analytics-columns{display:block}
+    .analytics-columns .analytics-section:first-child{display:none}
+    .coverage{gap:16px}
+    .coverage-label{font-size:15px}
+    .coverage-track{height:10px}
+    .issue{padding:11px 12px;font-size:14px}
+    .issue:nth-child(3){display:none}
+    .creation-side{display:block}
+    .dock-card{display:none}
+    .context-card{height:100%}
+    .panel-title{padding:18px 20px}
+    .panel-title strong{font-size:18px}
+    .context-copy{padding:28px;font-size:22px;line-height:1.85}
+    .context-legend{padding:0 28px 24px;font-size:13px}
+
+    /* Promo tiles: headline and product only. */
+    .tile-small-wall{display:none}
+    .tile-small-copy{top:100px;width:350px}
+    .tile-small-copy h2{font-size:42px}
+    .marquee-proof{display:none}
+    .marquee-copy{top:128px}
+    .marquee-copy h2{font-size:60px}
+    .marquee-popup{width:430px;height:390px;right:92px;top:104px}
+    .marquee-popup .feature-row{min-height:78px;padding:16px 18px}
+    .marquee-popup .feature-title{font-size:17px}
+    .marquee-popup .feature-desc{font-size:13px}
+
+    /* ============================================================
+       Draft 07 — popup content mirrored from the production DOM
+       ============================================================ */
+    .asset .popup-actions{display:flex}
+    .hero-popup .toggle,.marquee-popup .toggle,.ultra-popup .toggle{display:block}
+    .popup-release{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--bd-border-accent);border-radius:var(--bd-radius-lg);background:linear-gradient(135deg,var(--bd-bg-secondary),var(--bd-accent-glow))}
+    .popup-release>i:first-child{color:var(--bd-accent-primary);font-size:20px}
+    .popup-release-copy{min-width:0;flex:1}
+    .popup-release-copy strong{display:block;color:var(--bd-text-primary);font-size:13px;line-height:1.25}
+    .popup-release-copy span{display:block;overflow:hidden;margin-top:2px;color:var(--bd-text-muted);font-size:10px;text-overflow:ellipsis;white-space:nowrap}
+    .popup-release-badge{padding:3px 6px;border-radius:var(--bd-radius-full);background:var(--bd-accent-primary);color:var(--bd-text-on-accent);font-size:9px;font-weight:var(--bd-font-weight-bold);text-transform:uppercase;letter-spacing:var(--bd-tracking-wide)}
+    .popup-release .icon-chevron-down{color:var(--bd-text-muted);font-size:12px}
+    .popup-section-collapsible{margin-top:2px!important;margin-bottom:0!important}
+    .popup-section-collapsible .section-chevron{margin-left:auto;color:var(--bd-text-muted);font-size:11px}
+    .hero-popup .popup-main,.marquee-popup .popup-main{gap:9px}
+    .hero-popup .feature-row,.marquee-popup .feature-row{min-height:64px;padding:12px 14px}
+    .hero-popup .feature-desc,.marquee-popup .feature-desc{font-size:11px}
+    .marquee-popup{height:420px;top:92px}
+
+    .ultra-popup .popup-main{display:grid;gap:9px}
+    .ultra-runtime-card .feature-row{padding:12px 14px}
+    .ultra-runtime-card .feature-details{padding:12px 14px}
+    .ultra-status-panel{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:10px;border:1px solid var(--bd-border-default);border-radius:var(--bd-radius-md);background:var(--bd-bg-tertiary)}
+    .ultra-status-panel strong{display:block;font-size:12px}
+    .ultra-status-panel span{display:block;margin-top:2px;color:var(--bd-text-muted);font-size:10px;line-height:1.3}
+    .ultra-debug-row{display:flex;align-items:center;justify-content:space-between;margin-top:9px;color:var(--bd-text-secondary);font-size:11px;font-weight:var(--bd-font-weight-medium)}
+    .ultra-debug-row>span{display:flex;align-items:center;gap:6px}
+    .toggle.off{background:var(--bd-bg-active)}
+    .toggle.off:after{left:3px;right:auto}
+
+    /* ============================================================
+       Draft 08 — AI Dungeon play surface mirrored from production
+       ============================================================ */
+    .aid-shell{position:relative;background:#24282b;border-color:#3b4247;border-radius:18px;box-shadow:0 18px 52px rgb(0 0 0 / 34%)}
+    .aid-topbar{height:58px;padding:8px 14px;border:0;background:transparent}
+    .aid-title{display:flex;align-items:center;min-width:0;gap:10px}
+    .aid-mark{width:34px;height:34px;display:grid;place-items:center;flex:0 0 auto;border-radius:50%;background:#090b0c;color:#f3f6f8;font-size:11px;font-weight:800;letter-spacing:-.04em;box-shadow:inset 0 0 0 1px rgb(255 255 255 / 8%)}
+    .aid-title strong{overflow:hidden;color:#f2f5f6;font-size:14px;font-weight:500;text-overflow:ellipsis;white-space:nowrap}
+    .aid-actions{display:flex;align-items:center;gap:6px}
+    .aid-icon-button,.aid-model-button{height:34px;display:grid;place-items:center;border:1px solid rgb(255 255 255 / 7%);background:#151819;color:#d9e2e7}
+    .aid-icon-button{width:34px;border-radius:10px;font-size:15px}
+    .aid-model-button{width:34px;border-radius:10px;color:#b9a7ff;font-size:16px}
+    .aid-story-stage{height:calc(100% - 58px);display:flex;align-items:flex-end;padding:0 24px 160px}
+    .play-adventure .story{width:100%;height:auto!important;max-width:640px;margin:0 auto;padding:0;color:#dbe5ea;font-family:var(--bd-font-family-sans);font-size:16px!important;font-weight:500;line-height:1.7}
+    .play-adventure .story p{margin:0 0 10px}
+    .play-adventure .story strong{color:#f7f9fa}
+    .play-adventure .story .last-action{padding-bottom:3px;border-bottom:2px solid rgb(255 255 255 / 8%)}
+    .play-adventure .story .whisper{color:#9daab0;font-size:14px}
+    .play-adventure .story-break{margin:4px 0 8px!important;color:var(--bd-accent-light);font-size:12px;letter-spacing:12px}
+    .aid-input-dock{position:absolute;left:20px;right:20px;bottom:14px;z-index:2}
+    .aid-mode-menu{position:absolute;left:14px;top:-20px;z-index:3;display:flex;height:40px;overflow:hidden;border-radius:8px;background:#2f3539;box-shadow:0 8px 24px rgb(0 0 0 / 28%)}
+    .aid-mode-close,.aid-mode-choice{height:40px;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 10px;border-right:1px solid rgb(0 0 0 / 20%);color:#dbe5ea;font-size:12px;font-weight:500;white-space:nowrap}
+    .aid-mode-close{width:38px;padding:0;color:#aeb9be}
+    .aid-mode-choice i{font-size:12px;color:#aeb9be}
+    .aid-mode-choice.try{background:var(--bd-mode-try-glow);box-shadow:inset 0 -2px 0 var(--bd-mode-try)}
+    .aid-mode-choice.try i{color:var(--bd-mode-try-light)}
+    .aid-mode-choice.command i{color:var(--bd-mode-command-light)}
+    .aid-input-dock .input-panel,.hero-input{margin:0;padding:28px 18px 42px;border:1px solid rgb(255 255 255 / 8%);border-radius:12px;background:#1f2326;box-shadow:0 12px 34px rgb(0 0 0 / 32%)}
+    .aid-input-dock .input-line,.hero-input .input-line{min-height:34px}
+    .aid-input-dock .typed-text,.hero-input .typed-text{color:#edf2f4;font-size:15px;font-weight:400}
+    .aid-input-dock .send-button,.hero-input .send-button{width:36px;height:36px;border-radius:10px;background:var(--bd-mode-try);color:#fff}
+    .aid-input-dock .success-bar,.hero-input .success-bar{left:18px;right:18px;bottom:7px;padding:5px 10px;border-color:rgb(255 255 255 / 7%);background:#171a1c}
+    .hero-input{bottom:58px;width:620px;padding-top:28px!important}
+    .hero-input .mode-button{position:absolute;left:16px;top:-20px;height:40px;display:flex;align-items:center;gap:10px;padding:0 14px;border-radius:8px;background:#2f3539;color:#edf2f4;font-size:13px;font-weight:500;text-transform:none;box-shadow:0 8px 24px rgb(0 0 0 / 25%)}
+    .hero-input .mode-button i{color:var(--bd-mode-try-light);font-size:12px}
+    .hero-input .typed-text{padding-left:0}
+    .play-adventure .story+div{display:block!important}
+
+    /* ============================================================
+       Draft 09 — feature showcases mirrored from implementation
+       ============================================================ */
+    .success-fill{background:#84cc16}
+    .success-number{color:#84cc16}
+
+    /* renderer.js + styles.css: real Widget wrapper, zones, and widget types */
+    .widget-preview{justify-content:flex-start!important;padding:28px!important}
+    .widget-preview .widget-head{margin-bottom:14px}
+    .widget-preview .widget-head span{color:var(--bd-text-muted)}
+    .widget-preview .bd-betterscripts-wrapper{display:flex;flex-direction:column;width:100%;pointer-events:none}
+    .widget-preview .bd-widget-module-controls{display:flex;justify-content:flex-end;width:100%;padding:0 10px 4px}
+    .widget-preview .bd-widget-minimize-toggle{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:5px 7px 5px 10px;border:1px solid rgb(255 255 255 / 14%);border-radius:999px;background:rgb(20 20 26 / 92%);color:var(--bd-text-primary);font-size:11px;font-weight:600;box-shadow:0 6px 18px rgb(0 0 0 / 22%)}
+    .widget-preview .bd-widget-minimize-count,.widget-preview .bd-widget-minimize-icon{min-width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:rgb(255 255 255 / 10%);font-size:10px;font-weight:700}
+    .widget-preview .bd-betterscripts-container{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr) minmax(0,1fr);align-items:start;gap:7px;width:100%;padding:7px 10px}
+    .widget-preview .bd-bar-zone{display:flex;flex-flow:row wrap;align-items:center;gap:7px;min-width:0}
+    .widget-preview .bd-bar-left{justify-content:flex-start}.widget-preview .bd-bar-center{justify-content:center}.widget-preview .bd-bar-right{justify-content:flex-end}
+    .widget-preview .bd-widget{min-width:0;min-height:34px;max-width:100%;padding:7px 10px;border:1px solid rgb(255 255 255 / 14%);border-radius:8px;background:linear-gradient(180deg,rgb(32 32 40 / 96%),rgb(20 20 26 / 96%));color:var(--bd-text-primary);font-size:13px;line-height:1.2;box-shadow:0 8px 22px rgb(0 0 0 / 26%),inset 0 1px rgb(255 255 255 / 6%)}
+    .widget-preview .bd-widget-stat{display:flex;align-items:center;gap:7px;white-space:nowrap}
+    .widget-preview .bd-widget-label{overflow:hidden;color:rgb(255 255 255 / 62%);font-size:10px;font-weight:600;text-overflow:ellipsis;text-transform:uppercase;white-space:nowrap}
+    .widget-preview .bd-widget-value{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+    .widget-preview .bd-widget[data-color="red"] .bd-widget-value{color:var(--bd-error)}
+    .widget-preview .bd-widget[data-color="blue"] .bd-widget-value{color:var(--bd-info)}
+    .widget-preview .bd-widget[data-color="green"] .bd-widget-value{color:var(--bd-success)}
+    .widget-preview .bd-widget-counter{display:inline-flex;align-items:center;gap:5px;padding:4px 10px}
+    .widget-preview .bd-widget-counter-value{font-size:15px;font-weight:700}
+    .widget-preview .bd-widget-counter-delta{padding:1px 4px;border-radius:4px;background:rgb(34 197 94 / 15%);color:var(--bd-success);font-size:10px;font-weight:600}
+    .widget-preview .bd-widget-bar{display:flex;flex-direction:column;gap:4px;min-width:150px}
+    .widget-preview .bd-widget-bar-container{position:relative;width:100%;height:18px;overflow:hidden;border:1px solid rgb(255 255 255 / 8%);border-radius:6px;background:rgb(0 0 0 / 34%)}
+    .widget-preview .bd-widget-bar-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,var(--bd-success),var(--bd-success-light))}
+    .widget-preview .bd-widget[data-color="blue"] .bd-widget-bar-fill{background:linear-gradient(90deg,var(--bd-info),var(--bd-info-light))}
+    .widget-preview .bd-widget[data-color="purple"] .bd-widget-bar-fill{background:linear-gradient(90deg,var(--bd-purple),var(--bd-purple-light))}
+    .widget-preview .bd-widget-bar-text{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#fff;font-size:10px;font-weight:700;text-shadow:0 1px 2px #000}
+    .widget-preview .bd-widget-badge{--badge-color:var(--bd-purple);display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-color:color-mix(in srgb,var(--badge-color) 32%,rgb(255 255 255 / 12%));background:color-mix(in srgb,var(--badge-color) 14%,rgb(255 255 255 / 4%));color:color-mix(in srgb,var(--badge-color) 82%,white);font-size:10px;font-weight:600}
+    .widget-preview .bd-widget-badge[data-variant="solid"]{--badge-color:var(--bd-success);background:var(--badge-color);color:#fff}
+    .widget-preview .bd-widget-interactive{display:inline-flex;padding:0}
+    .widget-preview .bd-widget-control{min-height:32px;border:1px solid rgb(255 255 255 / 14%);border-radius:7px;background:rgb(255 255 255 / 7%);color:var(--bd-text-primary);font:inherit}
+    .widget-preview .bd-widget-button-control{display:inline-flex;align-items:center;gap:6px;padding:0 12px}
+    .widget-preview .bd-widget-button-control[data-variant="primary"]{border-color:transparent;background:var(--bd-btn-primary-bg);color:var(--bd-text-on-accent)}
+
+    /* character_preset_feature.js + styles.css: real Character Prefill answer state */
+    .play-side{grid-template-rows:292px 1fr}
+    .character-panel{padding:14px;background:var(--bd-bg-elevated)}
+    .bd-character-ai-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+    .bd-character-ai-header-text{min-width:0;flex:1}
+    .bd-character-ai-header-controls{display:flex;align-items:center;gap:8px}
+    .bd-character-ai-title{color:var(--bd-text-primary);font-size:16px;font-weight:600}
+    .bd-character-ai-subtitle,.bd-character-ai-reason{color:var(--bd-text-secondary);font-size:12px;line-height:1.4}
+    .bd-character-ai-link-btn,.bd-character-ai-close{border:1px solid var(--bd-border-default);border-radius:var(--bd-radius-md);background:var(--bd-bg-tertiary);color:var(--bd-text-secondary)}
+    .bd-character-ai-link-btn{padding:6px 9px;font-size:12px}.bd-character-ai-close{width:26px;height:26px;padding:0;font-size:18px;line-height:1}
+    .bd-character-ai-answer{max-height:84px;overflow:hidden;margin-top:10px;padding:10px 12px;border:1px solid var(--bd-border-default);border-radius:var(--bd-radius-md);background:var(--bd-bg-tertiary);color:var(--bd-text-primary);font-size:14px;line-height:1.45}
+    .bd-character-ai-reason{display:block!important;margin-top:8px;padding:6px 8px;border:1px solid var(--bd-border-subtle);border-left:2px solid var(--bd-border-default);border-radius:var(--bd-radius-md);background:var(--bd-bg-secondary);font-style:italic}
+    .bd-character-ai-actions{display:flex;justify-content:flex-end;gap:6px;flex-wrap:wrap;margin-top:9px}
+    .bd-character-ai-btn{padding:7px 9px;border:1px solid var(--bd-border-default);border-radius:var(--bd-radius-md);font-size:11px;font-weight:500}
+    .bd-character-ai-btn-primary{border-color:var(--bd-border-accent);background:var(--bd-btn-primary-bg);color:#fff}.bd-character-ai-btn-secondary{background:var(--bd-bg-tertiary);color:var(--bd-text-secondary)}
+
+    /* story_card_analytics_feature.js: production metric order and section names */
+    .stats-grid{grid-template-columns:repeat(4,1fr)}
+    .stats-grid .stat-card:nth-child(4){display:block}
+    .analytics-content{display:grid;gap:14px}
+    .analytics-content>.analytics-section{margin-bottom:0}
+    .analytics-section h4{margin-bottom:10px}
+    .issue.error{border-color:var(--bd-error-border);background:var(--bd-error-bg);color:var(--bd-error)}
+
+    /* trigger_highlight_feature.js + styles.css: actual hover tooltip content */
+    .context-copy .bd-trigger-highlight.demo-hover:after{content:attr(data-card-name);position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);padding:6px 10px;border:1px solid rgb(255 193 7 / 30%);border-radius:6px;background:linear-gradient(135deg,var(--bd-bg-tertiary),var(--bd-bg-primary));color:var(--bd-trigger-color);font-size:12px;font-weight:500;line-height:1;white-space:nowrap;box-shadow:var(--bd-shadow-md)}
+    .context-copy .bd-trigger-highlight,.context-copy .bd-suggested-trigger{position:relative;cursor:help}
+    .context-legend{display:none}
+    .syntax-row code{max-width:72%;overflow-wrap:anywhere;text-align:right;white-space:normal}
+    .ultra-popup .module-mini-grid{grid-template-columns:1fr;gap:7px}
+    .ultra-popup .module-mini-grid .feature-card{display:block!important}
+    .ultra-popup .module-mini-grid .feature-row{min-height:58px;padding:10px 12px}
+    .ultra-popup .module-mini-grid .feature-title{font-size:14px}
+    .ultra-popup .module-mini-grid .feature-desc{display:block;margin-top:2px;font-size:10px}
   </style>
 </head>
 <body>
   <header class="studio-head">
     <div>
       <h1>BetterDungeon V2 — Store Asset Studio</h1>
-      <p>Draft 05 · Consolidated production set.</p>
+      <p>Draft 09 · Feature implementation fidelity pass.</p>
     </div>
     <div class="studio-actions">
       <span class="draft-badge">7 assets</span>
@@ -373,9 +633,9 @@
       </div>
       <div class="input-panel hero-input">
         <div class="input-line">
-          <span class="mode-button"><i class="icon-dice-5"></i> Try</span>
+          <span class="mode-button"><i class="icon-chevron-left"></i><i class="icon-gamepad-2"></i> Try <i class="icon-chevron-right"></i></span>
           <span class="typed-text">Vault the wall before the wardens arrive</span>
-          <span class="send-button"><i class="icon-arrow-up"></i></span>
+          <span class="send-button"><i class="icon-gamepad-2"></i></span>
         </div>
         <div class="success-bar">
           <label>Success</label>
@@ -410,9 +670,19 @@
         </div>
         <div class="accent-bar"></div>
         <div class="popup-main">
-          <div class="section-header">
+          <div class="popup-release">
+            <i class="icon-sparkles"></i>
+            <div class="popup-release-copy">
+              <strong>What's New in v2.0.0 PC</strong>
+              <span>Android version now available, bug fixes &amp; more</span>
+            </div>
+            <span class="popup-release-badge">Latest</span>
+            <i class="icon-chevron-down"></i>
+          </div>
+          <div class="section-header popup-section-collapsible">
             <i class="section-icon icon-message-square" style="color:var(--bd-section-input-modes)"></i>
             <h3 class="section-title">Input Modes</h3>
+            <i class="section-chevron icon-chevron-down"></i>
           </div>
           <div class="feature-card">
             <div class="feature-row">
@@ -437,35 +707,6 @@
               </div>
               <span class="toggle"></span>
             </div>
-          </div>
-          <div class="section-header" style="margin-top:var(--bd-space-2)">
-            <i class="section-icon icon-type" style="color:var(--bd-section-formatting)"></i>
-            <h3 class="section-title">Writing &amp; Formatting</h3>
-          </div>
-          <div class="feature-card expanded">
-            <div class="feature-row">
-              <div class="feature-info">
-                <div class="feature-title-row">
-                  <i class="feature-icon icon-pilcrow" style="--icon-color:var(--bd-icon-markdown)"></i>
-                  <h4 class="feature-title">Markdown Formatting</h4>
-                </div>
-                <p class="feature-desc">Render rich text emphasis in AI responses</p>
-              </div>
-              <span class="toggle"></span>
-            </div>
-            <div class="feature-details"><strong>Six instruction styles</strong> · Auto-apply enabled</div>
-          </div>
-          <div class="section-header" style="margin-top:var(--bd-space-2)">
-            <i class="section-icon icon-radio-tower" style="color:var(--bd-icon-scripts)"></i>
-            <h3 class="section-title">Ultrascripts</h3>
-          </div>
-          <div class="runtime-status">
-            <i class="status-dot"></i>
-            <div>
-              <strong>Ultrascripts Connected</strong>
-              <small>Heartbeat active · 9 modules available</small>
-            </div>
-            <i class="icon-refresh-cw" style="color:var(--bd-text-muted)"></i>
           </div>
         </div>
       </div>
@@ -504,23 +745,23 @@
           <div class="wall-list">
             <div class="wall-item" style="--item-color:var(--bd-mode-command)">
               <i class="icon-terminal"></i>
-              <div><strong>Command Mode</strong><span>Standard, Subtle, and OOC</span></div>
+              <div><strong>Command Mode</strong><span>Send narrative commands to the AI</span></div>
             </div>
             <div class="wall-item" style="--item-color:var(--bd-mode-try)">
               <i class="icon-dice-5"></i>
-              <div><strong>Try Mode</strong><span>RNG outcomes, adjustable odds</span></div>
+              <div><strong>Try Mode</strong><span>Roll for action success or failure</span></div>
             </div>
             <div class="wall-item" style="--item-color:var(--bd-icon-hotkeys)">
               <i class="icon-keyboard"></i>
-              <div><strong>Hotkeys</strong><span>Fully remappable shortcuts</span></div>
+              <div><strong>Hotkeys</strong><span>Trigger quick actions with keyboard shortcuts</span></div>
             </div>
             <div class="wall-item">
               <i class="icon-history"></i>
-              <div><strong>Input History</strong><span>Recall your last 50 inputs</span></div>
+              <div><strong>Input History</strong><span>Cycle through past inputs with arrow keys</span></div>
             </div>
             <div class="wall-item" style="--item-color:var(--bd-icon-palette)">
               <i class="icon-palette"></i>
-              <div><strong>Input Mode Colors</strong><span>A color for every mode</span></div>
+              <div><strong>Input Mode Colors</strong><span>Color-code the input box by mode</span></div>
             </div>
           </div>
         </div>
@@ -529,27 +770,27 @@
           <div class="wall-list">
             <div class="wall-item" style="--item-color:var(--bd-icon-markdown)">
               <i class="icon-pilcrow"></i>
-              <div><strong>Markdown Formatting</strong><span>Six instruction styles</span></div>
+              <div><strong>Markdown Formatting</strong><span>Bold, italic, and bold italic rendering</span></div>
             </div>
             <div class="wall-item" style="--item-color:var(--bd-icon-notes)">
               <i class="icon-notebook-pen"></i>
-              <div><strong>Adventure Notes</strong><span>Private notes per adventure</span></div>
+              <div><strong>Adventure Notes</strong><span>Write and save notes per adventure</span></div>
             </div>
             <div class="wall-item" style="--item-color:var(--bd-section-automations)">
               <i class="icon-route"></i>
-              <div><strong>Custom Dynamic</strong><span>Your own model pool</span></div>
+              <div><strong>Custom Dynamic</strong><span>Route generations through your own model pool</span></div>
             </div>
             <div class="wall-item" style="--item-color:var(--bd-mode-see)">
               <i class="icon-eye"></i>
-              <div><strong>Auto See</strong><span>Scheduled scene images</span></div>
+              <div><strong>Auto See</strong><span>Generate scene images after AI responses</span></div>
             </div>
             <div class="wall-item">
               <i class="icon-volume-2"></i>
-              <div><strong>Text To Speech</strong><span>Narrate latest story text</span></div>
+              <div><strong>Text To Speech</strong><span>Narrate the latest AI adventure text</span></div>
             </div>
             <div class="wall-item" style="--item-color:var(--bd-icon-auto-scripts)">
               <i class="icon-terminal"></i>
-              <div><strong>Auto Enable Scripts</strong><span>Keep scenario scripts enabled</span></div>
+              <div><strong>Auto Enable Scripts</strong><span>Re-enable scripts in the scenario editor</span></div>
             </div>
           </div>
         </div>
@@ -558,15 +799,15 @@
           <div class="wall-list">
             <div class="wall-item" style="--item-color:var(--bd-icon-trigger)">
               <i class="icon-sparkle"></i>
-              <div><strong>Trigger Highlighting</strong><span>See active and suggested keys</span></div>
+              <div><strong>Trigger Highlighting</strong><span>Highlight story card triggers in context</span></div>
             </div>
             <div class="wall-item" style="--item-color:var(--bd-icon-analytics)">
               <i class="icon-chart-bar"></i>
-              <div><strong>Story Card Analytics</strong><span>Coverage, overlaps, issues</span></div>
+              <div><strong>Story Card Analytics</strong><span>Analyze story cards for scenario building</span></div>
             </div>
             <div class="wall-item" style="--item-color:var(--bd-icon-modal-dock)">
               <i class="icon-panel-right"></i>
-              <div><strong>Story Card Modal Dock</strong><span>Edit beside your story</span></div>
+              <div><strong>Story Card Modal Dock</strong><span>Dock the story card editor to the side</span></div>
             </div>
             <div class="wall-item">
               <i class="icon-star"></i>
@@ -583,39 +824,39 @@
           <div class="wall-modules">
             <div class="wall-item" style="--item-color:var(--bd-icon-scripts)">
               <i class="icon-book-open-text"></i>
-              <div><strong>Widget</strong><span>Live UI</span></div>
+              <div><strong>Widget</strong><span>Live visual UI for script-driven displays</span></div>
             </div>
             <div class="wall-item" style="--item-color:var(--bd-blue)">
               <i class="icon-globe-lock"></i>
-              <div><strong>WebFetch</strong><span>Safe web</span></div>
+              <div><strong>WebFetch</strong><span>Consent-gated web requests and simple search</span></div>
             </div>
             <div class="wall-item" style="--item-color:var(--bd-indigo)">
               <i class="icon-bot-message-square"></i>
-              <div><strong>AI</strong><span>LLM queries</span></div>
+              <div><strong>AI</strong><span>Asynchronous LLM queries for scripts</span></div>
             </div>
             <div class="wall-item" style="--item-color:var(--bd-mode-story)">
               <i class="icon-clock"></i>
-              <div><strong>Clock</strong><span>Time data</span></div>
+              <div><strong>Clock</strong><span>Reliable time, time zones, and formatting</span></div>
             </div>
             <div class="wall-item">
               <i class="icon-layers"></i>
-              <div><strong>SDK</strong><span>BD state</span></div>
+              <div><strong>SDK</strong><span>Version and configuration context for scripts</span></div>
             </div>
             <div class="wall-item" style="--item-color:var(--bd-pink)">
               <i class="icon-map-pin"></i>
-              <div><strong>Geolocation</strong><span>Real location</span></div>
+              <div><strong>Geolocation</strong><span>Permission-based real-world location context</span></div>
             </div>
             <div class="wall-item" style="--item-color:var(--bd-cyan)">
               <i class="icon-cloud-sun"></i>
-              <div><strong>Weather</strong><span>Forecasts</span></div>
+              <div><strong>Weather</strong><span>Current conditions and forecast lookup</span></div>
             </div>
             <div class="wall-item" style="--item-color:var(--bd-green)">
               <i class="icon-wifi"></i>
-              <div><strong>Network</strong><span>Connection</span></div>
+              <div><strong>Network</strong><span>Connection status and quality hints</span></div>
             </div>
             <div class="wall-item" style="--item-color:var(--bd-orange)">
               <i class="icon-cpu"></i>
-              <div><strong>System</strong><span>Device data</span></div>
+              <div><strong>System</strong><span>Device, browser, display, and power context</span></div>
             </div>
           </div>
           <div class="wall-count">16 features + 9 modules</div>
@@ -676,19 +917,35 @@
               <i class="section-icon icon-activity" style="color:var(--bd-icon-scripts)"></i>
               <h3 class="section-title">Runtime</h3>
             </div>
-            <div class="runtime-card">
-              <div class="runtime-status">
-                <i class="status-dot"></i>
-                <div>
-                  <strong>Ultrascripts Connected</strong>
-                  <small>Heartbeat active · 9 modules available</small>
+            <div class="feature-card expanded ultra-runtime-card">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <i class="feature-icon icon-radio-tower" style="--icon-color:var(--bd-icon-scripts)"></i>
+                    <h4 class="feature-title">Ultrascripts</h4>
+                  </div>
+                  <p class="feature-desc">Two-way script modules and live capabilities</p>
                 </div>
-                <i class="icon-refresh-cw" style="color:var(--bd-text-muted)"></i>
+                <span class="toggle"></span>
+              </div>
+              <div class="feature-details">
+                <div class="ultra-status-panel">
+                  <i class="status-dot"></i>
+                  <div>
+                    <strong>Ultrascripts online</strong>
+                    <span>9/9 modules mounted, 9 enabled.</span>
+                  </div>
+                  <i class="icon-refresh-cw" style="color:var(--bd-text-muted)"></i>
+                </div>
+                <div class="ultra-debug-row">
+                  <span><i class="icon-bug"></i> Ultrascripts Debug</span>
+                  <span class="toggle sm off"></span>
+                </div>
               </div>
             </div>
             <div class="section-header">
               <i class="section-icon icon-layers" style="color:var(--bd-section-formatting)"></i>
-              <h3 class="section-title">Modules</h3>
+              <h3 class="section-title">Script Surface</h3>
             </div>
             <div class="module-mini-grid">
               <div class="feature-card">
@@ -698,6 +955,7 @@
                       <i class="feature-icon icon-book-open-text" style="--icon-color:var(--bd-icon-scripts)"></i>
                       <h4 class="feature-title">Widget</h4>
                     </div>
+                    <p class="feature-desc">Live visual UI for script-driven displays</p>
                   </div>
                   <span class="toggle sm"></span>
                 </div>
@@ -709,17 +967,7 @@
                       <i class="feature-icon icon-globe-lock" style="--icon-color:var(--bd-blue)"></i>
                       <h4 class="feature-title">WebFetch</h4>
                     </div>
-                  </div>
-                  <span class="toggle sm"></span>
-                </div>
-              </div>
-              <div class="feature-card">
-                <div class="feature-row">
-                  <div class="feature-info">
-                    <div class="feature-title-row">
-                      <i class="feature-icon icon-bot-message-square" style="--icon-color:var(--bd-indigo)"></i>
-                      <h4 class="feature-title">AI</h4>
-                    </div>
+                    <p class="feature-desc">Consent-gated web requests and simple search</p>
                   </div>
                   <span class="toggle sm"></span>
                 </div>
@@ -731,62 +979,7 @@
                       <i class="feature-icon icon-clock" style="--icon-color:var(--bd-mode-story)"></i>
                       <h4 class="feature-title">Clock</h4>
                     </div>
-                  </div>
-                  <span class="toggle sm"></span>
-                </div>
-              </div>
-              <div class="feature-card">
-                <div class="feature-row">
-                  <div class="feature-info">
-                    <div class="feature-title-row">
-                      <i class="feature-icon icon-cloud-sun" style="--icon-color:var(--bd-cyan)"></i>
-                      <h4 class="feature-title">Weather</h4>
-                    </div>
-                  </div>
-                  <span class="toggle sm"></span>
-                </div>
-              </div>
-              <div class="feature-card">
-                <div class="feature-row">
-                  <div class="feature-info">
-                    <div class="feature-title-row">
-                      <i class="feature-icon icon-map-pin" style="--icon-color:var(--bd-pink)"></i>
-                      <h4 class="feature-title">Geolocation</h4>
-                    </div>
-                  </div>
-                  <span class="toggle sm"></span>
-                </div>
-              </div>
-              <div class="feature-card">
-                <div class="feature-row">
-                  <div class="feature-info">
-                    <div class="feature-title-row">
-                      <i class="feature-icon icon-wifi" style="--icon-color:var(--bd-green)"></i>
-                      <h4 class="feature-title">Network</h4>
-                    </div>
-                  </div>
-                  <span class="toggle sm"></span>
-                </div>
-              </div>
-              <div class="feature-card">
-                <div class="feature-row">
-                  <div class="feature-info">
-                    <div class="feature-title-row">
-                      <i class="feature-icon icon-cpu" style="--icon-color:var(--bd-orange)"></i>
-                      <h4 class="feature-title">System</h4>
-                    </div>
-                  </div>
-                  <span class="toggle sm"></span>
-                </div>
-              </div>
-              <div class="feature-card" style="grid-column:1/-1">
-                <div class="feature-row">
-                  <div class="feature-info">
-                    <div class="feature-title-row">
-                      <i class="feature-icon icon-layers"></i>
-                      <h4 class="feature-title">SDK</h4>
-                    </div>
-                    <p class="feature-desc">Version and configuration context for scripts</p>
+                    <p class="feature-desc">Reliable time, time zones, and formatting</p>
                   </div>
                   <span class="toggle sm"></span>
                 </div>
@@ -817,40 +1010,29 @@
           <div class="surface widget-preview">
             <div class="widget-head">
               <strong><i class="icon-book-open-text" style="color:var(--bd-icon-scripts)"></i> Widget module output</strong>
-              <span>● SCRIPT CONNECTED</span>
+              <span>renderer.js</span>
             </div>
-            <div class="widget-card">
-              <div class="widget-character">
-                <div class="avatar">K</div>
-                <div>
-                  <strong>Kael · Ash Warden</strong>
-                  <div class="stat-line">
-                    <span>HP</span>
-                    <div class="stat-track"><div class="stat-fill" style="width:72%"></div></div>
-                    <b>72 / 100</b>
-                  </div>
-                  <div class="stat-line">
-                    <span>Resolve</span>
-                    <div class="stat-track"><div class="stat-fill" style="width:46%;background:var(--bd-purple-light)"></div></div>
-                    <b>46</b>
-                  </div>
+            <div class="bd-betterscripts-wrapper bd-widget-module-wrapper">
+              <div class="bd-widget-module-controls">
+                <button class="bd-widget-minimize-toggle"><span class="bd-widget-minimize-text">Hide widgets</span><span class="bd-widget-minimize-count">8</span><span class="bd-widget-minimize-icon">−</span></button>
+              </div>
+              <div class="bd-betterscripts-container bd-widget-module-container">
+                <div class="bd-bar-zone bd-bar-left bd-widget-module-zone">
+                  <div class="bd-widget bd-widget-stat" data-color="red"><span class="bd-widget-label">HP</span><span class="bd-widget-value">87</span></div>
+                  <div class="bd-widget bd-widget-stat" data-color="blue"><span class="bd-widget-label">MP</span><span class="bd-widget-value">23</span></div>
+                  <div class="bd-widget bd-widget-counter"><span class="bd-widget-counter-icon">🪙</span><span class="bd-widget-counter-value">137</span><span class="bd-widget-counter-delta" data-positive="true">+25</span></div>
                 </div>
-                <span class="badge">LV. 12</span>
+                <div class="bd-bar-zone bd-bar-center bd-widget-module-zone">
+                  <div class="bd-widget bd-widget-bar" data-color="green"><span class="bd-widget-label">Health</span><div class="bd-widget-bar-container"><div class="bd-widget-bar-fill" style="width:87%"></div><span class="bd-widget-bar-text">87/100</span></div></div>
+                  <div class="bd-widget bd-widget-bar" data-color="blue"><span class="bd-widget-label">Mana</span><div class="bd-widget-bar-container"><div class="bd-widget-bar-fill" style="width:23%"></div><span class="bd-widget-bar-text">23/100</span></div></div>
+                  <div class="bd-widget bd-widget-bar" data-color="purple"><span class="bd-widget-label">XP</span><div class="bd-widget-bar-container"><div class="bd-widget-bar-fill" style="width:60%"></div><span class="bd-widget-bar-text">60/100</span></div></div>
+                </div>
+                <div class="bd-bar-zone bd-bar-right bd-widget-module-zone">
+                  <div class="bd-widget bd-widget-badge" style="--badge-color:var(--bd-purple)"><span class="bd-widget-badge-icon">🧙</span><span class="bd-widget-badge-text">Mage</span></div>
+                  <div class="bd-widget bd-widget-badge" data-variant="solid" style="--badge-color:var(--bd-success)"><span class="bd-widget-badge-text">Level 12</span></div>
+                  <div class="bd-widget bd-widget-button bd-widget-interactive"><button type="button" class="bd-widget-control bd-widget-button-control" data-variant="primary"><span class="bd-widget-control-icon">⚔️</span><span class="bd-widget-button-text">Attack</span></button></div>
+                </div>
               </div>
-              <div class="widget-actions">
-                <button class="btn btn-primary"><i class="icon-swords"></i> Inspect</button>
-                <button class="btn"><i class="icon-message-circle"></i> Speak</button>
-                <button class="btn"><i class="icon-chevron-up"></i> Collapse</button>
-              </div>
-            </div>
-            <div class="permission-row">
-              <i class="icon-shield-check"></i>
-              <div>
-                <strong>Web request needs permission</strong>
-                <span>scripts.example.com wants to access https://api.open-meteo.com</span>
-              </div>
-              <button class="btn">Deny</button>
-              <button class="btn btn-primary">Allow</button>
             </div>
           </div>
         </div>
@@ -887,55 +1069,68 @@
       <div class="play-layout">
         <div class="aid-shell play-adventure">
           <div class="aid-topbar">
-            <strong>The Ember Crown</strong>
-            <span>AI Dungeon · Adventure</span>
-          </div>
-          <div class="mode-tabs">
-            <span class="mode-tab" style="--mode-color:var(--bd-mode-do-light)">Do</span>
-            <span class="mode-tab active" style="--mode-color:var(--bd-mode-try-light)">Try</span>
-            <span class="mode-tab" style="--mode-color:var(--bd-mode-say-light)">Say</span>
-            <span class="mode-tab" style="--mode-color:var(--bd-mode-story-light)">Story</span>
-            <span class="mode-tab" style="--mode-color:var(--bd-mode-command-light)">Command</span>
-          </div>
-          <div class="story">
-            <p><strong>The bridge gives way beneath your feet.</strong> Stone disappears into the fog as the chasm opens below.</p>
-            <p><em>“Trust the wind,” Lyra whispers.</em></p>
-            <p class="story-break">◆ ◆ ◆</p>
-            <p>You run—straight toward the impossible distance between you and safety.</p>
-            <p class="whisper">Markdown has rendered bold, italic, whispers, and the scene break above.</p>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin:0 var(--bd-space-5) var(--bd-space-2)">
-            <span class="command-pill"><i class="icon-terminal"></i> Command · Subtle <span style="opacity:.45">↑↓</span></span>
-            <span style="color:var(--bd-text-muted);font-size:var(--bd-font-size-xs)">Ctrl + ↑ recalls input history</span>
-          </div>
-          <div class="input-panel">
-            <div class="input-line">
-              <span class="mode-button"><i class="icon-dice-5"></i> Try</span>
-              <span class="typed-text">Leap for the hanging chain and swing across</span>
-              <span class="send-button"><i class="icon-arrow-up"></i></span>
+            <div class="aid-title">
+              <span class="aid-mark">AI</span>
+              <strong>The Ember Crown</strong>
             </div>
-            <div class="success-bar">
-              <label>Success</label>
-              <div class="success-track"><div class="success-fill"></div></div>
-              <span class="success-number">70%</span>
-              <span>↑↓</span>
+            <div class="aid-actions">
+              <span class="aid-model-button"><i class="icon-bot"></i></span>
+              <span class="aid-icon-button"><i class="icon-undo-2"></i></span>
+              <span class="aid-icon-button"><i class="icon-redo-2"></i></span>
+              <span class="aid-icon-button"><i class="icon-settings"></i></span>
+            </div>
+          </div>
+          <div class="aid-story-stage">
+            <div class="story">
+              <p><strong>The bridge gives way beneath your feet.</strong> Stone disappears into the fog as the chasm opens below.</p>
+              <p class="last-action"><em>“Trust the wind,” Lyra whispers.</em></p>
+              <p>You run—straight toward the <strong><em>impossible distance</em></strong> between you and safety.</p>
+              <p class="whisper">Markdown rendered bold, italic, and bold italic emphasis.</p>
+            </div>
+          </div>
+          <div class="aid-input-dock">
+            <div class="aid-mode-menu">
+              <span class="aid-mode-close"><i class="icon-chevron-left"></i></span>
+              <span class="aid-mode-choice"><i class="icon-play"></i> Do</span>
+              <span class="aid-mode-choice try"><i class="icon-gamepad-2"></i> Try</span>
+              <span class="aid-mode-choice"><i class="icon-message-circle"></i> Say</span>
+              <span class="aid-mode-choice"><i class="icon-send"></i> Story</span>
+              <span class="aid-mode-choice"><i class="icon-image"></i> See</span>
+              <span class="aid-mode-choice command"><i class="icon-bot"></i> Command</span>
+            </div>
+            <div class="input-panel">
+              <div class="input-line">
+                <span class="typed-text">Leap for the hanging chain and swing across</span>
+                <span class="send-button"><i class="icon-gamepad-2"></i></span>
+              </div>
+              <div class="success-bar">
+                <label>Success</label>
+                <div class="success-track"><div class="success-fill"></div></div>
+                <span class="success-number">70%</span>
+                <span>↑↓</span>
+              </div>
             </div>
           </div>
         </div>
         <div class="play-side">
           <div class="character-panel">
-            <div class="character-panel-head">
-              <div>
-                <strong>Kael Suggestion</strong>
-                <span>What brought you to the Ashen City?</span>
+            <div class="bd-character-ai-header">
+              <div class="bd-character-ai-header-text">
+                <strong class="bd-character-ai-title">Kael Suggestion</strong>
+                <span class="bd-character-ai-subtitle">What brought you to the Ashen City?</span>
               </div>
-              <button class="btn">Change</button>
+              <div class="bd-character-ai-header-controls">
+                <button class="bd-character-ai-link-btn">Change</button>
+                <button class="bd-character-ai-close">×</button>
+              </div>
             </div>
-            <div class="character-answer">Kael came to Veyra searching for the warden who erased his family name from the imperial record.</div>
-            <div class="character-reason">Based on Kael's role, history, and the scenario's central conflict.</div>
-            <div class="character-actions">
-              <button class="btn">Reroll</button>
-              <button class="btn btn-primary">Use</button>
+            <div class="bd-character-ai-answer">Kael came to Veyra searching for the warden who erased his family name from the imperial record.</div>
+            <div class="bd-character-ai-reason">Based on Kael's role, history, and the scenario's central conflict.</div>
+            <div class="bd-character-ai-actions">
+              <button class="bd-character-ai-btn bd-character-ai-btn-secondary">Answer Manually</button>
+              <button class="bd-character-ai-btn bd-character-ai-btn-secondary">Edit</button>
+              <button class="bd-character-ai-btn bd-character-ai-btn-secondary">Reroll</button>
+              <button class="bd-character-ai-btn bd-character-ai-btn-primary">Use</button>
             </div>
           </div>
           <div class="play-feature-grid">
@@ -961,7 +1156,7 @@
                   </div>
                   <div class="syntax-row">
                     <span>OOC</span>
-                    <code>((OOC ...))</code>
+                    <code>((DIRECTLY RESPOND TO THIS OOC. RESPOND AS "AI:" | User: …?))</code>
                   </div>
                 </div>
               </div>
@@ -973,7 +1168,7 @@
                     <i class="feature-icon icon-pilcrow" style="--icon-color:var(--bd-icon-markdown)"></i>
                     <h4 class="feature-title">Markdown Formatting</h4>
                   </div>
-                  <p class="feature-desc">Six instruction styles</p>
+                  <p class="feature-desc">Three formats · six instruction presets</p>
                 </div>
               </div>
             </div>
@@ -1049,55 +1244,44 @@
                   <div class="stat-label">Total cards</div>
                 </div>
                 <div class="stat-card">
-                  <div class="stat-value">79</div>
-                  <div class="stat-label">With triggers</div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-value">82</div>
-                  <div class="stat-label">With descriptions</div>
-                </div>
-                <div class="stat-card">
                   <div class="stat-value">2.4</div>
-                  <div class="stat-label">Avg triggers</div>
+                  <div class="stat-label">Avg triggers/card</div>
                 </div>
-              </div>
-            </div>
-            <div class="analytics-columns">
-              <div class="analytics-section">
-                <h4>Card types</h4>
-                <div class="type-breakdown">
-                  <span class="type-item"><i class="icon-user"></i> Character <b>34</b></span>
-                  <span class="type-item"><i class="icon-map-pin"></i> Location <b>21</b></span>
-                  <span class="type-item"><i class="icon-shield"></i> Faction <b>12</b></span>
-                  <span class="type-item"><i class="icon-package"></i> Item <b>9</b></span>
+                <div class="stat-card">
+                  <div class="stat-value">3</div>
+                  <div class="stat-label">Trigger overlaps</div>
                 </div>
-              </div>
-              <div class="analytics-section">
-                <h4>Coverage</h4>
-                <div class="coverage">
-                  <div>
-                    <div class="coverage-label">
-                      <span>Cards with triggers</span>
-                      <span>92%</span>
-                    </div>
-                    <div class="coverage-track"><div class="coverage-fill" style="width:92%"></div></div>
-                  </div>
-                  <div>
-                    <div class="coverage-label">
-                      <span>Cards with descriptions</span>
-                      <span>95%</span>
-                    </div>
-                    <div class="coverage-track"><div class="coverage-fill" style="width:95%;--fill:var(--bd-mode-do)"></div></div>
-                  </div>
+                <div class="stat-card">
+                  <div class="stat-value">2</div>
+                  <div class="stat-label">Empty cards</div>
                 </div>
               </div>
             </div>
             <div class="analytics-section">
-              <h4>Potential issues</h4>
+              <h4>Coverage</h4>
+              <div class="coverage">
+                <div>
+                  <div class="coverage-label">
+                    <span>With Triggers</span>
+                    <span>79/86 (92%)</span>
+                  </div>
+                  <div class="coverage-track"><div class="coverage-fill" style="width:92%"></div></div>
+                </div>
+                <div>
+                  <div class="coverage-label">
+                    <span>With Description</span>
+                    <span>82/86 (95%)</span>
+                  </div>
+                  <div class="coverage-track"><div class="coverage-fill" style="width:95%;--fill:var(--bd-mode-do)"></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="analytics-section">
+              <h4>Issues &amp; Suggestions</h4>
               <div style="display:grid;gap:var(--bd-space-2)">
-                <div class="issue"><i class="icon-triangle-alert"></i> 7 cards have no triggers</div>
-                <div class="issue"><i class="icon-copy"></i> “warden” appears in 2 Story Cards</div>
-                <div class="issue"><i class="icon-package"></i> 4 cards have empty descriptions</div>
+                <div class="issue"><i class="icon-triangle-alert"></i> 7 cards (8%) have no triggers</div>
+                <div class="issue"><i class="icon-copy"></i> 1 trigger is shared by 3+ cards</div>
+                <div class="issue error"><i class="icon-package"></i> 2 cards are completely empty</div>
               </div>
             </div>
           </div>
@@ -1108,7 +1292,7 @@
               <strong><i class="icon-eye"></i> View Context</strong>
               <span class="badge pc">Live</span>
             </div>
-            <div class="context-copy"><p>The <span class="bd-trigger-highlight">Ash Warden</span> watches from the north gate as your party enters <span class="bd-trigger-highlight">Veyra</span>. Somewhere beneath the city, the <span class="bd-suggested-trigger">Ember Crown</span> is waiting.</p></div>
+            <div class="context-copy"><p>The <span class="bd-trigger-highlight demo-hover" data-card-name="Ash Warden">Ash Warden</span> watches from the north gate as your party enters <span class="bd-trigger-highlight" data-card-name="Veyra">Veyra</span>. Somewhere beneath the city, the <span class="bd-suggested-trigger" data-occurrences="4">Ember Crown</span> is waiting.</p></div>
             <div class="context-legend">
               <span style="--legend-color:var(--bd-trigger-color)">Active trigger</span>
               <span style="--legend-color:var(--bd-suggested-trigger-color)">Suggested trigger</span>
@@ -1221,6 +1405,32 @@
         </div>
         <div class="accent-bar"></div>
         <div class="popup-main">
+          <div class="popup-release">
+            <i class="icon-sparkles"></i>
+            <div class="popup-release-copy">
+              <strong>What's New in v2.0.0 PC</strong>
+              <span>Android version now available, bug fixes &amp; more</span>
+            </div>
+            <span class="popup-release-badge">Latest</span>
+            <i class="icon-chevron-down"></i>
+          </div>
+          <div class="section-header popup-section-collapsible">
+            <i class="section-icon icon-message-square" style="color:var(--bd-section-input-modes)"></i>
+            <h3 class="section-title">Input Modes</h3>
+            <i class="section-chevron icon-chevron-down"></i>
+          </div>
+          <div class="feature-card">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <i class="feature-icon icon-terminal" style="--icon-color:var(--bd-mode-command)"></i>
+                  <h4 class="feature-title">Command Mode</h4>
+                </div>
+                <p class="feature-desc">Send narrative commands to the AI</p>
+              </div>
+              <span class="toggle"></span>
+            </div>
+          </div>
           <div class="feature-card">
             <div class="feature-row">
               <div class="feature-info">
@@ -1229,41 +1439,6 @@
                   <h4 class="feature-title">Try Mode</h4>
                 </div>
                 <p class="feature-desc">Roll for action success or failure</p>
-              </div>
-              <span class="toggle"></span>
-            </div>
-          </div>
-          <div class="feature-card">
-            <div class="feature-row">
-              <div class="feature-info">
-                <div class="feature-title-row">
-                  <i class="feature-icon icon-pilcrow" style="--icon-color:var(--bd-icon-markdown)"></i>
-                  <h4 class="feature-title">Markdown Formatting</h4>
-                </div>
-                <p class="feature-desc">Rich text in AI responses</p>
-              </div>
-              <span class="toggle"></span>
-            </div>
-          </div>
-          <div class="feature-card">
-            <div class="feature-row">
-              <div class="feature-info">
-                <div class="feature-title-row">
-                  <i class="feature-icon icon-chart-bar" style="--icon-color:var(--bd-icon-analytics)"></i>
-                  <h4 class="feature-title">Story Card Analytics</h4>
-                </div>
-                <p class="feature-desc">Build smarter scenarios</p>
-              </div>
-            </div>
-          </div>
-          <div class="feature-card expanded">
-            <div class="feature-row">
-              <div class="feature-info">
-                <div class="feature-title-row">
-                  <i class="feature-icon icon-radio-tower" style="--icon-color:var(--bd-icon-scripts)"></i>
-                  <h4 class="feature-title">Ultrascripts</h4>
-                </div>
-                <p class="feature-desc">9 live script modules</p>
               </div>
               <span class="toggle"></span>
             </div>
