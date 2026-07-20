@@ -84,7 +84,7 @@
     .popup-header .header-logo{width:28px;height:28px}
     .popup-header .header-name{font-size:15px}
     .popup-actions{display:flex;align-items:center;gap:var(--bd-space-3);color:var(--bd-text-muted);font-size:var(--bd-font-size-lg)}
-    .popup-actions .icon-coffee{color:var(--bd-pink)}
+    .popup-actions .icon-coffee{color:var(--bd-text-muted)}
     .popup-nav{display:flex;gap:var(--bd-space-2);padding:var(--bd-space-1) var(--bd-space-4) var(--bd-space-3)}
     .nav-item{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:6px var(--bd-space-3);border-radius:var(--bd-radius-md);color:var(--bd-text-muted);font-size:var(--bd-font-size-sm);font-weight:var(--bd-font-weight-medium)}
     .nav-item.active{color:var(--bd-accent-primary);background:var(--bd-bg-tertiary);font-weight:var(--bd-font-weight-semibold);box-shadow:var(--bd-shadow-sm)}
@@ -159,6 +159,40 @@
     .hero-popup{position:absolute;width:410px;height:566px;right:56px;top:110px;transform:rotate(1.25deg);box-shadow:0 32px 90px rgb(0 0 0 / 48%)}
     .hero-popup .popup-main{display:grid;gap:var(--bd-space-2)}
     .hero-popup .section-header{margin-bottom:0}
+
+    /* Features tab — mirrors the production popup structure and spacing */
+    .hero-popup .popup-main{display:block;padding:var(--bd-space-3)}
+    .hero-popup .tab-panel{display:block}
+    .hero-popup .section{margin-bottom:14px}
+    .hero-popup .whats-new-section{padding:10px 12px;border:1px solid var(--bd-border-subtle);border-radius:var(--bd-radius-lg);background:var(--bd-bg-secondary)}
+    .hero-popup .whats-new-compact{display:flex;align-items:center;gap:8px;padding:0}
+    .hero-popup .whats-new-compact-left{display:flex;align-items:center;gap:8px;min-width:0;flex:1}
+    .hero-popup .whats-new-compact-icon{flex:0 0 auto;color:var(--bd-accent-primary);font-size:14px}
+    .hero-popup .whats-new-compact-text{min-width:0;flex:1}
+    .hero-popup .whats-new-compact-text strong{display:block;color:var(--bd-text-primary);font-size:12px;line-height:1.3}
+    .hero-popup .whats-new-compact-summary{display:block;overflow:hidden;margin-top:1px;color:var(--bd-text-muted);font-size:10px;line-height:1.3;text-overflow:ellipsis;white-space:nowrap}
+    .hero-popup .whats-new-compact-right{display:flex;align-items:center;gap:4px;flex:0 0 auto}
+    .hero-popup .whats-new-badge{padding:2px 7px;border:1px solid var(--bd-border-accent);border-radius:var(--bd-radius-full);background:var(--bd-accent-muted);color:var(--bd-accent-light);font-size:9px;font-weight:600;text-transform:uppercase}
+    .hero-popup .whats-new-toggle{width:22px;height:22px;display:flex;align-items:center;justify-content:center;padding:0;border:1px solid transparent;border-radius:var(--bd-radius-sm);background:transparent;color:var(--bd-text-muted);font:inherit;font-size:12px}
+    .hero-popup .whats-new-expandable{display:none}
+    .hero-popup .section-collapsible{margin-bottom:0}
+    .hero-popup .section-header-collapsible{width:100%;display:flex;align-items:center;gap:8px;margin:0 0 10px;padding:6px 8px;border:0;border-radius:var(--bd-radius-md);background:transparent;color:inherit;font:inherit;text-align:left}
+    .hero-popup .section-header-collapsible .section-icon{font-size:14px}
+    .hero-popup .section-header-collapsible .section-title{font-size:11px;letter-spacing:.5px}
+    .hero-popup .section-header-collapsible .section-chevron{margin-left:auto;color:var(--bd-text-muted);font-size:12px}
+    .hero-popup .section-body{display:grid;gap:8px;overflow:hidden}
+    .hero-popup .feature-card{margin:0;border-radius:var(--bd-radius-lg);background:var(--bd-bg-secondary)}
+    .hero-popup .feature-row{padding:12px 14px;cursor:pointer}
+    .hero-popup .feature-title{margin:0 0 2px;font-size:13px}
+    .hero-popup .feature-desc{margin:0;color:var(--bd-text-muted);font-size:11px}
+    .hero-popup .feature-icon{font-size:14px}
+    .hero-popup label.toggle{width:38px;height:20px;background:transparent}
+    .hero-popup label.toggle:after{display:none}
+    .hero-popup .toggle input{position:absolute;width:0;height:0;opacity:0}
+    .hero-popup .toggle-slider{position:absolute;inset:0;border-radius:20px;background:var(--bd-bg-active)}
+    .hero-popup .toggle-slider:before{content:'';position:absolute;left:3px;top:3px;width:14px;height:14px;border-radius:50%;background:var(--bd-text-muted)}
+    .hero-popup .toggle input:checked + .toggle-slider{background:var(--bd-accent-primary)}
+    .hero-popup .toggle input:checked + .toggle-slider:before{transform:translateX(18px);background:#fff}
 
     /* ============================================================
        02: Feature wall
@@ -581,13 +615,53 @@
     .ultra-popup .module-mini-grid .feature-row{min-height:58px;padding:10px 12px}
     .ultra-popup .module-mini-grid .feature-title{font-size:14px}
     .ultra-popup .module-mini-grid .feature-desc{display:block;margin-top:2px;font-size:10px}
+
+    /* Draft 11: the marquee uses the same production Features-tab composition as the overview. */
+    .marquee-popup .popup-main{display:block;padding:var(--bd-space-3)}
+    .marquee-popup .tab-panel{display:block}
+    .marquee-popup .section{margin-bottom:14px}
+    .marquee-popup .whats-new-section{padding:10px 12px;border:1px solid var(--bd-border-subtle);border-radius:var(--bd-radius-lg);background:var(--bd-bg-secondary)}
+    .marquee-popup .whats-new-compact{display:flex;align-items:center;gap:8px;padding:0}
+    .marquee-popup .whats-new-compact-left{display:flex;align-items:center;gap:8px;min-width:0;flex:1}
+    .marquee-popup .whats-new-compact-icon{flex:0 0 auto;color:var(--bd-accent-primary);font-size:14px}
+    .marquee-popup .whats-new-compact-text{min-width:0;flex:1}
+    .marquee-popup .whats-new-compact-text strong{display:block;color:var(--bd-text-primary);font-size:12px;line-height:1.3}
+    .marquee-popup .whats-new-compact-summary{display:block;overflow:hidden;margin-top:1px;color:var(--bd-text-muted);font-size:10px;line-height:1.3;text-overflow:ellipsis;white-space:nowrap}
+    .marquee-popup .whats-new-compact-right{display:flex;align-items:center;gap:4px;flex:0 0 auto}
+    .marquee-popup .whats-new-badge{padding:2px 7px;border:1px solid var(--bd-border-accent);border-radius:var(--bd-radius-full);background:var(--bd-accent-muted);color:var(--bd-accent-light);font-size:9px;font-weight:600;text-transform:uppercase}
+    .marquee-popup .whats-new-toggle{width:22px;height:22px;display:flex;align-items:center;justify-content:center;padding:0;border:1px solid transparent;border-radius:var(--bd-radius-sm);background:transparent;color:var(--bd-text-muted);font:inherit;font-size:12px}
+    .marquee-popup .whats-new-expandable{display:none}
+    .marquee-popup .section-collapsible{margin-bottom:0}
+    .marquee-popup .section-header-collapsible{width:100%;display:flex;align-items:center;gap:8px;margin:0 0 10px;padding:6px 8px;border:0;border-radius:var(--bd-radius-md);background:transparent;color:inherit;font:inherit;text-align:left}
+    .marquee-popup .section-header-collapsible .section-icon{font-size:14px}
+    .marquee-popup .section-header-collapsible .section-title{font-size:11px;letter-spacing:.5px}
+    .marquee-popup .section-header-collapsible .section-chevron{margin-left:auto;color:var(--bd-text-muted);font-size:12px}
+    .marquee-popup .section-body{display:grid;gap:8px;overflow:hidden}
+    .marquee-popup .feature-card{margin:0;border-radius:var(--bd-radius-lg);background:var(--bd-bg-secondary)}
+    .marquee-popup .feature-row{min-height:0;padding:12px 14px;cursor:pointer}
+    .marquee-popup .feature-title{margin:0 0 2px;font-size:13px}
+    .marquee-popup .feature-desc{margin:0;color:var(--bd-text-muted);font-size:11px}
+    .marquee-popup .feature-icon{font-size:14px}
+    .marquee-popup label.toggle{width:38px;height:20px;background:transparent}
+    .marquee-popup label.toggle:after{display:none}
+    .marquee-popup .toggle input{position:absolute;width:0;height:0;opacity:0}
+    .marquee-popup .toggle-slider{position:absolute;inset:0;border-radius:20px;background:var(--bd-bg-active)}
+    .marquee-popup .toggle-slider:before{content:'';position:absolute;left:3px;top:3px;width:14px;height:14px;border-radius:50%;background:var(--bd-text-muted)}
+    .marquee-popup .toggle input:checked + .toggle-slider{background:var(--bd-accent-primary)}
+    .marquee-popup .toggle input:checked + .toggle-slider:before{transform:translateX(18px);background:#fff}
+
+    /* Draft 12: retain the complete production Features page inside each fixed marketing frame. */
+    .hero-popup .popup-main,.marquee-popup .popup-main{height:calc(100% - 96px);box-sizing:border-box;overflow-x:hidden;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--bd-border-default) transparent}
+    .hero-popup .popup-main::-webkit-scrollbar,.marquee-popup .popup-main::-webkit-scrollbar{width:5px}
+    .hero-popup .popup-main::-webkit-scrollbar-thumb,.marquee-popup .popup-main::-webkit-scrollbar-thumb{border-radius:var(--bd-radius-full);background:var(--bd-border-default)}
+    .hero-popup .popup-main::-webkit-scrollbar-track,.marquee-popup .popup-main::-webkit-scrollbar-track{background:transparent}
   </style>
 </head>
 <body>
   <header class="studio-head">
     <div>
       <h1>BetterDungeon V2: Store Asset Studio</h1>
-      <p>Draft 09 · Feature implementation fidelity pass.</p>
+      <p>Draft 12 · Complete production Features-tab page.</p>
     </div>
     <div class="studio-actions">
       <span class="draft-badge">7 assets</span>
@@ -670,44 +744,134 @@
         </div>
         <div class="accent-bar"></div>
         <div class="popup-main">
-          <div class="popup-release">
-            <i class="icon-sparkles"></i>
-            <div class="popup-release-copy">
-              <strong>What's New in v2.0.0 PC</strong>
-              <span>Android version now available, bug fixes &amp; more</span>
-            </div>
-            <span class="popup-release-badge">Latest</span>
-            <i class="icon-chevron-down"></i>
-          </div>
-          <div class="section-header popup-section-collapsible">
-            <i class="section-icon icon-message-square" style="color:var(--bd-section-input-modes)"></i>
-            <h3 class="section-title">Input Modes</h3>
-            <i class="section-chevron icon-chevron-down"></i>
-          </div>
-          <div class="feature-card">
-            <div class="feature-row">
-              <div class="feature-info">
-                <div class="feature-title-row">
-                  <i class="feature-icon icon-terminal" style="--icon-color:var(--bd-mode-command)"></i>
-                  <h4 class="feature-title">Command Mode</h4>
+          <section class="tab-panel active" id="showcase-tab-features">
+            <div class="section whats-new-section">
+              <div class="whats-new-compact">
+                <div class="whats-new-compact-left">
+                  <span class="whats-new-compact-icon icon-sparkles"></span>
+                  <div class="whats-new-compact-text">
+                    <strong>What's New in v2.0.0 PC</strong>
+                    <span class="whats-new-compact-summary">Android version now available, bug fixes &amp; more</span>
+                  </div>
                 </div>
-                <p class="feature-desc">Send narrative commands to the AI</p>
-              </div>
-              <span class="toggle"></span>
-            </div>
-          </div>
-          <div class="feature-card">
-            <div class="feature-row">
-              <div class="feature-info">
-                <div class="feature-title-row">
-                  <i class="feature-icon icon-dice-5" style="--icon-color:var(--bd-mode-try)"></i>
-                  <h4 class="feature-title">Try Mode</h4>
+                <div class="whats-new-compact-right">
+                  <span class="whats-new-badge">Latest</span>
+                  <button class="whats-new-toggle" aria-label="Expand"><span class="icon-chevron-down"></span></button>
                 </div>
-                <p class="feature-desc">Roll for action success or failure</p>
               </div>
-              <span class="toggle"></span>
+              <div class="whats-new-expandable"></div>
             </div>
-          </div>
+            <div class="section section-collapsible" data-section="input-modes">
+              <button class="section-header section-header-collapsible" aria-expanded="true">
+                <span class="section-icon icon-message-square" style="color:var(--bd-section-input-modes)"></span>
+                <h2 class="section-title">Input Modes</h2>
+                <span class="section-chevron icon-chevron-down"></span>
+              </button>
+              <div class="section-body">
+                <article class="feature-card" data-feature="command">
+                  <div class="feature-row">
+                    <div class="feature-info">
+                      <div class="feature-title-row">
+                        <span class="feature-icon" style="color:var(--bd-mode-command)"><span class="icon-terminal"></span></span>
+                        <h3 class="feature-title">Command Mode</h3>
+                      </div>
+                      <p class="feature-desc">Send narrative commands to the AI</p>
+                    </div>
+                    <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+                  </div>
+                </article>
+                <article class="feature-card" data-feature="try">
+                  <div class="feature-row">
+                    <div class="feature-info">
+                      <div class="feature-title-row">
+                        <span class="feature-icon" style="color:var(--bd-mode-try)"><span class="icon-dice-5"></span></span>
+                        <h3 class="feature-title">Try Mode</h3>
+                      </div>
+                      <p class="feature-desc">Roll for action success or failure</p>
+                    </div>
+                    <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+                  </div>
+                </article>
+              </div>
+            </div>
+
+            <div class="section section-collapsible" data-section="controls">
+              <button class="section-header section-header-collapsible" aria-expanded="true">
+                <span class="section-icon icon-gamepad-2" style="color:var(--bd-section-tools)"></span>
+                <h2 class="section-title">Controls &amp; Navigation</h2>
+                <span class="section-chevron icon-chevron-down"></span>
+              </button>
+              <div class="section-body">
+                <article class="feature-card" data-feature="hotkey">
+                  <div class="feature-row"><div class="feature-info"><div class="feature-title-row"><span class="feature-icon" style="color:var(--bd-icon-hotkeys)"><span class="icon-keyboard"></span></span><h3 class="feature-title">Hotkeys</h3></div><p class="feature-desc">Trigger quick actions with keyboard shortcuts</p></div><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+                </article>
+                <article class="feature-card" data-feature="inputHistory">
+                  <div class="feature-row"><div class="feature-info"><div class="feature-title-row"><span class="feature-icon" style="color:var(--accent)"><span class="icon-history"></span></span><h3 class="feature-title">Input History</h3></div><p class="feature-desc">Cycle through past inputs with arrow keys</p></div><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+                </article>
+                <article class="feature-card" data-feature="inputModeColor">
+                  <div class="feature-row"><div class="feature-info"><div class="feature-title-row"><span class="feature-icon" style="color:var(--bd-icon-palette)"><span class="icon-palette"></span></span><h3 class="feature-title">Input Mode Colors</h3></div><p class="feature-desc">Color-code the input box by mode</p></div><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+                </article>
+              </div>
+            </div>
+
+            <div class="section section-collapsible" data-section="writing">
+              <button class="section-header section-header-collapsible" aria-expanded="true">
+                <span class="section-icon icon-type" style="color:var(--bd-section-formatting)"></span>
+                <h2 class="section-title">Writing &amp; Formatting</h2>
+                <span class="section-chevron icon-chevron-down"></span>
+              </button>
+              <div class="section-body">
+                <article class="feature-card" data-feature="markdown">
+                  <div class="feature-row"><div class="feature-info"><div class="feature-title-row"><span class="feature-icon" style="color:var(--bd-icon-markdown)"><span class="icon-pilcrow"></span></span><h3 class="feature-title">Markdown Formatting</h3></div><p class="feature-desc">Render rich text emphasis in AI responses</p></div><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+                </article>
+                <article class="feature-card" data-feature="notes">
+                  <div class="feature-row"><div class="feature-info"><div class="feature-title-row"><span class="feature-icon" style="color:var(--bd-icon-notes)"><span class="icon-notebook-pen"></span></span><h3 class="feature-title">Adventure Notes</h3></div><p class="feature-desc">Write and save notes per adventure</p></div><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+                </article>
+              </div>
+            </div>
+
+            <div class="section section-collapsible" data-section="scenario">
+              <button class="section-header section-header-collapsible" aria-expanded="true">
+                <span class="section-icon icon-wrench" style="color:var(--bd-section-tools)"></span>
+                <h2 class="section-title">Scenario Building</h2>
+                <span class="section-chevron icon-chevron-down"></span>
+              </button>
+              <div class="section-body">
+                <article class="feature-card" data-feature="triggerHighlight">
+                  <div class="feature-row"><div class="feature-info"><div class="feature-title-row"><span class="feature-icon" style="color:var(--bd-icon-trigger)"><span class="icon-sparkle"></span></span><h3 class="feature-title">Trigger Highlighting</h3></div><p class="feature-desc">Highlight story card triggers in context</p></div><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+                </article>
+                <article class="feature-card" data-feature="storyCardAnalytics">
+                  <div class="feature-row"><div class="feature-info"><div class="feature-title-row"><span class="feature-icon" style="color:var(--bd-icon-analytics)"><span class="icon-chart-bar"></span></span><h3 class="feature-title">Story Card Analytics</h3></div><p class="feature-desc">Analyze story cards for scenario building</p></div></div>
+                </article>
+                <article class="feature-card" data-feature="storyCardModalDock">
+                  <div class="feature-row"><div class="feature-info"><div class="feature-title-row"><span class="feature-icon" style="color:var(--bd-icon-modal-dock)"><span class="icon-panel-right"></span></span><h3 class="feature-title">Story Card Modal Dock</h3></div><p class="feature-desc">Dock the story card editor to the side</p></div><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+                </article>
+              </div>
+            </div>
+
+            <div class="section section-collapsible" data-section="automations">
+              <button class="section-header section-header-collapsible" aria-expanded="true">
+                <span class="section-icon icon-zap" style="color:var(--bd-section-automations)"></span>
+                <h2 class="section-title">Automations</h2>
+                <span class="section-chevron icon-chevron-down"></span>
+              </button>
+              <div class="section-body">
+                <article class="feature-card" data-feature="customDynamic">
+                  <div class="feature-row"><div class="feature-info"><div class="feature-title-row"><span class="feature-icon" style="color:var(--bd-section-automations)"><span class="icon-route"></span></span><h3 class="feature-title">Custom Dynamic</h3></div><p class="feature-desc">Route generations through your own model pool</p></div><label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label></div>
+                </article>
+                <article class="feature-card" data-feature="autoSee">
+                  <div class="feature-row"><div class="feature-info"><div class="feature-title-row"><span class="feature-icon" style="color:var(--bd-mode-see)"><span class="icon-eye"></span></span><h3 class="feature-title">Auto See</h3></div><p class="feature-desc">Generate scene images after AI responses</p></div><label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label></div>
+                </article>
+                <article class="feature-card" data-feature="textToSpeech">
+                  <div class="feature-row"><div class="feature-info"><div class="feature-title-row"><span class="feature-icon" style="color:var(--accent)"><span class="icon-volume-2"></span></span><h3 class="feature-title">Text To Speech</h3></div><p class="feature-desc">Narrate the latest AI adventure text</p></div><label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label></div>
+                </article>
+                <article class="feature-card" data-feature="autoEnableScripts">
+                  <div class="feature-row"><div class="feature-info"><div class="feature-title-row"><span class="feature-icon" style="color:var(--bd-icon-auto-scripts)"><span class="icon-terminal"></span></span><h3 class="feature-title">Auto Enable Scripts</h3></div><p class="feature-desc">Re-enable scripts in the scenario editor</p></div></div>
+                </article>
+              </div>
+            </div>
+
+          </section>
         </div>
       </div>
     </div>
@@ -770,7 +934,7 @@
           <div class="wall-list">
             <div class="wall-item" style="--item-color:var(--bd-icon-markdown)">
               <i class="icon-pilcrow"></i>
-              <div><strong>Markdown Formatting</strong><span>Bold, italic, and bold italic rendering</span></div>
+              <div><strong>Markdown Formatting</strong><span>Render rich text emphasis in AI responses</span></div>
             </div>
             <div class="wall-item" style="--item-color:var(--bd-icon-notes)">
               <i class="icon-notebook-pen"></i>
@@ -1405,50 +1569,70 @@
         </div>
         <div class="accent-bar"></div>
         <div class="popup-main">
-          <div class="popup-release">
-            <i class="icon-sparkles"></i>
-            <div class="popup-release-copy">
-              <strong>What's New in v2.0.0 PC</strong>
-              <span>Android version now available, bug fixes &amp; more</span>
-            </div>
-            <span class="popup-release-badge">Latest</span>
-            <i class="icon-chevron-down"></i>
-          </div>
-          <div class="section-header popup-section-collapsible">
-            <i class="section-icon icon-message-square" style="color:var(--bd-section-input-modes)"></i>
-            <h3 class="section-title">Input Modes</h3>
-            <i class="section-chevron icon-chevron-down"></i>
-          </div>
-          <div class="feature-card">
-            <div class="feature-row">
-              <div class="feature-info">
-                <div class="feature-title-row">
-                  <i class="feature-icon icon-terminal" style="--icon-color:var(--bd-mode-command)"></i>
-                  <h4 class="feature-title">Command Mode</h4>
+          <section class="tab-panel active" id="marquee-tab-features">
+            <div class="section whats-new-section">
+              <div class="whats-new-compact">
+                <div class="whats-new-compact-left">
+                  <span class="whats-new-compact-icon icon-sparkles"></span>
+                  <div class="whats-new-compact-text">
+                    <strong>What's New in v2.0.0 PC</strong>
+                    <span class="whats-new-compact-summary">Android version now available, bug fixes &amp; more</span>
+                  </div>
                 </div>
-                <p class="feature-desc">Send narrative commands to the AI</p>
-              </div>
-              <span class="toggle"></span>
-            </div>
-          </div>
-          <div class="feature-card">
-            <div class="feature-row">
-              <div class="feature-info">
-                <div class="feature-title-row">
-                  <i class="feature-icon icon-dice-5" style="--icon-color:var(--bd-mode-try)"></i>
-                  <h4 class="feature-title">Try Mode</h4>
+                <div class="whats-new-compact-right">
+                  <span class="whats-new-badge">Latest</span>
+                  <button class="whats-new-toggle" aria-label="Expand"><span class="icon-chevron-down"></span></button>
                 </div>
-                <p class="feature-desc">Roll for action success or failure</p>
               </div>
-              <span class="toggle"></span>
+              <div class="whats-new-expandable"></div>
             </div>
-          </div>
+            <div class="section section-collapsible" data-section="input-modes">
+              <button class="section-header section-header-collapsible" aria-expanded="true">
+                <span class="section-icon icon-message-square" style="color:var(--bd-section-input-modes)"></span>
+                <h2 class="section-title">Input Modes</h2>
+                <span class="section-chevron icon-chevron-down"></span>
+              </button>
+              <div class="section-body">
+                <article class="feature-card" data-feature="command">
+                  <div class="feature-row">
+                    <div class="feature-info">
+                      <div class="feature-title-row">
+                        <span class="feature-icon" style="color:var(--bd-mode-command)"><span class="icon-terminal"></span></span>
+                        <h3 class="feature-title">Command Mode</h3>
+                      </div>
+                      <p class="feature-desc">Send narrative commands to the AI</p>
+                    </div>
+                    <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+                  </div>
+                </article>
+                <article class="feature-card" data-feature="try">
+                  <div class="feature-row">
+                    <div class="feature-info">
+                      <div class="feature-title-row">
+                        <span class="feature-icon" style="color:var(--bd-mode-try)"><span class="icon-dice-5"></span></span>
+                        <h3 class="feature-title">Try Mode</h3>
+                      </div>
+                      <p class="feature-desc">Roll for action success or failure</p>
+                    </div>
+                    <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
     </div>
   </section>
 
   <script>
+    const canonicalFeaturesTab=document.getElementById('showcase-tab-features');
+    const marqueeFeaturesTab=document.getElementById('marquee-tab-features');
+    marqueeFeaturesTab.replaceChildren(...[...canonicalFeaturesTab.children].map(section=>section.cloneNode(true)));
+    const marqueeFeatureScroller=marqueeFeaturesTab.closest('.popup-main');
+    const marqueeFeatureFocus=marqueeFeaturesTab.querySelector('[data-section="writing"]');
+    requestAnimationFrame(()=>{marqueeFeatureScroller.scrollTop=Math.max(0,marqueeFeatureFocus.offsetTop-12);});
+
     const assetExports=[
       {id:'shot-overview',file:'betterdungeon-v2-01-overview.png',width:1280,height:800,production:true},
       {id:'shot-wall',file:'betterdungeon-v2-02-feature-wall.png',width:1280,height:800,production:true},
@@ -1498,6 +1682,14 @@
     };
     const setStatus=(message,isError=false)=>{statusEl.textContent=message;statusEl.classList.toggle('error',isError);};
     const triggerDownload=(dataUrl,file)=>{const link=document.createElement('a');link.download=file;link.href=dataUrl;link.click();};
+    const prepareExportState=node=>{
+      const scroller=node.querySelector('.marquee-popup .popup-main');
+      if(!scroller){return ()=>{};}
+      const previousScrollTop=scroller.scrollTop;
+      const focus=scroller.querySelector('[data-section="writing"]');
+      if(focus){scroller.scrollTop=Math.max(0,focus.offsetTop-12);}
+      return ()=>{scroller.scrollTop=previousScrollTop;};
+    };
     async function downloadPng(config,button){
       await ensureRenderer();
       if(!window.htmlToImage){throw new Error('The PNG renderer could not initialize. Reload the studio and try again.');}
@@ -1506,14 +1698,17 @@
       if(button){button.disabled=true;button.innerHTML='<i class="icon-loader-circle"></i> Rendering';}
       setStatus(`Rendering ${config.file} at ${config.width} × ${config.height}…`);
       let restoreImages=()=>{};
+      let restoreExportState=()=>{};
       try{
         await waitForAssets();
+        restoreExportState=prepareExportState(node);
         restoreImages=await inlineExportImages(node);
         const dataUrl=await htmlToImage.toPng(node,{width:config.width,height:config.height,canvasWidth:config.width,canvasHeight:config.height,pixelRatio:1,skipAutoScale:true,cacheBust:false,fontEmbedCSS:exportFontCss,backgroundColor:getComputedStyle(node).backgroundColor});
         triggerDownload(dataUrl,config.file);
         setStatus(`Downloaded ${config.file} · ${config.width} × ${config.height}`);
       }finally{
         restoreImages();
+        restoreExportState();
         if(button){button.disabled=false;button.innerHTML=oldLabel;}
       }
     }
