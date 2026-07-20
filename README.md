@@ -119,6 +119,7 @@ The project is intentionally dependency-light: there is no build step or package
 - Found a bug? [Open an issue](../../issues/new/choose).
 - Have an idea? [Open a feature request](../../issues/new).
 - Want to discuss the project? Find me on Discord at `@computerK`.
+- Want to support continued development? [Visit my Ko-fi page](https://ko-fi.com/computerk).
 
 If BetterDungeon makes AI Dungeon more enjoyable for you, I would love to hear what you are building with it.
 

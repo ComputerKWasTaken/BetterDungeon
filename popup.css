@@ -122,7 +122,13 @@ body.mobile {
   border: 1px solid rgba(59, 130, 246, 0.18);
 }
 
-.header-help {
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.header-action {
   width: 28px;
   height: 28px;
   display: flex;
@@ -132,14 +138,20 @@ body.mobile {
   border: none;
   border-radius: var(--radius-md);
   color: var(--text-muted);
+  text-decoration: none;
   cursor: pointer;
   transition: all var(--transition-fast);
 }
 
-.header-help:hover {
+.header-action:hover {
   color: var(--accent);
   background: var(--bg-elevated);
   box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.header-action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* === Navigation === */
