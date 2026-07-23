@@ -4,8 +4,10 @@
 class BetterDungeon {
   constructor() {
     this.debug = false;
-    this.featureManager = new FeatureManager();
     this.aiDungeonService = new AIDungeonService();
+    this.featureManager = new FeatureManager({
+      aiDungeonService: this.aiDungeonService,
+    });
     this.init();
   }
 
@@ -30,17 +32,16 @@ class BetterDungeon {
       } else if (message.type === 'APPLY_INSTRUCTIONS') {
         this.handleApplyInstructions().then(sendResponse);
         return true;
-      } else if (message.type === 'SCAN_STORY_CARDS') {
-        this.handleScanStoryCards().then(sendResponse);
-        return true;
-      } else if (message.type === 'SET_AUTO_SCAN') {
-        this.handleSetAutoScan(message.enabled);
       } else if (message.type === 'SET_AUTO_APPLY') {
         this.handleSetAutoApply(message.enabled);
       } else if (message.type === 'SET_AUTO_SEE_TRIGGER_MODE') {
         this.handleSetAutoSeeTriggerMode(message.mode);
       } else if (message.type === 'SET_AUTO_SEE_TURN_INTERVAL') {
         this.handleSetAutoSeeTurnInterval(message.interval);
+      } else if (message.type === 'SET_TEXT_TO_SPEECH_SETTINGS') {
+        this.handleSetTextToSpeechSettings(message.settings);
+      } else if (message.type === 'STOP_TEXT_TO_SPEECH') {
+        this.handleStopTextToSpeech();
       } else if (message.type === 'APPLY_INSTRUCTIONS_WITH_LOADING') {
         this.handleApplyInstructionsWithLoading().then(sendResponse);
         return true;
@@ -83,16 +84,54 @@ class BetterDungeon {
       } else if (message.type === 'OPEN_STORY_CARD_ANALYTICS') {
         this.handleOpenStoryCardAnalytics().then(sendResponse);
         return true;
-      } else if (message.type === 'SET_BETTERSCRIPTS_DEBUG') {
-        this.handleSetBetterScriptsDebug(message.enabled);
+      } else if (message.type === 'SET_ULTRASCRIPTS_DEBUG') {
+        window.Ultrascripts?.core?.setDebug?.(message.enabled);
+        sendResponse({ success: true, debugEnabled: !!message.enabled });
+        return true;
+      } else if (message.type === 'SET_ULTRASCRIPTS_MODULE_ENABLED') {
+        window.Ultrascripts?.registry?.setModuleEnabled?.(message.moduleId, message.enabled);
+        sendResponse({
+          success: true,
+          moduleId: message.moduleId,
+          enabled: !!message.enabled,
+          registry: window.Ultrascripts?.registry?.inspect?.() || null,
+        });
+        return true;
+      } else if (message.type === 'GET_ULTRASCRIPTS_STATE') {
+        sendResponse({
+          ultrascriptsEnabled: this.featureManager.isFeatureEnabled('ultrascripts'),
+          core: window.Ultrascripts?.core?.inspect?.() || null,
+          registry: window.Ultrascripts?.registry?.inspect?.() || null,
+          modules: window.Ultrascripts?.registry?.list?.() || [],
+        });
+        return true;
+      } else if (message.type === 'GET_WEBFETCH_CONSENT') {
+        this.handleGetWebFetchConsent().then(sendResponse);
+        return true;
+      } else if (message.type === 'SET_WEBFETCH_CONSENT') {
+        this.handleSetWebFetchConsent(message.origin, message.decision).then(sendResponse);
+        return true;
       }
     });
   }
 
-  handleSetAutoScan(enabled) {
-    const triggerFeature = this.featureManager.features.get('triggerHighlight');
-    if (triggerFeature && typeof triggerFeature.setAutoScan === 'function') {
-      triggerFeature.setAutoScan(enabled);
+  async handleGetWebFetchConsent() {
+    try {
+      const consent = window.UltrascriptsWebFetchConsent;
+      if (!consent?.inspect) return { success: false, error: 'WebFetch consent broker not available' };
+      return { success: true, consent: await consent.inspect() };
+    } catch (error) {
+      return { success: false, error: error?.message || String(error) };
+    }
+  }
+
+  async handleSetWebFetchConsent(origin, decision) {
+    try {
+      const consent = window.UltrascriptsWebFetchConsent;
+      if (!consent?.setOrigin) return { success: false, error: 'WebFetch consent broker not available' };
+      return { success: true, result: await consent.setOrigin(origin, decision) };
+    } catch (error) {
+      return { success: false, error: error?.message || String(error) };
     }
   }
 
@@ -100,13 +139,6 @@ class BetterDungeon {
     const markdownFeature = this.featureManager.features.get('markdown');
     if (markdownFeature && typeof markdownFeature.setAutoApply === 'function') {
       markdownFeature.setAutoApply(enabled);
-    }
-  }
-
-  handleSetBetterScriptsDebug(enabled) {
-    const betterScriptsFeature = this.featureManager.features.get('betterScripts');
-    if (betterScriptsFeature && typeof betterScriptsFeature.setDebugMode === 'function') {
-      betterScriptsFeature.setDebugMode(enabled);
     }
   }
 
@@ -121,6 +153,20 @@ class BetterDungeon {
     const autoSeeFeature = this.featureManager.features.get('autoSee');
     if (autoSeeFeature && typeof autoSeeFeature.setTurnInterval === 'function') {
       autoSeeFeature.setTurnInterval(interval);
+    }
+  }
+
+  handleSetTextToSpeechSettings(settings) {
+    const textToSpeechFeature = this.featureManager.features.get('textToSpeech');
+    if (textToSpeechFeature && typeof textToSpeechFeature.setSettings === 'function') {
+      textToSpeechFeature.setSettings(settings);
+    }
+  }
+
+  handleStopTextToSpeech() {
+    const textToSpeechFeature = this.featureManager.features.get('textToSpeech');
+    if (textToSpeechFeature && typeof textToSpeechFeature.stop === 'function') {
+      textToSpeechFeature.stop();
     }
   }
 
@@ -257,27 +303,6 @@ class BetterDungeon {
     return { success: false, error: 'Story Card Analytics feature not available' };
   }
 
-  async handleScanStoryCards() {
-    // Get the trigger highlight feature instance
-    const triggerFeature = this.featureManager.features.get('triggerHighlight');
-    
-    if (!triggerFeature) {
-      return { success: false, error: 'Trigger Highlight feature not enabled' };
-    }
-
-    if (typeof triggerFeature.scanAllStoryCards !== 'function') {
-      return { success: false, error: 'Scan function not available' };
-    }
-
-    try {
-      const result = await triggerFeature.scanAllStoryCards();
-      return result;
-    } catch (error) {
-      console.error('[BetterDungeon] Scan error:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
   async handleFeatureToggle(featureId, enabled) {
     await this.featureManager.toggleFeature(featureId, enabled);
   }
@@ -290,7 +315,10 @@ class BetterDungeon {
         return { success: false, error: instructionsResult.error };
       }
 
-      return await this.aiDungeonService.applyInstructionsToTextareas(instructionsResult.data);
+      return await this.aiDungeonService.applyInstructionsToTextareas(instructionsResult.data, {
+        forceApply: true,
+        authorsNoteText: instructionsResult.authorsNoteData || null,
+      });
     } catch (error) {
       console.error('[BetterDungeon] Error applying instructions:', error);
       return { success: false, error: error.message };

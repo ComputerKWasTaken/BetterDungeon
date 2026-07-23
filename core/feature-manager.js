@@ -2,11 +2,12 @@
 // Centralized feature lifecycle management
 
 class FeatureManager {
-  constructor() {
+  constructor(context = {}) {
     this.debug = false;
     this.features = new Map();
     this.featureClasses = new Map();
     this.storageManager = window.StorageManager;
+    this.context = context;
   }
 
   log(message, ...args) {
@@ -22,6 +23,10 @@ class FeatureManager {
   }
 
   registerAvailableFeatures() {
+    if (typeof UltrascriptsFeature !== 'undefined') {
+      this.featureClasses.set('ultrascripts', UltrascriptsFeature);
+    }
+
     if (typeof MarkdownFeature !== 'undefined') {
       this.featureClasses.set('markdown', MarkdownFeature);
     }
@@ -76,12 +81,16 @@ class FeatureManager {
       this.featureClasses.set('storyCardModalDock', StoryCardModalDockFeature);
     }
 
-    if (typeof BetterScriptsFeature !== 'undefined') {
-      this.featureClasses.set('betterScripts', BetterScriptsFeature);
-    }
-
     if (typeof InputHistoryFeature !== 'undefined') {
       this.featureClasses.set('inputHistory', InputHistoryFeature);
+    }
+
+    if (typeof TextToSpeechFeature !== 'undefined') {
+      this.featureClasses.set('textToSpeech', TextToSpeechFeature);
+    }
+
+    if (typeof CustomDynamicFeature !== 'undefined') {
+      this.featureClasses.set('customDynamic', CustomDynamicFeature);
     }
   }
 
@@ -90,9 +99,9 @@ class FeatureManager {
 
     this.featureClasses.forEach((FeatureClass, id) => {
       // Always-on QOL features that don't need user toggling
-      const alwaysEnabled = ['storyCardAnalytics', 'betterScripts', 'autoEnableScripts'];
+      const alwaysEnabled = ['storyCardAnalytics', 'autoEnableScripts'];
       // Features that are disabled by default
-      const defaultOff = ['autoSee'];
+      const defaultOff = ['autoSee', 'textToSpeech', 'customDynamic'];
       
       const enabled = alwaysEnabled.includes(id) || 
                       savedStates[id] === true || 
@@ -115,7 +124,7 @@ class FeatureManager {
     }
 
     try {
-      const feature = new FeatureClass();
+      const feature = new FeatureClass(this.context);
       this.features.set(id, feature);
 
       // Explicitly set enabled state - FeatureManager is the source of truth

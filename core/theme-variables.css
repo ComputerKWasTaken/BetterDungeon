@@ -14,12 +14,12 @@
   /* =============================================================
      1. COLORS — BACKGROUNDS
      ============================================================= */
-  --bd-bg-primary:    #0d0d0f;
-  --bd-bg-secondary:  #16161a;
-  --bd-bg-tertiary:   #1e1e24;
-  --bd-bg-elevated:   #252530;
-  --bd-bg-active:     #2c2c36;
-  --bd-bg-overlay:    rgba(0, 0, 0, 0.85);
+  --bd-bg-primary:    #0f0e11;
+  --bd-bg-secondary:  #17161b;
+  --bd-bg-tertiary:   #1e1d23;
+  --bd-bg-elevated:   #26252c;
+  --bd-bg-active:     #2e2d35;
+  --bd-bg-overlay:    rgba(15, 14, 17, 0.85);
 
   /* =============================================================
      2. COLORS — TEXT
@@ -27,18 +27,18 @@
   --bd-text-primary:   #e8e8ec;
   --bd-text-secondary: #a0a0a8;
   --bd-text-muted:     #6b6b75;
-  --bd-text-inverse:   #0d0d0f;
+  --bd-text-inverse:   #0f0e11;
   --bd-text-on-accent: #ffffff;
 
   /* =============================================================
      3. COLORS — BRAND / ACCENT
      ============================================================= */
-  --bd-accent-primary:   #ff9500;
-  --bd-accent-secondary: #e07800;
-  --bd-accent-light:     #ffb84d;
-  --bd-accent-glow:      rgba(255, 149, 0, 0.12);
-  --bd-accent-muted:     rgba(255, 149, 0, 0.15);
-  --bd-accent-strong:    rgba(255, 149, 0, 0.25);
+  --bd-accent-primary:   #e8850a;
+  --bd-accent-secondary: #c06a00;
+  --bd-accent-light:     #f29520;
+  --bd-accent-glow:      rgba(232, 133, 10, 0.10);
+  --bd-accent-muted:     rgba(232, 133, 10, 0.12);
+  --bd-accent-strong:    rgba(232, 133, 10, 0.22);
 
   /* =============================================================
      4. COLORS — STATUS
@@ -91,10 +91,10 @@
   /* =============================================================
      6. COLORS — BORDERS
      ============================================================= */
-  --bd-border-subtle:  rgba(255, 255, 255, 0.06);
-  --bd-border-default: rgba(255, 255, 255, 0.10);
+  --bd-border-subtle:  rgba(255, 255, 255, 0.05);
+  --bd-border-default: rgba(255, 255, 255, 0.09);
   --bd-border-strong:  rgba(255, 255, 255, 0.15);
-  --bd-border-accent:  rgba(255, 149, 0, 0.25);
+  --bd-border-accent:  rgba(232, 133, 10, 0.22);
   --bd-border-focus:   var(--bd-accent-primary);
 
   /* =============================================================
@@ -266,9 +266,8 @@
                               var(--bd-accent-light) 0%,
                               var(--bd-accent-primary) 100%);
   --bd-gradient-accent-bar:  linear-gradient(to right,
-                              var(--bd-accent-primary),
-                              var(--bd-purple),
-                              var(--bd-cyan));
+                              var(--bd-accent-primary) 0%,
+                              rgba(232, 133, 10, 0) 100%);
   --bd-gradient-shimmer:     linear-gradient(90deg,
                               var(--bd-accent-primary) 0%,
                               var(--bd-accent-light) 50%,

@@ -1,0 +1,468 @@
+// modules/widget/module.js
+//
+// Ultrascripts Widget module. Consumes `ultrascripts:state:widget` and renders
+// widget state from the live-count history entry matching the current action
+// window.
+
+(function () {
+  if (window.UltrascriptsWidgetModule) return;
+
+  const MODULE_ID = 'widget';
+  const STATE_NAME = 'widget';
+  const IN_CARD_TITLE = 'ultrascripts:in:widget';
+  const MAX_WIDGET_EVENTS = 100;
+  const MAX_EVENT_STRING_LENGTH = 1200;
+  const MAX_EVENT_OBJECT_KEYS = 20;
+  const MAX_EVENT_ARRAY_ITEMS = 20;
+  const MAX_EVENT_DEPTH = 3;
+
+  function isObject(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+  }
+
+  function cloneObject(value) {
+    if (!isObject(value) && !Array.isArray(value)) return value;
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch {
+      return Array.isArray(value) ? value.slice() : { ...value };
+    }
+  }
+
+  function truncateString(value, maxLength = MAX_EVENT_STRING_LENGTH) {
+    const text = String(value);
+    return text.length > maxLength ? text.slice(0, maxLength) : text;
+  }
+
+  function sanitizeEventValue(value, depth = 0) {
+    if (value === undefined) return undefined;
+    if (value === null) return null;
+
+    const type = typeof value;
+    if (type === 'string') return truncateString(value);
+    if (type === 'boolean') return value;
+    if (type === 'number') return Number.isFinite(value) ? value : null;
+    if (depth >= MAX_EVENT_DEPTH) return null;
+
+    if (Array.isArray(value)) {
+      return value
+        .slice(0, MAX_EVENT_ARRAY_ITEMS)
+        .map(item => sanitizeEventValue(item, depth + 1));
+    }
+
+    if (isObject(value)) {
+      const result = {};
+      for (const [key, child] of Object.entries(value).slice(0, MAX_EVENT_OBJECT_KEYS)) {
+        result[truncateString(key, 80)] = sanitizeEventValue(child, depth + 1);
+      }
+      return result;
+    }
+
+    return null;
+  }
+
+  function getOwn(obj, key) {
+    return Object.prototype.hasOwnProperty.call(obj, key) ? obj[key] : undefined;
+  }
+
+  function selectHistoryEntry(history, liveCount) {
+    if (!isObject(history)) return {};
+
+    const liveKey = String(liveCount);
+    if (Object.prototype.hasOwnProperty.call(history, liveKey) && isObject(history[liveKey])) {
+      return history[liveKey];
+    }
+
+    const numericKeys = Object.keys(history)
+      .map(key => ({ key, n: Number(key) }))
+      .filter(entry => Number.isFinite(entry.n))
+      .sort((a, b) => b.n - a.n);
+
+    if (numericKeys.length === 0) return {};
+
+    const liveNum = Number(liveCount);
+    if (Number.isFinite(liveNum) && liveNum > 0) {
+      const nearestEarlier = numericKeys.find(entry => entry.n <= liveNum);
+      if (nearestEarlier && isObject(history[nearestEarlier.key])) {
+        return history[nearestEarlier.key];
+      }
+    }
+
+    const newest = numericKeys[0];
+    return isObject(history[newest.key]) ? history[newest.key] : {};
+  }
+
+  function applyValueToWidget(config, value) {
+    const validators = window.UltrascriptsWidgetValidators;
+    if (isObject(value)) {
+      const patch = validators?.filterWidgetStatePatch
+        ? validators.filterWidgetStatePatch(config, cloneObject(value))
+        : cloneObject(value);
+      Object.assign(config, patch);
+      return;
+    }
+
+    const field = validators?.getPrimitiveStateField?.(config) || 'value';
+    config[field] = value;
+  }
+
+  function cardValue(card) {
+    return card?.value ?? card?.entry ?? card?.description ?? '';
+  }
+
+  function parseJson(value) {
+    if (isObject(value)) return value;
+    if (typeof value !== 'string' || !value.trim()) return null;
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+
+  function normalizeInboxEnvelope(raw) {
+    const parsed = parseJson(raw);
+    const envelope = isObject(parsed) ? cloneObject(parsed) : {};
+    envelope.v = 1;
+    if (!isObject(envelope.responses)) envelope.responses = {};
+    return envelope;
+  }
+
+  function normalizeEventQueue(rawEvents, ackSeq) {
+    if (!Array.isArray(rawEvents)) return [];
+    return rawEvents
+      .filter(event => isObject(event))
+      .map(event => ({
+        ...event,
+        seq: Number(event.seq || 0),
+        count: Math.max(1, Number(event.count || 1)),
+      }))
+      .filter(event => Number.isFinite(event.seq) && event.seq > Number(ackSeq || 0))
+      .sort((a, b) => a.seq - b.seq)
+      .slice(-MAX_WIDGET_EVENTS);
+  }
+
+  function readAckSeq(parsed) {
+    const candidates = [
+      parsed?.interactions?.ackSeq,
+      parsed?.interactions?.widgetAckSeq,
+      parsed?.widgetEvents?.ackSeq,
+      parsed?.ack?.widget,
+    ];
+    let max = 0;
+    for (const candidate of candidates) {
+      const n = Number(candidate);
+      if (Number.isFinite(n) && n > max) max = Math.floor(n);
+    }
+    return max;
+  }
+
+  function buildRenderWidgets(parsed, liveCount, ctx) {
+    const validators = window.UltrascriptsWidgetValidators;
+    if (!validators) throw new Error('UltrascriptsWidgetValidators is not loaded');
+
+    if (!isObject(parsed)) {
+      return { widgets: [], errors: ['State card payload must be an object'] };
+    }
+
+    if (parsed.v !== 1) {
+      return { widgets: [], errors: [`Unsupported Widget state version: ${parsed.v}`] };
+    }
+
+    const manifestResult = validators.validateManifest(parsed.manifest);
+    const errors = manifestResult.errors.slice();
+    const values = selectHistoryEntry(parsed.history, liveCount);
+    const widgets = [];
+
+    for (const widget of manifestResult.widgets) {
+      const config = cloneObject(widget);
+      const primaryValue = getOwn(values, widget.id);
+      if (primaryValue !== undefined) {
+        applyValueToWidget(config, primaryValue);
+      }
+
+      const progressValue = getOwn(values, `${widget.id}__progress`);
+      if (progressValue !== undefined) {
+        config.progress = progressValue;
+      }
+
+      const validation = validators.validateWidgetConfig(config.id, config);
+      if (!validation.valid) {
+        // Invalid widgets are skipped silently; the error is surfaced via
+        // warnOnce in renderState so devs can fix the source data.
+        errors.push(`Widget "${config.id}" invalid after values: ${validation.errors.join('; ')}`);
+        continue;
+      }
+
+      widgets.push(config);
+    }
+
+    return { widgets, errors };
+  }
+
+  const UltrascriptsWidgetModule = {
+    id: MODULE_ID,
+    version: '1.0.0',
+    label: 'Widget',
+    description: 'Renders Ultrascripts widget state from Widget state cards.',
+    stateNames: [STATE_NAME],
+    tracksLiveCount: true,
+    _renderer: null,
+    _ctx: null,
+    _lastParsed: null,
+    _lastCtx: null,
+    _eventQueue: [],
+    _queueLoaded: false,
+    _lastSeq: 0,
+    _ackSeq: 0,
+    _inboxWriteTimer: null,
+    _warnedMessages: new Set(),
+
+    mount(ctx) {
+      this._ctx = ctx;
+      this._renderer = new window.UltrascriptsWidgetRenderer({
+        log: (level, ...args) => ctx.log(level, ...args),
+        onInteraction: (event) => this.queueInteraction(event),
+      });
+    },
+
+    unmount() {
+      this._renderer?.destroy?.();
+      this._renderer = null;
+      this._ctx = null;
+      this._lastParsed = null;
+      this._lastCtx = null;
+      if (this._inboxWriteTimer) {
+        clearTimeout(this._inboxWriteTimer);
+        this._inboxWriteTimer = null;
+      }
+    },
+
+    onEnable(ctx) {
+      ctx.log('debug', 'Widget enabled');
+    },
+
+    onDisable(ctx) {
+      ctx.log('debug', 'Widget disabled');
+      this._renderer?.clearAllWidgets?.();
+    },
+
+    onAdventureChange(_newAdventureShortId, ctx) {
+      ctx.log('debug', 'Adventure changed; clearing widgets');
+      this._renderer?.clearAllWidgets?.();
+      this._eventQueue = [];
+      this._queueLoaded = false;
+      this._lastSeq = 0;
+      this._ackSeq = 0;
+      this._lastParsed = null;
+      this._lastCtx = null;
+      this._warnedMessages.clear();
+      if (this._inboxWriteTimer) {
+        clearTimeout(this._inboxWriteTimer);
+        this._inboxWriteTimer = null;
+      }
+    },
+
+    onStateChange(name, parsed, ctx) {
+      if (name !== STATE_NAME) return;
+
+      try {
+        if (!this._renderer) this.mount(ctx);
+
+        if (parsed == null) {
+          this._renderer.clearAllWidgets();
+          this._lastParsed = null;
+          this._lastCtx = null;
+          return;
+        }
+
+        this.renderState(parsed, ctx);
+      } catch (err) {
+        ctx.log('warn', 'Widget onStateChange failed:', err);
+      }
+    },
+
+    renderState(parsed, ctx) {
+      this._lastParsed = parsed;
+      this._lastCtx = ctx;
+      this.processInteractionAck(parsed, ctx);
+
+      const liveCount = ctx.getLiveCount();
+      const result = buildRenderWidgets(parsed, liveCount, ctx);
+
+      if (result.errors.length) {
+        this.warnOnce(ctx, 'state-warnings', 'Widget state warnings:', result.errors);
+      }
+
+      this._renderer.setWidgets(result.widgets);
+    },
+
+    warnOnce(ctx, key, message, details) {
+      const detailKey = (() => {
+        try {
+          return JSON.stringify(details);
+        } catch {
+          return String(details);
+        }
+      })();
+      const cacheKey = `${key}:${detailKey}`;
+      if (this._warnedMessages.has(cacheKey)) return;
+      this._warnedMessages.add(cacheKey);
+      if (this._warnedMessages.size > 200) this._warnedMessages.clear();
+      ctx?.log?.('warn', message, details);
+    },
+
+    ensureQueueLoaded(ctx = this._ctx) {
+      if (this._queueLoaded) return;
+      const card = ctx?.getCardByTitle?.(IN_CARD_TITLE);
+      const envelope = normalizeInboxEnvelope(cardValue(card));
+      const widgetEvents = isObject(envelope.widgetEvents) ? envelope.widgetEvents : {};
+      this._eventQueue = normalizeEventQueue(widgetEvents.events, this._ackSeq);
+      this._lastSeq = Math.max(
+        Number(widgetEvents.latestSeq || 0),
+        ...this._eventQueue.map(event => Number(event.seq || 0)),
+        this._lastSeq,
+      );
+      this._queueLoaded = true;
+    },
+
+    processInteractionAck(parsed, ctx) {
+      const ackSeq = readAckSeq(parsed);
+      if (ackSeq <= this._ackSeq) return;
+
+      this._ackSeq = ackSeq;
+      this._renderer?.ackInteractions?.(ackSeq);
+      this.ensureQueueLoaded(ctx);
+
+      const before = this._eventQueue.length;
+      this._eventQueue = this._eventQueue.filter(event => Number(event.seq || 0) > ackSeq);
+      if (this._eventQueue.length !== before) {
+        this.writeInteractionInbox(ctx).catch((err) => {
+          ctx.log('warn', 'Failed to prune widget events:', err);
+        });
+      }
+    },
+
+    queueInteraction(event) {
+      const ctx = this._ctx;
+      if (!ctx || !isObject(event)) return null;
+
+      this.ensureQueueLoaded(ctx);
+
+      const nowMs = Date.now();
+      const seq = Math.max(this._lastSeq, ...this._eventQueue.map(item => Number(item.seq || 0))) + 1;
+      const record = {
+        id: `widget-${seq}`,
+        seq,
+        widgetId: event.widgetId,
+        widgetType: event.widgetType,
+        action: event.action || 'change',
+        event: event.event || event.action || 'change',
+        value: sanitizeEventValue(event.value),
+        previousValue: sanitizeEventValue(event.previousValue),
+        liveCount: ctx.getLiveCount(),
+        actionId: ctx.getCurrentActionId?.() || ctx.getTail?.() || null,
+        ts: nowMs,
+        at: new Date(nowMs).toISOString(),
+        count: 1,
+      };
+
+      if (event.name) record.name = truncateString(event.name, 120);
+      if (event.label) record.label = truncateString(event.label, 120);
+      if (event.coalesceKey) record.coalesceKey = truncateString(event.coalesceKey, 160);
+
+      if (record.coalesceKey) {
+        const replaced = this._eventQueue.filter(item => item.coalesceKey === record.coalesceKey);
+        this._eventQueue = this._eventQueue.filter(item => item.coalesceKey !== record.coalesceKey);
+
+        if (replaced.length) {
+          const first = replaced[0];
+          record.coalesced = true;
+          record.replaces = replaced.map(item => item.seq);
+          record.count = replaced.reduce((sum, item) => sum + Math.max(1, Number(item.count || 1)), 0) + 1;
+          record.firstAt = first.firstAt || first.at || record.at;
+          record.firstValue = first.firstValue !== undefined
+            ? sanitizeEventValue(first.firstValue)
+            : sanitizeEventValue(first.value);
+        }
+      }
+
+      this._eventQueue.push(record);
+      this._eventQueue = this._eventQueue
+        .filter(item => Number(item.seq || 0) > this._ackSeq)
+        .sort((a, b) => a.seq - b.seq)
+        .slice(-MAX_WIDGET_EVENTS);
+      this._lastSeq = seq;
+
+      this.scheduleInteractionInboxWrite(ctx, !record.coalesceKey);
+
+      return record;
+    },
+
+    scheduleInteractionInboxWrite(ctx = this._ctx, immediate = false) {
+      if (this._inboxWriteTimer) {
+        clearTimeout(this._inboxWriteTimer);
+        this._inboxWriteTimer = null;
+      }
+
+      const run = () => {
+        this._inboxWriteTimer = null;
+        this.writeInteractionInbox(ctx).catch((err) => {
+          ctx.log('warn', 'Failed to write widget event:', err);
+        });
+      };
+
+      if (immediate) {
+        run();
+      } else {
+        this._inboxWriteTimer = setTimeout(run, 120);
+      }
+    },
+
+    async writeInteractionInbox(ctx = this._ctx) {
+      if (!ctx?.writeCard) return;
+      const currentCard = ctx.getCardByTitle?.(IN_CARD_TITLE);
+      const envelope = normalizeInboxEnvelope(cardValue(currentCard));
+      const events = this._eventQueue.filter(event => Number(event.seq || 0) > this._ackSeq);
+
+      envelope.widgetEvents = {
+        v: 1,
+        module: MODULE_ID,
+        source: 'BetterDungeon',
+        latestSeq: this._lastSeq,
+        ackSeq: this._ackSeq,
+        liveCount: ctx.getLiveCount(),
+        actionId: ctx.getCurrentActionId?.() || ctx.getTail?.() || null,
+        writtenAt: new Date().toISOString(),
+        events,
+      };
+
+      await ctx.writeCard(IN_CARD_TITLE, JSON.stringify(envelope), {
+        type: 'Ultrascripts',
+        description: 'Widget module interaction queue.',
+      });
+    },
+
+    inspect() {
+      return {
+        mounted: !!this._renderer,
+        widgets: this._renderer ? [...this._renderer.registeredWidgets.keys()] : [],
+        widgetEventQueueLength: this._eventQueue.length,
+        widgetEventLatestSeq: this._lastSeq,
+        widgetEventAckSeq: this._ackSeq,
+      };
+    },
+  };
+
+  window.UltrascriptsWidgetModule = UltrascriptsWidgetModule;
+
+  if (window.Ultrascripts?.registry) {
+    window.Ultrascripts.registry.register(UltrascriptsWidgetModule);
+  } else {
+    console.warn('[Widget] Ultrascripts registry not available; Widget module not registered.');
+  }
+
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = UltrascriptsWidgetModule;
+  }
+})();

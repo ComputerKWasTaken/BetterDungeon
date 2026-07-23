@@ -110,7 +110,7 @@ class TutorialService {
         type: 'spotlight',
         target: '[data-feature="storyCardAnalytics"]',
         title: 'Story Card Analytics',
-        content: 'Displays detailed stats about your story cards including token counts, trigger analysis, and optimization tips. Always active!',
+        content: 'Opens a dashboard with story card stats, trigger analysis, and optimization tips. Cards load instantly when the dashboard opens.',
         position: 'top',
         expandCard: true
       },
@@ -124,11 +124,11 @@ class TutorialService {
         expandCard: true
       },
       {
-        id: 'better-scripts',
+        id: 'widget',
         type: 'spotlight',
-        target: '[data-feature="betterScripts"]',
-        title: 'BetterScripts',
-        content: 'Enables scripts to display dynamic UI widgets like HP bars, stats, and game state. Scripts using this feature will just work!',
+        target: '[data-feature="widget"]',
+        title: 'Widget',
+        content: 'Enables Ultrascripts scripts to display dynamic UI widgets like HP bars, stats, and game state.',
         position: 'top',
         expandCard: true
       },
@@ -138,9 +138,98 @@ class TutorialService {
         type: 'spotlight',
         target: '[data-feature="autoSee"]',
         title: 'Auto See',
-        content: 'Automatically triggers a See action after AI responses to visualize the scene. Set it to run every turn or at custom intervals!',
+        content: 'Submits a background See action after AI responses to visualize the scene. Set it to run every turn or at custom intervals.',
         position: 'top',
+        action: 'switchTab',
+        actionTarget: 'features',
         expandCard: true
+      },
+      // Ultrascripts Tab Navigation
+      {
+        id: 'ultrascripts-tab',
+        type: 'spotlight',
+        target: '[data-tab="ultrascripts"]',
+        title: 'Ultrascripts Tab',
+        content: 'Ultrascripts is BetterDungeon\'s bridge for script superpowers: scripts ask for a capability, and BetterDungeon safely returns structured results.',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'ultrascripts'
+      },
+      {
+        id: 'ultrascripts-runtime',
+        type: 'spotlight',
+        target: '[data-feature="ultrascripts"]',
+        title: 'Ultrascripts Runtime',
+        content: 'Keep Ultrascripts enabled when you want scripts to use BetterDungeon modules. The status panel shows whether the live adventure bridge is connected.',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'ultrascripts',
+        expandCard: true
+      },
+      {
+        id: 'ultrascripts-modules',
+        type: 'spotlight',
+        target: '[data-ultrascripts-module-card="widget"]',
+        title: 'Modules',
+        content: 'Each module is a focused capability for scripts, such as UI widgets, web lookups, time, device context, or AI. Toggle only the ones you want available.',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'ultrascripts',
+        expandCard: true
+      },
+      {
+        id: 'ultrascripts-script-flow',
+        type: 'spotlight',
+        target: '[data-ultrascripts-module-card="webfetch"]',
+        title: 'How Scripts Call Ultrascripts',
+        content: 'Scripts write ultrascripts:out requests with id, module, op, and args. BetterDungeon runs the operation and writes results to ultrascripts:in:<module>.',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'ultrascripts',
+        expandCard: true
+      },
+      {
+        id: 'ai-card',
+        type: 'spotlight',
+        target: '[data-ultrascripts-module-card="ai"]',
+        title: 'AI',
+        content: 'AI is BetterDungeon\'s asynchronous LLM query module. Scripts can check readiness with ai.status, submit ai.query requests, and receive text or schema-backed JSON results back on a later turn instead of blocking gameplay.',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'ultrascripts',
+        expandCard: true
+      },
+      {
+        id: 'ai-script-usage',
+        type: 'spotlight',
+        target: '#ai-status',
+        title: 'Using AI in Scripts',
+        content: 'Scripts call module ai, op status, then submit ai.query through the normal Ultrascripts out/in cards. The default setup uses Gemini, supports plain text or schema-backed JSON, and returns not_configured until the player saves an API key.',
+        position: 'top',
+        action: 'switchTab',
+        actionTarget: 'ultrascripts',
+        expandCard: true
+      },
+      {
+        id: 'ai-setup',
+        type: 'spotlight',
+        target: '#ai-gemini-api-key',
+        title: 'AI Setup',
+        content: 'To turn AI queries on for a scenario, save an API key here. BetterDungeon keeps the key in extension local storage, lets you choose automatic fallback or a manual model, and gives you a quick connection test in the popup.',
+        position: 'top',
+        action: 'switchTab',
+        actionTarget: 'ultrascripts',
+        expandCard: true
+      },
+      {
+        id: 'ultrascripts-examples',
+        type: 'spotlight',
+        target: '#tab-ultrascripts .btn-action',
+        title: 'Script Templates',
+        content: 'Use the Enhanced or Required template as the baseline for Ultrascripts request envelopes, response handling, and module-specific patterns.',
+        position: 'top',
+        action: 'switchTab',
+        actionTarget: 'ultrascripts'
       },
       // Presets Tab Navigation
       {
@@ -170,6 +259,37 @@ class TutorialService {
         title: 'Character Presets',
         content: 'Tired of retyping character info? Save character profiles and auto-fill scenario entry questions with one click!',
         position: 'top'
+      }
+    ];
+
+    this.topics = [
+      {
+        id: 'features',
+        title: 'Features',
+        description: 'Core tools and story helpers',
+        icon: 'icon-sparkles',
+        stepId: 'features-tab'
+      },
+      {
+        id: 'ultrascripts',
+        title: 'Ultrascripts',
+        description: 'Runtime, modules, and script flow',
+        icon: 'icon-radio-tower',
+        stepId: 'ultrascripts-tab'
+      },
+      {
+        id: 'ai',
+        title: 'AI',
+        description: 'Async queries, status checks, and API-key setup',
+        icon: 'icon-bot-message-square',
+        stepId: 'ai-card'
+      },
+      {
+        id: 'presets',
+        title: 'Presets',
+        description: 'Plot and character presets',
+        icon: 'icon-bookmark',
+        stepId: 'presets-tab'
       }
     ];
     
@@ -262,7 +382,21 @@ class TutorialService {
     if (index >= 0 && index < this.steps.length) {
       this.currentStep = index;
       this.showCurrentStep();
+      return true;
     }
+    return false;
+  }
+
+  goToStepId(stepId) {
+    const index = this.steps.findIndex(step => step.id === stepId);
+    if (index === -1) return false;
+    return this.goToStep(index);
+  }
+
+  goToTopic(topicId) {
+    const topic = this.topics.find(item => item.id === topicId);
+    if (!topic) return false;
+    return this.goToStepId(topic.stepId);
   }
 
   showCurrentStep() {
@@ -278,6 +412,32 @@ class TutorialService {
   
   getCompletionModal() {
     return this.completionModal;
+  }
+
+  getTopics() {
+    return this.topics.map((topic, index) => {
+      const startIndex = this.steps.findIndex(step => step.id === topic.stepId);
+      const nextTopic = this.topics[index + 1];
+      const nextIndex = nextTopic
+        ? this.steps.findIndex(step => step.id === nextTopic.stepId)
+        : this.steps.length;
+
+      return {
+        ...topic,
+        startIndex,
+        stepCount: Math.max(1, nextIndex - startIndex)
+      };
+    }).filter(topic => topic.startIndex >= 0);
+  }
+
+  getTopicForStep(index = this.currentStep) {
+    const topics = this.getTopics();
+    let currentTopic = null;
+    for (const topic of topics) {
+      if (topic.startIndex <= index) currentTopic = topic;
+      else break;
+    }
+    return currentTopic;
   }
 
   getProgress() {

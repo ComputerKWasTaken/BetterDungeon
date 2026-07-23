@@ -9,6 +9,7 @@ class TriggerHighlightFeature {
     this.contextObserver = null;
     this.triggerScanObserver = null;
     this.processedElements = new WeakSet();
+    this.handledContextModals = new WeakSet();
     this.scanDebounceTimer = null;
     // Track current adventure to clear triggers on adventure change
     this.currentAdventureId = null;
@@ -28,7 +29,7 @@ class TriggerHighlightFeature {
 
   async init() {
     console.log('[TriggerHighlight] Initializing Trigger Highlight feature...');
-    // Load auto-scan setting FIRST before detecting adventure
+    // Load trigger-highlight settings before detecting adventure.
     await this.loadAutoScanSetting();
     this.detectCurrentAdventure();
     this.startObserving();
@@ -41,23 +42,15 @@ class TriggerHighlightFeature {
   async loadAutoScanSetting() {
     try {
       const result = await chrome.storage.sync.get([
-        'betterDungeon_autoScanTriggers',
         'betterDungeon_suggestedTriggers',
         'betterDungeon_suggestedTriggerThreshold'
       ]);
-      this.autoScanEnabled = (result || {}).betterDungeon_autoScanTriggers ?? false;
       this.suggestedTriggersEnabled = (result || {}).betterDungeon_suggestedTriggers ?? true;
       this.suggestedTriggerThreshold = (result || {}).betterDungeon_suggestedTriggerThreshold ?? 3;
     } catch (e) {
-      this.autoScanEnabled = false;
       this.suggestedTriggersEnabled = true;
       this.suggestedTriggerThreshold = 3;
     }
-  }
-
-  setAutoScan(enabled) {
-    this.autoScanEnabled = enabled;
-    chrome.storage.sync.set({ betterDungeon_autoScanTriggers: enabled });
   }
 
   setSuggestedTriggers(enabled) {
@@ -87,128 +80,31 @@ class TriggerHighlightFeature {
       }
     }
     
-    // Auto-scan when entering a new adventure (either on change or initial load)
-    if (newAdventureId && adventureChanged && this.autoScanEnabled) {
-      // Delay to let the adventure page load fully
-      setTimeout(() => this.scanAllStoryCards(), 2500);
-    }
-    
     this.currentAdventureId = newAdventureId;
   }
 
-  // Scan all story cards automatically using the loading screen
+  // Hydrate story cards directly from Ultrascripts/GraphQL.
   async scanAllStoryCards() {
-    // Check service availability first
-    if (typeof loadingScreen === 'undefined' || typeof storyCardScanner === 'undefined') {
-      console.error('TriggerHighlightFeature: Loading screen or scanner not available');
+    if (typeof storyCardScanner === 'undefined') {
+      console.error('TriggerHighlightFeature: Scanner not available');
       return { success: false, error: 'Required services not loaded' };
     }
 
-    // Pre-validate page state BEFORE queueing/showing loading screen
     const validation = storyCardScanner.validatePageState();
     if (!validation.valid) {
       console.warn('TriggerHighlightFeature: Cannot scan -', validation.error);
       return { success: false, error: validation.error };
     }
 
-    // Use queue to ensure sequential execution with other features
-    return loadingScreen.queueOperation(() => this._doScanStoryCards());
-  }
-
-  async _doScanStoryCards() {
-    // Double-check page state in case it changed while queued
-    const validation = storyCardScanner.validatePageState();
-    if (!validation.valid) {
-      return { success: false, error: validation.error };
-    }
-
-    // Show loading screen with cancel button
-    loadingScreen.show({
-      title: 'Scanning Story Cards',
-      subtitle: 'Initializing...',
-      showProgress: true,
-      showCancel: true,
-      onCancel: () => {
-        storyCardScanner.abort();
-      }
-    });
-
     try {
-      // First, navigate to the Story Cards tab autonomously
-      if (typeof AIDungeonService !== 'undefined') {
-        const service = new AIDungeonService();
-        const navResult = await service.navigateToStoryCardsSettings({
-          onStepUpdate: (message) => {
-            loadingScreen.updateSubtitle(message);
-          }
-        });
-        
-        if (!navResult.success) {
-          throw new Error(navResult.error || 'Failed to navigate to Story Cards');
-        }
-        
-        // Wait for Story Cards content to load
-        loadingScreen.updateSubtitle('Loading story cards...');
-        await new Promise(resolve => setTimeout(resolve, 500));
+      const result = await storyCardScanner.scanAllCards(null, null, null);
+      if (!result.success) {
+        console.warn('TriggerHighlightFeature: Story-card hydration failed -', result.error);
       }
-
-      loadingScreen.updateSubtitle('Starting scan...');
-      const result = await storyCardScanner.scanAllCards(
-        // onTriggerFound callback — the scanner also writes to storyCardCache
-        // directly, so this callback is kept for any additional per-feature logic.
-        null,
-        // onProgress callback
-        (current, total, status, estimatedTimeRemaining) => {
-          let progressText = status;
-          if (estimatedTimeRemaining !== null && estimatedTimeRemaining > 0) {
-            const minutes = Math.floor(estimatedTimeRemaining / 60);
-            const seconds = estimatedTimeRemaining % 60;
-            if (minutes > 0) {
-              progressText += ` (${minutes}m ${seconds}s remaining)`;
-            } else {
-              progressText += ` (${seconds}s remaining)`;
-            }
-          }
-          // Update subtitle to show actual progress
-          loadingScreen.updateSubtitle(`Scanning card ${current} of ${total}`);
-          loadingScreen.updateProgress(current, total, progressText);
-        }
-      );
-
-      if (result.success) {
-        loadingScreen.updateTitle('Scan Complete!');
-        loadingScreen.updateSubtitle(`Found ${typeof storyCardCache !== 'undefined' ? storyCardCache.size : 0} unique triggers`);
-        loadingScreen.updateStatus('Ready to highlight', 'success');
-        
-        
-        // Brief delay to show completion
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      } else {
-        // Check if scan was aborted
-        if (result.error && result.error.includes('aborted')) {
-          loadingScreen.updateTitle('Scan Cancelled');
-          loadingScreen.updateSubtitle('Scan was stopped by user');
-          loadingScreen.updateStatus('Cancelled', 'success');
-        } else {
-          loadingScreen.updateTitle('Scan Failed');
-          loadingScreen.updateSubtitle(result.error || 'Unknown error');
-          loadingScreen.updateStatus('Error', 'error');
-        }
-        
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
-
       return result;
-
     } catch (error) {
       console.error('TriggerHighlightFeature: Scan error:', error);
-      loadingScreen.updateTitle('Scan Failed');
-      loadingScreen.updateSubtitle(error.message);
-      await new Promise(resolve => setTimeout(resolve, 2000));
       return { success: false, error: error.message };
-
-    } finally {
-      loadingScreen.hide();
     }
   }
 
@@ -248,6 +144,7 @@ class TriggerHighlightFeature {
     if (this.scanDebounceTimer) {
       clearTimeout(this.scanDebounceTimer);
     }
+    this.handledContextModals = new WeakSet();
     if (typeof storyCardCache !== 'undefined') storyCardCache.clear();
     this.removeHighlights();
   }
@@ -424,6 +321,9 @@ class TriggerHighlightFeature {
     const headerText = header?.textContent?.trim() || '';
     if (headerText === 'Adventure' || headerText === 'Complete Text') return true;
 
+    const text = element.textContent || '';
+    if (text.includes('View Context') && text.includes('Context used for this action')) return true;
+
     // Fallback: check for Text/Tokens tab pair that identifies the context viewer
     const tabs = element.querySelectorAll('[role="tab"]');
     const tabTexts = Array.from(tabs).map(t => t.textContent?.trim().toLowerCase());
@@ -432,14 +332,19 @@ class TriggerHighlightFeature {
     return false;
   }
 
-  handleAdventureModal(modal) {
-    // Do a fresh scan in case triggers changed
+  async handleAdventureModal(modal) {
+    if (this.handledContextModals.has(modal)) return;
+    this.handledContextModals.add(modal);
+
+    const result = await this.scanAllStoryCards();
+    if (result?.success) {
+      this.processedElements = new WeakSet();
+    } else {
+      this.handledContextModals.delete(modal);
+    }
+
     this.scanForTriggers();
-    
-    // Highlight triggers in the adventure text
     this.highlightTriggersInModal(modal);
-    
-    // Watch for tab changes within the modal
     this.watchModalForChanges(modal);
   }
 

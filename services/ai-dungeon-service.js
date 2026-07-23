@@ -65,11 +65,10 @@ class AIDungeonService {
     GRID_VIEW:           '[aria-label="Grid view"]',
     LIST_VIEW:           '[aria-label="List view"]',
     COMPACT_VIEW:        '[aria-label="Compact view"]',
-    FILTERS_BTN:         '[aria-label="Filters"]',
     SEARCH_BOX:          '[role="searchbox"][placeholder="Search"]',
     CARD_TYPE_BADGE:     'span[aria-label^="type:"]',    // e.g. aria-label="type: character"
     CARD_HEADING:        'h1[role="heading"]',            // Card name inside role="button" cards
-    ADD_STORY_CARD:      '[aria-label="Add Story Card"]', // "Add a story card" button (grid view)
+    CREATE_STORY_CARD:   '[aria-label="Create Story Card"]', // "Create Story Card" button in toolbar
     IMPORT_CARDS:        '[aria-label="import story cards"]',
     EXPORT_CARDS:        '[aria-label="export story cards"]',
 
@@ -105,153 +104,49 @@ class AIDungeonService {
   // CDN base for theme sprite sheets
   static THEME_SPRITE_BASE = 'https://latitude-standard-pull-zone-1.b-cdn.net/site_assets/aidungeon/client/themes/';
 
-  // ==================== MARKDOWN FORMAT OPTIONS ====================
-  // Each option defines a toggleable formatting type with its syntax,
-  // instruction text for the AI, and whether it's enabled by default.
-  // The instruction text follows BetterRepository's one-line dash standard.
+  // ==================== MARKDOWN INSTRUCTIONS ====================
 
-  static MARKDOWN_FORMAT_OPTIONS = [
-    {
-      id: 'bold',
-      label: 'Bold',
-      syntax: '++text++',
-      preview: '<strong>bold</strong>',
-      default: true,
-      instruction: '- ++Bold++ for emphasis, important names, key objects, or impactful moments',
-      example: 'The ++ancient sword++ gleamed in the torchlight.'
-    },
-    {
-      id: 'italic',
-      label: 'Italic',
-      syntax: '//text//',
-      preview: '<em>italic</em>',
-      default: true,
-      instruction: '- //Italic// for internal thoughts, foreign words, distant sounds, or whispered speech',
-      example: '//This can\'t be happening//, she thought.'
-    },
-    {
-      id: 'boldItalic',
-      label: 'Bold Italic',
-      syntax: '++//text//++',
-      preview: '<strong><em>bold italic</em></strong>',
-      default: true,
-      instruction: '- ++//Bold Italic//++ for intense outbursts, shouting, or extreme emotion; use sparingly',
-      example: '++//Never!//++ he roared, slamming his fist on the table.'
-    },
-    {
-      id: 'underline',
-      label: 'Underline',
-      syntax: '==text==',
-      preview: '<u>underline</u>',
-      default: true,
-      instruction: '- ==Underline== for written or inscribed text, signs, letters, or in-world readable text',
-      example: 'The note read: ==Meet me at the docks. Tell no one.=='
-    },
-    {
-      id: 'strikethrough',
-      label: 'Strikethrough',
-      syntax: '~~text~~',
-      preview: '<s>strikethrough</s>',
-      default: true,
-      instruction: '- ~~Strikethrough~~ for redacted text, crossed-out words, or corrected information',
-      example: 'The ledger entry read: ~~500 gold~~ 200 gold.'
-    },
-    {
-      id: 'highlight',
-      label: 'Highlight',
-      syntax: '::text::',
-      preview: '<mark>highlight</mark>',
-      default: true,
-      instruction: '- ::Highlight:: for magically glowing text, critical clues, or supernaturally emphasized words',
-      example: 'The rune pulsed with light: ::Speak thy name::'
-    },
-    {
-      id: 'smallText',
-      label: 'Small Text',
-      syntax: '~text~',
-      preview: '<span class="bd-small-text">whisper</span>',
-      default: true,
-      instruction: '- ~Small Text~ for barely audible whispers, fading speech, or distant sounds; very rare',
-      example: '~"...please... don\'t leave..."~'
-    },
-    {
-      id: 'horizontalRule',
-      label: 'Scene Break',
-      syntax: '---',
-      preview: 'scene break',
-      default: true,
-      instruction: '- --- for scene breaks, significant time skips, or perspective shifts; place on its own line',
-      example: null
-    },
-    {
-      id: 'blockquote',
-      label: 'Blockquote',
-      syntax: '>> text',
-      preview: '<span style="border-left:2px solid;padding-left:6px;opacity:0.85;font-style:italic;">quoted</span>',
-      default: true,
-      instruction: '- >> Blockquote for letters, excerpts, proclamations, or recalled speech; place >> at the start of the line',
-      example: '>> "In the beginning, there was only silence."'
-    },
-    {
-      id: 'list',
-      label: 'List',
-      syntax: '- item',
-      preview: '&bull; list item',
-      default: true,
-      instruction: '- Unordered lists using "- item" for inventory, choices, or organized information',
-      example: null
-    }
-  ];
-
-  // Default config: all options enabled
-  static DEFAULT_MARKDOWN_CONFIG = Object.fromEntries(
-    AIDungeonService.MARKDOWN_FORMAT_OPTIONS.map(opt => [opt.id, opt.default])
-  );
-
-  // Build markdown instructions dynamically based on user config.
-  // Follows BetterRepository's instruction structure:
-  // - ## Category header
-  // - One-line dash standard
-  // - Directive + components
-  static buildMarkdownInstructions(config) {
-    const enabledOptions = AIDungeonService.MARKDOWN_FORMAT_OPTIONS.filter(opt => config[opt.id]);
-
-    if (enabledOptions.length === 0) {
-      return '';
-    }
-
-    const lines = [];
-
-    // Header
-    lines.push('## Formatting');
-    lines.push('Use the following custom Markdown syntax to enrich the narrative:');
-    lines.push('');
-
-    // Syntax section — one-line dash standard per enabled option
-    for (const opt of enabledOptions) {
-      lines.push(opt.instruction);
-    }
-
-    return lines.join('\n');
+  static get MARKDOWN_CONFIG() {
+    return window.BetterDungeonMarkdownConfig;
   }
 
-  // Build condensed Author's Note instructions based on user config.
-  // Author's Note is for short-form writing style directives, so we
-  // condense the enabled formatting options into a single-line reminder.
-  static buildAuthorsNoteInstructions(config) {
-    const enabledOptions = AIDungeonService.MARKDOWN_FORMAT_OPTIONS.filter(opt => config[opt.id]);
+  static get MARKDOWN_PRESET_STORAGE_KEY() {
+    return 'betterDungeon_markdownInstructionPreset';
+  }
 
-    if (enabledOptions.length === 0) {
-      return '';
-    }
+  static get MARKDOWN_FORMAT_OPTIONS() {
+    return AIDungeonService.MARKDOWN_CONFIG?.formats || [];
+  }
 
-    const syntaxList = enabledOptions.map(opt => opt.syntax).join(', ');
-    return `Apply custom Markdown formatting throughout: ${syntaxList}.`;
+  static get DEFAULT_MARKDOWN_CONFIG() {
+    return Object.fromEntries(
+      AIDungeonService.MARKDOWN_FORMAT_OPTIONS.map(opt => [opt.id, true])
+    );
+  }
+
+  static get MARKDOWN_BEGIN_MARKER() {
+    return AIDungeonService.MARKDOWN_CONFIG?.beginMarker || '[BetterDungeon Markdown: Begin]';
+  }
+
+  static get MARKDOWN_END_MARKER() {
+    return AIDungeonService.MARKDOWN_CONFIG?.endMarker || '[BetterDungeon Markdown: End]';
+  }
+
+  static get MARKDOWN_NOTE_MARKER() {
+    return AIDungeonService.MARKDOWN_CONFIG?.noteMarker || '[BetterDungeon Markdown]';
+  }
+
+  static buildMarkdownInstructions(presetId) {
+    return AIDungeonService.MARKDOWN_CONFIG?.buildInstructions?.(presetId) || '';
+  }
+
+  static buildAuthorsNoteInstructions(presetId) {
+    return AIDungeonService.MARKDOWN_CONFIG?.buildAuthorsNote?.(presetId) || '';
   }
 
   // Legacy static property for backward compatibility
   static get MARKDOWN_INSTRUCTIONS() {
-    return AIDungeonService.buildMarkdownInstructions(AIDungeonService.DEFAULT_MARKDOWN_CONFIG);
+    return AIDungeonService.buildMarkdownInstructions();
   }
 
   // ==================== CONSTRUCTOR & DEBUG ====================
@@ -923,95 +818,169 @@ class AIDungeonService {
 
   // ==================== INSTRUCTION APPLICATION ====================
 
-  // Check if markdown instructions are already present in a textarea.
-  // Checks markers from both the full AI Instructions format and the
-  // condensed Author's Note format.
+  hasMarkdownInstructionBlock(text) {
+    const val = text || '';
+    return val.includes(AIDungeonService.MARKDOWN_BEGIN_MARKER) &&
+           val.includes(AIDungeonService.MARKDOWN_END_MARKER);
+  }
+
+  hasMarkdownAuthorsNote(text) {
+    return (text || '').includes(AIDungeonService.MARKDOWN_NOTE_MARKER);
+  }
+
   containsInstructions(textarea) {
     if (!textarea) return false;
     const val = textarea.value || '';
+    return this.hasMarkdownInstructionBlock(val) || this.hasMarkdownAuthorsNote(val);
+  }
 
-    // Markers from full instructions (AI Instructions textarea)
-    // and condensed format (Author's Note textarea)
-    const markers = [
-      '## Formatting',
-      'custom Markdown syntax',
-      'custom Markdown formatting',
-      '[FORMATTING]',
-      '++Bold++',
-      '//Italic//',
-    ];
+  appendWithSeparator(currentValue, text) {
+    const separator = currentValue.trim() ? '\n\n' : '';
+    return `${currentValue}${separator}${text}`;
+  }
 
-    return markers.some(m => val.includes(m));
+  upsertMarkedBlock(currentValue, text, forceApply = false) {
+    const begin = AIDungeonService.MARKDOWN_BEGIN_MARKER;
+    const end = AIDungeonService.MARKDOWN_END_MARKER;
+    const startIndex = currentValue.indexOf(begin);
+    const endIndex = currentValue.indexOf(end, startIndex + begin.length);
+
+    if (startIndex !== -1 && endIndex !== -1) {
+      if (!forceApply) return currentValue;
+      const before = currentValue.slice(0, startIndex).trimEnd();
+      const after = currentValue.slice(endIndex + end.length).trimStart();
+      return [before, text, after].filter(Boolean).join('\n\n');
+    }
+
+    return this.appendWithSeparator(currentValue, text);
+  }
+
+  upsertMarkedLine(currentValue, text, forceApply = false) {
+    const marker = AIDungeonService.MARKDOWN_NOTE_MARKER;
+    const lines = currentValue.split('\n');
+    const existingIndex = lines.findIndex(line => line.includes(marker));
+
+    if (existingIndex !== -1) {
+      if (!forceApply) return currentValue;
+      lines[existingIndex] = text;
+      return lines.join('\n');
+    }
+
+    return this.appendWithSeparator(currentValue, text);
+  }
+
+  setTextareaValue(textarea, value, inputType = 'insertReplacementText') {
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype,
+      'value'
+    )?.set;
+
+    if (nativeInputValueSetter) {
+      nativeInputValueSetter.call(textarea, value);
+    } else {
+      textarea.value = value;
+    }
+
+    textarea.dispatchEvent(new InputEvent('input', {
+      bubbles: true,
+      cancelable: true,
+      inputType,
+      data: value,
+    }));
   }
 
   // Main method to apply instructions to both AI Instructions and Author's Note textareas
   async applyInstructionsToTextareas(instructionsText, options = {}) {
-    const { forceApply = false, onCreatingComponents = null, onStepUpdate = null, authorsNoteText = null } = options;
+    const {
+      forceApply = false,
+      onCreatingComponents = null,
+      onStepUpdate = null,
+      authorsNoteText = null,
+      restoreSettingsPanel = true,
+      shouldCancel = null,
+    } = options;
 
-    // Navigate to Plot settings with step callbacks
-    const navResult = await this.navigateToPlotSettings({ onStepUpdate });
-    if (!navResult.success) return navResult;
+    const settingsWasOpen = this.isSettingsPanelOpen();
 
-    // Initial attempt to find textareas
-    let textareas = await this.waitForTextareas(5);
-    let componentsCreated = false;
+    try {
+      if (shouldCancel?.()) return { success: false, canceled: true };
 
-    // If textareas not found, create the missing plot components
-    if (!textareas.success) {
-      onCreatingComponents?.();
-      const ensureResult = await this.ensurePlotComponentsExist({
-        onCreating: onCreatingComponents ? (name) => onCreatingComponents(`Creating ${name}...`) : null,
-      });
+      const navResult = await this.navigateToPlotSettings({ onStepUpdate });
+      if (!navResult.success) return navResult;
+      if (shouldCancel?.()) return { success: false, canceled: true };
 
-      if (ensureResult.created) {
-        componentsCreated = true;
-        textareas = await this.waitForTextareas(30); // Longer wait for newly created
-      } else {
-        textareas = await this.waitForTextareas(20);
+      let textareas = await this.waitForTextareas(5);
+      let componentsCreated = false;
+
+      if (!textareas.success) {
+        onCreatingComponents?.();
+        const ensureResult = await this.ensurePlotComponentsExist({
+          onCreating: onCreatingComponents ? (name) => onCreatingComponents(`Creating ${name}...`) : null,
+        });
+
+        if (ensureResult.created) {
+          componentsCreated = true;
+          textareas = await this.waitForTextareas(30);
+        } else {
+          textareas = await this.waitForTextareas(20);
+        }
+      }
+
+      if (!textareas.success) {
+        const aiTextarea = this.findAIInstructionsTextarea();
+        if (aiTextarea) {
+          textareas = {
+            success: true,
+            aiInstructionsTextarea: aiTextarea,
+            authorsNoteTextarea: this.findAuthorsNoteTextarea(),
+          };
+        } else {
+          return textareas;
+        }
+      }
+
+      if (shouldCancel?.()) return { success: false, canceled: true };
+
+      const { aiInstructionsTextarea, authorsNoteTextarea } = textareas;
+      const aiHas = this.hasMarkdownInstructionBlock(aiInstructionsTextarea?.value || '');
+      const noteHas = authorsNoteTextarea ? this.hasMarkdownAuthorsNote(authorsNoteTextarea.value || '') : false;
+
+      if (aiHas && noteHas && !forceApply) {
+        return { success: true, alreadyApplied: true };
+      }
+
+      let appliedCount = 0;
+      let partial = false;
+      const warnings = [];
+
+      if (!aiHas || forceApply) {
+        const nextValue = this.upsertMarkedBlock(aiInstructionsTextarea.value || '', instructionsText, forceApply);
+        if (nextValue !== (aiInstructionsTextarea.value || '')) {
+          this.setTextareaValue(aiInstructionsTextarea, nextValue);
+          appliedCount++;
+        }
+      }
+
+      if (authorsNoteText && (!noteHas || forceApply)) {
+        if (authorsNoteTextarea) {
+          const nextValue = this.upsertMarkedLine(authorsNoteTextarea.value || '', authorsNoteText, forceApply);
+          if (nextValue !== (authorsNoteTextarea.value || '')) {
+            this.setTextareaValue(authorsNoteTextarea, nextValue);
+            appliedCount++;
+          }
+        } else {
+          partial = true;
+          warnings.push("Author's Note textarea unavailable");
+        }
+      }
+
+      return { success: true, appliedCount, componentsCreated, partial, warnings };
+    } finally {
+      if (restoreSettingsPanel && !settingsWasOpen) {
+        await this.wait(100);
+        this.closeSettingsPanel();
       }
     }
-
-    // If full detection failed, try to locate AI Instructions alone.
-    // Author's Note being undetectable should not block AI Instructions application.
-    if (!textareas.success) {
-      const aiTextarea = this.findAIInstructionsTextarea();
-      if (aiTextarea) {
-        textareas = {
-          success: true,
-          aiInstructionsTextarea: aiTextarea,
-          authorsNoteTextarea: this.findAuthorsNoteTextarea(),
-        };
-      } else {
-        return textareas;
-      }
-    }
-
-    const { aiInstructionsTextarea, authorsNoteTextarea } = textareas;
-
-    // Check each textarea independently
-    const aiHas = this.containsInstructions(aiInstructionsTextarea);
-    const noteHas = authorsNoteTextarea ? this.containsInstructions(authorsNoteTextarea) : true;
-
-    // Only report "already applied" when ALL available textareas have instructions
-    if (aiHas && noteHas && !forceApply) {
-      return { success: true, alreadyApplied: true };
-    }
-
-    let appliedCount = 0;
-
-    // Apply to AI Instructions if needed
-    if (!aiHas || forceApply) {
-      this.domUtils.appendToTextarea(aiInstructionsTextarea, instructionsText);
-      appliedCount++;
-    }
-
-    // Apply to Author's Note if needed
-    if (authorsNoteTextarea && authorsNoteText && (!noteHas || forceApply)) {
-      this.domUtils.appendToTextarea(authorsNoteTextarea, authorsNoteText);
-      appliedCount++;
-    }
-
-    return { success: true, appliedCount, componentsCreated };
   }
 
   // ==================== INPUT AREA HELPERS ====================
@@ -1079,28 +1048,220 @@ class AIDungeonService {
 
   // ==================== INSTRUCTION DATA ====================
 
-  // Builds and returns markdown formatting instructions based on user config.
-  // Returns both the full AI Instructions text and the condensed Author's Note text.
+  // Builds and returns the focused BetterDungeon Markdown instructions.
+  // Legacy per-format storage is intentionally ignored.
   async fetchInstructionsFile() {
     try {
-      const result = await new Promise(resolve => {
-        chrome.storage.sync.get('betterDungeon_markdownOptions', (data) => {
-          resolve((data || {}).betterDungeon_markdownOptions || null);
-        });
-      });
-      const config = result || AIDungeonService.DEFAULT_MARKDOWN_CONFIG;
-      const instructions = AIDungeonService.buildMarkdownInstructions(config);
-      const authorsNote = AIDungeonService.buildAuthorsNoteInstructions(config);
-      return { success: true, data: instructions, authorsNoteData: authorsNote };
+      const config = AIDungeonService.MARKDOWN_CONFIG;
+      const selectedPreset = await this.getSelectedMarkdownInstructionPreset();
+      const preset = config?.getInstructionPreset?.(selectedPreset);
+      const presetId = preset?.id || config?.defaultInstructionPreset;
+      const instructions = AIDungeonService.buildMarkdownInstructions(presetId);
+      const authorsNote = AIDungeonService.buildAuthorsNoteInstructions(presetId);
+      return { success: true, data: instructions, authorsNoteData: authorsNote, presetId };
     } catch (e) {
-      // Fallback to default config if storage fails
-      const defaultConfig = AIDungeonService.DEFAULT_MARKDOWN_CONFIG;
       return {
         success: true,
         data: AIDungeonService.MARKDOWN_INSTRUCTIONS,
-        authorsNoteData: AIDungeonService.buildAuthorsNoteInstructions(defaultConfig),
+        authorsNoteData: AIDungeonService.buildAuthorsNoteInstructions(),
       };
     }
+  }
+
+  async getSelectedMarkdownInstructionPreset() {
+    const config = AIDungeonService.MARKDOWN_CONFIG;
+    const fallback = config?.defaultInstructionPreset || '';
+
+    if (typeof chrome === 'undefined' || !chrome.storage?.sync) {
+      return fallback;
+    }
+
+    try {
+      const result = await chrome.storage.sync.get(AIDungeonService.MARKDOWN_PRESET_STORAGE_KEY);
+      return (result || {})[AIDungeonService.MARKDOWN_PRESET_STORAGE_KEY] || fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  // ==================== GRAPHQL MUTATIONS (ULTRASCRIPTS) ====================
+  //
+  // Ultrascripts's programmatic write path for story cards. Uses a standard, clean,
+  // hardcoded updateStoryCard mutation query, and applies HTTP authorization headers
+  // captured from session baseCredentials (e.g. from GetUser on page load).
+  //
+  // Avoids complex passive template snooping or caching, ensuring robustness
+  // and ease of debugging.
+  //
+
+  _restoreReplayHeaders(capturedHeaders) {
+    const out = {};
+    if (!capturedHeaders || typeof capturedHeaders !== 'object') {
+      return { 'Content-Type': 'application/json' };
+    }
+    for (const k of Object.keys(capturedHeaders)) {
+      if (AIDungeonService.FORBIDDEN_REPLAY_HEADERS.has(k.toLowerCase())) continue;
+      out[k] = capturedHeaders[k];
+    }
+    const hasContentType = Object.keys(out).some(k => k.toLowerCase() === 'content-type');
+    if (!hasContentType) out['Content-Type'] = 'application/json';
+    return out;
+  }
+
+  static FORBIDDEN_REPLAY_HEADERS = new Set([
+    'host', 'origin', 'referer', 'user-agent', 'connection',
+    'accept-encoding', 'content-length', 'cookie',
+  ]);
+
+  async _replayMutation(overrides) {
+    const ws = (typeof window !== 'undefined') ? window.Ultrascripts?.ws : null;
+    const base = ws?.getBaseCredentials ? ws.getBaseCredentials() : null;
+    if (!base) {
+      throw new Error(`[AIDungeonService] Waiting for website credentials to load. Please wait or reload.`);
+    }
+
+    const operationName = overrides.operationName || 'UseAutoSaveStoryCard';
+    const body = JSON.stringify([{
+      operationName,
+      variables: {
+        input: {
+          id: overrides.id,
+          type: overrides.type || '',
+          title: overrides.title,
+          description: overrides.description || '',
+          keys: overrides.keys || '',
+          value: overrides.value,
+          shortId: overrides.shortId,
+          contentType: overrides.contentType || 'adventure',
+          useForCharacterCreation: !!overrides.useForCharacterCreation
+        }
+      },
+      query: `mutation ${operationName}($input: UpdateStoryCardInput!) {
+        updateStoryCard(input: $input) {
+          success
+          message
+          storyCard {
+            id
+            type
+            title
+            description
+            keys
+            value
+            useForCharacterCreation
+            updatedAt
+            __typename
+          }
+          __typename
+        }
+      }`
+    }]);
+
+    const response = await fetch(base.url || 'https://api.aidungeon.com/graphql', {
+      method: 'POST',
+      credentials: 'include',
+      headers: this._restoreReplayHeaders(base.headers),
+      body,
+    });
+
+    if (!response.ok) {
+      const txt = await response.text().catch(() => '<no body>');
+      throw new Error(`[AIDungeonService] updateStoryCard HTTP ${response.status}: ${txt.slice(0, 200)}`);
+    }
+
+    const parsed = await response.json();
+    const first = Array.isArray(parsed) ? parsed[0] : parsed;
+    const data = first?.data;
+    if (!data || typeof data !== 'object') {
+      const errs = first?.errors ? ` errors=${JSON.stringify(first.errors).slice(0, 300)}` : '';
+      throw new Error(`[AIDungeonService] updateStoryCard response missing data.${errs}`);
+    }
+
+    const result = data.updateStoryCard;
+    if (result && result.success === false) {
+      throw new Error(`[AIDungeonService] updateStoryCard failed: ${result.message || 'unknown error'}`);
+    }
+    return result;
+  }
+
+  _mintCardId() {
+    const n = Math.floor(Math.random() * 900000000) + 100000000;
+    return String(n);
+  }
+
+  _getAdventureEnrichment() {
+    if (typeof window === 'undefined' || !window.Ultrascripts?.ws) return null;
+    const shortId = window.Ultrascripts.ws.getAdventureShortId?.();
+    if (!shortId) return null;
+    return { shortId, contentType: 'adventure' };
+  }
+
+  _findExistingCardByTitle(title) {
+    if (typeof window === 'undefined' || !window.Ultrascripts?.ws?.getCards) return null;
+    for (const card of window.Ultrascripts.ws.getCards().values()) {
+      if (card?.title === title) return card;
+    }
+    return null;
+  }
+
+  _findExistingCardById(id) {
+    if (id == null || typeof window === 'undefined' || !window.Ultrascripts?.ws?.getCards) return null;
+    const target = String(id);
+    for (const card of window.Ultrascripts.ws.getCards().values()) {
+      if (String(card?.id) === target) return card;
+    }
+    return null;
+  }
+
+  async upsertStoryCard(title, value, opts = {}) {
+    const {
+      type = '',
+      keys = '',
+      description = '',
+      id: forceId = null,
+      useForCharacterCreation = false,
+    } = opts;
+
+    const ws = (typeof window !== 'undefined') ? window.Ultrascripts?.ws : null;
+    const hasBase = ws?.hasBaseCredentials ? ws.hasBaseCredentials() : false;
+    if (!hasBase) {
+      throw new Error(
+        `[AIDungeonService] Waiting for website credentials to load. Please wait or reload.`
+      );
+    }
+
+    const adventure = this._getAdventureEnrichment();
+    if (!adventure?.shortId) {
+      throw new Error(
+        `[AIDungeonService] Adventure shortId is unknown. Ensure you're on an adventure URL.`
+      );
+    }
+
+    const existing = forceId
+      ? (this._findExistingCardById(forceId) || { id: forceId })
+      : this._findExistingCardByTitle(title);
+
+    const targetId = existing?.id || forceId || this._mintCardId();
+    const isCreate = !existing;
+
+    const overrides = {
+      id: targetId,
+      type: type || existing?.type || '',
+      title,
+      description: description || existing?.description || '',
+      keys: keys || existing?.keys || '',
+      value,
+      shortId: adventure.shortId,
+      contentType: adventure.contentType,
+      useForCharacterCreation: typeof useForCharacterCreation === 'boolean'
+        ? useForCharacterCreation
+        : !!existing?.useForCharacterCreation,
+      operationName: isCreate ? 'SaveQueueStoryCard' : 'UseAutoSaveStoryCard',
+    };
+
+    const result = await this._replayMutation(overrides);
+    const card = result.storyCard || result;
+    if (card && typeof card === 'object') card.__ultrascriptsCreated = isCreate;
+    return card;
   }
 
   // ==================== UTILITIES ====================

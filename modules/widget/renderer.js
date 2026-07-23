@@ -1,0 +1,2670 @@
+// modules/widget/renderer.js
+//
+// DOM renderer for widgets. It intentionally keeps the legacy
+// BetterScripts CSS class names so existing widget styles remain pixel-stable
+// while the data source moves to Ultrascripts state cards.
+
+(function () {
+  if (window.UltrascriptsWidgetRenderer) return;
+
+  const validators = () => window.UltrascriptsWidgetValidators;
+  const MINIMIZED_STORAGE_KEY = 'bd.widget.minimized';
+  const ACKED_VALUE_TTL_MS = 30000;
+
+  function cloneForCompare(value) {
+    if (value === undefined || value === null) return value;
+    if (typeof value !== 'object') return value;
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch {
+      return Array.isArray(value) ? value.slice() : { ...value };
+    }
+  }
+
+  function valuesEqual(a, b) {
+    if (a === b) return true;
+    try {
+      return JSON.stringify(a) === JSON.stringify(b);
+    } catch {
+      return false;
+    }
+  }
+
+  class UltrascriptsWidgetRenderer {
+    constructor(options = {}) {
+      this.logFn = typeof options.log === 'function' ? options.log : null;
+      this.onInteraction = typeof options.onInteraction === 'function' ? options.onInteraction : null;
+      this.registeredWidgets = new Map();
+      // Map<widgetId, { value?, seq }>. Any widget with an entry pulses amber
+      // until its seq is <= ackSeq. Optional `value` carries the player's
+      // optimistic change across re-renders.
+      this.pendingInteractionValues = new Map();
+      // Map<widgetId, { value, previousValue, seq, expiresAt }>. Acknowledged
+      // values bridge the stale-history turn where the script has seen the
+      // interaction but its next published values have not caught up yet.
+      this.ackedInteractionValues = new Map();
+      this.widgetContainer = null;
+      this.widgetWrapper = null;
+      this.minimizeButton = null;
+      this.widgetZones = { left: null, center: null, right: null };
+      this.boundResizeHandler = null;
+      this.resizeDebounceTimer = null;
+      this.layoutObserver = null;
+      this.gameTextMaskObserver = null;
+      this.cachedLayout = null;
+      this.isMinimized = this.loadMinimizedPreference();
+      this._densityRafId = null;
+      this._lastLayoutLogKey = '';
+      this._lastDensityLogKey = '';
+      this._warnedMessages = new Set();
+    }
+
+    log(...args) {
+      if (this.logFn) this.logFn('debug', ...args);
+    }
+
+    warn(...args) {
+      if (this.logFn) this.logFn('warn', ...args);
+      else console.warn('[Widget]', ...args);
+    }
+
+    warnOnce(key, ...args) {
+      if (this._warnedMessages.has(key)) return;
+      this._warnedMessages.add(key);
+      if (this._warnedMessages.size > 200) this._warnedMessages.clear();
+      this.warn(...args);
+    }
+
+    getCurrentWidgetConfig(widgetId, fallback) {
+      return this.registeredWidgets.get(widgetId)?.config || fallback;
+    }
+
+    isInteractiveType(type) {
+      return validators().INTERACTIVE_WIDGET_TYPES?.has?.(type);
+    }
+
+    readConfigValue(config) {
+      if (!config) return undefined;
+      const field = validators().getPrimitiveStateField?.(config) || 'value';
+      return config[field];
+    }
+
+    withConfigValue(config, value) {
+      const field = validators().getPrimitiveStateField?.(config) || 'value';
+      return { ...config, [field]: value };
+    }
+
+    // Optimistically swap in the player's pending value so re-renders keep
+    // showing their change until the AI acks. UI-only pending records (button
+    // presses, dropdown picks, etc.) have no stored value, so the config
+    // passes through untouched — only the pulse signals the pending state.
+    applyPendingInteractionValue(config) {
+      if (!config?.id || !this.pendingInteractionValues.has(config.id)) return config;
+      if (!this.isInteractiveType(config.type)) return config;
+      const pending = this.pendingInteractionValues.get(config.id);
+      if (pending.value === undefined) return config;
+      return this.withConfigValue(config, pending.value);
+    }
+
+    applyAckedInteractionValue(config) {
+      if (!config?.id || !this.ackedInteractionValues.has(config.id)) return config;
+      if (!this.isInteractiveType(config.type)) return config;
+
+      const accepted = this.ackedInteractionValues.get(config.id);
+      const now = Date.now();
+      if (!accepted || now > Number(accepted.expiresAt || 0)) {
+        this.ackedInteractionValues.delete(config.id);
+        return config;
+      }
+
+      const sourceValue = this.readConfigValue(config);
+      if (valuesEqual(sourceValue, accepted.value)) {
+        this.ackedInteractionValues.delete(config.id);
+        return config;
+      }
+
+      const sourceStillStale = accepted.previousValue === undefined
+        ? sourceValue === undefined
+        : valuesEqual(sourceValue, accepted.previousValue);
+
+      if (!sourceStillStale) {
+        this.ackedInteractionValues.delete(config.id);
+        return config;
+      }
+
+      return this.withConfigValue(config, accepted.value);
+    }
+
+    applyInteractionValue(config) {
+      return this.applyPendingInteractionValue(this.applyAckedInteractionValue(config));
+    }
+
+    // Clear pending state for any interactions the AI has now acknowledged.
+    // Pulls the amber pulse off the widget by removing the data-state.
+    ackInteractions(ackSeq) {
+      const n = Number(ackSeq || 0);
+      if (!Number.isFinite(n)) return;
+      const now = Date.now();
+      for (const [widgetId, pending] of [...this.pendingInteractionValues.entries()]) {
+        if (Number(pending.seq || 0) <= n) {
+          if (pending.value !== undefined) {
+            this.ackedInteractionValues.set(widgetId, {
+              value: cloneForCompare(pending.value),
+              previousValue: cloneForCompare(pending.previousValue),
+              seq: Number(pending.seq || 0),
+              expiresAt: now + ACKED_VALUE_TTL_MS,
+            });
+          }
+          this.pendingInteractionValues.delete(widgetId);
+          const data = this.registeredWidgets.get(widgetId);
+          if (data?.element && data.element.dataset.state === 'pending') {
+            delete data.element.dataset.state;
+          }
+        }
+      }
+      this.updateMinimizeButton();
+    }
+
+    // Mark a widget as pending. Optionally remembers an optimistic value so
+    // re-renders keep showing the player's change until the AI acks. Without
+    // a value (fire-and-forget interactions like button presses), the pulse
+    // still appears but no value override is stored.
+    setPending(widgetId, record, value, previousValue) {
+      if (!widgetId || !record?.seq) return;
+      const seq = Number(record.seq);
+      const existing = this.pendingInteractionValues.get(widgetId);
+      this.pendingInteractionValues.set(widgetId, {
+        value: value !== undefined ? cloneForCompare(value) : existing?.value,
+        previousValue: previousValue !== undefined ? cloneForCompare(previousValue) : existing?.previousValue,
+        seq: Math.max(seq, Number(existing?.seq || 0)),
+      });
+      if (value !== undefined) this.ackedInteractionValues.delete(widgetId);
+      const data = this.registeredWidgets.get(widgetId);
+      if (data?.element) data.element.dataset.state = 'pending';
+      this.updateMinimizeButton();
+    }
+
+    emitInteraction(config, action, value, previousValue, extra = {}) {
+      if (!this.onInteraction || !config?.id) return null;
+      const widgetType = config.type;
+      const coalesce = extra.coalesce !== undefined
+        ? !!extra.coalesce
+        : ['toggle', 'select', 'slider', 'input', 'textarea'].includes(widgetType);
+      const detail = {
+        widgetId: config.id,
+        widgetType,
+        action,
+        event: config.event || action,
+        name: config.name || config.action || null,
+        label: config.label || config.text || config.title || null,
+        value,
+        previousValue,
+        coalesceKey: coalesce ? `${config.id}:${widgetType}:${config.event || action}` : null,
+        ...extra,
+      };
+      const record = this.onInteraction(detail);
+
+      // Seamless pending affordance: every interaction on an interactive
+      // widget pulses amber until the AI acks. Handlers that need the new
+      // value to persist visually across re-renders pass it via
+      // extra.optimisticValue. Opt out entirely with extra.skipPending.
+      if (record && !extra.skipPending && this.isInteractiveType(widgetType)) {
+        this.setPending(config.id, record, extra.optimisticValue, previousValue);
+      }
+
+      return record;
+    }
+
+    setInteractiveDisabled(element, config) {
+      const disabled = !!config.disabled;
+      element.classList.toggle('bd-widget-disabled', disabled);
+      element.setAttribute('aria-disabled', String(disabled));
+      element.querySelectorAll('button, input, select, textarea').forEach(control => {
+        control.disabled = disabled || control.dataset.widgetLocalDisabled === 'true';
+      });
+    }
+
+    setAccordionSectionOpen(section, isOpen) {
+      section.dataset.open = String(isOpen);
+      const trigger = section.querySelector('.bd-widget-accordion-trigger');
+      const panel = section.querySelector('.bd-widget-accordion-panel');
+      if (trigger) trigger.setAttribute('aria-expanded', String(isOpen));
+      if (panel) panel.hidden = !isOpen;
+    }
+
+    setDropdownOpen(widget, isOpen) {
+      widget.dataset.open = String(isOpen);
+      const trigger = widget.querySelector('.bd-widget-dropdown-trigger');
+      const menu = widget.querySelector('.bd-widget-dropdown-menu');
+      if (trigger) trigger.setAttribute('aria-expanded', String(isOpen));
+      if (menu) menu.hidden = !isOpen;
+    }
+
+    loadMinimizedPreference() {
+      try {
+        return window.localStorage?.getItem(MINIMIZED_STORAGE_KEY) === '1';
+      } catch {
+        return false;
+      }
+    }
+
+    saveMinimizedPreference() {
+      try {
+        window.localStorage?.setItem(MINIMIZED_STORAGE_KEY, this.isMinimized ? '1' : '0');
+      } catch { /* storage may be unavailable in hardened contexts */ }
+    }
+
+    setMinimized(minimized) {
+      this.isMinimized = !!minimized;
+      this.saveMinimizedPreference();
+      this.syncWrapperState();
+      this.recalculateWidgetDensity();
+    }
+
+    updateMinimizeButton() {
+      if (!this.minimizeButton) return;
+      const minimized = !!this.isMinimized;
+      const widgetCount = this.registeredWidgets.size;
+      const pendingCount = [...this.pendingInteractionValues.keys()]
+        .filter(widgetId => this.registeredWidgets.has(widgetId))
+        .length;
+      const countLabel = widgetCount === 1 ? '1 widget' : `${widgetCount} widgets`;
+      const pendingLabel = pendingCount === 1 ? '1 pending' : `${pendingCount} pending`;
+      const actionLabel = minimized ? 'Show widgets' : 'Hide widgets';
+
+      this.minimizeButton.dataset.pending = String(pendingCount > 0);
+      this.minimizeButton.dataset.widgetCount = String(widgetCount);
+      this.minimizeButton.dataset.pendingCount = String(pendingCount);
+      this.minimizeButton.replaceChildren();
+
+      const text = document.createElement('span');
+      text.className = 'bd-widget-minimize-text';
+      text.textContent = minimized ? 'Show widgets' : 'Hide widgets';
+
+      const count = document.createElement('span');
+      count.className = 'bd-widget-minimize-count';
+      count.textContent = String(widgetCount);
+
+      const icon = document.createElement('span');
+      icon.className = 'bd-widget-minimize-icon';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.textContent = minimized ? '+' : '−';
+
+      this.minimizeButton.appendChild(text);
+      this.minimizeButton.appendChild(count);
+      if (pendingCount > 0) {
+        const pending = document.createElement('span');
+        pending.className = 'bd-widget-minimize-pending';
+        pending.textContent = String(pendingCount);
+        this.minimizeButton.appendChild(pending);
+      }
+      this.minimizeButton.appendChild(icon);
+
+      const pendingSuffix = pendingCount > 0 ? `, ${pendingLabel}` : '';
+      this.minimizeButton.title = `${actionLabel} (${countLabel}${pendingSuffix})`;
+      this.minimizeButton.setAttribute('aria-label', `${actionLabel} (${countLabel}${pendingSuffix})`);
+      this.minimizeButton.setAttribute('aria-expanded', String(!minimized));
+    }
+
+    syncWrapperState() {
+      if (!this.widgetWrapper) return;
+      this.widgetWrapper.dataset.minimized = String(!!this.isMinimized);
+      this.updateMinimizeButton();
+    }
+
+    activateTab(root, itemId) {
+      root.querySelectorAll('.bd-widget-tab-btn').forEach(button => {
+        const active = button.dataset.tab === String(itemId);
+        button.dataset.active = String(active);
+        button.setAttribute('aria-selected', String(active));
+        button.tabIndex = active ? 0 : -1;
+      });
+      root.querySelectorAll('.bd-widget-tabs-panel').forEach(panel => {
+        const active = panel.dataset.tab === String(itemId);
+        panel.dataset.active = String(active);
+        panel.hidden = !active;
+      });
+    }
+
+    syncSortableState(widget) {
+      const rows = Array.from(widget.querySelectorAll('.bd-widget-sortable-item'));
+      rows.forEach((row, index) => {
+        const rankEl = row.querySelector('.bd-widget-sortable-rank');
+        if (rankEl) rankEl.textContent = `${index + 1}.`;
+        const label = row.querySelector('.bd-widget-sortable-text')?.textContent?.trim() || `item ${index + 1}`;
+        const up = row.querySelector('.bd-widget-sortable-arrow[data-dir="up"]');
+        const down = row.querySelector('.bd-widget-sortable-arrow[data-dir="down"]');
+        if (up) {
+          up.dataset.widgetLocalDisabled = String(index === 0);
+          up.disabled = index === 0;
+          up.setAttribute('aria-label', `Move ${label} up`);
+        }
+        if (down) {
+          down.dataset.widgetLocalDisabled = String(index === rows.length - 1);
+          down.disabled = index === rows.length - 1;
+          down.setAttribute('aria-label', `Move ${label} down`);
+        }
+      });
+    }
+
+    setWidgets(widgets) {
+      if (!Array.isArray(widgets) || widgets.length === 0) {
+        this.clearAllWidgets();
+        return;
+      }
+
+      const renderWidgets = widgets.map(config => this.applyInteractionValue(config));
+      const desiredIds = new Set();
+      for (const config of renderWidgets) {
+        desiredIds.add(config.id);
+      }
+
+      for (const widgetId of [...this.registeredWidgets.keys()]) {
+        if (!desiredIds.has(widgetId)) {
+          this.destroyWidget(widgetId);
+        }
+      }
+
+      for (const config of renderWidgets) {
+        this.createOrUpdateWidget(config.id, config);
+      }
+
+      this.reorderWidgets(renderWidgets);
+      this.syncWrapperState();
+      this.recalculateWidgetDensity();
+    }
+
+    createOrUpdateWidget(widgetId, config) {
+      const existing = this.registeredWidgets.get(widgetId);
+      if (existing && existing.config.type === config.type) {
+        this.updateWidget(widgetId, config);
+      } else {
+        this.createWidget(widgetId, config);
+      }
+    }
+
+    reorderWidgets(widgets) {
+      if (!this.widgetZones) return;
+      for (const config of widgets) {
+        const data = this.registeredWidgets.get(config.id);
+        if (!data?.element) continue;
+        const align = validators().VALID_ALIGNMENTS.has(config.align) ? config.align : 'center';
+        const zone = this.widgetZones[align];
+        if (zone && data.element.parentNode === zone) {
+          zone.appendChild(data.element);
+        }
+      }
+    }
+
+    createWidgetContainer() {
+      if (this.widgetContainer && document.body.contains(this.widgetContainer)) return;
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'bd-betterscripts-wrapper bd-widget-module-wrapper';
+      wrapper.id = 'bd-betterscripts-wrapper';
+      Object.assign(wrapper.style, {
+        position: 'fixed',
+        zIndex: '1000',
+        pointerEvents: 'none',
+        display: 'flex',
+        flexDirection: 'column',
+      });
+
+      const controls = document.createElement('div');
+      controls.className = 'bd-widget-module-controls';
+
+      const minimizeButton = document.createElement('button');
+      minimizeButton.type = 'button';
+      minimizeButton.className = 'bd-widget-minimize-toggle';
+      minimizeButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.setMinimized(!this.isMinimized);
+      });
+      controls.appendChild(minimizeButton);
+      this.minimizeButton = minimizeButton;
+
+      this.widgetContainer = document.createElement('div');
+      this.widgetContainer.className = 'bd-betterscripts-container bd-widget-module-container';
+      this.widgetContainer.id = 'bd-betterscripts-top';
+
+      const leftZone = document.createElement('div');
+      leftZone.className = 'bd-bar-zone bd-bar-left bd-widget-module-zone';
+
+      const centerZone = document.createElement('div');
+      centerZone.className = 'bd-bar-zone bd-bar-center bd-widget-module-zone';
+
+      const rightZone = document.createElement('div');
+      rightZone.className = 'bd-bar-zone bd-bar-right bd-widget-module-zone';
+
+      this.widgetContainer.appendChild(leftZone);
+      this.widgetContainer.appendChild(centerZone);
+      this.widgetContainer.appendChild(rightZone);
+      this.widgetZones = { left: leftZone, center: centerZone, right: rightZone };
+
+      wrapper.appendChild(controls);
+      wrapper.appendChild(this.widgetContainer);
+      document.body.appendChild(wrapper);
+      this.widgetWrapper = wrapper;
+      this.syncWrapperState();
+
+      this.updateContainerPosition();
+      this.setupLayoutMonitoring();
+      this.log('Widget container created');
+    }
+
+    detectLayout() {
+      const layout = {
+        navHeight: 56,
+        contentLeft: 0,
+        contentWidth: window.innerWidth,
+        contentTop: 56,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+        gameTextMask: null,
+      };
+
+      const navSelectors = [
+        'nav',
+        '[role="navigation"]',
+        'header',
+        '.navbar',
+        '#navbar',
+      ];
+
+      for (const selector of navSelectors) {
+        const nav = document.querySelector(selector);
+        if (!nav) continue;
+        const rect = nav.getBoundingClientRect();
+        if (rect.height > 0 && rect.height < 100) {
+          layout.navHeight = rect.height;
+          layout.contentTop = rect.bottom;
+          break;
+        }
+      }
+
+      const gameTextMask = document.querySelector('.game-text-mask');
+      if (gameTextMask) {
+        const rect = gameTextMask.getBoundingClientRect();
+        if (rect.width > 100) {
+          layout.contentLeft = rect.left;
+          layout.contentWidth = rect.width;
+          layout.gameTextMask = gameTextMask;
+          this.cachedLayout = layout;
+          return layout;
+        }
+      }
+
+      const contentSelectors = [
+        '#gameplay-output',
+        '[class*="gameplay"]',
+        'main',
+        '[role="main"]',
+        '.main-content',
+      ];
+
+      for (const selector of contentSelectors) {
+        const content = document.querySelector(selector);
+        if (!content) continue;
+        const rect = content.getBoundingClientRect();
+        if (rect.width > 100) {
+          layout.contentLeft = rect.left;
+          layout.contentWidth = rect.width;
+          break;
+        }
+      }
+
+      this.cachedLayout = layout;
+      return layout;
+    }
+
+    updateContainerPosition() {
+      if (!this.widgetWrapper) return;
+
+      const layout = this.detectLayout();
+      const viewportPadding = 8;
+      const maxWidth = Math.max(0, window.innerWidth - (viewportPadding * 2));
+      const desiredWidth = layout.contentWidth > 0 ? layout.contentWidth : maxWidth;
+      const width = Math.max(
+        0,
+        Math.min(desiredWidth, maxWidth),
+      );
+      const left = Math.max(
+        viewportPadding,
+        Math.min(layout.contentLeft, Math.max(viewportPadding, window.innerWidth - width - viewportPadding)),
+      );
+      const top = Math.max(0, layout.contentTop + 6);
+      Object.assign(this.widgetWrapper.style, {
+        top: `${top}px`,
+        left: `${left}px`,
+        width: `${width}px`,
+      });
+
+      const logKey = `${Math.round(top)}:${Math.round(left)}:${Math.round(width)}`;
+      if (logKey !== this._lastLayoutLogKey) {
+        this._lastLayoutLogKey = logKey;
+        this.log('Container positioned:', { top, left, width });
+      }
+    }
+
+    recalculateWidgetDensity() {
+      if (this._densityRafId) return;
+      this._densityRafId = requestAnimationFrame(() => {
+        this._densityRafId = null;
+        this._performDensityCalculation();
+      });
+    }
+
+    _performDensityCalculation() {
+      if (!this.widgetContainer || !this.widgetWrapper) return;
+
+      const containerWidth = this.widgetWrapper.offsetWidth;
+      if (containerWidth <= 0) return;
+
+      const widgetCount = this.registeredWidgets.size;
+      if (widgetCount === 0) {
+        this.widgetContainer.removeAttribute('data-density');
+        return;
+      }
+
+      delete this.widgetContainer.dataset.density;
+
+      const containerStyles = getComputedStyle(this.widgetContainer);
+      const containerPadding = parseFloat(containerStyles.paddingLeft) +
+        parseFloat(containerStyles.paddingRight);
+      const containerGap = parseFloat(containerStyles.gap) || 6;
+
+      let totalWidgetWidth = 0;
+      for (const [, data] of this.registeredWidgets) {
+        if (data.element) totalWidgetWidth += data.element.offsetWidth;
+      }
+
+      const activeZones = Object.values(this.widgetZones)
+        .filter(z => z && z.children.length > 0);
+      const zoneCount = activeZones.length;
+      const widgetsInZones = activeZones.reduce((sum, z) => sum + z.children.length, 0);
+
+      let zoneGap = containerGap;
+      if (activeZones.length > 0) {
+        zoneGap = parseFloat(getComputedStyle(activeZones[0]).gap) || containerGap;
+      }
+
+      const intraZoneGaps = Math.max(0, widgetsInZones - zoneCount) * zoneGap;
+      const interZoneGaps = Math.max(0, zoneCount - 1) * containerGap;
+      const usedWidth = totalWidgetWidth + intraZoneGaps + interZoneGaps + containerPadding;
+      const ratio = usedWidth / containerWidth;
+
+      let density = null;
+      if (ratio > 1.2) {
+        density = 'dense';
+      } else if (ratio > 0.9) {
+        density = 'compact';
+      } else if (ratio < 0.4 && widgetCount <= 3) {
+        density = 'spacious';
+      }
+
+      if (density) {
+        this.widgetContainer.dataset.density = density;
+      }
+
+      const isOverflowing = this.widgetContainer.scrollHeight > this.widgetContainer.clientHeight;
+      this.widgetContainer.classList.toggle('bd-scrollable', isOverflowing);
+      const densityLog = {
+        ratio: Number(ratio.toFixed(2)),
+        widgetCount,
+        containerWidth,
+        isOverflowing,
+      };
+      const logKey = `${density || 'normal'}:${densityLog.ratio}:${widgetCount}:${Math.round(containerWidth)}:${isOverflowing}`;
+      if (logKey !== this._lastDensityLogKey) {
+        this._lastDensityLogKey = logKey;
+        this.log('Widget density:', density || 'normal', densityLog);
+      }
+    }
+
+    setupLayoutMonitoring() {
+      if (!this.boundResizeHandler) {
+        this.boundResizeHandler = () => {
+          if (this.resizeDebounceTimer) clearTimeout(this.resizeDebounceTimer);
+          this.resizeDebounceTimer = setTimeout(() => {
+            this.syncWrapperState();
+            this.updateContainerPosition();
+            this.recalculateWidgetDensity();
+          }, 50);
+        };
+
+        window.addEventListener('resize', this.boundResizeHandler);
+        window.addEventListener('orientationchange', this.boundResizeHandler);
+      }
+
+      if (window.ResizeObserver && !this.gameTextMaskObserver) {
+        const gameTextMask = document.querySelector('.game-text-mask');
+        if (gameTextMask) {
+          this.gameTextMaskObserver = new ResizeObserver(() => {
+            this.boundResizeHandler();
+          });
+          this.gameTextMaskObserver.observe(gameTextMask);
+          this.log('Observing game-text-mask for size changes');
+        }
+      }
+
+      if (window.ResizeObserver && !this.layoutObserver && !this.gameTextMaskObserver) {
+        const contentArea =
+          document.querySelector('#gameplay-output') ||
+          document.querySelector('main') ||
+          document.body;
+
+        this.layoutObserver = new ResizeObserver(() => {
+          this.boundResizeHandler();
+        });
+
+        this.layoutObserver.observe(contentArea);
+      }
+    }
+
+    removeWidgetContainer() {
+      if (this._densityRafId) {
+        cancelAnimationFrame(this._densityRafId);
+        this._densityRafId = null;
+      }
+
+      if (this.widgetWrapper) {
+        this.widgetWrapper.remove();
+        this.widgetWrapper = null;
+      }
+      this.minimizeButton = null;
+
+      this.widgetContainer = null;
+      this.widgetZones = { left: null, center: null, right: null };
+
+      if (this.gameTextMaskObserver) {
+        this.gameTextMaskObserver.disconnect();
+        this.gameTextMaskObserver = null;
+      }
+
+      if (this.layoutObserver) {
+        this.layoutObserver.disconnect();
+        this.layoutObserver = null;
+      }
+
+      if (this.boundResizeHandler) {
+        window.removeEventListener('resize', this.boundResizeHandler);
+        window.removeEventListener('orientationchange', this.boundResizeHandler);
+        this.boundResizeHandler = null;
+      }
+
+      if (this.resizeDebounceTimer) {
+        clearTimeout(this.resizeDebounceTimer);
+        this.resizeDebounceTimer = null;
+      }
+
+      this.cachedLayout = null;
+    }
+
+    createWidget(widgetId, config) {
+      const validation = validators().validateWidgetConfig(widgetId, config);
+      if (!validation.valid) {
+        this.warnOnce(
+          `validation:${widgetId}:${validation.errors.join('|')}`,
+          `Invalid widget config for "${widgetId}":`,
+          validation.errors.join('; '),
+        );
+        this.emitError('validation_error', { widgetId, errors: validation.errors });
+        return;
+      }
+
+      if (this.registeredWidgets.has(widgetId)) {
+        const existingData = this.registeredWidgets.get(widgetId);
+        if (existingData.config.type === config.type) {
+          this.updateWidget(widgetId, config);
+          return;
+        }
+        this.destroyWidget(widgetId);
+      }
+
+      this.createWidgetContainer();
+
+      let widgetElement;
+      switch (config.type) {
+        case 'stat':
+          widgetElement = this.createStatWidget(widgetId, config);
+          break;
+        case 'bar':
+          widgetElement = this.createBarWidget(widgetId, config);
+          break;
+        case 'text':
+          widgetElement = this.createTextWidget(widgetId, config);
+          break;
+        case 'panel':
+          widgetElement = this.createPanelWidget(widgetId, config);
+          break;
+        case 'custom':
+          widgetElement = this.createCustomWidget(widgetId, config);
+          break;
+        case 'badge':
+          widgetElement = this.createBadgeWidget(widgetId, config);
+          break;
+        case 'list':
+          widgetElement = this.createListWidget(widgetId, config);
+          break;
+        case 'icon':
+          widgetElement = this.createIconWidget(widgetId, config);
+          break;
+        case 'counter':
+          widgetElement = this.createCounterWidget(widgetId, config);
+          break;
+        case 'button':
+          widgetElement = this.createButtonWidget(widgetId, config);
+          break;
+        case 'toggle':
+          widgetElement = this.createToggleWidget(widgetId, config);
+          break;
+        case 'select':
+          widgetElement = this.createSelectWidget(widgetId, config);
+          break;
+        case 'slider':
+          widgetElement = this.createSliderWidget(widgetId, config);
+          break;
+        case 'input':
+          widgetElement = this.createInputWidget(widgetId, config);
+          break;
+        case 'textarea':
+          widgetElement = this.createTextareaWidget(widgetId, config);
+          break;
+        // --- new display ---
+        case 'progress':
+          widgetElement = this.createProgressWidget(widgetId, config);
+          break;
+        case 'taggroup':
+          widgetElement = this.createTaggroupWidget(widgetId, config);
+          break;
+        case 'divider':
+          widgetElement = this.createDividerWidget(widgetId, config);
+          break;
+        // --- new interactive ---
+        case 'radio':
+          widgetElement = this.createRadioWidget(widgetId, config);
+          break;
+        case 'stepper':
+          widgetElement = this.createStepperWidget(widgetId, config);
+          break;
+        case 'confirm':
+          widgetElement = this.createConfirmWidget(widgetId, config);
+          break;
+        case 'chipselect':
+          widgetElement = this.createChipselectWidget(widgetId, config);
+          break;
+        // --- new container / action ---
+        case 'accordion':
+          widgetElement = this.createAccordionWidget(widgetId, config);
+          break;
+        case 'tabs':
+          widgetElement = this.createTabsWidget(widgetId, config);
+          break;
+        case 'dropdown':
+          widgetElement = this.createDropdownWidget(widgetId, config);
+          break;
+        case 'sortable':
+          widgetElement = this.createSortableWidget(widgetId, config);
+          break;
+        default:
+          this.warn('Unknown widget type:', config.type);
+          return;
+      }
+
+      if (!widgetElement || !this.widgetContainer) return;
+
+      const align = validators().VALID_ALIGNMENTS.has(config.align) ? config.align : 'center';
+      const zone = this.widgetZones[align];
+      if (zone) zone.appendChild(widgetElement);
+      else this.widgetContainer.appendChild(widgetElement);
+
+      widgetElement.classList.add('bd-widget-entering');
+      const onEnterEnd = () => {
+        widgetElement.classList.remove('bd-widget-entering');
+        widgetElement.removeEventListener('animationend', onEnterEnd);
+      };
+      widgetElement.addEventListener('animationend', onEnterEnd);
+
+      this.registeredWidgets.set(widgetId, { element: widgetElement, config: { ...config } });
+      this.recalculateWidgetDensity();
+      this.emitWidget('created', widgetId, config);
+    }
+
+    createStatWidget(widgetId, config) {
+      const widget = this.createBaseWidget(widgetId, 'bd-widget-stat', config);
+
+      const label = document.createElement('span');
+      label.className = 'bd-widget-label';
+      label.textContent = config.label || 'Stat';
+
+      const value = document.createElement('span');
+      value.className = 'bd-widget-value';
+      value.textContent = config.value ?? '0';
+
+      this.applyPresetOrInlineColor(widget, value, config.color, 'color');
+
+      widget.appendChild(label);
+      widget.appendChild(value);
+      return widget;
+    }
+
+    createBarWidget(widgetId, config) {
+      const widget = this.createBaseWidget(widgetId, 'bd-widget-bar', config);
+
+      const label = document.createElement('span');
+      label.className = 'bd-widget-label';
+      label.textContent = config.label || 'Progress';
+
+      const barContainer = document.createElement('div');
+      barContainer.className = 'bd-widget-bar-container';
+
+      const barFill = document.createElement('div');
+      barFill.className = 'bd-widget-bar-fill';
+
+      const max = config.max ?? 100;
+      const percentage = Math.min(100, Math.max(0, ((config.value ?? 0) / max) * 100));
+      barFill.style.width = `${percentage}%`;
+      this.applyPresetOrInlineColor(widget, barFill, config.color, 'background');
+
+      const valueText = document.createElement('span');
+      valueText.className = 'bd-widget-bar-text';
+      valueText.textContent = config.showValue !== false ? `${config.value ?? 0}/${config.max ?? 100}` : '';
+
+      barContainer.appendChild(barFill);
+      barContainer.appendChild(valueText);
+      widget.appendChild(label);
+      widget.appendChild(barContainer);
+      return widget;
+    }
+
+    createTextWidget(widgetId, config) {
+      const widget = this.createBaseWidget(widgetId, 'bd-widget-text', config);
+      widget.textContent = config.text ?? '';
+      if (config.color) widget.style.color = config.color;
+      this.applyStyles(widget, config.style);
+      return widget;
+    }
+
+    createPanelWidget(widgetId, config) {
+      const widget = this.createBaseWidget(widgetId, 'bd-widget-panel', config);
+
+      if (config.title) {
+        const title = document.createElement('div');
+        title.className = 'bd-widget-panel-title';
+        title.textContent = config.title;
+        widget.appendChild(title);
+      }
+
+      const content = document.createElement('div');
+      content.className = 'bd-widget-panel-content';
+      this.populatePanelContent(content, config);
+      widget.appendChild(content);
+      return widget;
+    }
+
+    createCustomWidget(widgetId, config) {
+      const widget = this.createBaseWidget(widgetId, 'bd-widget-custom', config);
+      this.setCustomWidgetHTML(widget, config.html);
+      if (config.color) widget.style.color = config.color;
+      this.applyStyles(widget, config.style);
+      return widget;
+    }
+
+    setCustomWidgetHTML(element, html) {
+      element.innerHTML = validators().sanitizeHTML(html);
+    }
+
+    createBadgeWidget(widgetId, config) {
+      const widget = this.createBaseWidget(widgetId, 'bd-widget-badge', config);
+
+      if (config.icon) {
+        const icon = document.createElement('span');
+        icon.className = 'bd-widget-badge-icon';
+        icon.textContent = config.icon;
+        widget.appendChild(icon);
+      }
+
+      const text = document.createElement('span');
+      text.className = 'bd-widget-badge-text';
+      text.textContent = config.text ?? config.label ?? '';
+      widget.appendChild(text);
+
+      if (config.color) widget.style.setProperty('--badge-color', config.color);
+      if (config.variant) widget.dataset.variant = config.variant;
+      return widget;
+    }
+
+    createListWidget(widgetId, config) {
+      const widget = this.createBaseWidget(widgetId, 'bd-widget-list', config);
+
+      if (config.title) {
+        const title = document.createElement('div');
+        title.className = 'bd-widget-list-title';
+        title.textContent = config.title;
+        widget.appendChild(title);
+      }
+
+      const list = document.createElement('ul');
+      list.className = 'bd-widget-list-items';
+      this.populateListItems(list, config.items);
+      widget.appendChild(list);
+      return widget;
+    }
+
+    createIconWidget(widgetId, config) {
+      const widget = this.createBaseWidget(widgetId, 'bd-widget-icon', config);
+      widget.textContent = config.icon ?? config.text ?? '*';
+      if (config.color) widget.style.color = config.color;
+      if (config.size) {
+        widget.style.setProperty('--icon-size', typeof config.size === 'number' ? `${config.size}px` : config.size);
+      }
+      if (config.tooltip || config.title) widget.title = config.tooltip || config.title;
+      return widget;
+    }
+
+    createCounterWidget(widgetId, config) {
+      const widget = this.createBaseWidget(widgetId, 'bd-widget-counter', config);
+
+      if (config.icon) {
+        const icon = document.createElement('span');
+        icon.className = 'bd-widget-counter-icon';
+        icon.textContent = config.icon;
+        widget.appendChild(icon);
+      }
+
+      const value = document.createElement('span');
+      value.className = 'bd-widget-counter-value';
+      value.textContent = config.value ?? 0;
+      if (config.color) value.style.color = config.color;
+      widget.appendChild(value);
+
+      this.applyCounterDelta(widget, config.delta);
+      return widget;
+    }
+
+    createInteractiveShell(widgetId, typeClass, config) {
+      const widget = this.createBaseWidget(widgetId, `${typeClass} bd-widget-interactive`, config);
+      if (config.tooltip || config.title) widget.title = config.tooltip || config.title;
+      this.applyStyles(widget, config.style);
+      return widget;
+    }
+
+    createControlLabel(config, fallback, id) {
+      const label = document.createElement('span');
+      label.className = 'bd-widget-control-label';
+      if (id) label.id = id;
+      label.textContent = config.label ?? fallback;
+      return label;
+    }
+
+    createButtonWidget(widgetId, config) {
+      const widget = this.createInteractiveShell(widgetId, 'bd-widget-button', config);
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'bd-widget-control bd-widget-button-control';
+      if (config.variant) button.dataset.variant = config.variant;
+
+      if (config.icon) {
+        const icon = document.createElement('span');
+        icon.className = 'bd-widget-control-icon';
+        icon.textContent = config.icon;
+        button.appendChild(icon);
+      }
+
+      const text = document.createElement('span');
+      text.className = 'bd-widget-button-text';
+      text.textContent = config.text ?? config.label ?? 'Button';
+      button.appendChild(text);
+
+      button.addEventListener('click', () => {
+        const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+        if (currentConfig.disabled) return;
+        const value = currentConfig.value !== undefined ? currentConfig.value : true;
+        this.emitInteraction(currentConfig, 'click', value, undefined, { coalesce: !!currentConfig.coalesce });
+      });
+
+      widget.appendChild(button);
+      this.setInteractiveDisabled(widget, config);
+      return widget;
+    }
+
+    createToggleWidget(widgetId, config) {
+      const widget = this.createInteractiveShell(widgetId, 'bd-widget-toggle', config);
+      const labelId = `bd-widget-${widgetId}-label`;
+      const wrap = document.createElement('label');
+      wrap.className = 'bd-widget-toggle-control';
+
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = !!config.value;
+      input.setAttribute('aria-labelledby', labelId);
+
+      const slider = document.createElement('span');
+      slider.className = 'bd-widget-toggle-slider';
+
+      const label = this.createControlLabel(config, 'Toggle', labelId);
+
+      input.addEventListener('change', () => {
+        const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+        const previousValue = !!currentConfig.value;
+        const nextValue = !!input.checked;
+        this.emitInteraction(currentConfig, 'change', nextValue, previousValue, { optimisticValue: nextValue });
+      });
+
+      wrap.appendChild(input);
+      wrap.appendChild(slider);
+      widget.appendChild(wrap);
+      widget.appendChild(label);
+      this.setInteractiveDisabled(widget, config);
+      return widget;
+    }
+
+    createSelectWidget(widgetId, config) {
+      const widget = this.createInteractiveShell(widgetId, 'bd-widget-select', config);
+      const labelId = `bd-widget-${widgetId}-label`;
+      const label = this.createControlLabel(config, 'Select', labelId);
+      const select = document.createElement('select');
+      select.className = 'bd-widget-control bd-widget-select-control';
+      select.setAttribute('aria-labelledby', labelId);
+      this.populateSelectOptions(select, config.options, config.value);
+
+      select.addEventListener('change', () => {
+        const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+        const nextValue = this.readSelectValue(select);
+        const previousValue = currentConfig.value;
+        this.emitInteraction(currentConfig, 'change', nextValue, previousValue, { optimisticValue: nextValue });
+      });
+
+      widget.appendChild(label);
+      widget.appendChild(select);
+      this.setInteractiveDisabled(widget, config);
+      return widget;
+    }
+
+    createSliderWidget(widgetId, config) {
+      const widget = this.createInteractiveShell(widgetId, 'bd-widget-slider', config);
+      const labelId = `bd-widget-${widgetId}-label`;
+      const label = this.createControlLabel(config, 'Slider', labelId);
+      const valueText = document.createElement('span');
+      valueText.className = 'bd-widget-slider-value';
+      valueText.setAttribute('aria-live', 'polite');
+
+      const range = document.createElement('input');
+      range.type = 'range';
+      range.className = 'bd-widget-control bd-widget-slider-control';
+      range.setAttribute('aria-labelledby', labelId);
+      const min = config.min ?? 0;
+      const max = config.max ?? 100;
+      const step = config.step ?? 1;
+      const value = config.value ?? min;
+      range.min = String(min);
+      range.max = String(max);
+      range.step = String(step);
+      range.value = String(value);
+      valueText.textContent = config.showValue === false ? '' : String(value);
+
+      range.addEventListener('input', () => {
+        const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+        const nextValue = Number(range.value);
+        valueText.textContent = currentConfig.showValue === false ? '' : String(nextValue);
+        const previousValue = currentConfig.value ?? currentConfig.min ?? min;
+        this.emitInteraction(currentConfig, 'change', nextValue, previousValue, { optimisticValue: nextValue });
+      });
+
+      widget.appendChild(label);
+      widget.appendChild(range);
+      widget.appendChild(valueText);
+      this.setInteractiveDisabled(widget, config);
+      return widget;
+    }
+
+    createInputWidget(widgetId, config) {
+      const widget = this.createInteractiveShell(widgetId, 'bd-widget-input', config);
+      const labelId = `bd-widget-${widgetId}-label`;
+      const label = this.createControlLabel(config, 'Input', labelId);
+      const input = document.createElement('input');
+      input.className = 'bd-widget-control bd-widget-input-control';
+      input.setAttribute('aria-labelledby', labelId);
+      input.type = config.inputType || 'text';
+      input.value = config.value ?? '';
+      input.placeholder = config.placeholder || '';
+      input.maxLength = config.maxLength || validators().MAX_INPUT_LENGTH || 240;
+
+      input.addEventListener('input', () => {
+        const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+        const nextValue = currentConfig.inputType === 'number' ? Number(input.value) : input.value;
+        const previousValue = currentConfig.value ?? '';
+        this.emitInteraction(currentConfig, 'change', nextValue, previousValue, { optimisticValue: nextValue });
+      });
+
+      widget.appendChild(label);
+      widget.appendChild(input);
+      this.setInteractiveDisabled(widget, config);
+      return widget;
+    }
+
+    createTextareaWidget(widgetId, config) {
+      const widget = this.createInteractiveShell(widgetId, 'bd-widget-textarea', config);
+      const labelId = `bd-widget-${widgetId}-label`;
+      const label = this.createControlLabel(config, 'Text', labelId);
+      const textarea = document.createElement('textarea');
+      textarea.className = 'bd-widget-control bd-widget-textarea-control';
+      textarea.setAttribute('aria-labelledby', labelId);
+      textarea.value = config.value ?? '';
+      textarea.placeholder = config.placeholder || '';
+      textarea.rows = config.rows || 2;
+      textarea.maxLength = config.maxLength || validators().MAX_TEXTAREA_LENGTH || 1200;
+
+      textarea.addEventListener('input', () => {
+        const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+        const nextValue = textarea.value;
+        const previousValue = currentConfig.value ?? '';
+        this.emitInteraction(currentConfig, 'change', nextValue, previousValue, { optimisticValue: nextValue });
+      });
+
+      widget.appendChild(label);
+      widget.appendChild(textarea);
+      this.setInteractiveDisabled(widget, config);
+      return widget;
+    }
+
+    createBaseWidget(widgetId, typeClass, config) {
+      const widget = document.createElement('div');
+      widget.className = `bd-widget ${typeClass}`;
+      widget.id = `bd-widget-${widgetId}`;
+      widget.style.pointerEvents = 'auto';
+      if (config.order !== undefined) widget.style.order = config.order;
+      return widget;
+    }
+
+    updateWidget(widgetId, config) {
+      const widgetData = this.registeredWidgets.get(widgetId);
+      if (!widgetData) {
+        this.createWidget(widgetId, config);
+        return;
+      }
+
+      const { element, config: existingConfig } = widgetData;
+      if (existingConfig.type !== config.type) {
+        this.createWidget(widgetId, config);
+        return;
+      }
+
+      if (config.align !== undefined && config.align !== existingConfig.align) {
+        const newAlign = validators().VALID_ALIGNMENTS.has(config.align) ? config.align : 'center';
+        const targetZone = this.widgetZones[newAlign];
+        if (targetZone && element.parentNode !== targetZone) targetZone.appendChild(element);
+      }
+
+      switch (existingConfig.type) {
+        case 'stat':
+          this.updateStatWidget(element, config);
+          break;
+        case 'bar':
+          this.updateBarWidget(element, config, existingConfig);
+          break;
+        case 'text':
+          element.textContent = config.text ?? '';
+          element.style.color = config.color || '';
+          this.replaceStyles(element, existingConfig.style, config.style);
+          break;
+        case 'panel':
+          this.updatePanelWidget(element, config);
+          break;
+        case 'custom':
+          if (config.html !== existingConfig.html) this.setCustomWidgetHTML(element, config.html);
+          element.style.color = config.color || '';
+          this.replaceStyles(element, existingConfig.style, config.style);
+          break;
+        case 'badge':
+          this.updateBadgeWidget(element, config);
+          break;
+        case 'list':
+          this.updateListWidget(element, config);
+          break;
+        case 'icon':
+          this.updateIconWidget(element, config);
+          break;
+        case 'counter':
+          this.updateCounterWidget(element, config);
+          break;
+        case 'button':
+        case 'toggle':
+        case 'select':
+        case 'slider':
+        case 'input':
+        case 'textarea':
+          this.updateInteractiveWidget(element, widgetId, config, existingConfig);
+          break;
+        // --- new display ---
+        case 'progress':
+          this.updateProgressWidget(element, config);
+          break;
+        case 'taggroup':
+          this.updateTaggroupWidget(element, config);
+          break;
+        case 'divider':
+          this.updateDividerWidget(element, config);
+          break;
+        // --- new interactive ---
+        case 'radio':
+          this.updateRadioWidget(element, widgetId, config);
+          break;
+        case 'stepper':
+          this.updateStepperWidget(element, config);
+          break;
+        case 'confirm':
+          this.updateConfirmWidget(element, config);
+          break;
+        case 'chipselect':
+          this.updateChipselectWidget(element, widgetId, config);
+          break;
+        // --- new container / action ---
+        case 'accordion':
+          this.updateAccordionWidget(element, config);
+          break;
+        case 'tabs':
+          this.updateTabsWidget(element, widgetId, config);
+          break;
+        case 'dropdown':
+          this.updateDropdownWidget(element, widgetId, config);
+          break;
+        case 'sortable':
+          this.updateSortableWidget(element, widgetId, config);
+          break;
+      }
+
+      if (config.order !== undefined) element.style.order = config.order;
+      else element.style.order = '';
+
+      // Pending state is owned exclusively by setPending/ackInteractions; we
+      // never touch data-state here so re-renders preserve any active pulse.
+
+      this.registeredWidgets.set(widgetId, { element, config: { ...config } });
+      this.recalculateWidgetDensity();
+      this.emitWidget('updated', widgetId, config);
+    }
+
+    // ---------------------------------------------------------------
+    // VALUE TRANSITIONS
+    // ---------------------------------------------------------------
+
+    _parseNumber(str) {
+      if (typeof str === 'number') return str;
+      if (typeof str !== 'string') return NaN;
+      const cleaned = str.replace(/,/g, '').match(/^-?\d+(?:\.\d+)?/);
+      return cleaned ? Number(cleaned[0]) : NaN;
+    }
+
+    _formatNumber(value, decimals = 0) {
+      const rounded = decimals > 0 ? Math.round(value * (10 ** decimals)) / (10 ** decimals) : Math.round(value);
+      return String(rounded).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+
+    _tweenTextValue(element, targetValue, duration = 280, formatter = null) {
+      if (!element) return;
+      const target = this._parseNumber(targetValue);
+      if (!Number.isFinite(target)) {
+        element.textContent = String(targetValue ?? '');
+        return;
+      }
+      const current = this._parseNumber(element.textContent);
+      if (!Number.isFinite(current) || current === target) {
+        element.textContent = formatter ? formatter(target) : this._formatNumber(target);
+        return;
+      }
+      if (element._tweenId) cancelAnimationFrame(element._tweenId);
+      const start = performance.now();
+      const delta = target - current;
+      const step = (now) => {
+        const t = Math.min(1, (now - start) / duration);
+        const eased = 1 - (1 - t) * (1 - t); // ease-out quad
+        const val = current + delta * eased;
+        element.textContent = formatter ? formatter(val) : this._formatNumber(val);
+        if (t < 1) element._tweenId = requestAnimationFrame(step);
+        else element._tweenId = null;
+      };
+      element._tweenId = requestAnimationFrame(step);
+    }
+
+    _tweenStyleProperty(element, property, targetValue, duration = 280, unit = '') {
+      if (!element) return;
+      const target = this._parseNumber(targetValue);
+      if (!Number.isFinite(target)) {
+        element.style[property] = String(targetValue ?? '');
+        return;
+      }
+      const currentRaw = getComputedStyle(element)[property];
+      const current = this._parseNumber(currentRaw);
+      if (!Number.isFinite(current) || current === target) {
+        element.style[property] = this._formatNumber(target) + unit;
+        return;
+      }
+      const tweenKey = '_tweenId_' + property;
+      if (element[tweenKey]) cancelAnimationFrame(element[tweenKey]);
+      const start = performance.now();
+      const delta = target - current;
+      const step = (now) => {
+        const t = Math.min(1, (now - start) / duration);
+        const eased = 1 - (1 - t) * (1 - t); // ease-out quad
+        const val = current + delta * eased;
+        element.style[property] = this._formatNumber(val) + unit;
+        if (t < 1) element[tweenKey] = requestAnimationFrame(step);
+        else element[tweenKey] = null;
+      };
+      element[tweenKey] = requestAnimationFrame(step);
+    }
+
+    updateStatWidget(element, config) {
+      const labelEl = element.querySelector('.bd-widget-label');
+      const valueEl = element.querySelector('.bd-widget-value');
+      if (labelEl) labelEl.textContent = config.label ?? 'Stat';
+      if (valueEl) this._tweenTextValue(valueEl, config.value ?? 0);
+      if (valueEl) this.applyPresetOrInlineColor(element, valueEl, config.color, 'color', true);
+    }
+
+    updateBarWidget(element, config) {
+      const labelEl = element.querySelector('.bd-widget-label');
+      const barFill = element.querySelector('.bd-widget-bar-fill');
+      const barText = element.querySelector('.bd-widget-bar-text');
+
+      if (labelEl) labelEl.textContent = config.label ?? 'Progress';
+      if (barFill) {
+        const value = config.value ?? 0;
+        const max = config.max ?? 100;
+        const percentage = Math.min(100, Math.max(0, (value / max) * 100));
+        this._tweenStyleProperty(barFill, 'width', percentage, 280, '%');
+      }
+      if (barText) {
+        const showValue = config.showValue !== false;
+        const max = config.max ?? 100;
+        if (showValue) {
+          this._tweenTextValue(barText, config.value ?? 0, 280, v => `${Math.round(v)}/${max}`);
+        } else {
+          barText.textContent = '';
+        }
+      }
+      if (barFill) this.applyPresetOrInlineColor(element, barFill, config.color, 'background', true);
+    }
+
+    updatePanelWidget(element, config) {
+      const titleEl = element.querySelector('.bd-widget-panel-title');
+      if (titleEl) {
+        if (config.title) titleEl.textContent = config.title;
+        else titleEl.remove();
+      } else if (config.title) {
+        const newTitle = document.createElement('div');
+        newTitle.className = 'bd-widget-panel-title';
+        newTitle.textContent = config.title;
+        element.insertBefore(newTitle, element.firstChild);
+      }
+
+      const content = element.querySelector('.bd-widget-panel-content');
+      if (content) {
+        content.innerHTML = '';
+        this.populatePanelContent(content, config);
+      }
+    }
+
+    updateBadgeWidget(element, config) {
+      const textEl = element.querySelector('.bd-widget-badge-text');
+      if (textEl) {
+        textEl.textContent = config.text ?? config.label ?? '';
+      }
+
+      let iconEl = element.querySelector('.bd-widget-badge-icon');
+      if (config.icon) {
+        if (iconEl) {
+          iconEl.textContent = config.icon;
+        } else {
+          iconEl = document.createElement('span');
+          iconEl.className = 'bd-widget-badge-icon';
+          iconEl.textContent = config.icon;
+          element.insertBefore(iconEl, element.firstChild);
+        }
+      } else if (iconEl) {
+        iconEl.remove();
+      }
+
+      if (config.color !== undefined) element.style.setProperty('--badge-color', config.color);
+      else element.style.removeProperty('--badge-color');
+      if (config.variant !== undefined) element.dataset.variant = config.variant;
+      else delete element.dataset.variant;
+    }
+
+    updateListWidget(element, config) {
+      const titleEl = element.querySelector('.bd-widget-list-title');
+      if (titleEl) {
+        if (config.title) titleEl.textContent = config.title;
+        else titleEl.remove();
+      } else if (config.title) {
+        const title = document.createElement('div');
+        title.className = 'bd-widget-list-title';
+        title.textContent = config.title;
+        element.insertBefore(title, element.firstChild);
+      }
+
+      const list = element.querySelector('.bd-widget-list-items');
+      if (list) {
+        list.innerHTML = '';
+        this.populateListItems(list, config.items);
+      }
+    }
+
+    updateIconWidget(element, config) {
+      element.textContent = config.icon ?? config.text ?? '*';
+      element.style.color = config.color || '';
+      if (config.size !== undefined) {
+        element.style.setProperty('--icon-size', typeof config.size === 'number' ? `${config.size}px` : config.size);
+      } else {
+        element.style.removeProperty('--icon-size');
+      }
+      element.title = config.tooltip ?? config.title ?? '';
+    }
+
+    updateCounterWidget(element, config) {
+      const valueEl = element.querySelector('.bd-widget-counter-value');
+
+      let iconEl = element.querySelector('.bd-widget-counter-icon');
+      if (config.icon) {
+        if (iconEl) {
+          iconEl.textContent = config.icon;
+        } else {
+          iconEl = document.createElement('span');
+          iconEl.className = 'bd-widget-counter-icon';
+          iconEl.textContent = config.icon;
+          element.insertBefore(iconEl, element.firstChild);
+        }
+      } else if (iconEl) {
+        iconEl.remove();
+      }
+
+      if (valueEl) this._tweenTextValue(valueEl, config.value ?? 0);
+      if (valueEl) valueEl.style.color = config.color || '';
+      this.applyCounterDelta(element, config.delta);
+    }
+
+    updateInteractiveWidget(element, widgetId, config, existingConfig) {
+      element.title = config.tooltip ?? config.title ?? '';
+      element.className = `bd-widget bd-widget-${config.type} bd-widget-interactive`;
+      this.replaceStyles(element, existingConfig?.style, config.style);
+
+      switch (config.type) {
+        case 'button':
+          this.updateButtonWidget(element, widgetId, config);
+          break;
+        case 'toggle':
+          this.updateToggleWidget(element, widgetId, config);
+          break;
+        case 'select':
+          this.updateSelectControl(element, widgetId, config, existingConfig);
+          break;
+        case 'slider':
+          this.updateSliderControl(element, widgetId, config);
+          break;
+        case 'input':
+          this.updateInputControl(element, widgetId, config);
+          break;
+        case 'textarea':
+          this.updateTextareaControl(element, widgetId, config);
+          break;
+        default:
+          return;
+      }
+
+      this.setInteractiveDisabled(element, config);
+    }
+
+    replaceInteractiveContent(element, widgetId, config) {
+      let replacementContent;
+      switch (config.type) {
+        case 'button':
+          replacementContent = this.createButtonWidget(widgetId, config);
+          break;
+        case 'toggle':
+          replacementContent = this.createToggleWidget(widgetId, config);
+          break;
+        case 'select':
+          replacementContent = this.createSelectWidget(widgetId, config);
+          break;
+        case 'slider':
+          replacementContent = this.createSliderWidget(widgetId, config);
+          break;
+        case 'input':
+          replacementContent = this.createInputWidget(widgetId, config);
+          break;
+        case 'textarea':
+          replacementContent = this.createTextareaWidget(widgetId, config);
+          break;
+        default:
+          return false;
+      }
+
+      element.innerHTML = '';
+      while (replacementContent.firstChild) {
+        element.appendChild(replacementContent.firstChild);
+      }
+      element.className = replacementContent.className;
+      element.dataset.color = replacementContent.dataset.color || '';
+      if (!replacementContent.dataset.color) delete element.dataset.color;
+      return true;
+    }
+
+    updateControlLabel(element, config, fallback) {
+      const label = element.querySelector('.bd-widget-control-label');
+      if (label) label.textContent = config.label ?? fallback;
+    }
+
+    updateButtonWidget(element, widgetId, config) {
+      const button = element.querySelector('.bd-widget-button-control');
+      if (!button) {
+        this.replaceInteractiveContent(element, widgetId, config);
+        return;
+      }
+
+      if (config.variant) button.dataset.variant = config.variant;
+      else delete button.dataset.variant;
+
+      let icon = button.querySelector('.bd-widget-control-icon');
+      if (config.icon) {
+        if (!icon) {
+          icon = document.createElement('span');
+          icon.className = 'bd-widget-control-icon';
+          button.insertBefore(icon, button.firstChild);
+        }
+        icon.textContent = config.icon;
+      } else if (icon) {
+        icon.remove();
+      }
+
+      let text = button.querySelector('.bd-widget-button-text');
+      if (!text) {
+        text = document.createElement('span');
+        text.className = 'bd-widget-button-text';
+        button.appendChild(text);
+      }
+      text.textContent = config.text ?? config.label ?? 'Button';
+    }
+
+    updateToggleWidget(element, widgetId, config) {
+      const input = element.querySelector('.bd-widget-toggle-control input');
+      if (!input) {
+        this.replaceInteractiveContent(element, widgetId, config);
+        return;
+      }
+      input.checked = !!config.value;
+      this.updateControlLabel(element, config, 'Toggle');
+    }
+
+    updateSelectControl(element, widgetId, config, existingConfig) {
+      const select = element.querySelector('.bd-widget-select-control');
+      if (!select) {
+        this.replaceInteractiveContent(element, widgetId, config);
+        return;
+      }
+
+      this.updateControlLabel(element, config, 'Select');
+      const optionsChanged = JSON.stringify(config.options || []) !== JSON.stringify(existingConfig?.options || []);
+      if (optionsChanged) {
+        select.innerHTML = '';
+        this.populateSelectOptions(select, config.options, config.value);
+      } else {
+        select.value = this.optionDomValue(config.value);
+      }
+    }
+
+    updateSliderControl(element, widgetId, config) {
+      const range = element.querySelector('.bd-widget-slider-control');
+      const valueText = element.querySelector('.bd-widget-slider-value');
+      if (!range || !valueText) {
+        this.replaceInteractiveContent(element, widgetId, config);
+        return;
+      }
+
+      const min = config.min ?? 0;
+      const max = config.max ?? 100;
+      const step = config.step ?? 1;
+      const value = config.value ?? min;
+      this.updateControlLabel(element, config, 'Slider');
+      range.min = String(min);
+      range.max = String(max);
+      range.step = String(step);
+      range.value = String(value);
+      valueText.textContent = config.showValue === false ? '' : String(value);
+    }
+
+    updateInputControl(element, widgetId, config) {
+      const input = element.querySelector('.bd-widget-input-control');
+      if (!input) {
+        this.replaceInteractiveContent(element, widgetId, config);
+        return;
+      }
+
+      this.updateControlLabel(element, config, 'Input');
+      input.type = config.inputType || 'text';
+      input.placeholder = config.placeholder || '';
+      input.maxLength = config.maxLength || validators().MAX_INPUT_LENGTH || 240;
+      const nextValue = String(config.value ?? '');
+      if (document.activeElement !== input && input.value !== nextValue) {
+        input.value = nextValue;
+      }
+    }
+
+    updateTextareaControl(element, widgetId, config) {
+      const textarea = element.querySelector('.bd-widget-textarea-control');
+      if (!textarea) {
+        this.replaceInteractiveContent(element, widgetId, config);
+        return;
+      }
+
+      this.updateControlLabel(element, config, 'Text');
+      textarea.placeholder = config.placeholder || '';
+      textarea.rows = config.rows || 2;
+      textarea.maxLength = config.maxLength || validators().MAX_TEXTAREA_LENGTH || 1200;
+      const nextValue = String(config.value ?? '');
+      if (document.activeElement !== textarea && textarea.value !== nextValue) {
+        textarea.value = nextValue;
+      }
+    }
+
+    normalizeSelectOption(option) {
+      if (typeof option === 'string' || typeof option === 'number' || typeof option === 'boolean') {
+        return { label: String(option), value: option, disabled: false };
+      }
+      return {
+        label: String(option?.label ?? option?.value ?? ''),
+        value: option?.value,
+        disabled: !!option?.disabled,
+      };
+    }
+
+    optionDomValue(value) {
+      return `${typeof value}:${String(value)}`;
+    }
+
+    populateSelectOptions(select, options, selectedValue) {
+      const normalized = Array.isArray(options) ? options.map(option => this.normalizeSelectOption(option)) : [];
+      for (const option of normalized) {
+        const optionEl = document.createElement('option');
+        optionEl.textContent = option.label;
+        optionEl.value = this.optionDomValue(option.value);
+        optionEl.dataset.type = typeof option.value;
+        optionEl.dataset.value = String(option.value);
+        optionEl.disabled = option.disabled;
+        optionEl.selected = option.value === selectedValue;
+        select.appendChild(optionEl);
+      }
+    }
+
+    readSelectValue(select) {
+      const option = select.selectedOptions?.[0];
+      if (!option && select?.dataset?.type) {
+        const type = select.dataset.type;
+        const raw = select.dataset.value;
+        if (type === 'number') return Number(raw);
+        if (type === 'boolean') return raw === 'true';
+        return raw;
+      }
+      if (!option) return select.value;
+      const type = option.dataset.type;
+      const raw = option.dataset.value;
+      if (type === 'number') return Number(raw);
+      if (type === 'boolean') return raw === 'true';
+      return raw;
+    }
+
+    populatePanelContent(content, config) {
+      if (config.items && Array.isArray(config.items)) {
+        config.items.forEach(item => {
+          const itemEl = document.createElement('div');
+          itemEl.className = 'bd-widget-panel-item';
+
+          if (item.label) {
+            const itemLabel = document.createElement('span');
+            itemLabel.className = 'bd-widget-panel-item-label';
+            itemLabel.textContent = item.label;
+            itemEl.appendChild(itemLabel);
+          }
+
+          if (item.value !== undefined) {
+            const itemValue = document.createElement('span');
+            itemValue.className = 'bd-widget-panel-item-value';
+            itemValue.textContent = item.value;
+            if (item.color) itemValue.style.color = item.color;
+            itemEl.appendChild(itemValue);
+          }
+
+          content.appendChild(itemEl);
+        });
+      } else if (config.content !== undefined) {
+        content.textContent = config.content;
+      }
+    }
+
+    populateListItems(list, items) {
+      if (!Array.isArray(items)) return;
+
+      items.forEach(item => {
+        const li = document.createElement('li');
+        li.className = 'bd-widget-list-item';
+
+        if (typeof item === 'string') {
+          li.textContent = item;
+        } else if (item && typeof item === 'object') {
+          if (item.icon) {
+            const icon = document.createElement('span');
+            icon.className = 'bd-widget-list-item-icon';
+            icon.textContent = item.icon;
+            li.appendChild(icon);
+          }
+          const text = document.createElement('span');
+          text.textContent = item.text ?? item.label ?? '';
+          if (item.color) text.style.color = item.color;
+          li.appendChild(text);
+        }
+
+        list.appendChild(li);
+      });
+    }
+
+    applyCounterDelta(element, deltaValue) {
+      let deltaEl = element.querySelector('.bd-widget-counter-delta');
+      if (deltaValue === undefined) {
+        if (deltaEl) deltaEl.remove();
+        return;
+      }
+
+      if (deltaEl) {
+        if (deltaValue === 0) {
+          deltaEl.remove();
+        } else {
+          const sign = deltaValue > 0 ? '+' : '';
+          deltaEl.textContent = sign + deltaValue;
+          deltaEl.dataset.positive = deltaValue > 0 ? 'true' : 'false';
+        }
+      } else if (deltaValue !== 0) {
+        deltaEl = document.createElement('span');
+        deltaEl.className = 'bd-widget-counter-delta';
+        const sign = deltaValue > 0 ? '+' : '';
+        deltaEl.textContent = sign + deltaValue;
+        deltaEl.dataset.positive = deltaValue > 0 ? 'true' : 'false';
+        element.appendChild(deltaEl);
+      }
+    }
+
+    applyPresetOrInlineColor(widget, target, color, property, resetInline = false) {
+      if (color === undefined || color === null || color === '') {
+        delete widget.dataset.color;
+        target.style[property] = '';
+        return;
+      }
+
+      const colorLower = String(color).toLowerCase();
+      if (validators().PRESET_COLORS.has(colorLower)) {
+        widget.dataset.color = colorLower;
+        if (resetInline) target.style[property] = '';
+      } else {
+        delete widget.dataset.color;
+        target.style[property] = color;
+      }
+    }
+
+    applyStyles(element, style) {
+      if (!style) return;
+      Object.assign(element.style, validators().sanitizeStyleObject(style));
+    }
+
+    replaceStyles(element, previousStyle, nextStyle) {
+      const previous = validators().sanitizeStyleObject(previousStyle);
+      const next = validators().sanitizeStyleObject(nextStyle);
+
+      for (const property of Object.keys(previous)) {
+        if (!(property in next)) {
+          element.style[property] = '';
+        }
+      }
+
+      Object.assign(element.style, next);
+    }
+
+    destroyWidget(widgetId) {
+      const widgetData = this.registeredWidgets.get(widgetId);
+      if (!widgetData) return;
+
+      const el = widgetData.element;
+      if (el.classList.contains('bd-widget-entering')) {
+        el.classList.remove('bd-widget-entering');
+      }
+      el.classList.add('bd-widget-exiting');
+
+      const onExitEnd = () => {
+        el.removeEventListener('animationend', onExitEnd);
+        if (!el.parentNode) return;
+        this.registeredWidgets.delete(widgetId);
+        this.pendingInteractionValues.delete(widgetId);
+        this.ackedInteractionValues.delete(widgetId);
+        el.remove();
+        this.emitWidget('destroyed', widgetId);
+        this.syncWrapperState();
+        if (this.registeredWidgets.size === 0) this.removeWidgetContainer();
+        else this.recalculateWidgetDensity();
+      };
+      el.addEventListener('animationend', onExitEnd);
+      // Safety: force removal if animation doesn't fire (e.g. display:none)
+      setTimeout(onExitEnd, 300);
+    }
+
+    clearAllWidgets() {
+      this.registeredWidgets.forEach((data) => {
+        const el = data.element;
+        el.classList.remove('bd-widget-entering');
+        el.classList.add('bd-widget-exiting');
+      });
+      setTimeout(() => {
+        this.registeredWidgets.forEach((data) => {
+          data.element.remove();
+        });
+        this.registeredWidgets.clear();
+        this.pendingInteractionValues.clear();
+        this.ackedInteractionValues.clear();
+        this._warnedMessages.clear();
+        this.removeWidgetContainer();
+        this.log('All widgets cleared');
+      }, 240);
+    }
+
+    destroy() {
+      this.clearAllWidgets();
+    }
+
+    // ---------------------------------------------------------------
+    // NEW DISPLAY WIDGETS
+    // ---------------------------------------------------------------
+
+    createProgressWidget(widgetId, config) {
+      const widget = this.createBaseWidget(widgetId, 'bd-widget-progress', config);
+
+      const label = document.createElement('span');
+      label.className = 'bd-widget-label';
+      label.textContent = config.label || 'Progress';
+
+      const track = document.createElement('div');
+      track.className = 'bd-widget-progress-track';
+
+      const fill = document.createElement('div');
+      fill.className = 'bd-widget-progress-fill';
+      const max = config.max ?? 100;
+      const pct = Math.min(100, Math.max(0, ((config.value ?? 0) / max) * 100));
+      fill.style.width = `${pct}%`;
+      this.applyPresetOrInlineColor(widget, fill, config.color, 'background');
+
+      const valueText = document.createElement('span');
+      valueText.className = 'bd-widget-progress-value';
+      valueText.textContent = `${Math.round(pct)}%`;
+
+      track.appendChild(fill);
+      widget.appendChild(label);
+      widget.appendChild(track);
+      widget.appendChild(valueText);
+      return widget;
+    }
+
+    updateProgressWidget(element, config) {
+      const labelEl = element.querySelector('.bd-widget-label');
+      const fill = element.querySelector('.bd-widget-progress-fill');
+      const valueText = element.querySelector('.bd-widget-progress-value');
+      if (labelEl) labelEl.textContent = config.label || 'Progress';
+      if (fill) {
+        const max = config.max ?? 100;
+        const pct = Math.min(100, Math.max(0, ((config.value ?? 0) / max) * 100));
+        this._tweenStyleProperty(fill, 'width', pct, 280, '%');
+        if (valueText) this._tweenTextValue(valueText, Math.round(pct), 280, v => `${Math.round(v)}%`);
+        this.applyPresetOrInlineColor(element, fill, config.color, 'background', true);
+      }
+    }
+
+    createTaggroupWidget(widgetId, config) {
+      const widget = this.createBaseWidget(widgetId, 'bd-widget-taggroup', config);
+      if (config.label) {
+        const label = document.createElement('span');
+        label.className = 'bd-widget-label';
+        label.textContent = config.label;
+        widget.appendChild(label);
+      }
+      const group = document.createElement('div');
+      group.className = 'bd-widget-taggroup-tags';
+      this._populateTags(group, config.items);
+      widget.appendChild(group);
+      return widget;
+    }
+
+    updateTaggroupWidget(element, config) {
+      const labelEl = element.querySelector('.bd-widget-label');
+      if (config.label) {
+        if (labelEl) labelEl.textContent = config.label;
+        else {
+          const l = document.createElement('span');
+          l.className = 'bd-widget-label';
+          l.textContent = config.label;
+          element.insertBefore(l, element.firstChild);
+        }
+      } else if (labelEl) {
+        labelEl.remove();
+      }
+      const group = element.querySelector('.bd-widget-taggroup-tags');
+      if (group) {
+        group.innerHTML = '';
+        this._populateTags(group, config.items);
+      }
+    }
+
+    _populateTags(container, items) {
+      if (!Array.isArray(items)) return;
+      items.forEach(item => {
+        const tag = document.createElement('span');
+        tag.className = 'bd-widget-tag';
+        if (typeof item === 'string') {
+          tag.textContent = item;
+        } else if (item && typeof item === 'object') {
+          if (item.icon) {
+            const icon = document.createElement('span');
+            icon.className = 'bd-widget-tag-icon';
+            icon.textContent = item.icon;
+            tag.appendChild(icon);
+          }
+          tag.appendChild(document.createTextNode(item.label ?? item.text ?? ''));
+          if (item.color) tag.dataset.color = item.color;
+        }
+        container.appendChild(tag);
+      });
+    }
+
+    createDividerWidget(widgetId, config) {
+      const widget = this.createBaseWidget(widgetId, 'bd-widget-divider', config);
+      widget.style.pointerEvents = 'none';
+      if (config.label) {
+        const wrap = document.createElement('div');
+        wrap.className = 'bd-widget-divider-labeled';
+        const text = document.createElement('span');
+        text.className = 'bd-widget-divider-text';
+        text.textContent = config.label;
+        wrap.appendChild(text);
+        widget.appendChild(wrap);
+      } else {
+        const hr = document.createElement('hr');
+        hr.className = 'bd-widget-divider-line';
+        widget.appendChild(hr);
+      }
+      return widget;
+    }
+
+    updateDividerWidget(element, config) {
+      element.innerHTML = '';
+      if (config.label) {
+        const wrap = document.createElement('div');
+        wrap.className = 'bd-widget-divider-labeled';
+        const text = document.createElement('span');
+        text.className = 'bd-widget-divider-text';
+        text.textContent = config.label;
+        wrap.appendChild(text);
+        element.appendChild(wrap);
+      } else {
+        const hr = document.createElement('hr');
+        hr.className = 'bd-widget-divider-line';
+        element.appendChild(hr);
+      }
+    }
+
+    // ---------------------------------------------------------------
+    // NEW INTERACTIVE WIDGETS
+    // ---------------------------------------------------------------
+
+    createRadioWidget(widgetId, config) {
+      const widget = this.createInteractiveShell(widgetId, 'bd-widget-radio', config);
+      const labelId = `bd-widget-${widgetId}-label`;
+      const label = this.createControlLabel(config, 'Choose', labelId);
+      widget.appendChild(label);
+      const group = document.createElement('div');
+      group.className = 'bd-widget-radio-group';
+      group.setAttribute('role', 'radiogroup');
+      group.setAttribute('aria-labelledby', labelId);
+      this._buildRadioOptions(group, widgetId, config);
+      widget.appendChild(group);
+      this.setInteractiveDisabled(widget, config);
+      return widget;
+    }
+
+    _buildRadioOptions(group, widgetId, config) {
+      const options = Array.isArray(config.options) ? config.options : [];
+      options.forEach((opt, i) => {
+        const norm = this.normalizeSelectOption(opt);
+        const row = document.createElement('label');
+        row.className = 'bd-widget-radio-option';
+
+        const input = document.createElement('input');
+        input.type = 'radio';
+        input.name = `widget-radio-${widgetId}`;
+        input.value = this.optionDomValue(norm.value);
+        input.dataset.type = typeof norm.value;
+        input.dataset.value = String(norm.value);
+        input.checked = norm.value === config.value;
+        input.dataset.widgetLocalDisabled = String(!!norm.disabled);
+        input.disabled = norm.disabled;
+
+        input.addEventListener('change', () => {
+          if (!input.checked) return;
+          const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+          const nextValue = this.readSelectValue(input);
+          const previousValue = currentConfig.value;
+          this.emitInteraction(currentConfig, 'change', nextValue, previousValue, { optimisticValue: nextValue });
+        });
+
+        const dot = document.createElement('span');
+        dot.className = 'bd-widget-radio-dot';
+
+        const text = document.createElement('span');
+        text.className = 'bd-widget-radio-label';
+        text.textContent = norm.label;
+
+        row.appendChild(input);
+        row.appendChild(dot);
+        row.appendChild(text);
+        group.appendChild(row);
+      });
+    }
+
+    updateRadioWidget(element, widgetId, config) {
+      this.updateControlLabel(element, config, 'Choose');
+      const group = element.querySelector('.bd-widget-radio-group');
+      if (group) {
+        group.innerHTML = '';
+        group.setAttribute('role', 'radiogroup');
+        group.setAttribute('aria-labelledby', `bd-widget-${widgetId}-label`);
+        this._buildRadioOptions(group, widgetId, config);
+      }
+      this.setInteractiveDisabled(element, config);
+    }
+
+    createStepperWidget(widgetId, config) {
+      const widget = this.createInteractiveShell(widgetId, 'bd-widget-stepper', config);
+      const labelId = `bd-widget-${widgetId}-label`;
+      const label = this.createControlLabel(config, 'Value', labelId);
+
+      const controls = document.createElement('div');
+      controls.className = 'bd-widget-stepper-controls';
+      controls.setAttribute('role', 'group');
+      controls.setAttribute('aria-labelledby', labelId);
+
+      const btnDec = document.createElement('button');
+      btnDec.type = 'button';
+      btnDec.className = 'bd-widget-stepper-btn';
+      btnDec.dataset.dir = 'dec';
+      btnDec.setAttribute('aria-label', `Decrease ${config.label ?? 'value'}`);
+      btnDec.textContent = '−';
+
+      const display = document.createElement('span');
+      display.className = 'bd-widget-stepper-value';
+      display.setAttribute('aria-live', 'polite');
+      display.textContent = config.value ?? config.min ?? 0;
+
+      const btnInc = document.createElement('button');
+      btnInc.type = 'button';
+      btnInc.className = 'bd-widget-stepper-btn';
+      btnInc.dataset.dir = 'inc';
+      btnInc.setAttribute('aria-label', `Increase ${config.label ?? 'value'}`);
+      btnInc.textContent = '+';
+
+      const clamp = (v, cfg) => {
+        const mn = cfg.min ?? -Infinity;
+        const mx = cfg.max ?? Infinity;
+        return Math.min(mx, Math.max(mn, v));
+      };
+
+      const handler = (dir) => () => {
+        const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+        if (currentConfig.disabled) return;
+        const prev = Number(currentConfig.value ?? currentConfig.min ?? 0);
+        const step = currentConfig.step ?? 1;
+        const next = clamp(prev + (dir === 'inc' ? step : -step), currentConfig);
+        display.textContent = next;
+        this.emitInteraction(currentConfig, 'change', next, prev, { coalesce: true, optimisticValue: next });
+      };
+
+      btnDec.addEventListener('click', handler('dec'));
+      btnInc.addEventListener('click', handler('inc'));
+
+      controls.appendChild(btnDec);
+      controls.appendChild(display);
+      controls.appendChild(btnInc);
+      widget.appendChild(label);
+      widget.appendChild(controls);
+      this.setInteractiveDisabled(widget, config);
+      return widget;
+    }
+
+    updateStepperWidget(element, config) {
+      this.updateControlLabel(element, config, 'Value');
+      const display = element.querySelector('.bd-widget-stepper-value');
+      if (display) display.textContent = config.value ?? config.min ?? 0;
+      const dec = element.querySelector('.bd-widget-stepper-btn[data-dir="dec"]');
+      const inc = element.querySelector('.bd-widget-stepper-btn[data-dir="inc"]');
+      if (dec) dec.setAttribute('aria-label', `Decrease ${config.label ?? 'value'}`);
+      if (inc) inc.setAttribute('aria-label', `Increase ${config.label ?? 'value'}`);
+      this.setInteractiveDisabled(element, config);
+    }
+
+    createConfirmWidget(widgetId, config) {
+      const widget = this.createInteractiveShell(widgetId, 'bd-widget-confirm', config);
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'bd-widget-confirm-btn';
+      btn.dataset.confirmState = 'idle';
+      btn.setAttribute('aria-pressed', 'false');
+
+      const icon = document.createElement('span');
+      icon.className = 'bd-widget-confirm-icon';
+      icon.textContent = '⚠️';
+
+      const text = document.createElement('span');
+      text.className = 'bd-widget-confirm-text';
+      text.textContent = config.text ?? config.label ?? 'Confirm';
+
+      btn.appendChild(icon);
+      btn.appendChild(text);
+
+      let confirmTimer = null;
+      btn.addEventListener('click', () => {
+        const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+        if (currentConfig.disabled) return;
+
+        if (btn.dataset.confirmState === 'idle') {
+          // First click — arm it
+          btn.dataset.confirmState = 'confirming';
+          btn.setAttribute('aria-pressed', 'true');
+          text.textContent = 'Confirm?';
+          confirmTimer = setTimeout(() => {
+            btn.dataset.confirmState = 'idle';
+            btn.setAttribute('aria-pressed', 'false');
+            text.textContent = currentConfig.text ?? currentConfig.label ?? 'Confirm';
+          }, 3000);
+        } else {
+          // Second click — fire
+          clearTimeout(confirmTimer);
+          btn.dataset.confirmState = 'idle';
+          btn.setAttribute('aria-pressed', 'false');
+          text.textContent = currentConfig.text ?? currentConfig.label ?? 'Confirm';
+          const value = currentConfig.value !== undefined ? currentConfig.value : true;
+          this.emitInteraction(currentConfig, 'confirm', value, undefined, { coalesce: false });
+        }
+      });
+
+      widget.appendChild(btn);
+      this.setInteractiveDisabled(widget, config);
+      return widget;
+    }
+
+    updateConfirmWidget(element, config) {
+      const text = element.querySelector('.bd-widget-confirm-text');
+      const btn = element.querySelector('.bd-widget-confirm-btn');
+      if (text && btn && btn.dataset.confirmState === 'idle') {
+        text.textContent = config.text ?? config.label ?? 'Confirm';
+      }
+      this.setInteractiveDisabled(element, config);
+    }
+
+    createChipselectWidget(widgetId, config) {
+      const widget = this.createInteractiveShell(widgetId, 'bd-widget-chipselect', config);
+      const labelId = `bd-widget-${widgetId}-label`;
+      const label = this.createControlLabel(config, 'Select', labelId);
+      widget.appendChild(label);
+      const group = document.createElement('div');
+      group.className = 'bd-widget-chipselect-group';
+      group.setAttribute('role', 'group');
+      group.setAttribute('aria-labelledby', labelId);
+      // value may be an array (multi) or single primitive
+      const selected = this._normalizeChipValue(config.value);
+      this._buildChips(group, widgetId, config, selected);
+      widget.appendChild(group);
+      this.setInteractiveDisabled(widget, config);
+      return widget;
+    }
+
+    _normalizeChipValue(value) {
+      if (Array.isArray(value)) return new Set(value.map(String));
+      if (value !== undefined && value !== null) return new Set([String(value)]);
+      return new Set();
+    }
+
+    _buildChips(group, widgetId, config, selectedSet) {
+      const options = Array.isArray(config.options) ? config.options : [];
+      options.forEach(opt => {
+        const norm = this.normalizeSelectOption(opt);
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'bd-widget-chip';
+        chip.dataset.value = String(norm.value);
+        chip.dataset.selected = selectedSet.has(String(norm.value)) ? 'true' : 'false';
+        chip.setAttribute('aria-pressed', chip.dataset.selected);
+        chip.textContent = norm.label;
+
+        chip.addEventListener('click', () => {
+          const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+          if (currentConfig.disabled) return;
+          const currentSelected = this._normalizeChipValue(currentConfig.value);
+          const key = String(norm.value);
+          if (currentSelected.has(key)) {
+            currentSelected.delete(key);
+            chip.dataset.selected = 'false';
+            chip.setAttribute('aria-pressed', 'false');
+          } else {
+            currentSelected.add(key);
+            chip.dataset.selected = 'true';
+            chip.setAttribute('aria-pressed', 'true');
+          }
+          const nextValue = [...currentSelected];
+          this.emitInteraction(currentConfig, 'change', nextValue, currentConfig.value, { optimisticValue: nextValue });
+        });
+
+        group.appendChild(chip);
+      });
+    }
+
+    updateChipselectWidget(element, widgetId, config) {
+      this.updateControlLabel(element, config, 'Select');
+      const group = element.querySelector('.bd-widget-chipselect-group');
+      if (group) {
+        group.innerHTML = '';
+        group.setAttribute('role', 'group');
+        group.setAttribute('aria-labelledby', `bd-widget-${widgetId}-label`);
+        const selected = this._normalizeChipValue(config.value);
+        this._buildChips(group, widgetId, config, selected);
+      }
+      this.setInteractiveDisabled(element, config);
+    }
+
+    // ---------------------------------------------------------------
+    // NEW CONTAINER / ACTION WIDGETS
+    // ---------------------------------------------------------------
+
+    createAccordionWidget(widgetId, config) {
+      const widget = this.createInteractiveShell(widgetId, 'bd-widget-accordion', config);
+      const items = Array.isArray(config.items) ? config.items : [];
+      items.forEach((item, i) => {
+        const section = this._buildAccordionSection(widgetId, item, i, config.value);
+        widget.appendChild(section);
+      });
+      return widget;
+    }
+
+    _buildAccordionSection(widgetId, item, index, openValue) {
+      const isOpen = item.id !== undefined ? item.id === openValue : index === openValue;
+      const section = document.createElement('div');
+      section.className = 'bd-widget-accordion-section';
+      section.dataset.open = String(isOpen);
+      if (item.id !== undefined) section.dataset.id = String(item.id);
+
+      const trigger = document.createElement('button');
+      trigger.type = 'button';
+      trigger.className = 'bd-widget-accordion-trigger';
+      trigger.setAttribute('aria-expanded', String(isOpen));
+      trigger.setAttribute('aria-controls', `bd-widget-${widgetId}-accordion-panel-${index}`);
+
+      const triggerText = document.createElement('span');
+      triggerText.className = 'bd-widget-accordion-trigger-text';
+      triggerText.textContent = item.label ?? item.title ?? `Section ${index + 1}`;
+
+      const arrow = document.createElement('span');
+      arrow.className = 'bd-widget-accordion-trigger-icon';
+      arrow.textContent = '▶';
+
+      trigger.appendChild(triggerText);
+      trigger.appendChild(arrow);
+
+      trigger.addEventListener('click', () => {
+        const currentConfig = this.getCurrentWidgetConfig(widgetId, null);
+        const widget = section.closest('.bd-widget-accordion');
+        if (!widget) return;
+        const wasOpen = section.dataset.open === 'true';
+        widget.querySelectorAll('.bd-widget-accordion-section').forEach(s => this.setAccordionSectionOpen(s, false));
+        if (!wasOpen) this.setAccordionSectionOpen(section, true);
+        const newOpen = !wasOpen ? (item.id ?? index) : null;
+        this.emitInteraction(
+          currentConfig || { id: widgetId, type: 'accordion' },
+          'change',
+          newOpen,
+          currentConfig?.value,
+          { optimisticValue: newOpen },
+        );
+      });
+
+      const panel = document.createElement('div');
+      panel.className = 'bd-widget-accordion-panel';
+      panel.id = `bd-widget-${widgetId}-accordion-panel-${index}`;
+      panel.hidden = !isOpen;
+      panel.textContent = item.content ?? item.text ?? '';
+
+      section.appendChild(trigger);
+      section.appendChild(panel);
+      return section;
+    }
+
+    updateAccordionWidget(element, config) {
+      element.innerHTML = '';
+      const items = Array.isArray(config.items) ? config.items : [];
+      items.forEach((item, i) => {
+        const section = this._buildAccordionSection(config.id, item, i, config.value);
+        element.appendChild(section);
+      });
+    }
+
+    createTabsWidget(widgetId, config) {
+      const widget = this.createInteractiveShell(widgetId, 'bd-widget-tabs', config);
+      const items = Array.isArray(config.items) ? config.items : [];
+      const activeId = config.value ?? items[0]?.id ?? 0;
+
+      const bar = document.createElement('div');
+      bar.className = 'bd-widget-tabs-bar';
+      bar.setAttribute('role', 'tablist');
+
+      items.forEach((item, i) => {
+        const itemId = item.id ?? i;
+        const active = itemId === activeId;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'bd-widget-tab-btn';
+        btn.dataset.tab = String(itemId);
+        btn.dataset.active = String(active);
+        btn.id = `bd-widget-${widgetId}-tab-${itemId}`;
+        btn.setAttribute('role', 'tab');
+        btn.setAttribute('aria-selected', String(active));
+        btn.setAttribute('aria-controls', `bd-widget-${widgetId}-panel-${itemId}`);
+        btn.tabIndex = active ? 0 : -1;
+        btn.textContent = item.label ?? item.title ?? `Tab ${i + 1}`;
+
+        btn.addEventListener('click', () => {
+          const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+          const prev = currentConfig.value ?? items[0]?.id ?? 0;
+          this.activateTab(widget, itemId);
+          this.emitInteraction(currentConfig, 'change', itemId, prev, { optimisticValue: itemId });
+        });
+
+        bar.appendChild(btn);
+      });
+
+      widget.appendChild(bar);
+
+      items.forEach((item, i) => {
+        const itemId = item.id ?? i;
+        const active = itemId === activeId;
+        const panel = document.createElement('div');
+        panel.className = 'bd-widget-tabs-panel';
+        panel.id = `bd-widget-${widgetId}-panel-${itemId}`;
+        panel.dataset.tab = String(itemId);
+        panel.dataset.active = String(active);
+        panel.setAttribute('role', 'tabpanel');
+        panel.setAttribute('aria-labelledby', `bd-widget-${widgetId}-tab-${itemId}`);
+        panel.hidden = !active;
+        panel.textContent = item.content ?? item.text ?? '';
+        widget.appendChild(panel);
+      });
+
+      return widget;
+    }
+
+    updateTabsWidget(element, widgetId, config) {
+      element.innerHTML = '';
+      const items = Array.isArray(config.items) ? config.items : [];
+      const activeId = config.value ?? items[0]?.id ?? 0;
+
+      const bar = document.createElement('div');
+      bar.className = 'bd-widget-tabs-bar';
+      bar.setAttribute('role', 'tablist');
+
+      items.forEach((item, i) => {
+        const itemId = item.id ?? i;
+        const active = itemId === activeId;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'bd-widget-tab-btn';
+        btn.dataset.tab = String(itemId);
+        btn.dataset.active = String(active);
+        btn.id = `bd-widget-${widgetId}-tab-${itemId}`;
+        btn.setAttribute('role', 'tab');
+        btn.setAttribute('aria-selected', String(active));
+        btn.setAttribute('aria-controls', `bd-widget-${widgetId}-panel-${itemId}`);
+        btn.tabIndex = active ? 0 : -1;
+        btn.textContent = item.label ?? item.title ?? `Tab ${i + 1}`;
+
+        btn.addEventListener('click', () => {
+          const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+          const prev = currentConfig.value ?? items[0]?.id ?? 0;
+          this.activateTab(element, itemId);
+          this.emitInteraction(currentConfig, 'change', itemId, prev, { optimisticValue: itemId });
+        });
+
+        bar.appendChild(btn);
+      });
+
+      element.appendChild(bar);
+
+      items.forEach((item, i) => {
+        const itemId = item.id ?? i;
+        const active = itemId === activeId;
+        const panel = document.createElement('div');
+        panel.className = 'bd-widget-tabs-panel';
+        panel.id = `bd-widget-${widgetId}-panel-${itemId}`;
+        panel.dataset.tab = String(itemId);
+        panel.dataset.active = String(active);
+        panel.setAttribute('role', 'tabpanel');
+        panel.setAttribute('aria-labelledby', `bd-widget-${widgetId}-tab-${itemId}`);
+        panel.hidden = !active;
+        panel.textContent = item.content ?? item.text ?? '';
+        element.appendChild(panel);
+      });
+    }
+
+    createDropdownWidget(widgetId, config) {
+      const widget = this.createInteractiveShell(widgetId, 'bd-widget-dropdown', config);
+      widget.dataset.open = 'false';
+
+      const trigger = document.createElement('button');
+      trigger.type = 'button';
+      trigger.className = 'bd-widget-dropdown-trigger';
+      trigger.setAttribute('aria-haspopup', 'menu');
+      trigger.setAttribute('aria-expanded', 'false');
+      trigger.setAttribute('aria-controls', `bd-widget-${widgetId}-menu`);
+      trigger.textContent = config.label ?? config.text ?? 'Actions';
+
+      const menu = document.createElement('div');
+      menu.className = 'bd-widget-dropdown-menu';
+      menu.id = `bd-widget-${widgetId}-menu`;
+      menu.setAttribute('role', 'menu');
+      menu.hidden = true;
+      this._buildDropdownItems(menu, widgetId, config);
+
+      trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+        if (currentConfig.disabled) return;
+        const isOpen = widget.dataset.open === 'true';
+        // Close all other dropdowns
+        document.querySelectorAll('.bd-widget-dropdown').forEach(d => this.setDropdownOpen(d, false));
+        this.setDropdownOpen(widget, !isOpen);
+      });
+
+      widget.appendChild(trigger);
+      widget.appendChild(menu);
+      this.setInteractiveDisabled(widget, config);
+      return widget;
+    }
+
+    _buildDropdownItems(menu, widgetId, config) {
+      const items = Array.isArray(config.items) ? config.items : [];
+      items.forEach(item => {
+        if (item.divider) {
+          const div = document.createElement('div');
+          div.className = 'bd-widget-dropdown-divider';
+          div.setAttribute('role', 'separator');
+          menu.appendChild(div);
+          return;
+        }
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'bd-widget-dropdown-item';
+        row.setAttribute('role', 'menuitem');
+        if (item.danger) row.dataset.danger = 'true';
+
+        if (item.icon) {
+          const icon = document.createElement('span');
+          icon.className = 'bd-widget-dropdown-item-icon';
+          icon.textContent = item.icon;
+          row.appendChild(icon);
+        }
+        row.appendChild(document.createTextNode(item.label ?? item.text ?? ''));
+
+        row.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+          if (currentConfig.disabled) return;
+          const val = item.value ?? item.id ?? item.label ?? item.text;
+          this.emitInteraction(currentConfig, 'select', val, currentConfig.value, { coalesce: false });
+          const widgetEl = row.closest('.bd-widget-dropdown');
+          if (widgetEl) this.setDropdownOpen(widgetEl, false);
+        });
+
+        menu.appendChild(row);
+      });
+    }
+
+    updateDropdownWidget(element, widgetId, config) {
+      const trigger = element.querySelector('.bd-widget-dropdown-trigger');
+      if (trigger) {
+        trigger.textContent = config.label ?? config.text ?? 'Actions';
+        trigger.setAttribute('aria-haspopup', 'menu');
+        trigger.setAttribute('aria-expanded', String(element.dataset.open === 'true'));
+        trigger.setAttribute('aria-controls', `bd-widget-${widgetId}-menu`);
+      }
+      const menu = element.querySelector('.bd-widget-dropdown-menu');
+      if (menu) {
+        menu.innerHTML = '';
+        menu.id = `bd-widget-${widgetId}-menu`;
+        menu.setAttribute('role', 'menu');
+        menu.hidden = element.dataset.open !== 'true';
+        this._buildDropdownItems(menu, widgetId, config);
+      }
+      this.setInteractiveDisabled(element, config);
+    }
+
+    createSortableWidget(widgetId, config) {
+      const widget = this.createInteractiveShell(widgetId, 'bd-widget-sortable', config);
+      const labelId = `bd-widget-${widgetId}-label`;
+      const label = this.createControlLabel(config, 'Order', labelId);
+      widget.setAttribute('role', 'group');
+      widget.setAttribute('aria-labelledby', labelId);
+      widget.appendChild(label);
+      this._buildSortableItems(widget, widgetId, config);
+      this.setInteractiveDisabled(widget, config);
+      return widget;
+    }
+
+    _buildSortableItems(widget, widgetId, config) {
+      const items = Array.isArray(config.items) ? [...config.items] : [];
+      // Respect saved order if config.value is an ordered array of ids
+      const orderedIds = Array.isArray(config.value) ? config.value : null;
+      const ordered = orderedIds
+        ? orderedIds.map(id => items.find(it => String(it.id ?? it.value) === String(id))).filter(Boolean)
+        : items;
+
+      ordered.forEach((item, i) => {
+        const row = document.createElement('div');
+        row.className = 'bd-widget-sortable-item';
+        row.dataset.id = String(item.id ?? item.value ?? i);
+
+        const handle = document.createElement('span');
+        handle.className = 'bd-widget-sortable-handle';
+        handle.setAttribute('aria-hidden', 'true');
+        handle.textContent = '⠿';
+
+        const rank = document.createElement('span');
+        rank.className = 'bd-widget-sortable-rank';
+        rank.textContent = `${i + 1}.`;
+
+        const text = document.createElement('span');
+        text.className = 'bd-widget-sortable-text';
+        text.textContent = item.label ?? item.text ?? String(item);
+
+        const arrows = document.createElement('div');
+        arrows.className = 'bd-widget-sortable-arrows';
+
+        const up = document.createElement('button');
+        up.type = 'button';
+        up.className = 'bd-widget-sortable-arrow';
+        up.dataset.dir = 'up';
+        up.textContent = '▲';
+
+        const down = document.createElement('button');
+        down.type = 'button';
+        down.className = 'bd-widget-sortable-arrow';
+        down.dataset.dir = 'down';
+        down.textContent = '▼';
+
+        const moveHandler = (dir) => () => {
+          const currentConfig = this.getCurrentWidgetConfig(widgetId, config);
+          if (currentConfig.disabled) return;
+          const allRows = Array.from(widget.querySelectorAll('.bd-widget-sortable-item'));
+          const idx = allRows.indexOf(row);
+          const target = idx + dir;
+          if (target < 0 || target >= allRows.length) return;
+          if (dir === -1) widget.insertBefore(row, allRows[target]);
+          else widget.insertBefore(allRows[target], row);
+          this.syncSortableState(widget);
+          const reordered = Array.from(widget.querySelectorAll('.bd-widget-sortable-item'));
+          const nextValue = reordered.map(r => r.dataset.id);
+          this.emitInteraction(currentConfig, 'reorder', nextValue, currentConfig.value, { coalesce: true, optimisticValue: nextValue });
+        };
+
+        up.addEventListener('click', moveHandler(-1));
+        down.addEventListener('click', moveHandler(1));
+
+        arrows.appendChild(up);
+        arrows.appendChild(down);
+
+        row.appendChild(handle);
+        row.appendChild(rank);
+        row.appendChild(text);
+        row.appendChild(arrows);
+        widget.appendChild(row);
+      });
+      this.syncSortableState(widget);
+    }
+
+    updateSortableWidget(element, widgetId, config) {
+      // Remove existing item rows but keep the label
+      element.setAttribute('role', 'group');
+      element.setAttribute('aria-labelledby', `bd-widget-${widgetId}-label`);
+      element.querySelectorAll('.bd-widget-sortable-item').forEach(r => r.remove());
+      this._buildSortableItems(element, widgetId, config);
+      this.setInteractiveDisabled(element, config);
+    }
+
+    emitWidget(action, widgetId, config) {
+      window.dispatchEvent(new CustomEvent('widget:lifecycle', {
+        detail: { action, widgetId, config },
+      }));
+    }
+
+    emitError(type, detail) {
+      window.dispatchEvent(new CustomEvent('widget:error', {
+        detail: { type, ...detail },
+      }));
+    }
+  }
+
+  window.UltrascriptsWidgetRenderer = UltrascriptsWidgetRenderer;
+
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = UltrascriptsWidgetRenderer;
+  }
+})();

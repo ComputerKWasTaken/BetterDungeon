@@ -2,48 +2,92 @@
 // Provides cross-browser compatibility between Chrome and Firefox.
 //
 // Firefox uses the `browser.*` namespace with Promise-based APIs, while
-// Chrome uses `chrome.*` with callback-based APIs.  Firefox also provides
+// Chrome uses `chrome.*` with callback-based APIs. Firefox also provides
 // its own partial `chrome.*` shim for MV3, but it has known issues:
 //   - storage.sync.get() may pass `undefined` to the callback instead of `{}`
 //   - The shim's `chrome` global in content scripts is non-overridable
 //
 // This polyfill uses a layered strategy:
-//   1. Try to replace `chrome` entirely with a proper wrapper around `browser.*`
-//   2. If that fails (content-script sandbox), monkey-patch the individual
-//      methods on Firefox's existing `chrome` object to normalise behaviour
-//   3. As a final safety net, storage.js also guards against `undefined` results
+//   1. Try to replace `chrome` with a wrapper around `browser.*`
+//   2. If that fails, monkey-patch the individual methods used by BD
+//   3. Keep storage.js guards as a final safety net for undefined results
 
 (function () {
   'use strict';
 
-  // Only activate on Firefox (native `browser` namespace present)
+  // Only activate on Firefox (native `browser` namespace present).
   if (typeof browser === 'undefined' || !browser.runtime || !browser.runtime.id) {
     return;
   }
 
-  // ── Helpers ──────────────────────────────────────────────────────────
+  // Helpers
+
+  var emulatedLastError = null;
+
+  function lastErrorFrom(err) {
+    return { message: err ? err.message || String(err) : 'Unknown error' };
+  }
+
+  function exposeLastError(runtime) {
+    if (!runtime) return;
+
+    try {
+      Object.defineProperty(runtime, 'lastError', {
+        get: function () {
+          return emulatedLastError || (browser.runtime && browser.runtime.lastError) || undefined;
+        },
+        configurable: true
+      });
+    } catch (_) {
+      // Some Firefox chrome.* objects are locked in content-script sandboxes.
+    }
+  }
+
+  function tryAssignNativeLastError(value) {
+    try {
+      if (globalThis.chrome && globalThis.chrome.runtime) {
+        globalThis.chrome.runtime.lastError = value;
+      }
+    } catch (_) {
+      // Ignore locked native chrome.runtime.lastError.
+    }
+  }
+
+  function withLastError(err, callback) {
+    emulatedLastError = lastErrorFrom(err);
+    tryAssignNativeLastError(emulatedLastError);
+
+    try {
+      callback();
+    } finally {
+      emulatedLastError = null;
+      tryAssignNativeLastError(undefined);
+    }
+  }
+
+  function invokeCallback(callback, args, err) {
+    if (err) {
+      withLastError(err, function () {
+        callback.apply(undefined, args);
+      });
+    } else {
+      callback.apply(undefined, args);
+    }
+  }
 
   // Wraps a Promise-returning function so it also accepts a trailing callback.
   function promiseToCallback(fn, thisArg) {
     return function (...args) {
-      const lastArg = args[args.length - 1];
+      var lastArg = args[args.length - 1];
       if (typeof lastArg === 'function') {
-        const callback = args.pop();
-        fn.apply(thisArg, args).then(
-          function (result) { callback(result); },
+        var callback = args.pop();
+        Promise.resolve(fn.apply(thisArg, args)).then(
+          function (result) {
+            callback(result);
+          },
           function (err) {
-            // Surface errors via chrome.runtime.lastError so callers can detect them
-            try {
-              if (globalThis.chrome && globalThis.chrome.runtime) {
-                globalThis.chrome.runtime.lastError = { message: err ? err.message || String(err) : 'Unknown error' };
-              }
-            } catch (_) { /* runtime may be frozen */ }
-            callback(undefined);
-            try {
-              if (globalThis.chrome && globalThis.chrome.runtime) {
-                globalThis.chrome.runtime.lastError = undefined;
-              }
-            } catch (_) { /* ignore */ }
+            // Match Chrome callback semantics: lastError is visible while the callback runs.
+            invokeCallback(callback, [undefined], err);
           }
         );
       } else {
@@ -52,20 +96,56 @@
     };
   }
 
+  function addKey(keys, key) {
+    if (
+      key !== '__proto__' &&
+      key !== 'constructor' &&
+      key !== 'prototype' &&
+      keys.indexOf(key) === -1
+    ) {
+      keys.push(key);
+    }
+  }
+
+  function ownAndEnumerableKeys(source) {
+    var keys = [];
+
+    try {
+      Object.getOwnPropertyNames(source).forEach(function (key) {
+        addKey(keys, key);
+      });
+    } catch (_) {
+      // Non-standard host object.
+    }
+
+    for (var key in source) {
+      addKey(keys, key);
+    }
+
+    return keys;
+  }
+
   // Recursively wraps a browser.* namespace object.
   function wrapNamespace(source) {
     if (!source) return source;
 
     var wrapped = {};
     var seen = {};
+    var keys = ownAndEnumerableKeys(source);
 
-    for (var key in source) {
+    for (var i = 0; i < keys.length; i++) {
+      var key = keys[i];
       if (seen[key]) continue;
       seen[key] = true;
 
-      var value = source[key];
+      var value;
+      try {
+        value = source[key];
+      } catch (_) {
+        continue;
+      }
 
-      // Event objects (onMessage, onChanged, …) — keep as-is
+      // Event objects (onMessage, onChanged, etc.) should stay native.
       if (value && typeof value === 'object' && typeof value.addListener === 'function') {
         wrapped[key] = value;
       } else if (typeof value === 'function') {
@@ -80,39 +160,18 @@
     return wrapped;
   }
 
-  // ── Strategy 1 — Full replacement ───────────────────────────────────
+  // Strategy 1 - Full replacement.
   // Build a complete `chrome` object from `browser.*` and try to install it.
 
   function buildPolyfilledChrome() {
-    var polyfilled = {};
+    var polyfilled = wrapNamespace(browser);
 
-    // runtime
-    if (browser.runtime) {
-      polyfilled.runtime = wrapNamespace(browser.runtime);
+    if (polyfilled.runtime && browser.runtime) {
       Object.defineProperty(polyfilled.runtime, 'id', {
         get: function () { return browser.runtime.id; },
         configurable: true
       });
-      Object.defineProperty(polyfilled.runtime, 'lastError', {
-        get: function () { return browser.runtime.lastError; },
-        configurable: true
-      });
-      if (browser.runtime.onMessage) {
-        polyfilled.runtime.onMessage = browser.runtime.onMessage;
-      }
-    }
-
-    // storage
-    if (browser.storage) {
-      polyfilled.storage = {};
-      if (browser.storage.sync)  polyfilled.storage.sync  = wrapNamespace(browser.storage.sync);
-      if (browser.storage.local) polyfilled.storage.local = wrapNamespace(browser.storage.local);
-      if (browser.storage.onChanged) polyfilled.storage.onChanged = browser.storage.onChanged;
-    }
-
-    // tabs
-    if (browser.tabs) {
-      polyfilled.tabs = wrapNamespace(browser.tabs);
+      exposeLastError(polyfilled.runtime);
     }
 
     return polyfilled;
@@ -121,7 +180,7 @@
   var polyfilled = buildPolyfilledChrome();
   var overrideSucceeded = false;
 
-  // Attempt 1a: Object.defineProperty
+  // Attempt 1a: Object.defineProperty.
   try {
     Object.defineProperty(globalThis, 'chrome', {
       value: polyfilled,
@@ -129,32 +188,33 @@
       configurable: true,
       enumerable: true
     });
-    // Verify it took effect
     if (globalThis.chrome === polyfilled) {
       overrideSucceeded = true;
     }
-  } catch (_) { /* non-configurable */ }
+  } catch (_) {
+    // Non-configurable.
+  }
 
-  // Attempt 1b: plain assignment
+  // Attempt 1b: plain assignment.
   if (!overrideSucceeded) {
     try {
       globalThis.chrome = polyfilled;
       if (globalThis.chrome === polyfilled) {
         overrideSucceeded = true;
       }
-    } catch (_) { /* non-writable */ }
+    } catch (_) {
+      // Non-writable.
+    }
   }
 
   if (overrideSucceeded) {
-    return; // Full replacement worked — done.
+    return;
   }
 
-  // ── Strategy 2 — Monkey-patch existing chrome.* ─────────────────────
+  // Strategy 2 - Monkey-patch existing chrome.*.
   // The global `chrome` is locked by Firefox's content-script sandbox.
-  // Patch individual methods to route through the native `browser.*` APIs,
-  // which are Promise-based and work correctly.
+  // Patch individual methods to route through the native `browser.*` APIs.
 
-  // Patch a storage area (sync or local)
   function patchStorageArea(chromeArea, browserArea) {
     if (!chromeArea || !browserArea) return;
 
@@ -162,103 +222,141 @@
       chromeArea.get = function (keys, callback) {
         if (typeof callback === 'function') {
           browserArea.get(keys).then(
-            function (result) { callback(result || {}); },
-            function () { callback({}); }
+            function (result) {
+              callback(result || {});
+            },
+            function (err) {
+              invokeCallback(callback, [{}], err);
+            }
           );
         } else {
           return browserArea.get(keys);
         }
       };
-    } catch (_) { /* frozen property */ }
+    } catch (_) {
+      // Frozen property.
+    }
 
     try {
       chromeArea.set = function (items, callback) {
         if (typeof callback === 'function') {
           browserArea.set(items).then(
-            function () { callback(); },
-            function () { callback(); }
+            function () {
+              callback();
+            },
+            function (err) {
+              invokeCallback(callback, [], err);
+            }
           );
         } else {
           return browserArea.set(items);
         }
       };
-    } catch (_) { /* frozen property */ }
+    } catch (_) {
+      // Frozen property.
+    }
 
     try {
       chromeArea.remove = function (keys, callback) {
         if (typeof callback === 'function') {
           browserArea.remove(keys).then(
-            function () { callback(); },
-            function () { callback(); }
+            function () {
+              callback();
+            },
+            function (err) {
+              invokeCallback(callback, [], err);
+            }
           );
         } else {
           return browserArea.remove(keys);
         }
       };
-    } catch (_) { /* frozen property */ }
+    } catch (_) {
+      // Frozen property.
+    }
   }
 
   if (typeof chrome !== 'undefined') {
-    // Patch storage
+    if (chrome.runtime) {
+      exposeLastError(chrome.runtime);
+    }
+
     if (chrome.storage && browser.storage) {
-      patchStorageArea(chrome.storage.sync,  browser.storage.sync);
+      patchStorageArea(chrome.storage.sync, browser.storage.sync);
       patchStorageArea(chrome.storage.local, browser.storage.local);
     }
 
-    // Patch runtime.getURL
     if (chrome.runtime && browser.runtime) {
       try {
         chrome.runtime.getURL = function (path) {
           return browser.runtime.getURL(path);
         };
-      } catch (_) { /* frozen */ }
+      } catch (_) {
+        // Frozen property.
+      }
     }
 
-    // Patch tabs
     if (chrome.tabs && browser.tabs) {
       try {
         chrome.tabs.query = function (queryInfo, callback) {
           if (typeof callback === 'function') {
             browser.tabs.query(queryInfo).then(
-              function (result) { callback(result); },
-              function () { callback([]); }
+              function (result) {
+                callback(result);
+              },
+              function (err) {
+                invokeCallback(callback, [[]], err);
+              }
             );
           } else {
             return browser.tabs.query(queryInfo);
           }
         };
-      } catch (_) { /* frozen */ }
+      } catch (_) {
+        // Frozen property.
+      }
 
       try {
         chrome.tabs.sendMessage = function (tabId, message, callbackOrOptions, maybeCallback) {
-          // Handle both (tabId, msg, callback) and (tabId, msg, options, callback)
           var callback = typeof callbackOrOptions === 'function' ? callbackOrOptions : maybeCallback;
-          var options  = typeof callbackOrOptions === 'object' ? callbackOrOptions : undefined;
+          var options = typeof callbackOrOptions === 'object' ? callbackOrOptions : undefined;
+          var args = options ? [tabId, message, options] : [tabId, message];
+
           if (typeof callback === 'function') {
-            var args = options ? [tabId, message, options] : [tabId, message];
             browser.tabs.sendMessage.apply(browser.tabs, args).then(
-              function (result) { callback(result); },
-              function () { callback(undefined); }
+              function (result) {
+                callback(result);
+              },
+              function (err) {
+                invokeCallback(callback, [undefined], err);
+              }
             );
           } else {
-            var sendArgs = options ? [tabId, message, options] : [tabId, message];
-            return browser.tabs.sendMessage.apply(browser.tabs, sendArgs);
+            return browser.tabs.sendMessage.apply(browser.tabs, args);
           }
         };
-      } catch (_) { /* frozen */ }
+      } catch (_) {
+        // Frozen property.
+      }
 
       try {
         chrome.tabs.create = function (props, callback) {
           if (typeof callback === 'function') {
             browser.tabs.create(props).then(
-              function (tab) { callback(tab); },
-              function () { callback(undefined); }
+              function (tab) {
+                callback(tab);
+              },
+              function (err) {
+                invokeCallback(callback, [undefined], err);
+              }
             );
           } else {
             return browser.tabs.create(props);
           }
         };
-      } catch (_) { /* frozen */ }
+      } catch (_) {
+        // Frozen property.
+      }
     }
   }
 })();

@@ -1,29 +1,86 @@
 {
   "manifest_version": 3,
   "name": "BetterDungeon",
-  "version": "1.2.1",
+  "version": "2.0.0",
   "description": "An all-in-one browser extension for AI Dungeon that enhances the experience with QOL additions and brand new features.",
   "permissions": [
     "activeTab",
+    "geolocation",
     "storage"
   ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "scripts": [
+      "utils/browser-polyfill.js",
+      "background.js"
+    ]
+  },
   "browser_specific_settings": {
     "gecko": {
       "id": "betterdungeon@computerkwastaken",
-      "strict_min_version": "109.0"
+      "strict_min_version": "109.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
     }
   },
   "content_scripts": [
+    {
+      "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"],
+      "js": ["services/ultrascripts/ws-interceptor.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"],
+      "js": ["services/custom-dynamic-router.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"],
+      "js": [
+        "utils/browser-polyfill.js",
+        "services/ultrascripts/ws-stream.js"
+      ],
+      "run_at": "document_start"
+    },
     {
       "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"],
       "js": [
         "utils/browser-polyfill.js",
         "utils/dom.js",
         "utils/storage.js",
+        "utils/markdown-config.js",
+        "services/graphql-service.js",
         "services/ai-dungeon-service.js",
+        "services/ultrascripts/write-queue.js",
+        "services/ultrascripts/envelope.js",
+        "services/ultrascripts/core.js",
+        "services/ultrascripts/module-registry.js",
+        "services/ultrascripts/ops-dispatcher.js",
+        "modules/webfetch/consent.js",
+        "modules/webfetch/module.js",
+        "modules/clock/module.js",
+        "modules/geolocation/module.js",
+        "modules/weather/module.js",
+        "modules/network/module.js",
+        "modules/system/module.js",
+        "modules/sdk/module.js",
+        "modules/ai/executor.js",
+        "modules/ai/gemini-backend.js",
+        "modules/ai/module.js",
+        "modules/widget/validators.js",
+        "modules/widget/renderer.js",
+        "modules/widget/module.js",
         "services/loading-screen.js",
         "services/story-card-cache.js",
         "services/story-card-scanner.js",
+        "features/ultrascripts_feature.js",
         "core/feature-manager.js",
         "features/markdown_feature.js",
         "features/command_feature.js",
@@ -38,8 +95,9 @@
         "features/notes_feature.js",
         "features/auto_enable_scripts_feature.js",
         "features/story_card_modal_dock_feature.js",
-        "features/better_scripts_feature.js",
         "features/input_history_feature.js",
+        "features/text_to_speeech_feature.js",
+        "features/custom_dynamic_feature.js",
         "main.js"
       ],
       "css": ["core/theme-variables.css", "styles.css", "fonts/lucide/lucide.css"],
@@ -55,7 +113,8 @@
         "fonts/lucide/lucide.css",
         "fonts/lucide/lucide.ttf",
         "fonts/lucide/lucide.woff",
-        "fonts/lucide/lucide.woff2"
+        "fonts/lucide/lucide.woff2",
+        "services/ultrascripts/ws-interceptor.js"
       ],
       "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"]
     }
