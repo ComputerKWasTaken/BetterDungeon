@@ -90,7 +90,6 @@ Available modules include:
 | `widget` | RPG HUDs, stat bars, inventories, buttons, and status panels |
 | `webfetch` | Consent-gated HTTP requests and basic web searches |
 | `clock` | Local time, timestamps, offsets, and IANA timezones |
-| `geolocation` | Consent-based approximate location data |
 | `weather` | Current conditions and short-term forecasts |
 | `system` | Screen, touch, browser, and battery information |
 | `network` | Connection status, downlink, RTT, and data-saver state |
@@ -105,7 +104,7 @@ Check out the [Ultrascripts examples](examples/README.md) if you want to start b
 3. Enable the features you want to use.
 4. If you want to use Gemini-powered features or script-side AI, configure your API key in the **Ultrascripts** settings.
 
-Some Ultrascripts modules are permission-gated. BetterDungeon will ask for consent when a script needs access to sensitive capabilities such as location or external requests.
+WebFetch requests remain consent-gated, so players approve external origins before scripts can access them.
 
 ## For contributors
 

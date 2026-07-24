@@ -38,10 +38,6 @@ code - anything here is for verifying behavior, not for shipping.
     Network module (`modules/network/module.js`). Exercises the `status` op,
     validating online state, connection quality, and connection details.
 
-  - **`aid-scripts/geolocation-module/`** - End-to-end suite for the
-    Ultrascripts Geolocation module (`modules/geolocation/module.js`). Exercises
-    `permission` and `getCurrent` ops with permission-aware validation.
-
   - **`aid-scripts/weather-module/`** - End-to-end suite for the Ultrascripts
     Weather module (`modules/weather/module.js`). Exercises `current` and
     `forecast` ops with coordinate/place lookups, unit systems, and error

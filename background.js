@@ -72,7 +72,6 @@
     'webfetch',
     'clock',
     'sdk',
-    'geolocation',
     'weather',
     'network',
     'system',

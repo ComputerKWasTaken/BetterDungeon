@@ -93,17 +93,16 @@ Ultrascripts can enable scenarios to:
 • Display health bars, statistics, inventories, and game state
 • Request responses from external AI models
 • Access approved web resources
-• Read time, weather, and location information
+• Read time and weather information
 • React to device and network context
 • Exchange structured data without polluting the story
 
-BetterDungeon V2 includes nine documented modules:
+BetterDungeon V2 includes eight documented modules:
 • Widget
 • WebFetch
 • AI
 • Clock
 • SDK
-• Geolocation
 • Weather
 • Network
 • System

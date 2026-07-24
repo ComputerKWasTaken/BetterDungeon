@@ -423,7 +423,7 @@ function consumeTemplateWidgetEvents(us, templateState) {
 
 function publishTemplateDashboard(us, cfg, clock) {
   var modules = [];
-  ['widget', 'clock', 'sdk', 'ai', 'webfetch', 'weather', 'geolocation', 'network', 'system'].forEach(function (id) {
+  ['widget', 'clock', 'sdk', 'ai', 'webfetch', 'weather', 'network', 'system'].forEach(function (id) {
     if (us.has(id)) modules.push(id);
   });
 
