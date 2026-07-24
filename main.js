@@ -111,6 +111,9 @@ class BetterDungeon {
       } else if (message.type === 'SET_WEBFETCH_CONSENT') {
         this.handleSetWebFetchConsent(message.origin, message.decision).then(sendResponse);
         return true;
+      } else if (message.type === 'REFRESH_CUSTOM_DYNAMIC_MODELS') {
+        this.handleRefreshCustomDynamicModels(message.force !== false).then(sendResponse);
+        return true;
       }
     });
   }
@@ -130,6 +133,28 @@ class BetterDungeon {
       const consent = window.UltrascriptsWebFetchConsent;
       if (!consent?.setOrigin) return { success: false, error: 'WebFetch consent broker not available' };
       return { success: true, result: await consent.setOrigin(origin, decision) };
+    } catch (error) {
+      return { success: false, error: error?.message || String(error) };
+    }
+  }
+
+  async handleRefreshCustomDynamicModels(force = true) {
+    try {
+      let feature = this.featureManager.getFeature('customDynamic');
+      if (!feature && typeof CustomDynamicFeature !== 'undefined') {
+        feature = new CustomDynamicFeature();
+      }
+      if (!feature?.refreshVisibleVersions) {
+        return { success: false, error: 'Custom Dynamic model discovery is unavailable.' };
+      }
+
+      const versions = await feature.refreshVisibleVersions({ force });
+      return {
+        success: true,
+        versions,
+        catalogSchemaVersion: CustomDynamicFeature.catalogSchemaVersion,
+        refreshedAt: new Date().toISOString()
+      };
     } catch (error) {
       return { success: false, error: error?.message || String(error) };
     }

@@ -8,7 +8,6 @@
     constructor() {
       this.debug = false;
       this.identityCache = new Map();
-      this.deprecatedModelsEnabled = false;
     }
 
     static FORBIDDEN_REPLAY_HEADERS = new Set([
@@ -102,28 +101,10 @@
         }
       }`,
 
-      aiVisibleVersions: `query GetBetterDungeonAiVisibleVersions {
+      aiVisibleVersions: `query GetBetterDungeonAiVersions {
         aiVisibleVersions {
           success
           message
-          aiVisibleVersions {
-            id
-            type
-            versionName
-            access
-            release
-            aiDetails
-            aiSettings
-            available
-            engineNameEngine {
-              engineName
-              engineDetails
-              availableSettings
-              available
-              __typename
-            }
-            __typename
-          }
           visibleTextVersions {
             id
             type
@@ -135,7 +116,6 @@
             available
             engineNameEngine {
               engineName
-              engineDetails
               availableSettings
               available
               __typename
@@ -367,26 +347,23 @@
     }
 
     async getAiVisibleVersions(options = {}) {
-      if (options.includeDeprecated) {
-        try {
-          await this.enableDeprecatedModels({ timeoutMs: Math.min(Number(options.timeoutMs) || 30000, 10000) });
-        } catch (error) {
-          this.log('showDeprecatedModels save failed before aiVisibleVersions', error);
-        }
-      }
-
       const result = await this.request(
-        'GetBetterDungeonAiVisibleVersions',
+        'GetBetterDungeonAiVersions',
         {},
         BetterDungeonGQLService.QUERIES.aiVisibleVersions,
         options
       );
       const payload = result?.data?.aiVisibleVersions || {};
-      const textVersions = Array.isArray(payload.visibleTextVersions) ? payload.visibleTextVersions : [];
-      const allVersions = Array.isArray(payload.aiVisibleVersions) ? payload.aiVisibleVersions : [];
+      if (payload.success === false) {
+        throw new Error(payload.message || 'AI Dungeon could not load its current model catalog.');
+      }
+      if (!Array.isArray(payload.visibleTextVersions)) {
+        throw new Error('AI Dungeon returned no visible text model catalog.');
+      }
+      const textVersions = payload.visibleTextVersions;
       const seen = new Set();
       const out = [];
-      for (const version of [...textVersions, ...allVersions]) {
+      for (const version of textVersions) {
         const key = String(version?.versionName || version?.id || '').trim();
         if (!key || seen.has(key)) continue;
         seen.add(key);
@@ -414,15 +391,6 @@
       if (!response?.success) {
         throw new Error(response?.message || 'AI Dungeon rejected user settings.');
       }
-      return response;
-    }
-
-    async enableDeprecatedModels(options = {}) {
-      if (this.deprecatedModelsEnabled) {
-        return { success: true, message: 'Deprecated models already enabled for this session.' };
-      }
-      const response = await this.saveSettings({ showDeprecatedModels: true }, options);
-      this.deprecatedModelsEnabled = true;
       return response;
     }
 

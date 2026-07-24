@@ -554,44 +554,17 @@
               </label>
             </div>
             <div class="feature-details custom-dynamic-details">
-              <p class="feature-hint"><span class="icon-route"></span> Picks one model from your pool before each Take a Turn, Continue, Retry, or similar generation.</p>
+              <p class="feature-hint"><span class="icon-route"></span> Uses weighted random selection to route Take a Turn, Continue, Retry, and similar generations through your model pool.</p>
 
               <div class="custom-dynamic-setting">
-                <label class="option-label-inline" for="custom-dynamic-routing-mode">Selection</label>
+                <label class="option-label-inline" for="custom-dynamic-turn-interval">Switch every</label>
                 <div class="custom-dynamic-control">
-                  <select class="form-select form-select-sm" id="custom-dynamic-routing-mode">
-                    <option value="weighted-random">Weighted random</option>
-                    <option value="round-robin">Cycle in order</option>
-                    <option value="avoid-last">Avoid repeats</option>
-                  </select>
-                  <p>Weighted random respects each model's chance setting. Cycle in order rotates evenly. Avoid repeats keeps the last model out when it can.</p>
+                  <div class="interval-control">
+                    <input type="range" class="slider slider-sm" id="custom-dynamic-turn-interval" min="1" max="20" value="1">
+                    <span class="interval-value custom-dynamic-interval-value" id="custom-dynamic-turn-interval-value">Every turn</span>
+                  </div>
+                  <p>The selected model stays active for this many generation turns before another weighted pick.</p>
                 </div>
-              </div>
-
-              <div class="custom-dynamic-setting">
-                <label class="option-label-inline" for="custom-dynamic-switch-mode">Switch method</label>
-                <div class="custom-dynamic-control">
-                  <select class="form-select form-select-sm" id="custom-dynamic-switch-mode">
-                    <option value="auto">Auto recommended</option>
-                    <option value="request-body">Edit generation request</option>
-                    <option value="learned-request">Replay model-setting request</option>
-                    <option value="ui">Use model picker</option>
-                  </select>
-                  <p>Auto tries the quiet request methods first, then falls back to the model picker if needed.</p>
-                </div>
-              </div>
-
-              <div class="feature-option custom-dynamic-toggle-option">
-                <span class="option-label">
-                  <span>
-                    <strong>Continue if switch fails</strong>
-                    <small>Send the turn with AI Dungeon's current model instead of blocking it.</small>
-                  </span>
-                </span>
-                <label class="toggle sm">
-                  <input type="checkbox" id="custom-dynamic-fail-open" checked>
-                  <span class="toggle-slider"></span>
-                </label>
               </div>
 
               <div class="custom-dynamic-pool-header">
@@ -600,13 +573,17 @@
               </div>
               <div class="custom-dynamic-pool-labels">
                 <span>On</span>
-                <span>Model</span>
+                <span>Model family</span>
+                <span>Version</span>
                 <span>Chance</span>
               </div>
               <div class="custom-dynamic-model-list" id="custom-dynamic-model-list"></div>
 
               <div class="custom-dynamic-add-row">
                 <select class="form-select form-select-sm" id="custom-dynamic-model-select"></select>
+                <button class="btn btn-icon btn-ghost" id="custom-dynamic-refresh-models" type="button" aria-label="Refresh AI Dungeon models" title="Refresh models">
+                  <span class="icon-refresh-cw"></span>
+                </button>
                 <button class="btn btn-ghost" id="custom-dynamic-add-model" type="button">
                   <span class="icon-list-plus"></span>
                   Add

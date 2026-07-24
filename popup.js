@@ -107,49 +107,22 @@ const DEFAULT_SETTINGS = {
   tryCriticalChance: 5
 };
 
-const CUSTOM_DYNAMIC_MODEL_CATALOG = [
-  'Gemma 4 31B',
-  'Equinox',
-  'Hearthfire',
-  'DeepSeek V4 Flash',
-  'Madness',
-  'Nova',
-  'Hermes 3 70B',
-  'DeepSeek',
-  'GLM 5.1',
-  'Raven',
-  'Deepseek v4 Pro',
-  'Fable',
-  'Dynamic DeepSeek',
-  'Mistral Small',
-  'Mistral Small 3',
-  'Hermes 3 405B',
-  'Wayfarer Small',
-  'Wayfarer Small 2',
-  'WizardLM 8x22B',
-  'Wayfarer Large',
-  'Harbinger',
-  'Muse',
-  'Atlas'
-];
-
 const DEFAULT_CUSTOM_DYNAMIC_CONFIG = {
   enabled: true,
-  routingMode: 'weighted-random',
-  switchMode: 'auto',
-  repeatPenalty: 0.2,
-  failOpen: true,
-  debug: false,
-  generationUrlPatterns: [],
-  modelPaths: [],
+  turnInterval: 1,
   pool: []
 };
 
+const CUSTOM_DYNAMIC_CATALOG_SCHEMA_VERSION = 2;
+
 const DEFAULT_CUSTOM_DYNAMIC_RUNTIME = {
-  adapter: null,
-  logs: [],
   lastModelId: '',
-  roundRobinCursor: 0,
+  lastModelLabel: '',
+  lastVersionName: '',
+  lastVersionLabel: '',
+  turnsOnModel: 0,
+  lastRoutedAt: '',
+  visibleVersionsSchemaVersion: CUSTOM_DYNAMIC_CATALOG_SCHEMA_VERSION,
   visibleVersions: [],
   visibleVersionsRefreshedAt: ''
 };
@@ -186,6 +159,7 @@ let currentTextToSpeechSettings = { ...DEFAULT_TEXT_TO_SPEECH_SETTINGS };
 // Custom Dynamic settings state
 let currentCustomDynamicConfig = { ...DEFAULT_CUSTOM_DYNAMIC_CONFIG };
 let currentCustomDynamicRuntime = { ...DEFAULT_CUSTOM_DYNAMIC_RUNTIME };
+let customDynamicCatalogLoading = false;
 
 // ============================================
 // INITIALIZATION
@@ -766,57 +740,109 @@ function initCustomDynamicSettings() {
       setCustomDynamicStatus('Choose a model first.', true);
       return;
     }
-    if (customDynamicPoolContains(modelId)) {
-      setCustomDynamicStatus(`${modelId} is already in the pool.`, true);
+    const group = getCustomDynamicModelGroups().find((item) => canonicalPopupModelName(item.modelId) === canonicalPopupModelName(modelId));
+    if (!group) {
+      setCustomDynamicStatus('Refresh the AI Dungeon model list and try again.', true);
       return;
     }
-    addCustomDynamicModelRow({ enabled: true, modelId, label: modelId, weight: 1 });
+    if (customDynamicPoolContains(modelId)) {
+      setCustomDynamicStatus(`${group.modelTitle} is already in the pool.`, true);
+      return;
+    }
+    const version = group.versions[0];
+    addCustomDynamicModelRow({
+      enabled: true,
+      modelId: group.modelId,
+      label: group.modelTitle,
+      versionName: version?.versionName || group.modelId,
+      versionLabel: version?.versionTitle || version?.versionName || group.modelTitle,
+      weight: 1
+    });
     if (select) select.value = '';
     updateCustomDynamicPoolSummary();
     setCustomDynamicStatus('Unsaved changes.');
   });
 
   document.getElementById('custom-dynamic-save')?.addEventListener('click', saveCustomDynamicSettings);
-  document.getElementById('custom-dynamic-routing-mode')?.addEventListener('change', () => setCustomDynamicStatus('Unsaved changes.'));
-  document.getElementById('custom-dynamic-switch-mode')?.addEventListener('change', () => setCustomDynamicStatus('Unsaved changes.'));
-  document.getElementById('custom-dynamic-fail-open')?.addEventListener('change', () => setCustomDynamicStatus('Unsaved changes.'));
+  document.getElementById('custom-dynamic-refresh-models')?.addEventListener('click', () => {
+    void refreshCustomDynamicModels();
+  });
+
+  const turnInterval = document.getElementById('custom-dynamic-turn-interval');
+  turnInterval?.addEventListener('input', () => {
+    updateCustomDynamicTurnInterval(Number(turnInterval.value));
+    setCustomDynamicStatus('Unsaved changes.');
+  });
 }
 
 function loadCustomDynamicSettings() {
   chrome.storage.sync.get(STORAGE_KEYS.customDynamicConfig, (configResult) => {
     currentCustomDynamicConfig = normalizeCustomDynamicConfig((configResult || {})[STORAGE_KEYS.customDynamicConfig]);
-    renderCustomDynamicConfig();
 
     chrome.storage.local.get(STORAGE_KEYS.customDynamicRuntime, (runtimeResult) => {
       currentCustomDynamicRuntime = normalizeCustomDynamicRuntime((runtimeResult || {})[STORAGE_KEYS.customDynamicRuntime]);
-      populateCustomDynamicModelSelect();
+      renderCustomDynamicConfig();
       updateCustomDynamicRuntimeStatus();
+      void refreshCustomDynamicModels({ silent: true });
     });
   });
 }
 
+async function refreshCustomDynamicModels(options = {}) {
+  const button = document.getElementById('custom-dynamic-refresh-models');
+  customDynamicCatalogLoading = true;
+  populateCustomDynamicModelSelect();
+  if (button) button.disabled = true;
+  if (!options.silent) setCustomDynamicStatus('Refreshing AI Dungeon models...');
+
+  try {
+    const pendingConfig = document.querySelector('#custom-dynamic-model-list .custom-dynamic-model-row')
+      ? collectCustomDynamicConfig()
+      : currentCustomDynamicConfig;
+    const response = await sendToActiveAIDungeon('REFRESH_CUSTOM_DYNAMIC_MODELS', { force: true });
+    if (!response?.success) throw new Error(response?.error || 'Model refresh failed.');
+
+    currentCustomDynamicRuntime = normalizeCustomDynamicRuntime({
+      ...currentCustomDynamicRuntime,
+      visibleVersionsSchemaVersion: response.catalogSchemaVersion,
+      visibleVersions: Array.isArray(response.versions) ? response.versions : [],
+      visibleVersionsRefreshedAt: response.refreshedAt || new Date().toISOString()
+    });
+    currentCustomDynamicConfig = pendingConfig;
+    renderCustomDynamicConfig();
+    setCustomDynamicStatus(`Loaded ${getCustomDynamicModelGroups().length} current AI Dungeon models.`);
+  } catch (error) {
+    if (!options.silent || !currentCustomDynamicRuntime.visibleVersions.length) {
+      setCustomDynamicStatus(error?.message || 'Open AI Dungeon to refresh its model list.', true);
+    }
+  } finally {
+    customDynamicCatalogLoading = false;
+    populateCustomDynamicModelSelect();
+    if (button) button.disabled = false;
+  }
+}
+
 function renderCustomDynamicConfig() {
   const config = currentCustomDynamicConfig;
-  const routingMode = document.getElementById('custom-dynamic-routing-mode');
-  const switchMode = document.getElementById('custom-dynamic-switch-mode');
-  const failOpen = document.getElementById('custom-dynamic-fail-open');
+  const turnInterval = document.getElementById('custom-dynamic-turn-interval');
   const list = document.getElementById('custom-dynamic-model-list');
 
-  if (routingMode) routingMode.value = config.routingMode;
-  if (switchMode) switchMode.value = config.switchMode;
-  if (failOpen) failOpen.checked = config.failOpen !== false;
+  if (turnInterval) turnInterval.value = String(config.turnInterval);
+  updateCustomDynamicTurnInterval(config.turnInterval);
 
   if (list) {
     list.innerHTML = '';
     (config.pool || []).forEach(addCustomDynamicModelRow);
   }
 
+  populateCustomDynamicModelSelect();
   updateCustomDynamicPoolSummary();
 }
 
 function addCustomDynamicModelRow(model = {}) {
   const list = document.getElementById('custom-dynamic-model-list');
   if (!list) return;
+  const resolved = resolveCustomDynamicPoolModel(model);
 
   const row = document.createElement('div');
   row.className = 'custom-dynamic-model-row';
@@ -826,18 +852,38 @@ function addCustomDynamicModelRow(model = {}) {
   const enabledInput = document.createElement('input');
   enabledInput.type = 'checkbox';
   enabledInput.dataset.field = 'enabled';
-  enabledInput.checked = model.enabled !== false;
+  enabledInput.checked = resolved.enabled !== false;
   const enabledSlider = document.createElement('span');
   enabledSlider.className = 'toggle-slider';
   enabledLabel.append(enabledInput, enabledSlider);
 
-  const modelId = cleanPopupModelName(model.modelId || model.id || '');
+  const modelId = cleanPopupModelName(resolved.modelId || resolved.id || '');
   const modelName = document.createElement('span');
   modelName.className = 'custom-dynamic-model-name';
   modelName.dataset.field = 'modelId';
   modelName.dataset.modelId = modelId;
-  modelName.textContent = modelId;
-  modelName.title = 'Model name';
+  modelName.dataset.label = cleanPopupModelName(resolved.label || modelId);
+  modelName.textContent = modelName.dataset.label;
+  modelName.title = modelName.dataset.label;
+
+  const versionSelect = document.createElement('select');
+  versionSelect.className = 'form-select form-select-sm custom-dynamic-version-select';
+  versionSelect.dataset.field = 'versionName';
+  const group = getCustomDynamicModelGroups()
+    .find((item) => canonicalPopupModelName(item.modelId) === canonicalPopupModelName(modelId));
+  const versions = group?.versions?.length ? group.versions : [{
+    versionName: cleanPopupModelName(resolved.versionName || modelId),
+    versionTitle: cleanPopupModelName(resolved.versionLabel || resolved.versionName || modelId)
+  }];
+  versions.forEach((version) => {
+    const option = document.createElement('option');
+    option.value = version.versionName;
+    option.textContent = version.versionTitle || version.versionName;
+    versionSelect.appendChild(option);
+  });
+  const selectedVersion = getPreferredCustomDynamicVersion(group, resolved);
+  versionSelect.value = selectedVersion?.versionName || versions[0]?.versionName || '';
+  versionSelect.title = 'Exact AI Dungeon model version';
 
   const weightSelect = document.createElement('select');
   weightSelect.className = 'form-select form-select-sm custom-dynamic-weight-select';
@@ -853,8 +899,8 @@ function addCustomDynamicModelRow(model = {}) {
     option.textContent = label;
     weightSelect.appendChild(option);
   });
-  weightSelect.value = getCustomDynamicWeightOption(model.weight);
-  weightSelect.title = 'How often this model is picked in Weighted random mode';
+  weightSelect.value = getCustomDynamicWeightOption(resolved.weight);
+  weightSelect.title = 'Relative chance of selecting this model';
 
   const remove = document.createElement('button');
   remove.type = 'button';
@@ -869,13 +915,14 @@ function addCustomDynamicModelRow(model = {}) {
   };
 
   enabledInput.addEventListener('change', markDirty);
+  versionSelect.addEventListener('change', markDirty);
   weightSelect.addEventListener('change', markDirty);
   remove.addEventListener('click', () => {
     row.remove();
     markDirty();
   });
 
-  row.append(enabledLabel, modelName, weightSelect, remove);
+  row.append(enabledLabel, modelName, versionSelect, weightSelect, remove);
   list.appendChild(row);
 }
 
@@ -884,10 +931,15 @@ function collectCustomDynamicConfig() {
   const pool = rows.map((row) => {
     const modelField = row.querySelector('[data-field="modelId"]');
     const modelId = cleanPopupModelName(modelField?.dataset?.modelId || modelField?.value || modelField?.textContent || '');
+    const versionField = row.querySelector('[data-field="versionName"]');
+    const versionName = cleanPopupModelName(versionField?.value || modelId);
+    const versionLabel = cleanPopupModelName(versionField?.selectedOptions?.[0]?.textContent || versionName);
     return {
       enabled: row.querySelector('[data-field="enabled"]')?.checked !== false,
       modelId,
-      label: modelId,
+      label: cleanPopupModelName(modelField?.dataset?.label || modelField?.textContent || modelId),
+      versionName,
+      versionLabel,
       weight: Number(row.querySelector('[data-field="weight"]')?.value || 1)
     };
   }).filter((model) => model.modelId);
@@ -895,9 +947,7 @@ function collectCustomDynamicConfig() {
   return normalizeCustomDynamicConfig({
     ...currentCustomDynamicConfig,
     enabled: true,
-    routingMode: document.getElementById('custom-dynamic-routing-mode')?.value || 'weighted-random',
-    switchMode: document.getElementById('custom-dynamic-switch-mode')?.value || 'auto',
-    failOpen: document.getElementById('custom-dynamic-fail-open')?.checked !== false,
+    turnInterval: Number(document.getElementById('custom-dynamic-turn-interval')?.value || 1),
     pool
   });
 }
@@ -909,6 +959,7 @@ function validateCustomDynamicConfig(config) {
     if (!model.modelId) return 'Every pool row needs a model.';
     if (seen.has(key)) return `Duplicate model: ${model.modelId}`;
     seen.add(key);
+    if (!model.versionName) return `Choose a version for ${model.label || model.modelId}.`;
     if (!Number.isFinite(model.weight) || model.weight <= 0) return `Chance must be set for ${model.modelId}.`;
   }
   if (!config.pool.some((model) => model.enabled !== false)) {
@@ -938,24 +989,15 @@ function normalizeCustomDynamicConfig(value = {}) {
   const raw = value && typeof value === 'object' ? value : {};
   return {
     ...DEFAULT_CUSTOM_DYNAMIC_CONFIG,
-    ...raw,
     enabled: true,
-    routingMode: ['weighted-random', 'round-robin', 'avoid-last'].includes(raw.routingMode)
-      ? raw.routingMode
-      : DEFAULT_CUSTOM_DYNAMIC_CONFIG.routingMode,
-    switchMode: ['auto', 'request-body', 'learned-request', 'ui'].includes(raw.switchMode)
-      ? raw.switchMode
-      : DEFAULT_CUSTOM_DYNAMIC_CONFIG.switchMode,
-    repeatPenalty: clampPopupNumber(raw.repeatPenalty, DEFAULT_CUSTOM_DYNAMIC_CONFIG.repeatPenalty, 0, 1),
-    failOpen: raw.failOpen !== false,
-    debug: Boolean(raw.debug),
-    generationUrlPatterns: Array.isArray(raw.generationUrlPatterns) ? raw.generationUrlPatterns.filter(Boolean) : [],
-    modelPaths: Array.isArray(raw.modelPaths) ? raw.modelPaths.filter(Boolean) : [],
+    turnInterval: clampPopupInteger(raw.turnInterval, DEFAULT_CUSTOM_DYNAMIC_CONFIG.turnInterval, 1, 20),
     pool: Array.isArray(raw.pool)
       ? raw.pool.map((model) => ({
         enabled: model?.enabled !== false,
         modelId: cleanPopupModelName(model?.modelId || model?.id || ''),
         label: cleanPopupModelName(model?.label || model?.modelId || model?.id || ''),
+        versionName: cleanPopupModelName(model?.versionName || model?.modelId || model?.id || ''),
+        versionLabel: cleanPopupModelName(model?.versionLabel || model?.versionName || model?.modelId || model?.id || ''),
         weight: clampPopupNumber(model?.weight, 1, 0.01, 100)
       })).filter((model) => model.modelId)
       : []
@@ -964,14 +1006,19 @@ function normalizeCustomDynamicConfig(value = {}) {
 
 function normalizeCustomDynamicRuntime(value = {}) {
   const raw = value && typeof value === 'object' ? value : {};
+  const hasCurrentCatalog = Number(raw.visibleVersionsSchemaVersion) === CUSTOM_DYNAMIC_CATALOG_SCHEMA_VERSION;
   return {
-    ...DEFAULT_CUSTOM_DYNAMIC_RUNTIME,
-    ...raw,
-    logs: Array.isArray(raw.logs) ? raw.logs : [],
     lastModelId: cleanPopupModelName(raw.lastModelId || ''),
-    roundRobinCursor: Number.isInteger(raw.roundRobinCursor) ? raw.roundRobinCursor : 0,
-    visibleVersions: Array.isArray(raw.visibleVersions) ? raw.visibleVersions : [],
-    visibleVersionsRefreshedAt: cleanPopupModelName(raw.visibleVersionsRefreshedAt || '')
+    lastModelLabel: cleanPopupModelName(raw.lastModelLabel || raw.lastModelId || ''),
+    lastVersionName: cleanPopupModelName(raw.lastVersionName || raw.lastModelId || ''),
+    lastVersionLabel: cleanPopupModelName(raw.lastVersionLabel || raw.lastVersionName || raw.lastModelId || ''),
+    turnsOnModel: clampPopupInteger(raw.turnsOnModel, 0, 0, 1000000),
+    lastRoutedAt: cleanPopupModelName(raw.lastRoutedAt || ''),
+    visibleVersionsSchemaVersion: CUSTOM_DYNAMIC_CATALOG_SCHEMA_VERSION,
+    visibleVersions: hasCurrentCatalog && Array.isArray(raw.visibleVersions) ? raw.visibleVersions : [],
+    visibleVersionsRefreshedAt: hasCurrentCatalog
+      ? cleanPopupModelName(raw.visibleVersionsRefreshedAt || '')
+      : ''
   };
 }
 
@@ -979,36 +1026,165 @@ function populateCustomDynamicModelSelect() {
   const select = document.getElementById('custom-dynamic-model-select');
   if (!select) return;
   const selected = select.value;
-  const models = getCustomDynamicKnownModels();
+  const groups = getCustomDynamicModelGroups();
   select.innerHTML = '';
   const placeholder = document.createElement('option');
   placeholder.value = '';
-  placeholder.textContent = 'Known models';
+  placeholder.textContent = customDynamicCatalogLoading
+    ? 'Refreshing current models...'
+    : groups.length
+      ? 'Choose a model family'
+      : 'Open AI Dungeon to load models';
   select.appendChild(placeholder);
-  models.forEach((modelId) => {
+  groups.forEach((group) => {
     const option = document.createElement('option');
-    option.value = modelId;
-    option.textContent = modelId;
+    option.value = group.modelId;
+    option.textContent = formatCustomDynamicModelOption(group);
     select.appendChild(option);
   });
-  if (models.includes(selected)) select.value = selected;
+  if (groups.some((group) => group.modelId === selected)) select.value = selected;
+  select.disabled = customDynamicCatalogLoading || !groups.length;
+  const addButton = document.getElementById('custom-dynamic-add-model');
+  if (addButton) addButton.disabled = customDynamicCatalogLoading || !groups.length;
 }
 
-function getCustomDynamicKnownModels() {
-  const seen = new Set();
-  const models = [];
-  const add = (modelId) => {
-    const cleaned = cleanPopupModelName(modelId);
-    const key = canonicalPopupModelName(cleaned);
-    if (!cleaned || seen.has(key)) return;
-    seen.add(key);
-    models.push(cleaned);
-  };
-  CUSTOM_DYNAMIC_MODEL_CATALOG.forEach(add);
+function formatCustomDynamicModelOption(group) {
+  const title = cleanPopupModelName(group?.modelTitle || group?.modelId || '');
+  const versions = Array.isArray(group?.versions) ? group.versions : [];
+  if (versions.length <= 1) {
+    const versionTitle = cleanPopupModelName(versions[0]?.versionTitle || '');
+    if (versionTitle && canonicalPopupModelName(versionTitle) !== canonicalPopupModelName(title)) {
+      return `${title} - ${versionTitle}`;
+    }
+    return title;
+  }
+  return `${title} (${versions.length} versions)`;
+}
+
+function getCustomDynamicModelGroups() {
+  const groups = new Map();
   (currentCustomDynamicRuntime.visibleVersions || [])
-    .filter((version) => version?.available !== false)
-    .forEach((version) => add(version.modelId || version.displayName || version.versionName));
-  return models;
+    .filter((version) => version?.available !== false && version?.isDeprecated !== true)
+    .forEach((version) => {
+      const modelId = cleanPopupModelName(version.modelId || '');
+      const versionName = cleanPopupModelName(version.versionName || '');
+      if (!modelId || !versionName) return;
+      const key = canonicalPopupModelName(modelId);
+      if (!groups.has(key)) {
+        groups.set(key, {
+          modelId,
+          modelTitle: cleanPopupModelName(version.modelTitle || version.modelId || version.versionName),
+          modelOrder: customDynamicOrderNumber(version.modelOrder),
+          versions: []
+        });
+      }
+      const group = groups.get(key);
+      group.modelOrder = Math.min(group.modelOrder, customDynamicOrderNumber(version.modelOrder));
+      group.versions.push({
+        ...version,
+        versionName,
+        versionTitle: cleanPopupModelName(version.versionTitle || version.versionName),
+        versionOrder: customDynamicOrderNumber(version.versionOrder)
+      });
+    });
+
+  return Array.from(groups.values())
+    .map((group) => ({
+      ...group,
+      versions: group.versions.sort((left, right) =>
+        left.versionOrder - right.versionOrder
+        || left.versionTitle.localeCompare(right.versionTitle)
+      )
+    }))
+    .sort((left, right) =>
+      left.modelOrder - right.modelOrder
+      || left.modelTitle.localeCompare(right.modelTitle)
+    );
+}
+
+function resolveCustomDynamicPoolModel(model = {}) {
+  const fallback = {
+    enabled: model?.enabled !== false,
+    modelId: cleanPopupModelName(model?.modelId || model?.id || ''),
+    label: cleanPopupModelName(model?.label || model?.modelId || model?.id || ''),
+    versionName: cleanPopupModelName(model?.versionName || model?.modelId || model?.id || ''),
+    versionLabel: cleanPopupModelName(model?.versionLabel || model?.versionName || model?.modelId || model?.id || ''),
+    weight: clampPopupNumber(model?.weight, 1, 0.01, 100)
+  };
+  const groups = getCustomDynamicModelGroups();
+  const modelId = canonicalPopupModelName(fallback.modelId);
+  const versionName = canonicalPopupModelName(fallback.versionName);
+
+  let group = groups.find((item) => canonicalPopupModelName(item.modelId) === modelId);
+  if (!group && versionName) {
+    group = findUniqueCustomDynamicMatch(groups, (item) =>
+      item.versions.some((version) => canonicalPopupModelName(version.versionName) === versionName)
+    );
+  }
+
+  if (!group) {
+    const titleProbes = [fallback.modelId, fallback.label]
+      .map(canonicalPopupModelName)
+      .filter(Boolean);
+    group = findUniqueCustomDynamicMatch(groups, (item) =>
+      titleProbes.includes(canonicalPopupModelName(item.modelTitle))
+    );
+  }
+
+  if (!group) {
+    const migrationProbes = [fallback.modelId, fallback.label, fallback.versionName, fallback.versionLabel]
+      .map(canonicalPopupModelName)
+      .filter(Boolean);
+    group = findUniqueCustomDynamicMatch(groups, (item) => {
+      const aliases = item.versions.flatMap((version) => [
+        version.versionName,
+        version.versionTitle,
+        ...(version.aliases || [])
+      ]).map(canonicalPopupModelName);
+      return migrationProbes.some((probe) => aliases.includes(probe));
+    });
+  }
+
+  if (!group) return fallback;
+
+  const version = getPreferredCustomDynamicVersion(group, fallback) || group.versions[0];
+  return {
+    ...fallback,
+    modelId: group.modelId,
+    label: group.modelTitle,
+    versionName: version?.versionName || fallback.versionName,
+    versionLabel: version?.versionTitle || fallback.versionLabel
+  };
+}
+
+function getPreferredCustomDynamicVersion(group, model = {}) {
+  if (!group?.versions?.length) return null;
+  const versionName = canonicalPopupModelName(model.versionName);
+  const exactVersion = group.versions.find((version) =>
+    canonicalPopupModelName(version.versionName) === versionName
+  );
+  if (exactVersion) return exactVersion;
+
+  const probes = [model.versionLabel, model.modelId, model.label]
+    .map(canonicalPopupModelName)
+    .filter(Boolean);
+  return findUniqueCustomDynamicMatch(group.versions, (version) => {
+    const aliases = [
+      version.versionTitle,
+      ...(version.aliases || [])
+    ].map(canonicalPopupModelName);
+    return probes.some((probe) => aliases.includes(probe));
+  }) || group.versions[0];
+}
+
+function findUniqueCustomDynamicMatch(items, predicate) {
+  let match = null;
+  for (const item of items || []) {
+    if (!predicate(item)) continue;
+    if (match) return null;
+    match = item;
+  }
+  return match;
 }
 
 function getCustomDynamicWeightOption(weight) {
@@ -1032,11 +1208,13 @@ function updateCustomDynamicPoolSummary() {
 
 function updateCustomDynamicRuntimeStatus() {
   if (currentCustomDynamicRuntime.lastModelId) {
-    setCustomDynamicStatus(`Last routed: ${currentCustomDynamicRuntime.lastModelId}`);
+    const model = currentCustomDynamicRuntime.lastModelLabel || currentCustomDynamicRuntime.lastModelId;
+    const version = currentCustomDynamicRuntime.lastVersionLabel || currentCustomDynamicRuntime.lastVersionName;
+    setCustomDynamicStatus(`Last routed: ${model}${version ? ` - ${version}` : ''}`);
     return;
   }
   if (currentCustomDynamicRuntime.visibleVersions?.length) {
-    setCustomDynamicStatus(`Loaded ${currentCustomDynamicRuntime.visibleVersions.length} AI Dungeon models.`);
+    setCustomDynamicStatus(`Loaded ${getCustomDynamicModelGroups().length} current AI Dungeon models.`);
     return;
   }
   setCustomDynamicStatus('Changes stay local to this browser.');
@@ -1053,6 +1231,18 @@ function customDynamicPoolContains(modelId) {
   const key = canonicalPopupModelName(modelId);
   return Array.from(document.querySelectorAll('#custom-dynamic-model-list [data-field="modelId"]'))
     .some((field) => canonicalPopupModelName(field.dataset?.modelId || field.value || field.textContent) === key);
+}
+
+function updateCustomDynamicTurnInterval(value) {
+  const output = document.getElementById('custom-dynamic-turn-interval-value');
+  if (!output) return;
+  const interval = clampPopupInteger(value, 1, 1, 20);
+  output.textContent = interval === 1 ? 'Every turn' : `${interval} turns`;
+}
+
+function customDynamicOrderNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : Number.MAX_SAFE_INTEGER;
 }
 
 function cleanPopupModelName(value) {
@@ -1072,6 +1262,10 @@ function clampPopupNumber(value, fallback, min, max) {
   const number = Number(value);
   if (!Number.isFinite(number)) return fallback;
   return Math.min(max, Math.max(min, number));
+}
+
+function clampPopupInteger(value, fallback, min, max) {
+  return Math.round(clampPopupNumber(value, fallback, min, max));
 }
 
 function initAutoSeeSettings() {

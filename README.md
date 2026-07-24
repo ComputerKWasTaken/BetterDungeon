@@ -72,7 +72,7 @@ Android builds are distributed through the [GitHub Releases](../../releases) pag
 
 ### Automate the boring bits
 
-- **Custom Dynamic** — Configure a pool of generation models with weighted-random, round-robin, or avoid-last routing.
+- **Custom Dynamic** — Build a weighted-random model pool, choose exact model versions, and control how many turns each selection stays active.
 - **Auto See** — Automatically send See requests after a configurable number of turns.
 - **Auto Enable Scripts** — Keep scenario scripts enabled when AI Dungeon tries to turn them off.
 

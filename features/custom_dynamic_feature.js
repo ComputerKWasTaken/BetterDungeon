@@ -5,6 +5,7 @@
 
 class CustomDynamicFeature {
   static id = 'customDynamic';
+  static catalogSchemaVersion = 2;
   static versionRefreshTtlMs = 10 * 60 * 1000;
 
   constructor() {
@@ -15,21 +16,18 @@ class CustomDynamicFeature {
 
     this.defaultConfig = {
       enabled: true,
-      routingMode: 'weighted-random',
-      switchMode: 'auto',
-      repeatPenalty: 0.2,
-      failOpen: true,
-      debug: false,
-      generationUrlPatterns: [],
-      modelPaths: [],
+      turnInterval: 1,
       pool: []
     };
 
     this.defaultRuntime = {
-      adapter: null,
-      logs: [],
       lastModelId: '',
-      roundRobinCursor: 0,
+      lastModelLabel: '',
+      lastVersionName: '',
+      lastVersionLabel: '',
+      turnsOnModel: 0,
+      lastRoutedAt: '',
+      visibleVersionsSchemaVersion: CustomDynamicFeature.catalogSchemaVersion,
       visibleVersions: [],
       visibleVersionsRefreshedAt: ''
     };
@@ -109,6 +107,21 @@ class CustomDynamicFeature {
 
     if (data.type === 'runtime-event' && data.payload) {
       void this.persistRuntimeEvent(data.payload);
+      return;
+    }
+
+    if (data.type === 'switch-model' && data.payload) {
+      void this.switchModelVersion(data.payload).then((result) => {
+        window.postMessage({
+          namespace: this.namespace,
+          direction: 'extension-to-page',
+          type: 'switch-model-result',
+          payload: {
+            requestId: data.payload.requestId,
+            ...result
+          }
+        }, window.location.origin);
+      });
     }
   }
 
@@ -120,38 +133,42 @@ class CustomDynamicFeature {
   }
 
   async persistRuntimeEvent(event) {
+    if (event.kind !== 'selection-state' || !event.modelId) return;
+
     const result = await this.storageGet('local', this.runtimeStorageKey);
     const runtime = this.normalizeRuntime(result?.[this.runtimeStorageKey]);
     const timestamp = new Date().toISOString();
 
-    if (event.kind === 'adapter-learned' && event.adapter) {
-      runtime.adapter = {
-        ...event.adapter,
-        learnedAt: timestamp
-      };
-    }
-
-    if (event.kind === 'round-robin-cursor' && Number.isInteger(event.cursor)) {
-      runtime.roundRobinCursor = event.cursor;
-    }
-
-    if (event.kind === 'last-model' && event.modelId) {
-      runtime.lastModelId = this.cleanModelName(event.modelId);
-      runtime.lastMechanism = event.mechanism || runtime.lastMechanism || '';
-      runtime.lastRoutedAt = timestamp;
-    }
-
-    if (event.kind === 'log') {
-      runtime.logs.unshift({
-        at: timestamp,
-        level: event.level || 'info',
-        message: String(event.message || ''),
-        details: event.details || null
-      });
-      runtime.logs = runtime.logs.slice(0, 160);
-    }
+    runtime.lastModelId = this.cleanModelName(event.modelId);
+    runtime.lastModelLabel = this.cleanModelName(event.label || event.modelId);
+    runtime.lastVersionName = this.cleanModelName(event.versionName || event.modelId);
+    runtime.lastVersionLabel = this.cleanModelName(event.versionLabel || event.versionName || event.modelId);
+    runtime.turnsOnModel = this.clampInteger(event.turnsOnModel, 1, 0, 1000000);
+    runtime.lastRoutedAt = timestamp;
 
     await this.storageSet('local', { [this.runtimeStorageKey]: runtime });
+  }
+
+  async switchModelVersion(payload = {}) {
+    const versionName = this.cleanModelName(payload.versionName || payload.modelId || '');
+    if (!versionName) {
+      return { success: false, error: 'No AI Dungeon model version was provided.' };
+    }
+
+    const gql = await this.waitForGqlCredentials(1000);
+    if (!gql) {
+      return { success: false, error: 'AI Dungeon GraphQL is not ready.' };
+    }
+
+    try {
+      await gql.saveSettings({ storyAiVersionName: versionName }, { timeoutMs: 5000 });
+      return { success: true, mechanism: 'graphql-settings', versionName };
+    } catch (error) {
+      return {
+        success: false,
+        error: error?.message || String(error)
+      };
+    }
   }
 
   async refreshVisibleVersions(options = {}) {
@@ -163,45 +180,61 @@ class CustomDynamicFeature {
     }
 
     const gql = await this.waitForGqlCredentials(8000);
-    if (!gql) return runtime.visibleVersions;
+    if (!gql) {
+      if (options.force) {
+        throw new Error('Open AI Dungeon and wait for the page to finish loading, then refresh models again.');
+      }
+      return runtime.visibleVersions;
+    }
 
     try {
-      const versions = await gql.getAiVisibleVersions({ timeoutMs: 15000, includeDeprecated: true });
-      const visibleVersions = versions
+      const versions = await gql.getAiVisibleVersions({ timeoutMs: 15000 });
+      const visibleVersions = this.harmonizeModelFamilies(versions
         .map((version) => this.normalizeVisibleVersion(version))
-        .filter((version) => version.versionName && version.modelId)
+        .filter((version) => version.versionName && version.modelId && version.modelTitle)
         .filter((version) => !version.type || version.type.toLowerCase() === 'text')
-        .filter((version) => version.available !== false);
+        .filter((version) => version.available !== false)
+        .filter((version) => !version.isDeprecated));
 
       const updated = this.normalizeRuntime((await this.storageGet('local', this.runtimeStorageKey))?.[this.runtimeStorageKey]);
-      updated.visibleVersions = this.dedupeVisibleVersions(visibleVersions);
+      updated.visibleVersions = this.sortVisibleVersions(this.dedupeVisibleVersions(visibleVersions));
+      updated.visibleVersionsSchemaVersion = CustomDynamicFeature.catalogSchemaVersion;
       updated.visibleVersionsRefreshedAt = new Date().toISOString();
       await this.storageSet('local', { [this.runtimeStorageKey]: updated });
       return updated.visibleVersions;
     } catch (error) {
-      await this.appendRuntimeLog('warn', 'Could not refresh AI Dungeon model versions.', {
-        error: error?.message || String(error)
-      });
+      if (options.force) throw error;
       return runtime.visibleVersions;
     }
   }
 
   normalizeVisibleVersion(version) {
+    const engineName = this.cleanModelName(version?.engineNameEngine?.engineName || '');
+    const versionName = this.cleanModelName(version?.versionName || '');
+    const modelTitle = this.cleanModelName(
+      version?.aiDetails?.title
+      || version?.aiDetails?.displayName
+      || version?.aiDetails?.name
+      || this.prettifyVersionName(engineName)
+    );
+    const versionTitle = this.cleanModelName(
+      version?.aiDetails?.versionTitle
+      || version?.aiDetails?.version
+      || versionName
+    );
     const aliases = this.collectVersionAliases(version);
     return {
-      modelId: this.displayNameFromVersion(version, aliases),
-      versionName: this.cleanModelName(version?.versionName || ''),
+      modelId: engineName || modelTitle || versionName,
+      modelTitle: modelTitle || engineName || versionName,
+      versionName,
+      versionTitle,
+      modelOrder: this.orderNumber(version?.aiDetails?.engineOrder),
+      versionOrder: this.orderNumber(version?.aiDetails?.versionOrder),
       type: this.cleanModelName(version?.type || ''),
       available: version?.available !== false,
       isDeprecated: this.isDeprecatedVersion(version),
       aliases: aliases.slice(0, 24)
     };
-  }
-
-  displayNameFromVersion(version, aliases) {
-    const preferred = aliases.find((item) => item && !this.looksLikeVersionSlug(item));
-    if (preferred) return preferred;
-    return this.prettifyVersionName(version?.versionName || version?.id || '');
   }
 
   collectVersionAliases(version) {
@@ -216,14 +249,13 @@ class CustomDynamicFeature {
     push(version?.aiDetails?.title);
     push(version?.aiDetails?.label);
     push(version?.aiDetails?.versionTitle);
+    push(version?.aiDetails?.version);
     push(version?.aiDetails?.modelName);
     if (Array.isArray(version?.aiDetails?.tags)) {
       version.aiDetails.tags.forEach(push);
     }
     push(version?.aiSettings?.displayName);
     push(version?.aiSettings?.name);
-    push(version?.engineNameEngine?.engineDetails?.displayName);
-    push(version?.engineNameEngine?.engineDetails?.name);
     push(version?.engineNameEngine?.engineName);
     push(version?.versionName);
     return strings;
@@ -231,7 +263,29 @@ class CustomDynamicFeature {
 
   isDeprecatedVersion(version) {
     return Boolean(version?.aiSettings?.isDeprecatedModel)
+      || Boolean(version?.aiSettings?.isDeprecatedVersion)
       || /deprecated/i.test(String(version?.aiDetails?.shortDescription || ''));
+  }
+
+  harmonizeModelFamilies(versions) {
+    const families = new Map();
+    for (const version of versions) {
+      const key = this.canonicalModelName(version.modelId);
+      if (!key || families.has(key)) continue;
+      families.set(key, {
+        modelTitle: version.modelTitle,
+        modelOrder: version.modelOrder
+      });
+    }
+
+    return versions.map((version) => {
+      const family = families.get(this.canonicalModelName(version.modelId));
+      return family ? {
+        ...version,
+        modelTitle: family.modelTitle,
+        modelOrder: family.modelOrder
+      } : version;
+    });
   }
 
   dedupeVisibleVersions(versions) {
@@ -246,43 +300,13 @@ class CustomDynamicFeature {
     return out;
   }
 
-  findVisibleVersionForModel(modelId, versions = []) {
-    const model = this.cleanModelName(modelId);
-    if (!model) return null;
-
-    for (const version of versions) {
-      const aliases = [version.modelId, version.versionName, ...(version.aliases || [])];
-      if (aliases.some((alias) => this.sameModel(alias, model))) return version;
-    }
-
-    let best = null;
-    let bestScore = 0;
-    const modelTokens = this.modelTokens(model);
-    for (const version of versions) {
-      const versionTokens = this.modelTokens([version.modelId, version.versionName, ...(version.aliases || [])].join(' '));
-      if (!modelTokens.length || !versionTokens.length) continue;
-      const hits = modelTokens.filter((token) => versionTokens.includes(token)).length;
-      const score = hits / modelTokens.length;
-      if (score > bestScore) {
-        best = version;
-        bestScore = score;
-      }
-    }
-    return bestScore >= 0.66 ? best : null;
-  }
-
-  modelTokens(value) {
-    const raw = this.canonicalModelName(value)
-      .replace(/[^a-z0-9]+/g, ' ')
-      .split(/\s+/)
-      .filter(Boolean)
-      .filter((token) => !['ai', 'model', 'models', 'version', 'dynamic'].includes(token));
-    if (raw.includes('gemma')) return raw.filter((token) => token !== '4');
-    return raw;
-  }
-
-  looksLikeVersionSlug(value) {
-    return /^[a-z0-9]+(?:-[a-z0-9]+)+$/i.test(String(value || '').trim());
+  sortVisibleVersions(versions) {
+    return [...versions].sort((left, right) =>
+      left.modelOrder - right.modelOrder
+      || left.modelTitle.localeCompare(right.modelTitle)
+      || left.versionOrder - right.versionOrder
+      || left.versionTitle.localeCompare(right.versionTitle)
+    );
   }
 
   prettifyVersionName(value) {
@@ -304,41 +328,19 @@ class CustomDynamicFeature {
     }
   }
 
-  async appendRuntimeLog(level, message, details = null) {
-    const result = await this.storageGet('local', this.runtimeStorageKey);
-    const runtime = this.normalizeRuntime(result?.[this.runtimeStorageKey]);
-    runtime.logs.unshift({
-      at: new Date().toISOString(),
-      level,
-      message,
-      details
-    });
-    runtime.logs = runtime.logs.slice(0, 160);
-    await this.storageSet('local', { [this.runtimeStorageKey]: runtime });
-  }
-
   normalizeConfig(value) {
     const raw = value && typeof value === 'object' ? value : {};
     return {
       ...this.defaultConfig,
-      ...raw,
       enabled: true,
-      routingMode: ['weighted-random', 'round-robin', 'avoid-last'].includes(raw.routingMode)
-        ? raw.routingMode
-        : this.defaultConfig.routingMode,
-      switchMode: ['auto', 'request-body', 'learned-request', 'ui'].includes(raw.switchMode)
-        ? raw.switchMode
-        : this.defaultConfig.switchMode,
-      repeatPenalty: this.clampNumber(raw.repeatPenalty, this.defaultConfig.repeatPenalty, 0, 1),
-      failOpen: raw.failOpen !== false,
-      debug: Boolean(raw.debug),
-      generationUrlPatterns: Array.isArray(raw.generationUrlPatterns) ? raw.generationUrlPatterns.filter(Boolean) : [],
-      modelPaths: Array.isArray(raw.modelPaths) ? raw.modelPaths.filter(Boolean) : [],
+      turnInterval: this.clampInteger(raw.turnInterval, this.defaultConfig.turnInterval, 1, 20),
       pool: Array.isArray(raw.pool)
         ? raw.pool.map((model) => ({
           enabled: model?.enabled !== false,
           modelId: this.cleanModelName(model?.modelId || model?.id || ''),
           label: this.cleanModelName(model?.label || model?.modelId || model?.id || ''),
+          versionName: this.cleanModelName(model?.versionName || model?.modelId || model?.id || ''),
+          versionLabel: this.cleanModelName(model?.versionLabel || model?.versionName || model?.modelId || model?.id || ''),
           weight: this.clampNumber(model?.weight, 1, 0.01, 100)
         })).filter((model) => model.modelId)
         : []
@@ -347,14 +349,19 @@ class CustomDynamicFeature {
 
   normalizeRuntime(value) {
     const raw = value && typeof value === 'object' ? value : {};
+    const hasCurrentCatalog = Number(raw.visibleVersionsSchemaVersion) === CustomDynamicFeature.catalogSchemaVersion;
     return {
-      ...this.defaultRuntime,
-      ...raw,
-      logs: Array.isArray(raw.logs) ? raw.logs : [],
       lastModelId: this.cleanModelName(raw.lastModelId || ''),
-      roundRobinCursor: Number.isInteger(raw.roundRobinCursor) ? raw.roundRobinCursor : 0,
-      visibleVersions: Array.isArray(raw.visibleVersions) ? raw.visibleVersions : [],
-      visibleVersionsRefreshedAt: this.cleanModelName(raw.visibleVersionsRefreshedAt || '')
+      lastModelLabel: this.cleanModelName(raw.lastModelLabel || raw.lastModelId || ''),
+      lastVersionName: this.cleanModelName(raw.lastVersionName || raw.lastModelId || ''),
+      lastVersionLabel: this.cleanModelName(raw.lastVersionLabel || raw.lastVersionName || raw.lastModelId || ''),
+      turnsOnModel: this.clampInteger(raw.turnsOnModel, 0, 0, 1000000),
+      lastRoutedAt: this.cleanModelName(raw.lastRoutedAt || ''),
+      visibleVersionsSchemaVersion: CustomDynamicFeature.catalogSchemaVersion,
+      visibleVersions: hasCurrentCatalog && Array.isArray(raw.visibleVersions) ? raw.visibleVersions : [],
+      visibleVersionsRefreshedAt: hasCurrentCatalog
+        ? this.cleanModelName(raw.visibleVersionsRefreshedAt || '')
+        : ''
     };
   }
 
@@ -446,6 +453,15 @@ class CustomDynamicFeature {
     const number = Number(value);
     if (!Number.isFinite(number)) return fallback;
     return Math.min(max, Math.max(min, number));
+  }
+
+  clampInteger(value, fallback, min, max) {
+    return Math.round(this.clampNumber(value, fallback, min, max));
+  }
+
+  orderNumber(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : Number.MAX_SAFE_INTEGER;
   }
 }
 

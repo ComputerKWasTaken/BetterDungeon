@@ -727,22 +727,6 @@ body.mobile {
   padding-top: 12px;
 }
 
-.custom-dynamic-toggle-option {
-  align-items: flex-start;
-}
-
-.custom-dynamic-toggle-option .option-label span {
-  display: grid;
-  gap: 3px;
-}
-
-.custom-dynamic-toggle-option .option-label small {
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 400;
-  line-height: 1.35;
-}
-
 .custom-dynamic-setting {
   display: grid;
   grid-template-columns: 82px minmax(0, 1fr);
@@ -789,7 +773,7 @@ body.mobile {
 
 .custom-dynamic-pool-labels {
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) 92px 30px;
+  grid-template-columns: 30px minmax(75px, 1.2fr) minmax(68px, 1fr) 78px 30px;
   align-items: center;
   gap: 8px;
   margin-bottom: 4px;
@@ -799,10 +783,6 @@ body.mobile {
   text-transform: uppercase;
 }
 
-.custom-dynamic-pool-labels span:last-child {
-  grid-column: 3;
-}
-
 .custom-dynamic-model-list {
   display: grid;
   gap: 6px;
@@ -810,7 +790,7 @@ body.mobile {
 
 .custom-dynamic-model-row {
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) 92px 30px;
+  grid-template-columns: 30px minmax(75px, 1.2fr) minmax(68px, 1fr) 78px 30px;
   align-items: center;
   gap: 8px;
   min-height: 34px;
@@ -837,6 +817,15 @@ body.mobile {
   padding-right: 22px !important;
 }
 
+.custom-dynamic-version-select {
+  padding-right: 22px !important;
+}
+
+.custom-dynamic-interval-value {
+  min-width: 74px;
+  white-space: nowrap;
+}
+
 .custom-dynamic-remove {
   width: 30px;
   height: 30px;
@@ -845,7 +834,7 @@ body.mobile {
 
 .custom-dynamic-add-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 6px;
   margin-top: 10px;
@@ -854,6 +843,11 @@ body.mobile {
 .custom-dynamic-add-row .btn {
   margin-top: 0;
   white-space: nowrap;
+}
+
+#custom-dynamic-refresh-models {
+  width: 32px;
+  height: 32px;
 }
 
 .custom-dynamic-actions {
