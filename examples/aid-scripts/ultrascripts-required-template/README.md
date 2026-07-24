@@ -20,9 +20,10 @@ Dungeon. It gives new required scripts a stable foundation:
 - request queueing through `ultrascripts:out`
 - response polling and acknowledgement
 - latest-response helpers
-- safe `sdk.config` and `clock.now` examples
+- safe `sdk.config`, `clock.now`, and `ai.status` examples
 - Widget dashboard publishing
-- command handling with `:us-required status` and `:us-required reset`
+- command handling with `/us-required status` and `/us-required reset`
+- a turn-paced self-test started with `/us-required test`
 
 ## How To Build From It
 
@@ -32,6 +33,8 @@ Dungeon. It gives new required scripts a stable foundation:
 - Keep the SDK helper intact until a module-specific review says otherwise.
 - Add new module calls near the existing `sdk.config` and `clock.now` examples.
 - Read responses with `bd.us.latest(moduleId, opName)`.
+- Use `ai.status` for AI readiness; `sdk.config` intentionally does not expose
+  backend readiness.
 - Compare `completedLiveCount` with `bd.us.liveCount()` before applying
   side-effect responses such as `webfetch.fetch`.
 - Publish widgets through `publishTemplateDashboard` or replace it with your

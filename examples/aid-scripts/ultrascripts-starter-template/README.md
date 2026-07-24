@@ -16,9 +16,10 @@ The template is intentionally modest. It gives new scripts a stable foundation:
 - request queueing through `ultrascripts:out`
 - response polling and acknowledgement
 - latest-response helpers
-- safe `sdk.config` and `clock.now` examples
+- safe `sdk.config`, `clock.now`, and `ai.status` examples
 - Widget dashboard publishing
-- command handling with `:us-template status` and `:us-template reset`
+- command handling with `/us-template status` and `/us-template reset`
+- a turn-paced self-test started with `/us-template test`
 - graceful fallback when BetterDungeon is missing
 
 ## How To Build From It
@@ -28,6 +29,8 @@ The template is intentionally modest. It gives new scripts a stable foundation:
 - Keep the SDK helper intact until a module-specific review says otherwise.
 - Add new module calls near the existing `sdk.config` and `clock.now` examples.
 - Read responses with `us.latest(moduleId, opName)`.
+- Use `ai.status` for AI readiness; `sdk.config` intentionally does not expose
+  backend readiness.
 - Compare `completedLiveCount` with `us.liveCount()` before applying side-effect
   responses such as `webfetch.fetch`.
 - Publish widgets through `publishTemplateDashboard` or replace it with your
