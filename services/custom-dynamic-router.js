@@ -12,6 +12,16 @@
   const NAMESPACE = 'betterdungeon-custom-dynamic-v1';
   const TO_PAGE = 'extension-to-page';
   const FROM_PAGE = 'page-to-extension';
+  const MODEL_SWITCHER_SELECTOR = '[aria-label="Model Switcher"]';
+  const INDICATOR_STYLE_ID = 'bd-custom-dynamic-indicator-style';
+  const INDICATOR_ACTIVE_ATTRIBUTE = 'data-bd-custom-dynamic-active';
+  const INDICATOR_ATTRIBUTE = 'data-bd-custom-dynamic-model-indicator';
+  const INDICATOR_IMAGE_ATTRIBUTE = 'data-bd-custom-dynamic-model-image';
+  const INDICATOR_LABEL_ATTRIBUTE = 'data-bd-custom-dynamic-model-label';
+  const NATIVE_ICON_ATTRIBUTE = 'data-bd-custom-dynamic-native-model-icon';
+  const SWITCHER_ATTRIBUTE = 'data-bd-custom-dynamic-model-switcher';
+  const ORIGINAL_TITLE_ATTRIBUTE = 'data-bd-custom-dynamic-original-title';
+  const ORIGINAL_TITLE_PRESENT_ATTRIBUTE = 'data-bd-custom-dynamic-original-title-present';
 
   const nativeFetch = typeof window.fetch === 'function' ? window.fetch.bind(window) : null;
   const NativeXHR = window.XMLHttpRequest;
@@ -22,11 +32,13 @@
     lastModelLabel: '',
     lastVersionName: '',
     lastVersionLabel: '',
+    indicatorLogoUrl: '',
     turnsOnModel: 0,
     requestCounter: 0,
     switchRequestCounter: 0
   };
   const pendingSwitches = new Map();
+  let indicatorSyncQueued = false;
 
   const MODEL_KEY_RE = /^(?:model|modelid|model_id|aimodel|ai_model|storymodel|story_model|textmodel|text_model|providerModel|storyAiVersionName|aiVersionName|modelVersion|modelVersionName|versionName)$/i;
   const ACTION_KEY_RE = /^(?:action|actiontype|action_type|input|text|prompt|userinput|user_input|storyinput|story_input|command|message|mode|type)$/i;
@@ -34,6 +46,7 @@
   const GENERATION_OPERATION_RE = /(?:generate|continue|retry|take.?action|submit.?action|perform.?action|create.?action|send.?action|story.?action|add.?action|adventure.?action|actionRequest|retryAction)/i;
   const URL_GENERATION_RE = /(?:generate|continue|retry|take.?action|story.?action|actions?\/(?:create|add|send)|(?:create|add|send)\/?actions?)/i;
   window.addEventListener('message', handleBridgeMessage, false);
+  installRoutedModelIndicator();
   installFetchHook();
   installXhrHook();
   postToExtension('ready');
@@ -50,9 +63,11 @@
       state.lastModelLabel = String(runtime.lastModelLabel || state.lastModelLabel || '');
       state.lastVersionName = String(runtime.lastVersionName || state.lastVersionName || '');
       state.lastVersionLabel = String(runtime.lastVersionLabel || state.lastVersionLabel || '');
+      state.indicatorLogoUrl = normalizeIndicatorLogoUrl(data.payload?.indicatorLogoUrl);
       state.turnsOnModel = Number.isInteger(runtime.turnsOnModel)
         ? runtime.turnsOnModel
         : state.turnsOnModel;
+      scheduleRoutedModelIndicatorSync();
       return;
     }
 
@@ -223,6 +238,270 @@
         });
       return undefined;
     };
+  }
+
+  function installRoutedModelIndicator() {
+    ensureRoutedModelIndicatorStyle();
+
+    if (typeof MutationObserver === 'function' && typeof document !== 'undefined') {
+      const observer = new MutationObserver((records) => {
+        if (!document.getElementById(INDICATOR_STYLE_ID) || records.some(mutationTouchesModelSwitcher)) {
+          scheduleRoutedModelIndicatorSync();
+        }
+      });
+      observer.observe(document, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: ['aria-label']
+      });
+    }
+
+    scheduleRoutedModelIndicatorSync();
+  }
+
+  function ensureRoutedModelIndicatorStyle() {
+    if (typeof document === 'undefined' || document.getElementById(INDICATOR_STYLE_ID)) return;
+    const host = document.head || document.documentElement;
+    if (!host) return;
+
+    const style = document.createElement('style');
+    style.id = INDICATOR_STYLE_ID;
+    style.textContent = `
+      html[${INDICATOR_ACTIVE_ATTRIBUTE}="true"] [${NATIVE_ICON_ATTRIBUTE}="true"] {
+        display: none !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+        background-image: none !important;
+        mask-image: none !important;
+        -webkit-mask-image: none !important;
+      }
+
+      [${SWITCHER_ATTRIBUTE}="true"] {
+        position: relative !important;
+        overflow: visible !important;
+      }
+
+      [${INDICATOR_ATTRIBUTE}="true"] {
+        display: flex !important;
+        position: absolute !important;
+        inset: 0 !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 100% !important;
+        height: 100% !important;
+        pointer-events: none !important;
+        overflow: visible !important;
+        z-index: 101 !important;
+      }
+
+      [${INDICATOR_IMAGE_ATTRIBUTE}="true"] {
+        display: block !important;
+        width: 27px !important;
+        height: 27px !important;
+        border-radius: 7px !important;
+        object-fit: cover !important;
+        object-position: center !important;
+        box-shadow: 0 2px 8px rgba(232, 133, 10, .28) !important;
+      }
+
+      [${INDICATOR_LABEL_ATTRIBUTE}="true"] {
+        display: block !important;
+        position: absolute !important;
+        top: calc(100% + 7px) !important;
+        right: 0 !important;
+        max-width: min(280px, calc(100vw - 24px)) !important;
+        padding: 6px 9px !important;
+        box-sizing: border-box !important;
+        border: 1px solid rgba(255, 255, 255, .13) !important;
+        border-radius: 6px !important;
+        background: rgba(15, 14, 17, .96) !important;
+        box-shadow: 0 5px 18px rgba(0, 0, 0, .38) !important;
+        color: #f4f4f5 !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+        font-size: 11px !important;
+        font-weight: 600 !important;
+        line-height: 1.35 !important;
+        letter-spacing: 0 !important;
+        text-align: left !important;
+        text-transform: none !important;
+        white-space: nowrap !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+        transform: translateY(-2px) !important;
+        transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease !important;
+        z-index: 2147483646 !important;
+      }
+
+      [${SWITCHER_ATTRIBUTE}="true"]:hover [${INDICATOR_LABEL_ATTRIBUTE}="true"],
+      [${SWITCHER_ATTRIBUTE}="true"]:focus-visible [${INDICATOR_LABEL_ATTRIBUTE}="true"] {
+        opacity: 1 !important;
+        visibility: visible !important;
+        transform: translateY(0) !important;
+      }
+
+    `;
+    host.appendChild(style);
+  }
+
+  function scheduleRoutedModelIndicatorSync() {
+    if (indicatorSyncQueued) return;
+    indicatorSyncQueued = true;
+    queueMicrotask(() => {
+      indicatorSyncQueued = false;
+      syncRoutedModelIndicator();
+    });
+  }
+
+  function mutationTouchesModelSwitcher(record) {
+    const target = record?.target;
+    if (isModelSwitcherElement(target)
+      || target?.hasAttribute?.(SWITCHER_ATTRIBUTE)
+      || target?.closest?.(MODEL_SWITCHER_SELECTOR)) return true;
+    for (const node of record?.addedNodes || []) {
+      if (isModelSwitcherElement(node)
+        || node?.closest?.(MODEL_SWITCHER_SELECTOR)
+        || node?.querySelector?.(MODEL_SWITCHER_SELECTOR)) return true;
+    }
+    return false;
+  }
+
+  function isModelSwitcherElement(value) {
+    return Boolean(value?.matches?.(MODEL_SWITCHER_SELECTOR));
+  }
+
+  function syncRoutedModelIndicator() {
+    if (typeof document === 'undefined') return;
+    ensureRoutedModelIndicatorStyle();
+
+    const presentation = getRoutedModelPresentation();
+    const active = Boolean(state.indicatorLogoUrl && presentation && isLastRoutedModelInPool());
+    const root = document.documentElement;
+    if (active) root?.setAttribute(INDICATOR_ACTIVE_ATTRIBUTE, 'true');
+    else root?.removeAttribute(INDICATOR_ACTIVE_ATTRIBUTE);
+
+    const switchers = Array.from(document.querySelectorAll(MODEL_SWITCHER_SELECTOR));
+    const currentSwitchers = new Set(switchers);
+    for (const markedSwitcher of document.querySelectorAll(`[${SWITCHER_ATTRIBUTE}="true"]`)) {
+      if (!active || !currentSwitchers.has(markedSwitcher)) restoreModelSwitcher(markedSwitcher);
+    }
+
+    if (!active) {
+      for (const nativeIcon of document.querySelectorAll(`[${NATIVE_ICON_ATTRIBUTE}="true"]`)) {
+        nativeIcon.removeAttribute(NATIVE_ICON_ATTRIBUTE);
+      }
+      for (const indicator of document.querySelectorAll(`[${INDICATOR_ATTRIBUTE}="true"]`)) {
+        indicator.remove();
+      }
+      return;
+    }
+
+    for (const switcher of switchers) {
+      switcher.setAttribute(SWITCHER_ATTRIBUTE, 'true');
+      rememberAndClearSwitcherTitle(switcher);
+
+      const nativeIcon = findNativeModelIcon(switcher);
+      let indicator = switcher.querySelector(`[${INDICATOR_ATTRIBUTE}="true"]`);
+      if (!nativeIcon && !indicator) continue;
+      if (nativeIcon) nativeIcon.setAttribute(NATIVE_ICON_ATTRIBUTE, 'true');
+
+      if (!indicator) {
+        indicator = document.createElement('span');
+        indicator.setAttribute(INDICATOR_ATTRIBUTE, 'true');
+        indicator.setAttribute('aria-hidden', 'true');
+
+        const image = document.createElement('img');
+        image.setAttribute(INDICATOR_IMAGE_ATTRIBUTE, 'true');
+        image.setAttribute('alt', '');
+        image.setAttribute('draggable', 'false');
+        const label = document.createElement('span');
+        label.setAttribute(INDICATOR_LABEL_ATTRIBUTE, 'true');
+        indicator.append(image, label);
+        switcher.appendChild(indicator);
+      }
+
+      const image = indicator.querySelector(`[${INDICATOR_IMAGE_ATTRIBUTE}="true"]`);
+      const label = indicator.querySelector(`[${INDICATOR_LABEL_ATTRIBUTE}="true"]`);
+      if (image && image.getAttribute('src') !== state.indicatorLogoUrl) {
+        image.setAttribute('src', state.indicatorLogoUrl);
+      }
+      if (label && label.textContent !== presentation.description) label.textContent = presentation.description;
+    }
+  }
+
+  function findNativeModelIcon(switcher) {
+    const image = switcher?.querySelector?.(`img:not([${INDICATOR_IMAGE_ATTRIBUTE}])`);
+    if (image) return image;
+
+    const candidates = switcher?.querySelectorAll?.(
+      `[aria-label][style*="mask-image"], [aria-label][style*="-webkit-mask-image"]`
+    ) || [];
+    return Array.from(candidates).find((element) => {
+      if (element.closest?.(`[${INDICATOR_ATTRIBUTE}="true"]`)) return false;
+      return !/^(?:Model Switcher|Undo change|Redo change|Settings|Game settings)$/i.test(
+        cleanModelName(element.getAttribute?.('aria-label'))
+      );
+    }) || null;
+  }
+
+  function rememberAndClearSwitcherTitle(switcher) {
+    if (!switcher.hasAttribute(ORIGINAL_TITLE_PRESENT_ATTRIBUTE)) {
+      switcher.setAttribute(
+        ORIGINAL_TITLE_PRESENT_ATTRIBUTE,
+        switcher.hasAttribute('title') ? 'true' : 'false'
+      );
+      switcher.setAttribute(ORIGINAL_TITLE_ATTRIBUTE, switcher.getAttribute('title') || '');
+    }
+    switcher.removeAttribute('title');
+  }
+
+  function restoreModelSwitcher(switcher) {
+    if (!switcher?.removeAttribute) return;
+    const hadTitle = switcher.getAttribute(ORIGINAL_TITLE_PRESENT_ATTRIBUTE) === 'true';
+    const originalTitle = switcher.getAttribute(ORIGINAL_TITLE_ATTRIBUTE) || '';
+    if (hadTitle) switcher.setAttribute('title', originalTitle);
+    else switcher.removeAttribute('title');
+    switcher.removeAttribute(ORIGINAL_TITLE_ATTRIBUTE);
+    switcher.removeAttribute(ORIGINAL_TITLE_PRESENT_ATTRIBUTE);
+    switcher.removeAttribute(SWITCHER_ATTRIBUTE);
+    for (const nativeIcon of switcher.querySelectorAll?.(`[${NATIVE_ICON_ATTRIBUTE}="true"]`) || []) {
+      nativeIcon.removeAttribute(NATIVE_ICON_ATTRIBUTE);
+    }
+    for (const indicator of switcher.querySelectorAll?.(`[${INDICATOR_ATTRIBUTE}="true"]`) || []) {
+      indicator.remove();
+    }
+  }
+
+  function getRoutedModelPresentation() {
+    const model = cleanModelName(state.lastModelLabel || state.lastModelId || '');
+    const version = cleanModelName(state.lastVersionLabel || state.lastVersionName || '');
+    if (!model && !version) return null;
+    return {
+      description: `Last routed: ${readableRoutedModelLabel(model, version)}`
+    };
+  }
+
+  function normalizeIndicatorLogoUrl(value) {
+    try {
+      const url = new URL(String(value || ''));
+      return ['chrome-extension:', 'moz-extension:'].includes(url.protocol) ? url.href : '';
+    } catch {
+      return '';
+    }
+  }
+
+  function isLastRoutedModelInPool() {
+    if (!state.config?.enabled || !state.lastModelId) return false;
+    return (state.config.pool || []).some((model) =>
+      model.enabled !== false
+      && sameModel(model.modelId, state.lastModelId)
+      && sameModel(model.versionName || model.modelId, state.lastVersionName || state.lastModelId)
+    );
+  }
+
+  function readableRoutedModelLabel(model, version) {
+    const readableVersion = version && !/^v?\d+(?:\.\d+)*$/i.test(version) ? version : '';
+    return cleanModelName(readableVersion || model || version || 'Custom Dynamic');
   }
 
   function applyGraphqlSwitch(selection) {
@@ -477,6 +756,7 @@
     state.lastVersionName = cleanModelName(selection.versionName || selection.modelId);
     state.lastVersionLabel = cleanModelName(selection.versionLabel || selection.versionName || selection.modelId);
     state.turnsOnModel = clampInteger(selection.turnsOnModel, 1, 1, 1000000);
+    scheduleRoutedModelIndicatorSync();
     emitRuntime({
       kind: 'selection-state',
       modelId: state.lastModelId,

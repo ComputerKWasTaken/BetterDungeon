@@ -91,8 +91,24 @@ class CustomDynamicFeature {
       namespace: this.namespace,
       direction: 'extension-to-page',
       type: 'state',
-      payload: { config, runtime }
+      payload: {
+        config,
+        runtime,
+        indicatorLogoUrl: this.getExtensionAssetUrl('icons/better-dynamic-logo.png')
+      }
     }, window.location.origin);
+  }
+
+  getExtensionAssetUrl(path) {
+    const runtime =
+      (typeof browser !== 'undefined' && browser?.runtime) ? browser.runtime :
+      (typeof chrome !== 'undefined' && chrome?.runtime) ? chrome.runtime :
+      null;
+    try {
+      return runtime?.getURL?.(path) || '';
+    } catch {
+      return '';
+    }
   }
 
   handlePageMessage(event) {
