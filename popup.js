@@ -745,11 +745,13 @@ function initCustomDynamicSettings() {
       setCustomDynamicStatus('Refresh the AI Dungeon model list and try again.', true);
       return;
     }
-    if (customDynamicPoolContains(modelId)) {
-      setCustomDynamicStatus(`${group.modelTitle} is already in the pool.`, true);
+    const version = group.versions.find((item) =>
+      !customDynamicPoolContainsVersion(group.modelId, item.versionName)
+    );
+    if (!version) {
+      setCustomDynamicStatus(`Every version of ${group.modelTitle} is already in the pool.`, true);
       return;
     }
-    const version = group.versions[0];
     addCustomDynamicModelRow({
       enabled: true,
       modelId: group.modelId,
@@ -955,11 +957,11 @@ function collectCustomDynamicConfig() {
 function validateCustomDynamicConfig(config) {
   const seen = new Set();
   for (const model of config.pool) {
-    const key = canonicalPopupModelName(model.modelId);
+    const key = `${canonicalPopupModelName(model.modelId)}\u0000${canonicalPopupModelName(model.versionName)}`;
     if (!model.modelId) return 'Every pool row needs a model.';
-    if (seen.has(key)) return `Duplicate model: ${model.modelId}`;
-    seen.add(key);
     if (!model.versionName) return `Choose a version for ${model.label || model.modelId}.`;
+    if (seen.has(key)) return `Duplicate model version: ${model.versionLabel || model.versionName}`;
+    seen.add(key);
     if (!Number.isFinite(model.weight) || model.weight <= 0) return `Chance must be set for ${model.modelId}.`;
   }
   if (!config.pool.some((model) => model.enabled !== false)) {
@@ -1227,10 +1229,17 @@ function setCustomDynamicStatus(message, isError = false) {
   status.style.color = isError ? 'var(--error)' : '';
 }
 
-function customDynamicPoolContains(modelId) {
-  const key = canonicalPopupModelName(modelId);
-  return Array.from(document.querySelectorAll('#custom-dynamic-model-list [data-field="modelId"]'))
-    .some((field) => canonicalPopupModelName(field.dataset?.modelId || field.value || field.textContent) === key);
+function customDynamicPoolContainsVersion(modelId, versionName) {
+  const modelKey = canonicalPopupModelName(modelId);
+  const versionKey = canonicalPopupModelName(versionName);
+  return Array.from(document.querySelectorAll('#custom-dynamic-model-list .custom-dynamic-model-row'))
+    .some((row) => {
+      const modelField = row.querySelector('[data-field="modelId"]');
+      const versionField = row.querySelector('[data-field="versionName"]');
+      const rowModelId = modelField?.dataset?.modelId || modelField?.value || modelField?.textContent;
+      return canonicalPopupModelName(rowModelId) === modelKey
+        && canonicalPopupModelName(versionField?.value) === versionKey;
+    });
 }
 
 function updateCustomDynamicTurnInterval(value) {
