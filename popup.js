@@ -2887,22 +2887,64 @@ function initWhatsNew() {
   const banner = document.getElementById('whats-new-banner');
   if (!banner) return;
 
-  // Read the live version string from the header so there's one source of truth
-  const currentVersion = document.querySelector('.header-version')?.textContent?.trim() || '';
-
-  // Update the banner title to include the version
+  const manifestVersion = chrome.runtime.getManifest().version;
+  const displayVersion = `v${manifestVersion}`;
+  const versionEl = document.getElementById('app-version');
   const titleEl = document.getElementById('whats-new-title');
-  if (titleEl && currentVersion) {
-    titleEl.textContent = `What's New in ${currentVersion}`;
-  }
-
-  // Expand/collapse toggle for compact What's New
   const toggleBtn = document.getElementById('whats-new-toggle');
   const expandable = document.getElementById('whats-new-expandable');
+  const versionTabs = [...banner.querySelectorAll('[data-whats-new-version]')];
+  const releasePanels = [...banner.querySelectorAll('[data-whats-new-panel]')];
+  const storageKey = `bd_whats_new_expanded_${manifestVersion}`;
+
+  if (versionEl) versionEl.textContent = displayVersion;
+  if (titleEl) titleEl.textContent = `What's New in ${displayVersion}`;
+
+  const setExpanded = (isExpanded) => {
+    toggleBtn?.setAttribute('aria-expanded', String(isExpanded));
+    expandable?.setAttribute('aria-hidden', String(!isExpanded));
+    expandable?.classList.toggle('expanded', isExpanded);
+  };
+
+  const selectRelease = (version, shouldFocus = false) => {
+    versionTabs.forEach((tab) => {
+      const isSelected = tab.dataset.whatsNewVersion === version;
+      tab.classList.toggle('active', isSelected);
+      tab.setAttribute('aria-selected', String(isSelected));
+      tab.tabIndex = isSelected ? 0 : -1;
+      if (isSelected && shouldFocus) tab.focus();
+    });
+
+    releasePanels.forEach((panel) => {
+      panel.hidden = panel.dataset.whatsNewPanel !== version;
+    });
+
+    if (expandable) expandable.scrollTop = 0;
+  };
+
+  chrome.storage.local.get(storageKey, (result) => {
+    if (chrome.runtime.lastError) return;
+    setExpanded(result?.[storageKey] === true);
+  });
+
   toggleBtn?.addEventListener('click', () => {
-    const isExpanded = expandable.classList.toggle('expanded');
-    toggleBtn.classList.toggle('expanded', isExpanded);
-    toggleBtn.setAttribute('aria-label', isExpanded ? 'Collapse' : 'Expand');
+    const isExpanded = toggleBtn.getAttribute('aria-expanded') !== 'true';
+    setExpanded(isExpanded);
+    chrome.storage.local.set({ [storageKey]: isExpanded });
+  });
+
+  versionTabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => selectRelease(tab.dataset.whatsNewVersion));
+    tab.addEventListener('keydown', (event) => {
+      let nextIndex = null;
+      if (event.key === 'ArrowRight') nextIndex = (index + 1) % versionTabs.length;
+      if (event.key === 'ArrowLeft') nextIndex = (index - 1 + versionTabs.length) % versionTabs.length;
+      if (event.key === 'Home') nextIndex = 0;
+      if (event.key === 'End') nextIndex = versionTabs.length - 1;
+      if (nextIndex === null) return;
+      event.preventDefault();
+      selectRelease(versionTabs[nextIndex].dataset.whatsNewVersion, true);
+    });
   });
 }
 

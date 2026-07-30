@@ -3229,7 +3229,20 @@ kbd.hotkey-unbound {
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
   padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.whats-new-compact:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
 }
 
 .whats-new-compact-left {
@@ -3276,29 +3289,22 @@ kbd.hotkey-unbound {
   flex-shrink: 0;
 }
 
-.whats-new-toggle {
-  width: 22px;
-  height: 22px;
+.whats-new-chevron {
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
-  border: 1px solid transparent;
   color: var(--text-muted);
-  cursor: pointer;
-  border-radius: var(--radius-sm);
   font-size: 12px;
-  transition: all var(--transition-fast);
-  padding: 0;
+  transition: color var(--transition-fast), transform var(--transition-normal);
 }
 
-.whats-new-toggle:hover {
+.whats-new-compact:hover .whats-new-chevron {
   color: var(--text-primary);
-  background: var(--bg-elevated);
-  border-color: var(--border);
 }
 
-.whats-new-toggle.expanded {
+.whats-new-compact[aria-expanded="true"] .whats-new-chevron {
   transform: rotate(180deg);
 }
 
@@ -3310,36 +3316,131 @@ kbd.hotkey-unbound {
 }
 
 .whats-new-expandable.expanded {
-  max-height: 350px;
-  padding-top: 8px;
+  max-height: 400px;
+  padding-top: 10px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-hover) transparent;
 }
 
-.whats-new-list {
+.whats-new-expandable.expanded::-webkit-scrollbar {
+  width: 6px;
+}
+
+.whats-new-expandable.expanded::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.whats-new-expandable.expanded::-webkit-scrollbar-thumb {
+  border-radius: var(--radius-full);
+  background: var(--border-hover);
+}
+
+.whats-new-version-tabs {
+  display: flex;
+  gap: 5px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--border);
+}
+
+.whats-new-version-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 25px;
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.whats-new-version-tab:hover {
+  color: var(--text-primary);
+  border-color: var(--border-hover);
+  background: var(--bg-elevated);
+}
+
+.whats-new-version-tab.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-muted);
+}
+
+.whats-new-version-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.whats-new-version-tab span {
+  padding: 1px 5px;
+  border-radius: var(--radius-full);
+  background: var(--accent-muted);
+  font-size: 8px;
+  letter-spacing: 0.25px;
+  text-transform: uppercase;
+}
+
+.whats-new-release-panels {
+  min-height: 112px;
+}
+
+.whats-new-release {
+  padding-top: 9px;
+}
+
+.whats-new-archive-list {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.whats-new-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 5px 4px;
-  font-size: 11px;
+.whats-new-archive-item {
+  display: grid;
+  grid-template-columns: 15px 1fr;
+  gap: 7px;
+  padding: 6px 3px;
+  border-bottom: 1px solid var(--border);
   color: var(--text-secondary);
+  font-size: 10.5px;
   line-height: 1.4;
-  border-radius: var(--radius-sm);
 }
 
-.whats-new-item strong {
+.whats-new-archive-item:last-child {
+  border-bottom: 0;
+}
+
+.whats-new-archive-item strong {
   color: var(--text-primary);
 }
 
+.whats-new-sublist {
+  display: grid;
+  gap: 5px;
+  margin: 7px 0 0;
+  padding-left: 16px;
+}
+
+.whats-new-sublist li {
+  padding-left: 1px;
+}
+
+.whats-new-sublist li::marker {
+  color: var(--accent);
+}
+
+.whats-new-archive-item a {
+  color: var(--accent);
+}
+
 .whats-new-item-icon {
-  font-size: 11px;
-  flex-shrink: 0;
   width: 14px;
+  margin-top: 2px;
   text-align: center;
-  margin-top: 1px;
+  font-size: 10px;
 }

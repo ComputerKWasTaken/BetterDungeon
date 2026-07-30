@@ -15,7 +15,7 @@
       <img src="icons/icon48.png" alt="" class="header-logo">
       <div class="header-title">
         <span class="header-name">BetterDungeon</span>
-        <span class="header-version">v2.0.0 <span class="header-badge pc">PC</span></span>
+        <span class="header-version"><span id="app-version">v2.0.2</span> <span class="header-badge pc">PC</span></span>
       </div>
     </div>
     <div class="header-actions">
@@ -53,109 +53,142 @@
     <!-- Features Tab -->
     <section class="tab-panel active" id="tab-features">
 
-      <!-- What's New Section (Compact) -->
+      <!-- What's New Section -->
       <div class="section whats-new-section" id="whats-new-banner">
-        <div class="whats-new-compact" id="whats-new-compact">
-          <div class="whats-new-compact-left">
+        <button class="whats-new-compact" id="whats-new-toggle" type="button" aria-expanded="false" aria-controls="whats-new-expandable">
+          <span class="whats-new-compact-left">
             <span class="whats-new-compact-icon icon-sparkles"></span>
-            <div class="whats-new-compact-text">
+            <span class="whats-new-compact-text">
               <strong id="whats-new-title">What's New</strong>
-              <span class="whats-new-compact-summary">Android version now available, bug fixes &amp; more</span>
-            </div>
-          </div>
-          <div class="whats-new-compact-right">
+              <span class="whats-new-compact-summary">Revamped Custom Dynamic &middot; Release history</span>
+            </span>
+          </span>
+          <span class="whats-new-compact-right">
             <span class="whats-new-badge">Latest</span>
-            <button class="whats-new-toggle" id="whats-new-toggle" aria-label="Expand">
-              <span class="icon-chevron-down"></span>
+            <span class="whats-new-chevron icon-chevron-down" aria-hidden="true"></span>
+          </span>
+        </button>
+        <div class="whats-new-expandable" id="whats-new-expandable" aria-hidden="true">
+          <div class="whats-new-version-tabs" role="tablist" aria-label="Release notes versions">
+            <button class="whats-new-version-tab active" id="whats-new-tab-202" type="button" role="tab" aria-selected="true" aria-controls="whats-new-release-202" data-whats-new-version="2.0.2">
+              v2.0.2 <span>Current</span>
+            </button>
+            <button class="whats-new-version-tab" id="whats-new-tab-200" type="button" role="tab" aria-selected="false" aria-controls="whats-new-release-200" data-whats-new-version="2.0.0" tabindex="-1">
+              v2.0.0
             </button>
           </div>
-        </div>
-        <div class="whats-new-expandable" id="whats-new-expandable">
-          <div class="whats-new-list">
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-radio-tower" style="color: #a855f7;"></span>
-              <div><strong>Ultrascripts</strong>: My new two-way communication system between AI Dungeon scripts and BetterDungeon, giving scripts SUPERPOWERS, like calling AI models or rendering UI widgets. The natural replacement to BetterScripts, Ultrascripts no longer requires DOM manipulation, uses up story context, or requires the script creator to manually disable their systems when BetterScripts isn't available. It's smarter, more capable, and the future of scripting.</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-coffee" style="color: #f97316;"></span>
-              <div><strong>Ko-fi Page</strong>: I've launched a Ko-fi page for BetterDungeon, BetterRepository, and my other projects! Supporting is completely optional, but if you enjoy what I make and want to help me keep building, you can <a href="https://ko-fi.com/computerk" target="_blank" rel="noopener noreferrer">check it out here</a>. Every bit of support is greatly appreciated.</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-smartphone" style="color: #22c55e;"></span>
-              <div><strong>Android Port</strong>: BetterDungeon is now available on Android devices! Simply head to the Github releases tab or the pins in the thread to download the APK.</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-globe-lock" style="color: #3b82f6;"></span>
-              <div><strong>Firefox Port</strong>: BetterDungeon has been officially released on to the Firefox Browser Add-ons Store! No more reinstalling it as a temporary extension, it's here to stay.</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-route" style="color: #fbbf24;"></span>
-              <div><strong>Custom Dynamic</strong>: Your very own, customizable version of the Dynamic models is here! Choose from any available model, configure your pool, and have fun. Directly inspired by the great work of Zoocata's PRISM browser extension.</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-volume-2" style="color: #ec4899;"></span>
-              <div><strong>Text to Speech</strong>: Your story, narrated like an audio book. Select a voice, configure the settings, and enjoy listening to your story as you play. Will likely be seeing improvements in the future.</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-palette" style="color: #06b6d4;"></span>
-              <div><strong>Revamped UI</strong>: A redesigned UI for all features and the popup menus, looking sleeker and less smelly. It's also got reduced clutter and is easier to navigate.</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-pilcrow" style="color: #a855f7;"></span>
-              <div><strong>Revamped Markdown</strong>: Markdown has been revamped from the ground up to be more intelligent, easier to use, and have less refusals. High quality story formatting without any compromises, with 6 new instructions sets and a rewritten backend to maximize usage.</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-user" style="color: #3b82f6;"></span>
-              <div><strong>Revamped Character Presets</strong>: Rebuilt from the ground up and powered by my AI module from Ultrascripts, Character Presets takes away the burden of having to answer 47 scenario prefill questions, by leveraging the power of AI to intelligently answer the questions proposed.</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-eye" style="color: #6366f1;"></span>
-              <div><strong>Revamped Auto See</strong>: Using a reworked GQL backend, Auto See has been improved to be less fragile and disruptive, feeling much more natural and preventing blockages. Will likely be seeing improvements in the future.</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-activity" style="color: #14b8a6;"></span>
-              <div><strong>Revamped Story Card Scanner</strong>: Using the magic of GQL, the Story Card Scanner is now instant, non-disruptive, and more intelligent. Less fragile and capable of handling even scenarios upwards of many hundreds of story cards. A massive plus for anybody designing scenarios.</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-sparkle" style="color: #eab308;"></span>
-              <div><strong>Revamped Trigger Highlighting</strong>: Thanks to the revamped Story Card Scanner, trigger highlighting is now instant and enabled in all scenarios.</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-chart-bar" style="color: #ef4444;"></span>
-              <div><strong>Revamped Story Card Analytics</strong>: Another improvement due to the revamped Story Card Scanner, the Story Card Analytics is instant and improved. Underrated feature that's now even better.</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-book-open-text" style="color: #8b5cf6;"></span>
-              <div><strong>Ultrascripts Widget Module</strong>: Originally what BetterScripts was, Widget is now one piece of the many capabilities of Ultrascripts. Now featuring interactive widgets for elements like interactable buttons, better sizing, mobile support, and the ability to collapse widgets.</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-globe-lock" style="color: #3b82f6;"></span>
-              <div><strong>Ultrascripts WebFetch Module</strong>: Allows scripts powered by Ultrascripts to send GET requests, and basic search. Allowed domains operated by the users of the script. Will likely be seeing improvements in the future.</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-clock" style="color: #eab308;"></span>
-              <div><strong>Ultrascripts Clock Module</strong>: Clock gives scripts the user's current local time, IANA time-zone conversion, ISO timestamps, offsets, and deterministic formatted dates, for real time grounding. Imagine an AI Dungeon scenario, synced to your real time in the world.</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-layers" style="color: #f97316;"></span>
-              <div><strong>Ultrascripts SDK Module</strong>: The SDK module allows scripts to get toggle and configuration info about BetterDungeon, excluding secrets. Enables scripts to intelligently alter their behavior depending on what features are available.</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-bot-message-square" style="color: #6366f1;"></span>
-              <div><strong>Ultrascripts AI Module</strong>: The magnum opus of Ultrascripts, the AI module allows scripts to asynchronously query the Gemini API. No need to hijack the story or embed zero-width encoded messages, like AC or IS. The AI module also powers the revamped Character Presets feature. Highly recommend you all check this out, it is incredibly cool.</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-cloud-sun" style="color: #06b6d4;"></span>
-              <div><strong>Ultrascripts Weather Module</strong>: Allows scripts to get the real life weather data for locations, without the need for web scraping. Enables AI Dungeon scripts to be synced with real weather conditions.</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-wifi" style="color: #22c55e;"></span>
-              <div><strong>Ultrascripts Network Module</strong>: Allows scripts to request online status and network quality information. Not sure what this might be used for but it's here if scripters want it.</div>
-            </div>
-            <div class="whats-new-item">
-              <span class="whats-new-item-icon icon-cpu" style="color: #f97316;"></span>
-              <div><strong>Ultrascripts System Module</strong>: Enables scripts to get info such as device class, platform family, locale, screen size, touch support, browser family, and battery state, to enable scripts to alter its behavior depending on the system/device the user is on.</div>
-            </div>
+
+          <div class="whats-new-release-panels">
+            <section class="whats-new-release" id="whats-new-release-202" role="tabpanel" aria-labelledby="whats-new-tab-202" data-whats-new-panel="2.0.2">
+              <div class="whats-new-archive-list">
+                <div class="whats-new-archive-item whats-new-archive-item-group">
+                  <span class="whats-new-item-icon icon-route" style="color: #a855f7;"></span>
+                  <div>
+                    <div><strong>Revamped Custom Dynamic</strong>: The fan-favorite feature Custom Dynamic has received some excellent additions with v2.0.2.</div>
+                    <ul class="whats-new-sublist">
+                      <li><strong>Latest Models</strong>: Custom Dynamic has been updated to support the latest AI Dungeon models.</li>
+                      <li><strong>Model Versions</strong>: You can now switch between different model versions in the pool rather than using the last used model version.</li>
+                      <li><strong>Switch Frequency</strong>: You can now configure how long it will take before Custom Dynamic causes a model switch, between 1–20 turns.</li>
+                      <li><strong>Simplification</strong>: Some redundant or unnecessary options were removed for ease of use and clarity, including model switch mechanism and continue if failed.</li>
+                      <li><strong>Enabled Icon</strong>: Custom Dynamic now replaces the current model icon with a Custom Dynamic model icon to indicate that the feature is enabled.</li>
+                    </ul>
+                  </div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-history" style="color: #06b6d4;"></span>
+                  <div><strong>Release History</strong>: What's New now keeps previous release notes available through a version switcher.</div>
+                </div>
+              </div>
+            </section>
+
+            <section class="whats-new-release whats-new-release-archive" id="whats-new-release-200" role="tabpanel" aria-labelledby="whats-new-tab-200" data-whats-new-panel="2.0.0" hidden>
+              <div class="whats-new-archive-list">
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-radio-tower" style="color: #a855f7;"></span>
+                  <div><strong>Ultrascripts</strong>: My new two-way communication system between AI Dungeon scripts and BetterDungeon, giving scripts SUPERPOWERS, like calling AI models or rendering UI widgets. The natural replacement to BetterScripts, Ultrascripts no longer requires DOM manipulation, uses up story context, or requires the script creator to manually disable their systems when BetterScripts isn't available. It's smarter, more capable, and the future of scripting.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-coffee" style="color: #f97316;"></span>
+                  <div><strong>Ko-fi Page</strong>: I've launched a Ko-fi page for BetterDungeon, BetterRepository, and my other projects! Supporting is completely optional, but if you enjoy what I make and want to help me keep building, you can <a href="https://ko-fi.com/computerk" target="_blank" rel="noopener noreferrer">check it out here</a>. Every bit of support is greatly appreciated.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-smartphone" style="color: #22c55e;"></span>
+                  <div><strong>Android Port</strong>: BetterDungeon is now available on Android devices! Simply head to the Github releases tab or the pins in the thread to download the APK.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-globe-lock" style="color: #3b82f6;"></span>
+                  <div><strong>Firefox Port</strong>: BetterDungeon has been officially released on to the Firefox Browser Add-ons Store! No more reinstalling it as a temporary extension, it's here to stay.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-route" style="color: #fbbf24;"></span>
+                  <div><strong>Custom Dynamic</strong>: Your very own, customizable version of the Dynamic models is here! Choose from any available model, configure your pool, and have fun. Directly inspired by the great work of Zoocata's PRISM browser extension.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-volume-2" style="color: #ec4899;"></span>
+                  <div><strong>Text to Speech</strong>: Your story, narrated like an audio book. Select a voice, configure the settings, and enjoy listening to your story as you play. Will likely be seeing improvements in the future.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-palette" style="color: #06b6d4;"></span>
+                  <div><strong>Revamped UI</strong>: A redesigned UI for all features and the popup menus, looking sleeker and less smelly. It's also got reduced clutter and is easier to navigate.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-pilcrow" style="color: #a855f7;"></span>
+                  <div><strong>Revamped Markdown</strong>: Markdown has been revamped from the ground up to be more intelligent, easier to use, and have less refusals. High quality story formatting without any compromises, with 6 new instructions sets and a rewritten backend to maximize usage.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-user" style="color: #3b82f6;"></span>
+                  <div><strong>Revamped Character Presets</strong>: Rebuilt from the ground up and powered by my AI module from Ultrascripts, Character Presets takes away the burden of having to answer 47 scenario prefill questions, by leveraging the power of AI to intelligently answer the questions proposed.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-eye" style="color: #6366f1;"></span>
+                  <div><strong>Revamped Auto See</strong>: Using a reworked GQL backend, Auto See has been improved to be less fragile and disruptive, feeling much more natural and preventing blockages. Will likely be seeing improvements in the future.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-activity" style="color: #14b8a6;"></span>
+                  <div><strong>Revamped Story Card Scanner</strong>: Using the magic of GQL, the Story Card Scanner is now instant, non-disruptive, and more intelligent. Less fragile and capable of handling even scenarios upwards of many hundreds of story cards. A massive plus for anybody designing scenarios.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-sparkle" style="color: #eab308;"></span>
+                  <div><strong>Revamped Trigger Highlighting</strong>: Thanks to the revamped Story Card Scanner, trigger highlighting is now instant and enabled in all scenarios.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-chart-bar" style="color: #ef4444;"></span>
+                  <div><strong>Revamped Story Card Analytics</strong>: Another improvement due to the revamped Story Card Scanner, the Story Card Analytics is instant and improved. Underrated feature that's now even better.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-book-open-text" style="color: #8b5cf6;"></span>
+                  <div><strong>Ultrascripts Widget Module</strong>: Originally what BetterScripts was, Widget is now one piece of the many capabilities of Ultrascripts. Now featuring interactive widgets for elements like interactable buttons, better sizing, mobile support, and the ability to collapse widgets.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-globe-lock" style="color: #3b82f6;"></span>
+                  <div><strong>Ultrascripts WebFetch Module</strong>: Allows scripts powered by Ultrascripts to send GET requests, and basic search. Allowed domains operated by the users of the script. Will likely be seeing improvements in the future.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-clock" style="color: #eab308;"></span>
+                  <div><strong>Ultrascripts Clock Module</strong>: Clock gives scripts the user's current local time, IANA time-zone conversion, ISO timestamps, offsets, and deterministic formatted dates, for real time grounding. Imagine an AI Dungeon scenario, synced to your real time in the world.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-layers" style="color: #f97316;"></span>
+                  <div><strong>Ultrascripts SDK Module</strong>: The SDK module allows scripts to get toggle and configuration info about BetterDungeon, excluding secrets. Enables scripts to intelligently alter their behavior depending on what features are available.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-bot-message-square" style="color: #6366f1;"></span>
+                  <div><strong>Ultrascripts AI Module</strong>: The magnum opus of Ultrascripts, the AI module allows scripts to asynchronously query the Gemini API. No need to hijack the story or embed zero-width encoded messages, like AC or IS. The AI module also powers the revamped Character Presets feature. Highly recommend you all check this out, it is incredibly cool.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-cloud-sun" style="color: #06b6d4;"></span>
+                  <div><strong>Ultrascripts Weather Module</strong>: Allows scripts to get the real life weather data for locations, without the need for web scraping. Enables AI Dungeon scripts to be synced with real weather conditions.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-wifi" style="color: #22c55e;"></span>
+                  <div><strong>Ultrascripts Network Module</strong>: Allows scripts to request online status and network quality information. Not sure what this might be used for but it's here if scripters want it.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-cpu" style="color: #f97316;"></span>
+                  <div><strong>Ultrascripts System Module</strong>: Enables scripts to get info such as device class, platform family, locale, screen size, touch support, browser family, and battery state, to enable scripts to alter its behavior depending on the system/device the user is on.</div>
+                </div>
+              </div>
+            </section>
           </div>
         </div>
       </div>
