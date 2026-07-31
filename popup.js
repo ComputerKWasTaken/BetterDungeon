@@ -21,6 +21,7 @@ const STORAGE_KEYS = {
   markdownInstructionPreset: 'betterDungeon_markdownInstructionPreset',
   ultrascriptsDebug: 'ultrascripts_debug',
   ultrascriptsModules: 'ultrascripts_enabled_modules',
+  ultrascriptsAudioSettings: 'ultrascripts_audio_settings',
   webfetchAllowlist: 'ultrascripts_webfetch_allowlist',
   customHotkeys: 'betterDungeon_customHotkeys',
   customModeColors: 'betterDungeon_customModeColors',
@@ -100,8 +101,15 @@ const ULTRASCRIPTS_PUBLIC_MODULES = [
   'weather',
   'network',
   'system',
-  'ai'
+  'ai',
+  'audio'
 ];
+
+const DEFAULT_AUDIO_MODULE_SETTINGS = {
+  muted: false,
+  masterVolume: 0.7,
+  buses: { music: 0.8, ambience: 0.8, sfx: 0.9, stinger: 0.9 }
+};
 
 const DEFAULT_SETTINGS = {
   tryCriticalChance: 5
@@ -305,6 +313,7 @@ function initUltrascriptsSettings() {
   loadUltrascriptsModuleToggles();
   loadWebFetchConsentList();
   initGeminiSettings();
+  initAudioModuleSettings();
   refreshUltrascriptsState();
 
   document.querySelectorAll('[data-ultrascripts-module-toggle]').forEach(toggle => {
@@ -462,6 +471,74 @@ async function testGeminiSettings() {
   } catch (err) {
     await loadGeminiSettings();
     showToast(err?.message || 'Gemini test failed', 'error');
+  }
+}
+
+function normalizeAudioModuleSettings(saved) {
+  const raw = saved && typeof saved === 'object' ? saved : {};
+  const rawBuses = raw.buses && typeof raw.buses === 'object' ? raw.buses : {};
+  const settings = {
+    muted: !!raw.muted,
+    masterVolume: clampNumber(raw.masterVolume, 0, 1, DEFAULT_AUDIO_MODULE_SETTINGS.masterVolume),
+    buses: {}
+  };
+  for (const bus of Object.keys(DEFAULT_AUDIO_MODULE_SETTINGS.buses)) {
+    settings.buses[bus] = clampNumber(rawBuses[bus], 0, 1, DEFAULT_AUDIO_MODULE_SETTINGS.buses[bus]);
+  }
+  return settings;
+}
+
+function initAudioModuleSettings() {
+  const controls = {
+    muted: document.getElementById('audio-muted'),
+    master: document.getElementById('audio-master-volume'),
+    buses: {}
+  };
+  for (const bus of Object.keys(DEFAULT_AUDIO_MODULE_SETTINGS.buses)) {
+    controls.buses[bus] = document.getElementById(`audio-bus-${bus}`);
+  }
+
+  let settings = normalizeAudioModuleSettings(null);
+
+  function updateDisplay() {
+    if (controls.muted) controls.muted.checked = settings.muted;
+    if (controls.master) {
+      controls.master.value = settings.masterVolume;
+      const label = document.getElementById('audio-master-volume-value');
+      if (label) label.textContent = `${Math.round(settings.masterVolume * 100)}%`;
+    }
+    for (const [bus, slider] of Object.entries(controls.buses)) {
+      if (!slider) continue;
+      slider.value = settings.buses[bus];
+      const label = document.getElementById(`audio-bus-${bus}-value`);
+      if (label) label.textContent = `${Math.round(settings.buses[bus] * 100)}%`;
+    }
+  }
+
+  function save() {
+    settings = normalizeAudioModuleSettings(settings);
+    chrome.storage.sync.set({ [STORAGE_KEYS.ultrascriptsAudioSettings]: settings });
+    updateDisplay();
+  }
+
+  chrome.storage.sync.get(STORAGE_KEYS.ultrascriptsAudioSettings, (result) => {
+    settings = normalizeAudioModuleSettings((result || {})[STORAGE_KEYS.ultrascriptsAudioSettings]);
+    updateDisplay();
+  });
+
+  controls.muted?.addEventListener('change', () => {
+    settings.muted = controls.muted.checked;
+    save();
+  });
+  controls.master?.addEventListener('input', () => {
+    settings.masterVolume = clampNumber(controls.master.value, 0, 1, DEFAULT_AUDIO_MODULE_SETTINGS.masterVolume);
+    save();
+  });
+  for (const [bus, slider] of Object.entries(controls.buses)) {
+    slider?.addEventListener('input', () => {
+      settings.buses[bus] = clampNumber(slider.value, 0, 1, DEFAULT_AUDIO_MODULE_SETTINGS.buses[bus]);
+      save();
+    });
   }
 }
 

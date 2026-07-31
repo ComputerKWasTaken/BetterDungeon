@@ -43,6 +43,12 @@ code - anything here is for verifying behavior, not for shipping.
     `forecast` ops with coordinate/place lookups, unit systems, and error
     validation.
 
+  - **`aid-scripts/audio-module/`** - End-to-end suite for the Ultrascripts
+    Audio module (`modules/audio/module.js`). Writes declarative
+    `ultrascripts:state:audio` payloads and verifies via the `state` op that
+    music, ambience, one-shot seq priming/advancement, unknown-cue cascade,
+    and state clearing behave.
+
   - **`aid-scripts/webfetch-module/`** - End-to-end suite for the Ultrascripts
     WebFetch module (`modules/webfetch/module.js`). Exercises `fetch` and
     `search` ops with consent-aware validation, SSRF protection checks, and

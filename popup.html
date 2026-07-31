@@ -937,6 +937,76 @@
                 <p class="feature-hint"><span class="icon-layers"></span> Useful when a script needs to react to how the player has BetterDungeon configured while leaving heartbeat as the one module/ops truth.</p>
               </div>
             </article>
+
+            <article class="feature-card ultrascripts-module-card" data-ultrascripts-module-card="audio">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-mode-do);">
+                      <span class="icon-volume-2"></span>
+                    </span>
+                    <h3 class="feature-title">Audio</h3>
+                  </div>
+                  <p class="feature-desc">Script-driven music, ambience, and sound effects</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-ultrascripts-module-toggle="audio" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>Audio lets adventure scripts declare a soundscape — a music bed, looping ambience, and one-shot effects — that BetterDungeon synthesizes locally. Scripts choose moods from a fixed cue vocabulary; volume always stays under your control.</p>
+                <p class="feature-hint"><span class="icon-volume-2"></span> Browsers require one click or keypress on the page before sound can start.</p>
+
+                <div class="feature-option-inline">
+                  <span class="option-label-inline">Mute all</span>
+                  <label class="toggle sm">
+                    <input type="checkbox" id="audio-muted">
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+
+                <div class="feature-option-inline">
+                  <span class="option-label-inline">Master</span>
+                  <div class="interval-control">
+                    <input type="range" class="slider slider-sm" id="audio-master-volume" min="0" max="1" step="0.01" value="0.70">
+                    <span class="interval-value" id="audio-master-volume-value">70%</span>
+                  </div>
+                </div>
+
+                <div class="feature-option-inline">
+                  <span class="option-label-inline">Music</span>
+                  <div class="interval-control">
+                    <input type="range" class="slider slider-sm" id="audio-bus-music" min="0" max="1" step="0.01" value="0.80">
+                    <span class="interval-value" id="audio-bus-music-value">80%</span>
+                  </div>
+                </div>
+
+                <div class="feature-option-inline">
+                  <span class="option-label-inline">Ambience</span>
+                  <div class="interval-control">
+                    <input type="range" class="slider slider-sm" id="audio-bus-ambience" min="0" max="1" step="0.01" value="0.80">
+                    <span class="interval-value" id="audio-bus-ambience-value">80%</span>
+                  </div>
+                </div>
+
+                <div class="feature-option-inline">
+                  <span class="option-label-inline">Effects</span>
+                  <div class="interval-control">
+                    <input type="range" class="slider slider-sm" id="audio-bus-sfx" min="0" max="1" step="0.01" value="0.90">
+                    <span class="interval-value" id="audio-bus-sfx-value">90%</span>
+                  </div>
+                </div>
+
+                <div class="feature-option-inline">
+                  <span class="option-label-inline">Stingers</span>
+                  <div class="interval-control">
+                    <input type="range" class="slider slider-sm" id="audio-bus-stinger" min="0" max="1" step="0.01" value="0.90">
+                    <span class="interval-value" id="audio-bus-stinger-value">90%</span>
+                  </div>
+                </div>
+              </div>
+            </article>
           </div>
         </div>
       </div>
