@@ -47,6 +47,7 @@
     heartbeatQueuedAfterHydration: false,
     heartbeatForceAfterHydration: false,
     heartbeatCardId: null,
+    heartbeatBeat: 0,
     cardsHydrated: false,
     aiService: null,       // AIDungeonService instance, injected by main.js
     debugEnabled: false,   // gated by ultrascripts_debug in chrome.storage.sync
@@ -233,6 +234,7 @@
     state.heartbeatQueuedAfterHydration = false;
     state.heartbeatForceAfterHydration = false;
     state.heartbeatCardId = null;
+    state.heartbeatBeat = 0;
 
     if (prevId) emit('adventure:leave', { adventureId: prevId });
     if (id) {
@@ -272,6 +274,20 @@
     }
   }
 
+  function heartbeatBeat(card) {
+    if (!card || typeof card.value !== 'string') return 0;
+    try {
+      const beat = Number(JSON.parse(card.value)?.ultrascripts?.beat);
+      return Number.isSafeInteger(beat) && beat >= 0 ? beat : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  function clientPlatform() {
+    return typeof window.BetterDungeonBridge !== 'undefined' ? 'Mobile' : 'PC';
+  }
+
   function heartbeatScore(card) {
     let score = 0;
     if (card?.type === 'Ultrascripts') score += 1000;
@@ -281,7 +297,6 @@
         if (parsed?.ultrascripts?.protocol === PROTOCOL_VERSION) score += 1000;
         if (parsed?.ultrascripts?.client === 'BetterDungeon') score += 500;
         if (parsed?.ultrascripts?.archived) score -= 1000000;
-        if (Array.isArray(parsed?.modules)) score += parsed.modules.length * 10000;
       } catch { /* not a heartbeat-shaped value */ }
     }
     return score;
@@ -292,6 +307,8 @@
     const ranked = [...cards].sort((a, b) => {
       const scoreDiff = heartbeatScore(b) - heartbeatScore(a);
       if (scoreDiff) return scoreDiff;
+      const beatDiff = heartbeatBeat(b) - heartbeatBeat(a);
+      if (beatDiff) return beatDiff;
       const timeDiff = heartbeatWrittenAt(b) - heartbeatWrittenAt(a);
       if (timeDiff) return timeDiff;
       return String(a?.id || '').localeCompare(String(b?.id || ''));
@@ -320,6 +337,15 @@
   function deferHeartbeatUntilCards(force) {
     state.heartbeatQueuedAfterHydration = true;
     state.heartbeatForceAfterHydration = state.heartbeatForceAfterHydration || !!force;
+  }
+
+  function nextHeartbeatBeat(cards) {
+    let latest = Number.isSafeInteger(state.heartbeatBeat) ? state.heartbeatBeat : 0;
+    for (const card of Array.isArray(cards) ? cards : []) {
+      latest = Math.max(latest, heartbeatBeat(card));
+    }
+    state.heartbeatBeat = latest + 1;
+    return state.heartbeatBeat;
   }
 
   function makeArchivedHeartbeatValue(card, canonicalId) {
@@ -359,10 +385,10 @@
     }
   }
 
-  function scheduleHeartbeat() {
+  function scheduleHeartbeat(delayMs = HEARTBEAT_DELAY_MS) {
     if (!state.enabled) return;
     if (state.heartbeatTimer) clearTimeout(state.heartbeatTimer);
-    state.heartbeatTimer = setTimeout(runHeartbeat, HEARTBEAT_DELAY_MS);
+    state.heartbeatTimer = setTimeout(runHeartbeat, Math.max(0, Number(delayMs) || 0));
   }
 
   async function runHeartbeat(force = false) {
@@ -391,13 +417,16 @@
     const registry = getRegistry();
     const modulesList = registry ? registry.list() : [];
     const heartbeatPlan = refreshHeartbeatCardIndex();
+    const beat = nextHeartbeatBeat(heartbeatPlan.cards);
 
     const heartbeat = {
       ultrascripts: {
         protocol: PROTOCOL_VERSION,
         enabled: state.enabled,
         client: 'BetterDungeon',
+        platform: clientPlatform(),
         clientVersion: (chrome?.runtime?.getManifest?.() || {}).version || 'unknown',
+        beat,
       },
       turn: state.liveCount,
       modules: modulesList
@@ -489,6 +518,10 @@
 
     document.addEventListener('ultrascripts:actions:change', (e) => {
       emit('actions:change', e.detail);
+      // A heartbeat is a liveness signal, not merely a live-count snapshot.
+      // Retry and other action mutations can leave liveCount unchanged, so
+      // refresh after every observed action update as well.
+      if (state.adventureId) scheduleHeartbeat(0);
     });
 
     document.addEventListener('ultrascripts:tail:change', (e) => {
@@ -503,7 +536,7 @@
       dispatchLiveCountRefresh();
       // Keep heartbeat turn metadata aligned with the current live count so
       // SDK/runtime consumers can treat freshness as meaningful during play.
-      if (state.adventureId) scheduleHeartbeat();
+      if (state.adventureId) scheduleHeartbeat(0);
     });
 
     // --- Base Credentials events ---
@@ -699,7 +732,13 @@
       heartbeatPending: state.heartbeatPending,
       heartbeatQueuedAfterHydration: state.heartbeatQueuedAfterHydration,
       heartbeatCardId: state.heartbeatCardId,
-      heartbeatCards: getHeartbeatCards().map(card => ({ id: card.id, type: card.type, writtenAt: heartbeatWrittenAt(card) || null })),
+      heartbeatBeat: state.heartbeatBeat,
+      heartbeatCards: getHeartbeatCards().map(card => ({
+        id: card.id,
+        type: card.type,
+        beat: heartbeatBeat(card),
+        writtenAt: heartbeatWrittenAt(card) || null,
+      })),
       debugEnabled: state.debugEnabled,
       stateCacheKeys: [...state.stateCache.keys()],
       listeners: [...listeners.keys()].map(k => ({ event: k, count: listeners.get(k).size })),

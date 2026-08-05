@@ -14,7 +14,7 @@ Use this template when a script should not pretend to work in plain AI
 Dungeon. It gives new required scripts a stable foundation:
 
 - a `bd.us` helper surface that matches the public Ultrascripts docs
-- heartbeat-based runtime/module detection
+- heartbeat-beat runtime/module detection, including stale-card gating
 - hard gating through `CONFIG.requiredCapabilities`
 - clear player-facing requirement messages
 - request queueing through `ultrascripts:out`
