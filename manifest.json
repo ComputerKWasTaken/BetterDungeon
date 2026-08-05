@@ -69,6 +69,7 @@
         "modules/network/module.js",
         "modules/system/module.js",
         "modules/sdk/module.js",
+        "modules/audio/module.js",
         "modules/ai/executor.js",
         "modules/ai/gemini-backend.js",
         "modules/ai/module.js",
@@ -113,7 +114,14 @@
         "fonts/lucide/lucide.ttf",
         "fonts/lucide/lucide.woff",
         "fonts/lucide/lucide.woff2",
-        "services/ultrascripts/ws-interceptor.js"
+        "services/ultrascripts/ws-interceptor.js",
+        "modules/audio/loops/cavern.mp3",
+        "modules/audio/loops/cozy.mp3",
+        "modules/audio/loops/mystery.mp3",
+        "modules/audio/loops/nature.mp3",
+        "modules/audio/loops/ominous.mp3",
+        "modules/audio/loops/peaceful.mp3",
+        "modules/audio/loops/tension.mp3"
       ],
       "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"]
     }

@@ -5,6 +5,9 @@ code - anything here is for verifying behavior, not for shipping.
 
 ## Layout
 
+- **`unit/`** - Local Node-based tests for bounded module logic and lifecycle
+  behavior that can be represented without AI Dungeon.
+
 - **`aid-scripts/`** - AI Dungeon-side scripts (Library / Input / Output /
   Context modifiers) that drive the BetterDungeon extension end-to-end via
   the live Full Ultrascripts protocol. Pasted into a scenario's Scripting panel.
@@ -23,6 +26,10 @@ code - anything here is for verifying behavior, not for shipping.
   - **`aid-scripts/widget-module/`** - Behavior-focused suite for the
     Ultrascripts Widget module. Eight scenario commands exercising every
     widget type, value transitions, edge cases, custom HTML, and panels.
+
+  - **`aid-scripts/audio-module/`** - Live suite for the V2.1 Audio module.
+    Exercises oscillator and noise effects, replay prevention, validation, and
+    stop behavior.
 
   - **`aid-scripts/clock-module/`** - End-to-end suite for the Ultrascripts
     Clock module (`modules/clock/module.js`). Exercises `now`, `tz`,

@@ -100,6 +100,7 @@ const ULTRASCRIPTS_PUBLIC_MODULES = [
   'weather',
   'network',
   'system',
+  'audio',
   'ai'
 ];
 
