@@ -1,6 +1,6 @@
 # Ultrascripts Audio Module — AI Dungeon Test Suite
 
-Manual live test for the first state-driven Audio implementation.
+Manual live test for the state-driven Audio synthesizer.
 
 ## Setup
 
@@ -17,25 +17,22 @@ suspended until that interaction occurs.
 
 | Command | Expected result |
 |---|---|
-| `/audio loop cavern` | Starts the selected bundled ambient track and loops it |
-| `/audio volume 0.2` | Changes the active ambient volume without replacing its track |
-| `/audio effect` | Plays one rising sine tone |
+| `/audio tone` | Plays one short sine tone |
+| `/audio sweep` | Plays one rising sawtooth sweep |
 | `/audio noise` | Plays one short noise impact |
-| `/audio stop` | Stops active playback and leaves Audio silent |
+| `/audio stop` | Stops active effects and leaves Audio silent |
 
 Open `ultrascripts:test:audio` to confirm the state published by the suite and
 whether the heartbeat advertises Audio.
 
-Available track ids: `cavern`, `cozy`, `mystery`, `nature`, `ominous`,
-`peaceful`, and `tension`.
+Available waveforms: `sine`, `square`, `triangle`, `sawtooth`, and `noise`.
 
 ## Regression checks
 
 - Reloading or rehydrating the same effect id does not replay it.
-- Repeating `/audio effect` or `/audio noise` produces a new id and plays again.
-- Changing tracks stops the old loop and begins the new one.
-- Re-publishing the same track changes volume without restarting it.
-- Every MP3 reaches its end and wraps without an unacceptable gap or click.
+- Repeating `/audio tone`, `/audio sweep`, or `/audio noise` produces a new id
+  and plays again.
+- Pitch sweeps, attack, release, duration, and volume are applied correctly.
 - Disabling Audio immediately stops all sources.
 - Removing the Audio state card or leaving the adventure stops all sources.
 - Invalid waveforms or out-of-bounds parameters do not start playback.

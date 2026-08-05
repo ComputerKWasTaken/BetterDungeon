@@ -3,13 +3,12 @@
 if (!state.audioTest || typeof state.audioTest !== 'object') {
   state.audioTest = {
     seq: 0,
-    ambient: null,
     effect: null,
     lastCommand: 'none',
   };
 }
 
-var AUD_TRACKS = ['cavern', 'cozy', 'mystery', 'nature', 'ominous', 'peaceful', 'tension'];
+var AUD_WAVEFORMS = ['sine', 'square', 'triangle', 'sawtooth', 'noise'];
 
 function audCards() {
   return Array.isArray(storyCards) ? storyCards : [];
@@ -68,7 +67,6 @@ function audNextEffectId(label) {
 function audPublishState() {
   var payload = {
     v: 1,
-    ambient: state.audioTest.ambient,
     effect: state.audioTest.effect,
   };
   audWriteCard('ultrascripts:state:audio', JSON.stringify(payload), 'Ultrascripts');
@@ -81,13 +79,12 @@ function audWriteTrace(payload) {
     audioAdvertised: audHeartbeatAdvertisesAudio(),
     lastCommand: state.audioTest.lastCommand,
     publishedState: payload,
-    tracks: AUD_TRACKS,
+    waveforms: AUD_WAVEFORMS,
     commands: [
-      '/audio loop <track> — start a bundled ambient loop',
-      '/audio volume <0..1> — update ambient volume',
-      '/audio effect — play a short rising tone',
+      '/audio tone — play a short sine tone',
+      '/audio sweep — play a rising sawtooth sweep',
       '/audio noise — play a short noise impact',
-      '/audio stop — stop active playback',
+      '/audio stop — stop active effects',
     ],
   };
   audWriteCard('ultrascripts:test:audio', JSON.stringify(trace, null, 2), 'Ultrascripts Test');
@@ -102,35 +99,29 @@ function audConsumeCommands(text) {
   var command = String(parts[0] || '').toLowerCase();
   var test = state.audioTest;
 
-  if (command === 'loop') {
-    var track = String(parts[1] || 'peaceful').toLowerCase();
-    if (AUD_TRACKS.indexOf(track) >= 0) {
-      test.ambient = { id: track, volume: test.ambient ? test.ambient.volume : 0.45 };
-      test.lastCommand = 'loop ' + track;
-    } else {
-      test.lastCommand = 'unknown track ' + track;
-    }
-  } else if (command === 'volume') {
-    var volume = Number(parts[1]);
-    if (isFinite(volume)) {
-      if (volume < 0) volume = 0;
-      if (volume > 1) volume = 1;
-      var activeTrack = test.ambient && test.ambient.id ? test.ambient.id : 'peaceful';
-      test.ambient = { id: activeTrack, volume: volume };
-      test.lastCommand = 'volume ' + volume;
-    }
-  } else if (command === 'effect') {
+  if (command === 'tone') {
     test.effect = {
-      id: audNextEffectId('rise'),
+      id: audNextEffectId('tone'),
       waveform: 'sine',
-      frequency: 220,
-      endFrequency: 660,
+      frequency: 440,
+      durationMs: 300,
+      attackMs: 10,
+      releaseMs: 100,
+      volume: 0.5,
+    };
+    test.lastCommand = 'tone';
+  } else if (command === 'sweep') {
+    test.effect = {
+      id: audNextEffectId('sweep'),
+      waveform: 'sawtooth',
+      frequency: 180,
+      endFrequency: 720,
       durationMs: 500,
       attackMs: 10,
-      releaseMs: 140,
-      volume: 0.7,
+      releaseMs: 160,
+      volume: 0.35,
     };
-    test.lastCommand = 'effect';
+    test.lastCommand = 'sweep';
   } else if (command === 'noise') {
     test.effect = {
       id: audNextEffectId('noise'),
@@ -142,7 +133,6 @@ function audConsumeCommands(text) {
     };
     test.lastCommand = 'noise';
   } else if (command === 'stop') {
-    test.ambient = null;
     test.effect = null;
     test.lastCommand = 'stop';
   } else {

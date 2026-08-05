@@ -14,15 +14,6 @@
   const MAX_FREQUENCY = 20000;
   const MIN_DURATION_MS = 20;
   const MAX_DURATION_MS = 10000;
-  const TRACK_CATALOG = Object.freeze({
-    cavern: Object.freeze({ label: 'Cavern', file: 'modules/audio/loops/cavern.mp3' }),
-    cozy: Object.freeze({ label: 'Cozy', file: 'modules/audio/loops/cozy.mp3' }),
-    mystery: Object.freeze({ label: 'Mystery', file: 'modules/audio/loops/mystery.mp3' }),
-    nature: Object.freeze({ label: 'Nature', file: 'modules/audio/loops/nature.mp3' }),
-    ominous: Object.freeze({ label: 'Ominous', file: 'modules/audio/loops/ominous.mp3' }),
-    peaceful: Object.freeze({ label: 'Peaceful', file: 'modules/audio/loops/peaceful.mp3' }),
-    tension: Object.freeze({ label: 'Tension', file: 'modules/audio/loops/tension.mp3' }),
-  });
 
   function isObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -95,15 +86,6 @@
     if (!isObject(raw)) return { error: 'Audio state must be an object' };
     if (raw.v !== 1) return { error: `Unsupported Audio state version: ${raw.v}` };
 
-    let ambient = null;
-    if (raw.ambient !== undefined && raw.ambient !== null) {
-      const ambientRaw = typeof raw.ambient === 'string' ? { id: raw.ambient } : raw.ambient;
-      if (!isObject(ambientRaw)) return { error: 'ambient must be an object, string, or null' };
-      const id = String(ambientRaw.id || '').trim().toLowerCase();
-      if (!TRACK_CATALOG[id]) return { error: `unknown ambient track '${id}'` };
-      ambient = { id, volume: normalizeVolume(ambientRaw.volume, 0.45) };
-    }
-
     let effect = null;
     if (raw.effect !== undefined && raw.effect !== null) {
       if (!isObject(raw.effect)) return { error: 'effect must be an object or null' };
@@ -118,32 +100,19 @@
       effect = { id, ...normalized.tone };
     }
 
-    return { state: { ambient, effect } };
-  }
-
-  function extensionUrl(path) {
-    try {
-      const api = typeof browser !== 'undefined'
-        ? browser
-        : (typeof chrome !== 'undefined' ? chrome : null);
-      return api?.runtime?.getURL ? api.runtime.getURL(path) : path;
-    } catch {
-      return path;
-    }
+    return { state: { effect } };
   }
 
   const UltrascriptsAudioModule = {
     id: MODULE_ID,
-    version: '0.2.0',
+    version: '0.3.0',
     label: 'Audio',
-    description: 'Plays bundled ambient loops and bounded synthesized effects from Audio state.',
+    description: 'Plays bounded synthesized sound effects from Audio state.',
     stateNames: [STATE_NAME],
 
     _ctx: null,
     _audioContext: null,
     _masterGain: null,
-    _ambientAudio: null,
-    _ambientState: null,
     _sources: new Set(),
     _desiredState: null,
     _lastEffectId: null,
@@ -242,20 +211,12 @@
     },
 
     async unlockAudio() {
-      // Attempt media playback synchronously inside the user gesture before an
-      // awaited AudioContext resume can consume the browser's activation.
+      if (!this._desiredState?.effect) return true;
+      const audioContext = this.ensureAudioContext();
+      if (!audioContext) return false;
+      if (audioContext.state === 'suspended') await audioContext.resume();
       this.applyDesiredState();
-      let synthReady = true;
-      if (this._desiredState?.effect) {
-        const audioContext = this.ensureAudioContext();
-        if (!audioContext) synthReady = false;
-        else {
-          if (audioContext.state === 'suspended') await audioContext.resume();
-          synthReady = audioContext.state === 'running';
-        }
-      }
-      this.applyDesiredState();
-      return synthReady;
+      return audioContext.state === 'running';
     },
 
     applyDesiredState() {
@@ -265,13 +226,10 @@
         return;
       }
 
-      if (!desired.ambient && !desired.effect) {
+      if (!desired.effect) {
         this.stopAll();
         return;
       }
-
-      this.syncAmbient(desired.ambient);
-      if (!desired.effect) return;
 
       const audioContext = this.ensureAudioContext();
       if (!audioContext || audioContext.state !== 'running') return;
@@ -287,72 +245,6 @@
       }
     },
 
-    syncAmbient(ambient) {
-      if (!ambient) {
-        this.stopAmbient();
-        return;
-      }
-
-      if (this._ambientState?.id === ambient.id && this._ambientAudio) {
-        this._ambientState = ambient;
-        this._ambientAudio.volume = ambient.volume;
-        if (this._ambientAudio.paused) this.playAmbient();
-        return;
-      }
-
-      this.stopAmbient();
-      const track = TRACK_CATALOG[ambient.id];
-      const AudioClass = window.Audio;
-      if (!track || typeof AudioClass !== 'function') {
-        this._ctx?.log?.('warn', 'HTML audio playback is unavailable on this client.');
-        return;
-      }
-
-      const audio = new AudioClass(extensionUrl(track.file));
-      audio.loop = true;
-      audio.preload = 'auto';
-      audio.volume = ambient.volume;
-      audio.addEventListener?.('error', () => {
-        if (this._ambientAudio === audio) {
-          this._ctx?.log?.('warn', `Ambient track '${ambient.id}' could not be loaded.`);
-        }
-      });
-      this._ambientAudio = audio;
-      this._ambientState = ambient;
-      this.playAmbient();
-    },
-
-    playAmbient() {
-      const audio = this._ambientAudio;
-      const trackId = this._ambientState?.id;
-      if (!audio || !trackId) return;
-      try {
-        const playResult = audio.play();
-        if (playResult?.catch) {
-          playResult.catch((err) => {
-            if (err?.name !== 'NotAllowedError' && this._ambientAudio === audio) {
-              this._ctx?.log?.('warn', `Ambient track '${trackId}' could not play:`, err?.message || err);
-            }
-          });
-        }
-      } catch (err) {
-        if (err?.name !== 'NotAllowedError') {
-          this._ctx?.log?.('warn', `Ambient track '${trackId}' could not play:`, err?.message || err);
-        }
-      }
-    },
-
-    stopAmbient() {
-      const audio = this._ambientAudio;
-      this._ambientAudio = null;
-      this._ambientState = null;
-      if (!audio) return;
-      try { audio.pause(); } catch { /* noop */ }
-      try { audio.currentTime = 0; } catch { /* media may not be seekable yet */ }
-      try { audio.removeAttribute?.('src'); } catch { /* noop */ }
-      try { audio.load?.(); } catch { /* noop */ }
-    },
-
     stopSources() {
       for (const entry of [...this._sources]) {
         try { entry.source.stop(); } catch { /* already stopped */ }
@@ -363,7 +255,6 @@
     },
 
     stopAll() {
-      this.stopAmbient();
       this.stopSources();
     },
 
@@ -444,12 +335,9 @@
         mounted: !!this._ctx,
         supported: !!(window.AudioContext || window.webkitAudioContext),
         contextState: this._audioContext?.state || 'not-created',
-        ambientSupported: typeof window.Audio === 'function',
-        ambientTrack: this._ambientState?.id || null,
-        ambientPaused: this._ambientAudio ? !!this._ambientAudio.paused : null,
         activeSources: this._sources.size,
         lastEffectId: this._lastEffectId,
-        tracks: Object.keys(TRACK_CATALOG),
+        waveforms: [...SUPPORTED_WAVEFORMS],
       };
     },
   };
