@@ -105,7 +105,7 @@
 
   const UltrascriptsAudioModule = {
     id: MODULE_ID,
-    version: '0.3.0',
+    version: '1.0.0',
     label: 'Audio',
     description: 'Plays bounded synthesized sound effects from Audio state.',
     stateNames: [STATE_NAME],
