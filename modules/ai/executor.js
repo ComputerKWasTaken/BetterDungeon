@@ -7,14 +7,17 @@
 (function () {
   if (window.UltrascriptsAIExecutor) return;
 
-  const VERSION = '0.4.0-gemini-meta';
+  const VERSION = '0.5.0-provider-router';
   const PROMPT_MAX_CHARS = 12000;
   const OUTPUT_TYPES = Object.freeze(['text', 'json']);
   const THINKING_LEVELS = Object.freeze(['minimal', 'low', 'medium', 'high']);
   const DEFAULT_THINKING_LEVEL = 'minimal';
 
   const state = {
-    backend: null,
+    providers: new Map(),
+    providerOrder: [],
+    defaultProviderId: null,
+    consumerProviders: new Map(),
   };
 
   function isObject(value) {
@@ -132,41 +135,133 @@
     };
   }
 
-  function backendInfo() {
-    const backend = state.backend;
-    if (!backend) return null;
-    const rawStatus = typeof backend.status === 'function' ? backend.status() : null;
+  function normalizeId(value, label) {
+    const id = typeof value === 'string' ? value.trim().toLowerCase() : '';
+    if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(id)) {
+      throw new TypeError(`${label} must be a stable lowercase id`);
+    }
+    return id;
+  }
+
+  function normalizeConsumer(value) {
+    return normalizeId(value || 'default', 'consumer');
+  }
+
+  function normalizeProvider(provider) {
+    if (!isObject(provider)) throw new TypeError('provider must be an object');
+    if (typeof provider.query !== 'function') throw new TypeError('provider.query(task) is required');
+    const id = normalizeId(provider.id, 'provider.id');
+    return {
+      ...provider,
+      id,
+      label: typeof provider.label === 'string' && provider.label.trim()
+        ? provider.label.trim()
+        : id,
+      supports: normalizeSupports(provider.supports),
+    };
+  }
+
+  function registerProvider(provider, options = {}) {
+    const normalized = normalizeProvider(provider);
+    const isNew = !state.providers.has(normalized.id);
+    state.providers.set(normalized.id, normalized);
+    if (isNew) state.providerOrder.push(normalized.id);
+    if (!state.defaultProviderId || options.default === true) {
+      state.defaultProviderId = normalized.id;
+    }
+    return providerStatus(normalized.id);
+  }
+
+  function unregisterProvider(providerId) {
+    const id = normalizeId(providerId, 'provider id');
+    const removed = state.providers.delete(id);
+    if (!removed) return false;
+    state.providerOrder = state.providerOrder.filter(candidate => candidate !== id);
+    if (state.defaultProviderId === id) {
+      state.defaultProviderId = state.providerOrder[0] || null;
+    }
+    for (const [consumer, selectedId] of state.consumerProviders.entries()) {
+      if (selectedId === id) state.consumerProviders.delete(consumer);
+    }
+    return true;
+  }
+
+  function setDefaultProvider(providerId) {
+    const id = normalizeId(providerId, 'provider id');
+    if (!state.providers.has(id)) throw new TypeError(`AI provider '${id}' is not registered`);
+    state.defaultProviderId = id;
+    return providerStatus(id);
+  }
+
+  function setProviderForConsumer(consumer, providerId) {
+    const consumerId = normalizeConsumer(consumer);
+    if (providerId === undefined || providerId === null || providerId === '') {
+      state.consumerProviders.delete(consumerId);
+      return status({ consumer: consumerId });
+    }
+    const id = normalizeId(providerId, 'provider id');
+    if (!state.providers.has(id)) throw new TypeError(`AI provider '${id}' is not registered`);
+    state.consumerProviders.set(consumerId, id);
+    return status({ consumer: consumerId });
+  }
+
+  function resolveProvider(consumer = 'default') {
+    const consumerId = normalizeConsumer(consumer);
+    const selectedId = state.consumerProviders.get(consumerId);
+    if (selectedId && state.providers.has(selectedId)) {
+      return { consumer: consumerId, provider: state.providers.get(selectedId), selection: 'consumer' };
+    }
+    if (state.defaultProviderId && state.providers.has(state.defaultProviderId)) {
+      return { consumer: consumerId, provider: state.providers.get(state.defaultProviderId), selection: 'default' };
+    }
+    const fallbackId = state.providerOrder.find(id => state.providers.has(id));
+    return {
+      consumer: consumerId,
+      provider: fallbackId ? state.providers.get(fallbackId) : null,
+      selection: fallbackId ? 'fallback' : 'none',
+    };
+  }
+
+  function providerStatus(providerId) {
+    const provider = state.providers.get(providerId);
+    if (!provider) return null;
+    const rawStatus = typeof provider.status === 'function' ? provider.status() : null;
     const status = isObject(rawStatus) ? rawStatus : {};
     return {
-      id: backend.id || 'custom',
-      label: backend.label || backend.id || 'Custom',
-      supports: normalizeSupports(backend.supports),
+      id: provider.id,
+      label: provider.label,
+      supports: normalizeSupports(provider.supports),
       status,
     };
   }
 
-  function status() {
-    const backend = backendInfo();
-    const supports = backend ? backend.supports : { text: false, json: false, thinking: false };
-    const backendReady = backend?.status?.ready;
+  function status(meta = {}) {
+    const resolved = resolveProvider(meta.consumer);
+    const provider = resolved.provider ? providerStatus(resolved.provider.id) : null;
+    const supports = provider ? provider.supports : { text: false, json: false, thinking: false };
+    const providerReady = provider?.status?.ready;
     const ready = !!(
-      state.backend &&
-      typeof state.backend.query === 'function' &&
+      resolved.provider &&
+      typeof resolved.provider.query === 'function' &&
       (supports.text || supports.json) &&
-      (backendReady === undefined ? true : backendReady === true)
+      (providerReady === undefined ? true : providerReady === true)
     );
     const reason = ready
       ? null
-      : (backend?.status?.reason || 'ai_backend_not_configured');
+      : (provider?.status?.reason || 'ai_provider_not_configured');
     return {
-      backend: backend ? backend.id : null,
-      backendLabel: backend ? backend.label : null,
+      provider: provider ? provider.id : null,
+      providerLabel: provider ? provider.label : null,
+      backend: provider ? provider.id : null,
+      backendLabel: provider ? provider.label : null,
+      consumer: resolved.consumer,
+      selection: resolved.selection,
       ready,
       available: ready,
       phase: ready ? 'live' : 'executor',
       reason,
       supports,
-      config: backend?.status?.config || null,
+      config: provider?.status?.config || null,
       contract: {
         ops: ['status', 'query'],
         outputTypes: [...OUTPUT_TYPES],
@@ -177,14 +272,23 @@
       executor: {
         version: VERSION,
         promptMaxChars: PROMPT_MAX_CHARS,
-        backendConfigured: !!backend,
+        providerConfigured: !!provider,
+        backendConfigured: !!provider,
       },
-      message: backend?.status?.message || (
+      message: provider?.status?.message || (
         ready
           ? 'AI querying is available.'
-          : 'The AI execution layer is available, but no callable generation backend is configured right now.'
+          : 'The AI execution layer is available, but no callable provider is configured right now.'
       ),
     };
+  }
+
+  async function refreshStatus(meta = {}) {
+    const resolved = resolveProvider(meta.consumer);
+    if (typeof resolved.provider?.refreshStatus === 'function') {
+      await resolved.provider.refreshStatus();
+    }
+    return status({ consumer: resolved.consumer });
   }
 
   function normalizeTextResult(result) {
@@ -207,9 +311,12 @@
     throw invalidResponse('AI backend did not return JSON output');
   }
 
-  function normalizeResultMeta(result, task) {
+  function normalizeResultMeta(result, task, provider) {
+    const providerId = result?.provider || result?.backend || provider?.id || null;
     const meta = {
-      backend: result?.backend || backendInfo()?.id || null,
+      provider: providerId,
+      providerLabel: provider?.label || null,
+      backend: providerId,
       outputType: task.output.type,
       promptChars: task.promptChars,
       generatedAtIso: result?.generatedAtIso || new Date().toISOString(),
@@ -222,8 +329,8 @@
     return meta;
   }
 
-  function normalizeBackendResult(result, task) {
-    const meta = normalizeResultMeta(result, task);
+  function normalizeProviderResult(result, task, provider) {
+    const meta = normalizeResultMeta(result, task, provider);
 
     if (task.output.type === 'json') {
       return { json: normalizeJsonResult(result), meta };
@@ -232,29 +339,26 @@
   }
 
   function setBackend(backend) {
-    if (!isObject(backend)) throw new TypeError('backend must be an object');
-    if (typeof backend.query !== 'function') throw new TypeError('backend.query(task) is required');
-    state.backend = {
-      ...backend,
-      supports: normalizeSupports(backend.supports),
-    };
-    return status();
+    return registerProvider(backend, { default: true });
   }
 
   function clearBackend() {
-    state.backend = null;
+    if (state.defaultProviderId) unregisterProvider(state.defaultProviderId);
     return status();
   }
 
   async function query(args, meta = {}) {
     const task = createTask(args, meta);
-    if (!state.backend) {
+    const resolved = resolveProvider(meta.consumer);
+    const provider = resolved.provider;
+    if (!provider) {
       throw {
         code: 'not_configured',
-        message: 'No AI backend is configured yet.',
+        message: 'No AI provider is configured yet.',
         retryable: false,
+        provider: null,
         backend: null,
-        phase: status().phase,
+        phase: status({ consumer: resolved.consumer }).phase,
         task: {
           id: task.id,
           outputType: task.output.type,
@@ -263,19 +367,20 @@
       };
     }
 
-    const supports = normalizeSupports(state.backend.supports);
+    const supports = normalizeSupports(provider.supports);
     if (supports[task.output.type] !== true) {
       throw {
         code: 'unavailable',
-        message: `The configured AI backend does not support ${task.output.type} output.`,
+        message: `The selected AI provider does not support ${task.output.type} output.`,
         retryable: false,
-        backend: backendInfo()?.id || null,
+        provider: provider.id,
+        backend: provider.id,
         outputType: task.output.type,
       };
     }
 
-    const result = await state.backend.query(cloneJson(task));
-    return normalizeBackendResult(result, task);
+    const result = await provider.query(cloneJson(task));
+    return normalizeProviderResult(result, task, provider);
   }
 
   const executor = {
@@ -285,11 +390,31 @@
     createTask,
     query,
     status,
+    refreshStatus,
+    registerProvider,
+    unregisterProvider,
+    setDefaultProvider,
+    setProviderForConsumer,
+    resolveProvider: consumer => {
+      const resolved = resolveProvider(consumer);
+      return {
+        consumer: resolved.consumer,
+        provider: resolved.provider?.id || null,
+        providerLabel: resolved.provider?.label || null,
+        selection: resolved.selection,
+      };
+    },
     setBackend,
     clearBackend,
     inspect: () => ({
       ...status(),
-      hasBackend: !!state.backend,
+      hasProvider: state.providers.size > 0,
+      hasBackend: state.providers.size > 0,
+      defaultProvider: state.defaultProviderId,
+      providers: state.providerOrder
+        .map(providerStatus)
+        .filter(Boolean),
+      consumerProviders: Object.fromEntries(state.consumerProviders),
     }),
   };
 

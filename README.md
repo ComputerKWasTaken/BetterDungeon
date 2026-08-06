@@ -97,7 +97,7 @@ Available modules include:
 
 | Module | What it enables |
 | --- | --- |
-| `ai` | Asynchronous Gemini requests for script-side logic |
+| `ai` | Asynchronous requests through the player's selected AI provider |
 | `widget` | RPG HUDs, stat bars, inventories, buttons, and status panels |
 | `webfetch` | Bounded, credential-free reads of public HTTPS resources |
 | `clock` | Local time, timestamps, offsets, and IANA timezones |
@@ -113,7 +113,7 @@ Check out the [Ultrascripts examples](examples/README.md) if you want to start b
 1. Install BetterDungeon and open [AI Dungeon](https://play.aidungeon.com/).
 2. Open the BetterDungeon popup from your browser toolbar or the in-game sidebar.
 3. Enable the features you want to use.
-4. If you want to use Gemini-powered features or script-side AI, configure your API key in the **Ultrascripts** settings.
+4. If you want to use AI-powered features or script-side AI, configure an AI provider in the **Ultrascripts** settings.
 
 The WebFetch module toggle controls access to bounded public HTTPS reads. Requests never include browser cookies or ambient credentials.
 

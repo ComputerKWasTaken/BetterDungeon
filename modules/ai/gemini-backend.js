@@ -1,7 +1,7 @@
 // modules/ai/gemini-backend.js
 //
-// Content-side Gemini backend adapter. Transport and secret storage stay in the
-// extension background worker; this file only registers a backend with the
+// Content-side Gemini provider adapter. Transport and secret storage stay in the
+// extension background worker; this file only registers a provider with the
 // provider-agnostic AI executor.
 
 (function () {
@@ -91,7 +91,7 @@
     return state.status;
   }
 
-  const backend = {
+  const provider = {
     id: 'gemini',
     label: 'Gemini',
     supports: { text: true, json: true, thinking: true },
@@ -100,6 +100,7 @@
       const result = await sendGeminiMessage({ op: 'query', task });
       if (result?.status) state.status = normalizeStatus(result.status);
       return {
+        provider: 'gemini',
         backend: 'gemini',
         generatedAtIso: result?.generatedAtIso,
         model: result?.model,
@@ -115,17 +116,20 @@
   };
 
   const api = {
-    backend,
+    provider,
+    backend: provider,
     refreshStatus,
     register() {
-      if (!window.UltrascriptsAIExecutor?.setBackend) return false;
-      window.UltrascriptsAIExecutor.setBackend(backend);
+      const executor = window.UltrascriptsAIExecutor;
+      if (!executor?.registerProvider) return false;
+      executor.registerProvider(provider);
       refreshStatus();
       return true;
     },
   };
 
   window.UltrascriptsAIGeminiBackend = api;
+  api.register();
 
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api;

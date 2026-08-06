@@ -447,9 +447,9 @@ class CharacterPresetFeature {
     return routeShortId;
   }
 
-  getGeminiSetupMessage(detail = '') {
+  getAISetupMessage(detail = '') {
     const prefix = detail ? `${detail} ` : '';
-    return `${prefix}Get a key at https://aistudio.google.com/api-keys, then open the BetterDungeon popup and go to Ultrascripts > AI > Gemini API Key.`;
+    return `${prefix}Open the BetterDungeon popup and go to Ultrascripts > AI to configure the provider used by Character Prefill.`;
   }
 
   async handleField(field) {
@@ -516,7 +516,7 @@ class CharacterPresetFeature {
     const aiReady = await this.ensureAIReady();
     if (!aiReady.ready) {
       this.status = 'blocked';
-      this.statusMessage = aiReady.message || this.getGeminiSetupMessage('Gemini is required for Character Prefill.');
+      this.statusMessage = aiReady.message || this.getAISetupMessage('An AI provider is required for Character Prefill.');
       return;
     }
 
@@ -621,18 +621,20 @@ class CharacterPresetFeature {
 
   async ensureAIReady() {
     try {
-      window.UltrascriptsAIGeminiBackend?.register?.();
-      await window.UltrascriptsAIGeminiBackend?.refreshStatus?.();
-      const status = window.UltrascriptsAIExecutor?.status?.();
-      if (status?.ready) return { ready: true };
+      const executor = window.UltrascriptsAIExecutor;
+      if (!executor) throw new Error('AI executor is not loaded.');
+      const status = executor.refreshStatus
+        ? await executor.refreshStatus({ consumer: 'character-presets' })
+        : executor.status?.({ consumer: 'character-presets' });
+      if (status?.ready) return { ready: true, status };
       return {
         ready: false,
-        message: this.getGeminiSetupMessage(status?.message || 'Gemini API key required.'),
+        message: this.getAISetupMessage(status?.message || 'The selected AI provider is not ready.'),
       };
     } catch (error) {
       return {
         ready: false,
-        message: this.getGeminiSetupMessage(error?.message || 'Gemini status could not be checked.'),
+        message: this.getAISetupMessage(error?.message || 'AI provider status could not be checked.'),
       };
     }
   }
@@ -668,6 +670,7 @@ class CharacterPresetFeature {
         thinking: { level: 'low' },
       }, {
         requestId: `character-prefill-${this.scenarioShortId}-${Date.now()}`,
+        consumer: 'character-presets',
       });
 
       if (
@@ -683,7 +686,7 @@ class CharacterPresetFeature {
     } catch (error) {
       console.error('[CharacterPreset] AI generation failed:', error);
       this.status = 'error';
-      this.statusMessage = error?.message || 'Gemini could not generate placeholder answers.';
+      this.statusMessage = error?.message || 'The selected AI provider could not generate placeholder answers.';
       this.showBlockedPanel(field, this.statusMessage);
     }
   }
@@ -928,7 +931,7 @@ class CharacterPresetFeature {
       <div class="bd-character-ai-header">
         <div class="bd-character-ai-header-text">
           <div class="bd-character-ai-title">Generating Character Answers</div>
-          <div class="bd-character-ai-subtitle">Gemini is reading the scenario placeholders.</div>
+          <div class="bd-character-ai-subtitle">The selected AI provider is reading the scenario placeholders.</div>
         </div>
         <div class="bd-character-ai-header-controls">
           <div class="bd-character-ai-spinner"></div>
@@ -987,7 +990,7 @@ class CharacterPresetFeature {
         <div class="bd-character-ai-header">
           <div class="bd-character-ai-header-text">
             <div class="bd-character-ai-title">Answer Manually</div>
-            <div class="bd-character-ai-subtitle">Gemini deferred this question to you.</div>
+            <div class="bd-character-ai-subtitle">The AI provider deferred this question to you.</div>
           </div>
           <div class="bd-character-ai-header-controls">
             <button id="bd-character-ai-change" class="bd-character-ai-link-btn">Change</button>
@@ -1165,6 +1168,7 @@ class CharacterPresetFeature {
         thinking: { level: 'low' },
       }, {
         requestId: `character-prefill-reroll-${this.scenarioShortId}-${Date.now()}`,
+        consumer: 'character-presets',
       });
       if (
         this.generationRouteShortId !== routeShortId

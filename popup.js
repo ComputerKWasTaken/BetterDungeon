@@ -336,12 +336,12 @@ function setGeminiStatusText(status, pendingText) {
   const el = document.getElementById('ai-gemini-status');
   if (pendingText) {
     if (el) el.textContent = pendingText;
-    setCharacterGeminiStatus(pendingText, 'pending');
+    setCharacterAIStatus(pendingText, 'pending');
     return;
   }
   if (!status) {
     if (el) el.textContent = 'Not checked';
-    setCharacterGeminiStatus('Gemini not checked', 'unknown');
+    setCharacterAIStatus('AI provider not checked', 'unknown');
     return;
   }
   const modelMode = status.config?.modelMode || AI_DEFAULT_GEMINI_MODEL_MODE;
@@ -355,20 +355,24 @@ function setGeminiStatusText(status, pendingText) {
     )
     : 'API key required';
   if (el) el.textContent = text;
-  setCharacterGeminiStatus(status.ready ? 'Gemini ready' : 'Gemini key required', status.ready ? 'ready' : 'missing');
+  const providerLabel = status.backendLabel || status.providerLabel || 'Gemini';
+  setCharacterAIStatus(
+    status.ready ? `${providerLabel} ready` : 'AI provider setup required',
+    status.ready ? 'ready' : 'missing'
+  );
 }
 
-function setCharacterGeminiStatus(text, state = 'unknown') {
-  const el = document.getElementById('character-gemini-status');
+function setCharacterAIStatus(text, state = 'unknown') {
+  const el = document.getElementById('character-ai-status');
   if (!el) return;
   el.textContent = text;
   el.dataset.state = state;
 }
 
-function openGeminiSettingsFromCharacters() {
+function openAISettingsFromCharacters() {
   activateTab('ultrascripts');
   requestAnimationFrame(() => {
-    const card = document.getElementById('ai-gemini-settings-card');
+    const card = document.getElementById('ai-settings-card');
     card?.classList.add('expanded');
     card?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setTimeout(() => document.getElementById('ai-gemini-api-key')?.focus(), 250);
@@ -2340,7 +2344,7 @@ function initCharacters() {
   document.getElementById('create-character-btn')?.addEventListener('click', async () => {
     openCharacterModal(createBlankCharacter(), true);
   });
-  document.getElementById('character-open-ai-settings')?.addEventListener('click', openGeminiSettingsFromCharacters);
+  document.getElementById('character-open-ai-settings')?.addEventListener('click', openAISettingsFromCharacters);
 }
 
 function loadCharacterGenerationInstructions() {

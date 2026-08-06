@@ -1,7 +1,7 @@
 // modules/ai/module.js
 //
-// Ultrascripts AI module wrapper. Public ops delegate into the separated
-// backend-agnostic executor layer backed by Gemini.
+// Ultrascripts AI module wrapper. Public ops delegate into the provider-neutral
+// executor; provider adapters register independently.
 
 (function () {
   if (window.UltrascriptsAIModule) return;
@@ -22,26 +22,25 @@
     if (args !== undefined && args !== null && (typeof args !== 'object' || Array.isArray(args))) {
       throw { code: 'invalid_args', message: 'args must be an object' };
     }
-    await geminiBackend()?.refreshStatus?.();
+    const status = await executor().refreshStatus({ consumer: 'ultrascripts' });
     return {
-      ...executor().status(),
+      ...status,
       checkedAtIso: new Date().toISOString(),
     };
   }
 
   function queryOp(args = {}, _ctx, request = {}) {
-    return executor().query(args, { requestId: request.id || null });
-  }
-
-  function geminiBackend() {
-    return window.UltrascriptsAIGeminiBackend || null;
+    return executor().query(args, {
+      requestId: request.id || null,
+      consumer: 'ultrascripts',
+    });
   }
 
   const UltrascriptsAIModule = {
     id: 'ai',
-    version: '0.5.0-gemini-meta',
+    version: '0.6.0',
     label: 'AI',
-    description: 'Asynchronous AI query executor backed by Gemini.',
+    description: 'Asynchronous AI query executor using the selected provider.',
 
     ops: {
       status: {
@@ -58,8 +57,11 @@
 
     mount(ctx) {
       this._ctx = ctx;
-      geminiBackend()?.register?.();
-      ctx.log('debug', 'AI executor mounted with Gemini backend');
+      const selected = executor().resolveProvider('ultrascripts');
+      ctx.log('debug', 'AI executor mounted', {
+        provider: selected.provider,
+        selection: selected.selection,
+      });
     },
 
     unmount() {
@@ -71,7 +73,6 @@
         mounted: !!this._ctx,
         ops: Object.keys(this.ops),
         executor: window.UltrascriptsAIExecutor?.inspect?.() || null,
-        gemini: geminiBackend()?.backend?.status?.() || null,
       };
     },
   };
