@@ -284,8 +284,14 @@ function faiStatusPass() {
     data.supports.thinking === true &&
     data.config &&
     data.config.provider === 'gemini' &&
+    data.config.api === 'interactions' &&
+    data.config.apiVersion === 'v1' &&
+    data.config.stateless === true &&
+    data.config.adjustableSafety === 'provider-default' &&
     typeof data.config.keyConfigured === 'boolean' &&
     typeof data.config.model === 'string' &&
+    Array.isArray(data.config.fallbackModels) &&
+    data.config.fallbackModels[0] === 'gemini-3.5-flash-lite' &&
     data.config.thinkingDefault === 'minimal' &&
     Array.isArray(data.config.thinkingLevels) &&
     data.config.thinkingLevels.indexOf('minimal') !== -1 &&
@@ -298,7 +304,7 @@ function faiStatusPass() {
     data.contract.thinkingLevels.indexOf('minimal') !== -1 &&
     data.contract.defaultThinking === 'minimal' &&
     data.executor &&
-    data.executor.version === '0.4.0-gemini-meta' &&
+    data.executor.version === '0.5.0-provider-router' &&
     data.executor.promptMaxChars === 12000 &&
     data.executor.backendConfigured === true
   );

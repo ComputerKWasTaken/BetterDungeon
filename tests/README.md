@@ -5,13 +5,6 @@ code - anything here is for verifying behavior, not for shipping.
 
 ## Layout
 
-- **`unit/`** - Local Node-based tests for bounded module logic and lifecycle
-  behavior that can be represented without AI Dungeon.
-
-- **`webfetch-module.test.js`** - Local Node contract and privileged-transport
-  coverage for both PC and Mobile module copies, including redirect guarding,
-  target/header validation, content types, truncation, rate limits, and timeouts.
-
 - **`aid-scripts/`** - AI Dungeon-side scripts (Library / Input / Output /
   Context modifiers) that drive the BetterDungeon extension end-to-end via
   the live Full Ultrascripts protocol. Pasted into a scenario's Scripting panel.

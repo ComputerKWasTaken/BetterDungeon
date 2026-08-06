@@ -14,6 +14,8 @@ The suite verifies:
 - The legacy provider alias is not advertised as a heartbeat module.
 - `ai.status` reports query readiness, configured model selection, and key
   configuration state.
+- Status reports the stateless Gemini Interactions transport and the current
+  `gemini-3.5-flash-lite`-first automatic model chain.
 - Plain text `ai.query` returns text when the backend is configured, or
   `not_configured` when no key is saved.
 - Schema-backed JSON `ai.query` returns parsed JSON when the backend is configured,
@@ -24,6 +26,8 @@ The suite verifies:
   metadata.
 - Schema-less JSON `ai.query` returns terminal `invalid_args`.
 - Invalid thinking levels return terminal `invalid_args`.
+- Gemini adjustable-filter blocks use `safety_blocked`; non-adjustable policy
+  blocks use `prohibited_content`.
 
 ## Setup
 
@@ -61,7 +65,9 @@ A successful run ends with:
 - `checksPass: true`
 - `heartbeat.aiOps: ["status", "query"]`
 - `status.data.backend: "gemini"`
-- `status.data.executor.version: "0.4.0-gemini-meta"`
+- `status.data.executor.version: "0.5.0-provider-router"`
+- `status.data.config.api: "interactions"`
+- `status.data.config.fallbackModels[0]: "gemini-3.5-flash-lite"`
 - `status.data.contract.defaultThinking: "minimal"`
 - `status.data.config.keyConfigured: true` for live generation
 - `textQuery.response.status: "ok"` when configured

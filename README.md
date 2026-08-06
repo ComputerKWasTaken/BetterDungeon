@@ -97,7 +97,7 @@ Available modules include:
 
 | Module | What it enables |
 | --- | --- |
-| `ai` | Asynchronous requests through the player's selected AI provider |
+| `ai` | Asynchronous requests through the player's configured AI provider |
 | `widget` | RPG HUDs, stat bars, inventories, buttons, and status panels |
 | `webfetch` | Bounded, credential-free reads of public HTTPS resources |
 | `clock` | Local time, timestamps, offsets, and IANA timezones |

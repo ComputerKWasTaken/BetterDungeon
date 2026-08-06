@@ -452,6 +452,48 @@ class CharacterPresetFeature {
     return `${prefix}Open the BetterDungeon popup and go to Ultrascripts > AI to configure the provider used by Character Prefill.`;
   }
 
+  describeAIGenerationError(error) {
+    switch (String(error?.code || '').toLowerCase()) {
+      case 'prohibited_content':
+        return {
+          title: 'Character Prefill Can’t Use This Scenario',
+          message: 'Gemini can’t generate answers for this scenario because of its content policy. You can still fill in the questions yourself.',
+          retryable: false,
+        };
+      case 'safety_blocked':
+        return {
+          title: 'Character Prefill Was Blocked',
+          message: 'Gemini blocked this request under its safety filters. You can adjust the character or scenario details, then try again.',
+          retryable: false,
+        };
+      case 'not_configured':
+      case 'auth_failed':
+        return {
+          title: 'Character Prefill Needs Setup',
+          message: this.getAISetupMessage('Your Gemini API key needs attention.'),
+          retryable: false,
+        };
+      case 'rate_limit':
+        return {
+          title: 'Character Prefill Is Temporarily Busy',
+          message: 'Gemini has reached a temporary request limit. Please wait a moment and try again.',
+          retryable: true,
+        };
+      case 'timeout':
+        return {
+          title: 'Character Prefill Timed Out',
+          message: 'Gemini took too long to respond. Please try again.',
+          retryable: true,
+        };
+      default:
+        return {
+          title: 'Character Prefill Unavailable',
+          message: 'Character Prefill could not generate answers right now. Please try again.',
+          retryable: true,
+        };
+    }
+  }
+
   async handleField(field) {
     const token = ++this._handleToken;
     try {
@@ -629,7 +671,7 @@ class CharacterPresetFeature {
       if (status?.ready) return { ready: true, status };
       return {
         ready: false,
-        message: this.getAISetupMessage(status?.message || 'The selected AI provider is not ready.'),
+        message: this.getAISetupMessage(status?.message || 'The configured AI provider is not ready.'),
       };
     } catch (error) {
       return {
@@ -685,9 +727,10 @@ class CharacterPresetFeature {
       this.showToast(`Generated answers for ${character.name}`, 'success');
     } catch (error) {
       console.error('[CharacterPreset] AI generation failed:', error);
-      this.status = 'error';
-      this.statusMessage = error?.message || 'The selected AI provider could not generate placeholder answers.';
-      this.showBlockedPanel(field, this.statusMessage);
+      const presentation = this.describeAIGenerationError(error);
+      this.status = presentation.retryable ? 'error' : 'blocked';
+      this.statusMessage = presentation.message;
+      this.showBlockedPanel(field, presentation.message, presentation);
     }
   }
 
@@ -931,7 +974,7 @@ class CharacterPresetFeature {
       <div class="bd-character-ai-header">
         <div class="bd-character-ai-header-text">
           <div class="bd-character-ai-title">Generating Character Answers</div>
-          <div class="bd-character-ai-subtitle">The selected AI provider is reading the scenario placeholders.</div>
+          <div class="bd-character-ai-subtitle">The configured AI provider is reading the scenario placeholders.</div>
         </div>
         <div class="bd-character-ai-header-controls">
           <div class="bd-character-ai-spinner"></div>
@@ -941,13 +984,16 @@ class CharacterPresetFeature {
     if (genPanel) this.bindCloseButton(genPanel);
   }
 
-  showBlockedPanel(field, message) {
-    const retryable = this.status === 'error'
-      || (this.status === 'blocked' && message !== 'This scenario has no placeholder questions to prefill.');
+  showBlockedPanel(field, message, options = {}) {
+    const retryable = options.retryable ?? (
+      this.status === 'error'
+      || (this.status === 'blocked' && message !== 'This scenario has no placeholder questions to prefill.')
+    );
+    const title = options.title || 'Character Prefill Unavailable';
     const blockedPanel = this.renderPanel(field, `
       <div class="bd-character-ai-header">
         <div class="bd-character-ai-header-text">
-          <div class="bd-character-ai-title">Character Prefill Unavailable</div>
+          <div class="bd-character-ai-title">${this.escapeHtml(title)}</div>
           <div class="bd-character-ai-subtitle">${this.escapeHtml(message || 'Character Presets cannot run right now.')}</div>
         </div>
         <div class="bd-character-ai-header-controls">
@@ -1189,7 +1235,7 @@ class CharacterPresetFeature {
       this.showAnswerPanel(field);
     } catch (error) {
       console.error('[CharacterPreset] AI reroll failed:', error);
-      this.showToast(error?.message || 'Could not regenerate the answer', 'error');
+      this.showToast(this.describeAIGenerationError(error).message, 'error');
       this.showAnswerPanel(field);
     }
   }

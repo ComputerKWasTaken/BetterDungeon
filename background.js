@@ -25,12 +25,13 @@
   const MAX_TIMEOUT_MS = 30000;
   const GEMINI_DEFAULT_TIMEOUT_MS = 120000;
   const GEMINI_PROMPT_MAX_CHARS = 12000;
-  const GEMINI_DEFAULT_MODEL = 'gemini-3.1-flash-lite';
+  const GEMINI_DEFAULT_MODEL = 'gemini-3.5-flash-lite';
   const GEMINI_DEFAULT_MODEL_MODE = 'auto';
   const GEMINI_DEFAULT_THINKING_LEVEL = 'minimal';
   const GEMINI_THINKING_LEVELS = Object.freeze(['minimal', 'low', 'medium', 'high']);
   const GEMINI_OUTPUT_TYPES = Object.freeze(['text', 'json']);
   const GEMINI_AUTO_STEPDOWN_MODELS = Object.freeze([
+    'gemini-3.5-flash-lite',
     'gemini-3.1-flash-lite',
     'gemma-4-31b-it',
     'gemma-4-26b-a4b-it',
@@ -138,7 +139,7 @@
         code: typeof error.code === 'string' ? error.code : 'webfetch_failed',
         message: typeof error.message === 'string' ? error.message : 'WebFetch failed',
       };
-      for (const key of ['retryable', 'status', 'statusText', 'retryAfterMs', 'backend', 'phase', 'task', 'detail']) {
+      for (const key of ['retryable', 'status', 'statusText', 'retryAfterMs', 'backend', 'phase', 'task', 'detail', 'model', 'providerReason']) {
         if (error[key] !== undefined) normalized[key] = error[key];
       }
       return normalized;
@@ -823,6 +824,10 @@
       supports: { text: true, json: true, thinking: true },
       config: {
         provider: 'gemini',
+        api: 'interactions',
+        apiVersion: 'v1',
+        stateless: true,
+        adjustableSafety: 'provider-default',
         keyConfigured: ready,
         modelMode: normalizeGeminiModelMode(settings?.modelMode),
         model: selectedModel,
@@ -929,40 +934,32 @@
     return 'unknown';
   }
 
-  function geminiThinkingBudget(model, level) {
-    const id = String(model || '').toLowerCase();
-    if (level === 'minimal') return 0;
-    if (level === 'low') return id.indexOf('flash-lite') !== -1 ? 512 : 1024;
-    if (level === 'medium') return -1;
-    return 8192;
-  }
-
   function geminiThinkingConfigForModel(model, thinking) {
     const level = normalizeGeminiThinking(thinking).level;
     const family = geminiThinkingFamily(model);
     if (family === 'gemini-3' || family === 'gemini-3-pro') {
       const appliedLevel = family === 'gemini-3-pro' && level === 'minimal' ? 'low' : level;
       return {
-        config: { thinkingLevel: appliedLevel },
+        config: { thinking_level: appliedLevel },
         appliedLevel,
         appliedBudget: null,
         family,
       };
     }
     if (family === 'gemini-2.5') {
-      const appliedBudget = geminiThinkingBudget(model, level);
+      const appliedLevel = level === 'minimal' ? 'low' : level;
       return {
-        config: { thinkingBudget: appliedBudget },
-        appliedLevel: null,
-        appliedBudget,
+        config: { thinking_level: appliedLevel },
+        appliedLevel,
+        appliedBudget: null,
         family,
       };
     }
     // Gemma 4 exposes thinking as an on/off toggle in the Gemini API:
-    // omit thinkingConfig for off, or send thinkingLevel: "high" for on.
+    // omit the Interactions setting for off, or send thinking_level: "high" for on.
     if (family === 'gemma-4' && level !== 'minimal') {
       return {
-        config: { thinkingLevel: 'high' },
+        config: { thinking_level: 'high' },
         appliedLevel: 'high',
         appliedBudget: null,
         family,
@@ -979,24 +976,21 @@
 
   function geminiPayload(task, model) {
     const payload = {
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: task.prompt }],
-        },
-      ],
+      model,
+      input: task.prompt,
+      store: false,
     };
-    const generationConfig = {};
 
     if (task.output.type === 'json') {
-      generationConfig.responseMimeType = 'application/json';
-      generationConfig.responseJsonSchema = task.output.schema;
+      payload.response_format = {
+        type: 'text',
+        mime_type: 'application/json',
+        schema: task.output.schema,
+      };
     }
 
     const thinking = geminiThinkingConfigForModel(model, task.thinking);
-    if (thinking.config) generationConfig.thinkingConfig = thinking.config;
-
-    if (Object.keys(generationConfig).length) payload.generationConfig = generationConfig;
+    if (thinking.config) payload.generation_config = thinking.config;
 
     return { payload, thinking };
   }
@@ -1016,16 +1010,64 @@
     return meta;
   }
 
+  function geminiProviderReason(value) {
+    const candidates = [];
+    const collect = (candidate) => {
+      if (typeof candidate === 'string' && candidate.trim()) candidates.push(candidate.trim());
+    };
+    collect(value?.error?.code);
+    collect(value?.error?.status);
+    collect(value?.error?.message);
+    collect(value?.blockReason);
+    collect(value?.block_reason);
+    collect(value?.finishReason);
+    collect(value?.finish_reason);
+    collect(value?.incomplete_details?.reason);
+    collect(value?.status);
+    const steps = Array.isArray(value?.steps) ? value.steps : [];
+    for (const step of steps) {
+      collect(step?.error?.code);
+      collect(step?.error?.message);
+      collect(step?.block_reason);
+      collect(step?.finish_reason);
+      collect(step?.status);
+    }
+    const joined = candidates.join(' | ');
+    if (/PROHIBITED_CONTENT/i.test(joined)) return 'PROHIBITED_CONTENT';
+    if (/(^|\W)SAFETY($|\W)|SAFETY_FILTER|CONTENT_FILTER/i.test(joined)) return 'SAFETY';
+    return candidates[0] || null;
+  }
+
+  function geminiBlockedError(reason, detail, model) {
+    const prohibited = reason === 'PROHIBITED_CONTENT';
+    return {
+      code: prohibited ? 'prohibited_content' : 'safety_blocked',
+      message: prohibited
+        ? 'Gemini rejected the request under a non-adjustable content policy.'
+        : 'Gemini blocked the request with an adjustable safety filter.',
+      retryable: false,
+      backend: 'gemini',
+      providerReason: reason,
+      detail: detail || reason,
+      model,
+    };
+  }
+
   function geminiHttpError(status, statusText, bodyText) {
     let parsed = null;
     try { parsed = JSON.parse(bodyText || '{}'); } catch { parsed = null; }
     const providerMessage = parsed?.error?.message || statusText || `HTTP ${status}`;
+    const providerReason = geminiProviderReason(parsed);
     const base = {
       status,
       statusText,
       backend: 'gemini',
       detail: providerMessage,
     };
+
+    if (providerReason === 'PROHIBITED_CONTENT' || providerReason === 'SAFETY') {
+      return { ...base, ...geminiBlockedError(providerReason, providerMessage) };
+    }
 
     if (status === 401 || status === 403) {
       return { ...base, code: 'auth_failed', message: 'Gemini API key was rejected.', retryable: false };
@@ -1042,41 +1084,37 @@
     return { ...base, code: 'backend_failed', message: providerMessage, retryable: status >= 500 };
   }
 
-  function extractGeminiText(data) {
-    const candidates = Array.isArray(data?.candidates) ? data.candidates : [];
-    if (!candidates.length) {
-      const blockReason = data?.promptFeedback?.blockReason || null;
-      throw {
-        code: blockReason ? 'blocked' : 'invalid_response',
-        message: blockReason ? `Gemini blocked the prompt: ${blockReason}` : 'Gemini returned no candidates.',
-        retryable: false,
-        backend: 'gemini',
-      };
-    }
-
-    const candidate = candidates[0];
-    const parts = Array.isArray(candidate?.content?.parts) ? candidate.content.parts : [];
-    const text = parts
-      .map(part => (!part?.thought && typeof part?.text === 'string' ? part.text : ''))
+  function extractGeminiText(data, model) {
+    const steps = Array.isArray(data?.steps) ? data.steps : [];
+    const outputSteps = steps.filter(step => step?.type === 'model_output');
+    const lastOutput = outputSteps[outputSteps.length - 1] || null;
+    const content = Array.isArray(lastOutput?.content) ? lastOutput.content : [];
+    const text = content
+      .map(part => (part?.type === 'text' && typeof part?.text === 'string' ? part.text : ''))
       .filter(Boolean)
       .join('');
 
     if (!text) {
-      const finishReason = candidate?.finishReason || data?.promptFeedback?.blockReason || null;
+      const providerReason = geminiProviderReason(data);
+      if (providerReason === 'PROHIBITED_CONTENT' || providerReason === 'SAFETY') {
+        throw geminiBlockedError(providerReason, data?.error?.message, model);
+      }
       throw {
-        code: finishReason && finishReason !== 'STOP' ? 'blocked' : 'invalid_response',
-        message: finishReason
-          ? `Gemini returned no text output (${finishReason}).`
-          : 'Gemini returned no text output.',
+        code: 'invalid_response',
+        message: providerReason
+          ? `Gemini returned no text output (${providerReason}).`
+          : 'Gemini returned no model output text.',
         retryable: false,
         backend: 'gemini',
+        providerReason,
+        model,
       };
     }
 
     return text;
   }
 
-  async function callGeminiGenerateContent(settings, task) {
+  async function callGeminiInteraction(settings, task) {
     if (!settings.keyConfigured) {
       throw {
         code: 'not_configured',
@@ -1091,8 +1129,7 @@
 
     for (let modelIndex = 0; modelIndex < models.length; modelIndex++) {
       const currentModel = models[modelIndex];
-      const url =
-        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent`;
+      const url = 'https://generativelanguage.googleapis.com/v1/interactions';
       const payloadInfo = geminiPayload(task, currentModel);
 
       try {
@@ -1149,13 +1186,14 @@
           };
         }
 
-        const text = extractGeminiText(data);
+        const text = extractGeminiText(data, currentModel);
         const base = {
           backend: 'gemini',
           generatedAtIso: new Date().toISOString(),
           model: currentModel,
-          providerModel: data?.modelVersion || currentModel,
-          usage: data?.usageMetadata || null,
+          providerModel: data?.model || currentModel,
+          interactionId: typeof data?.id === 'string' ? data.id : null,
+          usage: data?.usage || null,
           status: geminiStatus(settings, currentModel),
           thinking: geminiThinkingMeta(task, currentModel, payloadInfo.thinking),
           fallback: {
@@ -1236,11 +1274,11 @@
         prompt: 'Reply with exactly: BetterDungeon Gemini ready',
         output: { type: 'text' },
       });
-      return callGeminiGenerateContent(settings, task);
+      return callGeminiInteraction(settings, task);
     }
     if (op === 'query') {
       const task = normalizeGeminiTask(request.task);
-      return callGeminiGenerateContent(settings, task);
+      return callGeminiInteraction(settings, task);
     }
 
     throw { code: 'invalid_args', message: `Gemini op '${op || '(empty)'}' is not supported`, retryable: false };
