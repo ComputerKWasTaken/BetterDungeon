@@ -99,7 +99,7 @@ Available modules include:
 | --- | --- |
 | `ai` | Asynchronous Gemini requests for script-side logic |
 | `widget` | RPG HUDs, stat bars, inventories, buttons, and status panels |
-| `webfetch` | Consent-gated HTTP requests and basic web searches |
+| `webfetch` | Bounded, credential-free reads of public HTTPS resources |
 | `clock` | Local time, timestamps, offsets, and IANA timezones |
 | `weather` | Current conditions and short-term forecasts |
 | `system` | Screen, touch, browser, and battery information |
@@ -115,7 +115,7 @@ Check out the [Ultrascripts examples](examples/README.md) if you want to start b
 3. Enable the features you want to use.
 4. If you want to use Gemini-powered features or script-side AI, configure your API key in the **Ultrascripts** settings.
 
-WebFetch requests remain consent-gated, so players approve external origins before scripts can access them.
+The WebFetch module toggle controls access to bounded public HTTPS reads. Requests never include browser cookies or ambient credentials.
 
 ## For contributors
 

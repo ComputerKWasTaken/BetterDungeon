@@ -2,7 +2,7 @@
 //
 // Hosts privileged operations that content scripts should not perform inside
 // the page context. Phase 5 uses this for WebFetch so Ultrascripts ops can access
-// http/https URLs without inheriting AI Dungeon page CORS.
+// public HTTPS URLs without inheriting AI Dungeon page CORS.
 
 (function () {
   if (globalThis.__BetterDungeonBackground) return;
@@ -42,13 +42,29 @@
   };
   const DEFAULT_MAX_BODY_BYTES = 50000;
   const MAX_BODY_BYTES = 100000;
-  const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+  const MAX_WEBFETCH_REDIRECTS = 5;
+  const MAX_WEBFETCH_URL_CHARS = 8192;
+  const MAX_WEBFETCH_HEADER_COUNT = 20;
+  const MAX_WEBFETCH_HEADER_NAME_CHARS = 128;
+  const MAX_WEBFETCH_HEADER_VALUE_CHARS = 2048;
+  const MAX_WEBFETCH_HEADER_TOTAL_CHARS = 8192;
+  const WEBFETCH_DNR_BLOCK_RULE_ID = 910001;
+  const WEBFETCH_DNR_ALLOW_RULE_ID = 910002;
+  const SAFE_METHODS = new Set(['GET', 'HEAD']);
+
+  const extensionApi =
+    (typeof browser !== 'undefined' && browser?.declarativeNetRequest) ? browser :
+    (typeof chrome !== 'undefined') ? chrome :
+    null;
+  const declarativeNetRequestApi = extensionApi?.declarativeNetRequest || null;
+  const webRequestApi = extensionApi?.webRequest || null;
+  let privilegedNetworkQueue = Promise.resolve();
+  let webFetchGuardReady = Promise.resolve();
 
   const SDK_SYNC_STORAGE_KEYS = {
     features: 'betterDungeonFeatures',
     ultrascriptsModules: 'ultrascripts_enabled_modules',
     ultrascriptsDebug: 'ultrascripts_debug',
-    webfetchAllowlist: 'ultrascripts_webfetch_allowlist',
   };
   const SDK_DEFAULT_FEATURES = {
     ultrascripts: true,
@@ -83,6 +99,31 @@
     'authorization',
     'proxy-authorization',
   ]);
+  const BLOCKED_REQUEST_HEADERS = new Set([
+    'accept-encoding',
+    'authorization',
+    'connection',
+    'content-length',
+    'cookie',
+    'forwarded',
+    'host',
+    'origin',
+    'proxy-authorization',
+    'referer',
+    'referrer',
+    'te',
+    'trailer',
+    'transfer-encoding',
+    'upgrade',
+    'user-agent',
+    'via',
+    'x-forwarded-for',
+    'x-forwarded-host',
+    'x-forwarded-proto',
+    'x-real-ip',
+  ]);
+  const HEADER_NAME_PATTERN = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+  const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
   const geminiRuntimeState = {
     lastResolvedModel: null,
     lastProviderModel: null,
@@ -111,26 +152,327 @@
     return Math.max(min, Math.min(max, n));
   }
 
+  function withPrivilegedNetworkLock(task) {
+    const run = privilegedNetworkQueue.then(task, task);
+    privilegedNetworkQueue = run.catch(() => {});
+    return run;
+  }
+
+  function updateSessionRules(update) {
+    if (!declarativeNetRequestApi?.updateSessionRules) {
+      return Promise.reject(new Error('declarativeNetRequest is unavailable'));
+    }
+
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (error) => {
+        if (settled) return;
+        settled = true;
+        if (error) reject(error);
+        else resolve();
+      };
+      const callback = () => {
+        const lastError =
+          (typeof chrome !== 'undefined' && chrome?.runtime?.lastError) ||
+          (typeof browser !== 'undefined' && browser?.runtime?.lastError) ||
+          null;
+        finish(lastError ? new Error(lastError.message || 'Failed to update redirect guard') : null);
+      };
+
+      try {
+        const maybePromise = declarativeNetRequestApi.updateSessionRules(update, callback);
+        if (maybePromise && typeof maybePromise.then === 'function') {
+          maybePromise.then(() => finish(), finish);
+        }
+      } catch (callbackError) {
+        try {
+          const maybePromise = declarativeNetRequestApi.updateSessionRules(update);
+          if (maybePromise && typeof maybePromise.then === 'function') {
+            maybePromise.then(() => finish(), finish);
+          } else {
+            finish();
+          }
+        } catch (promiseError) {
+          finish(promiseError || callbackError);
+        }
+      }
+    });
+  }
+
+  function webFetchNetworkUrl(url) {
+    const value = url instanceof URL ? url.href : String(url || '');
+    const hashIndex = value.indexOf('#');
+    return hashIndex >= 0 ? value.slice(0, hashIndex) : value;
+  }
+
+  function escapeDnrRegex(value) {
+    return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  async function removeWebFetchRedirectGuard() {
+    if (!declarativeNetRequestApi?.updateSessionRules) return;
+    await updateSessionRules({
+      removeRuleIds: [WEBFETCH_DNR_BLOCK_RULE_ID, WEBFETCH_DNR_ALLOW_RULE_ID],
+    });
+  }
+
+  async function installWebFetchRedirectGuard(url) {
+    if (!declarativeNetRequestApi?.updateSessionRules || !webRequestApi?.onBeforeRedirect) {
+      return false;
+    }
+
+    const networkUrl = webFetchNetworkUrl(url);
+    const initiatorDomains = extensionRuntime?.id ? [String(extensionRuntime.id).toLowerCase()] : undefined;
+    if (!initiatorDomains) return false;
+
+    await updateSessionRules({
+      removeRuleIds: [WEBFETCH_DNR_BLOCK_RULE_ID, WEBFETCH_DNR_ALLOW_RULE_ID],
+      addRules: [
+        {
+          id: WEBFETCH_DNR_BLOCK_RULE_ID,
+          priority: 1,
+          action: { type: 'block' },
+          condition: {
+            regexFilter: '^https?://',
+            initiatorDomains,
+            resourceTypes: ['xmlhttprequest'],
+          },
+        },
+        {
+          id: WEBFETCH_DNR_ALLOW_RULE_ID,
+          priority: 2,
+          action: { type: 'allow' },
+          condition: {
+            regexFilter: `^${escapeDnrRegex(networkUrl)}$`,
+            initiatorDomains,
+            resourceTypes: ['xmlhttprequest'],
+          },
+        },
+      ],
+    });
+    return true;
+  }
+
+  async function fetchWebFetchHop(url, options, timeoutMs) {
+    let guarded = false;
+    try {
+      guarded = await installWebFetchRedirectGuard(url);
+    } catch {
+      guarded = false;
+    }
+
+    let redirectUrl = null;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const networkUrl = webFetchNetworkUrl(url);
+    const redirectListener = (details) => {
+      if (webFetchNetworkUrl(details?.url) !== networkUrl) return;
+      if (typeof details?.tabId === 'number' && details.tabId !== -1) return;
+      redirectUrl = typeof details?.redirectUrl === 'string' ? details.redirectUrl : null;
+      controller.abort();
+    };
+
+    if (guarded) {
+      webRequestApi.onBeforeRedirect.addListener(
+        redirectListener,
+        { urls: ['<all_urls>'], types: ['xmlhttprequest'] },
+      );
+    }
+
+    try {
+      const response = await fetch(url.href, {
+        ...options,
+        redirect: guarded ? 'follow' : 'manual',
+        signal: controller.signal,
+      });
+      if (redirectUrl) return { redirectUrl };
+      if (!guarded && response.type === 'opaqueredirect') {
+        throw {
+          code: 'redirect_unavailable',
+          message: 'This browser did not expose redirect metadata for validation',
+        };
+      }
+      return { response };
+    } catch (error) {
+      if (redirectUrl) return { redirectUrl };
+      throw error;
+    } finally {
+      clearTimeout(timer);
+      if (guarded) {
+        try { webRequestApi.onBeforeRedirect.removeListener(redirectListener); } catch { /* noop */ }
+        try { await removeWebFetchRedirectGuard(); } catch { /* noop */ }
+      }
+    }
+  }
+
+  // Session rules can survive service-worker suspension. Clear any interrupted
+  // redirect guard immediately whenever the background runtime starts again.
+  webFetchGuardReady = removeWebFetchRedirectGuard().catch(() => {});
+
   function isTextContentType(contentType) {
     const lower = String(contentType || '').toLowerCase();
     return (
+      lower === '' ||
       lower.startsWith('text/') ||
-      lower.includes('json') ||
-      lower.includes('xml') ||
-      lower.includes('javascript') ||
-      lower.includes('svg') ||
-      lower.includes('x-www-form-urlencoded')
+      lower.includes('/json') ||
+      lower.includes('+json') ||
+      lower.includes('/xml') ||
+      lower.includes('+xml')
     );
   }
 
-  function bytesToBase64(bytes) {
-    let binary = '';
-    const chunkSize = 0x8000;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      const chunk = bytes.subarray(i, i + chunkSize);
-      binary += String.fromCharCode.apply(null, chunk);
+  function invalidWebFetchArgs(message) {
+    return { code: 'invalid_args', message };
+  }
+
+  function parseIpv4(host) {
+    const match = String(host || '').match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (!match) return null;
+    const parts = match.slice(1).map(Number);
+    if (parts.some((value) => value < 0 || value > 255)) {
+      throw invalidWebFetchArgs('url contains an invalid IPv4 host');
     }
-    return btoa(binary);
+    return parts;
+  }
+
+  function ipv4IsBlocked(host) {
+    const parts = parseIpv4(host);
+    if (!parts) return false;
+    const [a, b, c] = parts;
+    return (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 0 && c === 0) ||
+      (a === 192 && b === 0 && c === 2) ||
+      (a === 192 && b === 88 && c === 99) ||
+      (a === 192 && b === 168) ||
+      (a === 198 && (b === 18 || b === 19)) ||
+      (a === 198 && b === 51 && c === 100) ||
+      (a === 203 && b === 0 && c === 113) ||
+      a >= 224
+    );
+  }
+
+  function parseIpv6(host) {
+    let source = String(host || '').toLowerCase();
+    if (source.includes('%')) throw invalidWebFetchArgs('IPv6 zone identifiers are blocked');
+
+    let ipv4Tail = null;
+    const lastColon = source.lastIndexOf(':');
+    if (source.includes('.') && lastColon >= 0) {
+      ipv4Tail = parseIpv4(source.slice(lastColon + 1));
+      if (!ipv4Tail) throw invalidWebFetchArgs('url contains an invalid IPv6 host');
+      source = `${source.slice(0, lastColon)}:${((ipv4Tail[0] << 8) | ipv4Tail[1]).toString(16)}:${((ipv4Tail[2] << 8) | ipv4Tail[3]).toString(16)}`;
+    }
+
+    if ((source.match(/::/g) || []).length > 1) {
+      throw invalidWebFetchArgs('url contains an invalid IPv6 host');
+    }
+    const halves = source.split('::');
+    const left = halves[0] ? halves[0].split(':') : [];
+    const right = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+    const missing = 8 - left.length - right.length;
+    if ((halves.length === 1 && missing !== 0) || (halves.length === 2 && missing < 1)) {
+      throw invalidWebFetchArgs('url contains an invalid IPv6 host');
+    }
+    const groups = halves.length === 2
+      ? [...left, ...Array(missing).fill('0'), ...right]
+      : left;
+    if (groups.length !== 8 || groups.some((part) => !/^[0-9a-f]{1,4}$/.test(part))) {
+      throw invalidWebFetchArgs('url contains an invalid IPv6 host');
+    }
+    return { groups: groups.map((part) => parseInt(part, 16)), ipv4Tail };
+  }
+
+  function ipv6IsBlocked(host) {
+    const parsed = parseIpv6(host);
+    const groups = parsed.groups;
+    const globalUnicast = (groups[0] & 0xe000) === 0x2000;
+    const protocolAssignments = groups[0] === 0x2001 && groups[1] < 0x0200;
+    const documentation = groups[0] === 0x2001 && groups[1] === 0x0db8;
+    const sixToFour = groups[0] === 0x2002;
+    const documentationV2 = groups[0] === 0x3fff && (groups[1] & 0xf000) === 0;
+    return (
+      !globalUnicast ||
+      protocolAssignments ||
+      documentation ||
+      sixToFour ||
+      documentationV2
+    );
+  }
+
+  function validateWebFetchUrl(value) {
+    const raw = String(value || '').trim();
+    if (!raw) throw invalidWebFetchArgs('url is required');
+    if (raw.length > MAX_WEBFETCH_URL_CHARS) {
+      throw invalidWebFetchArgs(`url must not exceed ${MAX_WEBFETCH_URL_CHARS} characters`);
+    }
+
+    let url;
+    try {
+      url = new URL(raw);
+    } catch {
+      throw invalidWebFetchArgs('url must be an absolute URL');
+    }
+    if (url.protocol !== 'https:') {
+      throw { code: 'scheme_blocked', message: 'WebFetch only supports HTTPS URLs' };
+    }
+    if (url.username || url.password) {
+      throw { code: 'credentials_blocked', message: 'URLs containing credentials are blocked' };
+    }
+
+    const host = String(url.hostname || '').toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+    if (!host) throw invalidWebFetchArgs('url hostname is required');
+    if (host === 'localhost' || host.endsWith('.localhost') || host === 'local' || host.endsWith('.local')) {
+      throw { code: 'host_blocked', message: `Host '${url.hostname}' is blocked` };
+    }
+    if ((host.includes(':') && ipv6IsBlocked(host)) || (!host.includes(':') && ipv4IsBlocked(host))) {
+      throw { code: 'host_blocked', message: `Host '${url.hostname}' is blocked` };
+    }
+    return url;
+  }
+
+  function sanitizeWebFetchHeaders(value) {
+    if (value === undefined || value === null) return {};
+    if (typeof value !== 'object' || Array.isArray(value)) {
+      throw invalidWebFetchArgs('headers must be an object');
+    }
+    const entries = Object.entries(value);
+    if (entries.length > MAX_WEBFETCH_HEADER_COUNT) {
+      throw invalidWebFetchArgs(`headers must not contain more than ${MAX_WEBFETCH_HEADER_COUNT} entries`);
+    }
+
+    const headers = {};
+    let totalChars = 0;
+    for (const [rawName, rawValue] of entries) {
+      const name = String(rawName || '').trim();
+      if (!name || !HEADER_NAME_PATTERN.test(name) || name.length > MAX_WEBFETCH_HEADER_NAME_CHARS) {
+        throw invalidWebFetchArgs(`header name '${name || '(empty)'}' is invalid or too long`);
+      }
+      const lower = name.toLowerCase();
+      if (rawValue === undefined || rawValue === null) continue;
+      const headerValue = String(rawValue);
+      if (headerValue.length > MAX_WEBFETCH_HEADER_VALUE_CHARS || /[\r\n]/.test(headerValue)) {
+        throw invalidWebFetchArgs(`header '${name}' has an invalid or oversized value`);
+      }
+      totalChars += name.length + headerValue.length;
+      if (totalChars > MAX_WEBFETCH_HEADER_TOTAL_CHARS) {
+        throw invalidWebFetchArgs(`headers must not exceed ${MAX_WEBFETCH_HEADER_TOTAL_CHARS} combined characters`);
+      }
+      if (BLOCKED_REQUEST_HEADERS.has(lower) || lower.startsWith('sec-') || lower.startsWith('proxy-')) {
+        continue;
+      }
+      headers[name] = headerValue;
+    }
+    return headers;
+  }
+
+  function urlOrigin(url) {
+    return `${url.protocol}//${url.hostname.toLowerCase()}${url.port ? `:${url.port}` : ''}`;
   }
 
   function concatBytes(chunks, totalLength) {
@@ -202,35 +544,64 @@
     };
   }
 
-  async function handleWebFetch(request = {}) {
-    const url = String(request.url || '');
+  async function handleWebFetchUnlocked(request = {}) {
+    let url = validateWebFetchUrl(request.url);
     const method = String(request.method || 'GET').toUpperCase();
-    const headers = request.headers && typeof request.headers === 'object'
-      ? request.headers
-      : {};
+    let headers = sanitizeWebFetchHeaders(request.headers);
     const timeoutMs = clampNumber(request.timeoutMs, DEFAULT_TIMEOUT_MS, 1000, MAX_TIMEOUT_MS);
     const maxBodyBytes = clampNumber(request.maxBodyBytes, DEFAULT_MAX_BODY_BYTES, 1024, MAX_BODY_BYTES);
 
     if (!SAFE_METHODS.has(method)) {
-      throw { code: 'invalid_args', message: `method '${method}' is not supported in WebFetch v1` };
+      throw { code: 'invalid_args', message: `method '${method}' is not supported; use GET or HEAD` };
     }
     if (request.body !== undefined && request.body !== null) {
-      throw { code: 'invalid_args', message: `${method} requests cannot include a body in WebFetch v1` };
+      throw { code: 'invalid_args', message: `${method} requests cannot include a body` };
     }
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const deadline = Date.now() + timeoutMs;
+    const visited = new Set([url.href]);
+    let redirectCount = 0;
 
     try {
-      const response = await fetch(url, {
-        method,
-        headers,
-        body: request.body === undefined ? undefined : String(request.body),
-        redirect: 'follow',
-        credentials: 'omit',
-        cache: 'no-store',
-        signal: controller.signal,
-      });
+      let response;
+      while (true) {
+        const remainingMs = deadline - Date.now();
+        if (remainingMs <= 0) {
+          throw { code: 'timeout', message: `WebFetch timed out after ${timeoutMs} ms` };
+        }
+        const hop = await fetchWebFetchHop(url, {
+          method,
+          headers,
+          credentials: 'omit',
+          cache: 'no-store',
+          referrer: '',
+          referrerPolicy: 'no-referrer',
+        }, remainingMs);
+
+        response = hop.response || null;
+        const redirectLocation = hop.redirectUrl || (
+          response && REDIRECT_STATUSES.has(response.status)
+            ? response.headers.get('location')
+            : null
+        );
+
+        if (!hop.redirectUrl && (!response || !REDIRECT_STATUSES.has(response.status))) break;
+        if (!redirectLocation) {
+          throw { code: 'redirect_blocked', message: 'Redirect response did not include a readable Location header' };
+        }
+        if (redirectCount >= MAX_WEBFETCH_REDIRECTS) {
+          throw { code: 'redirect_limit', message: `WebFetch exceeded ${MAX_WEBFETCH_REDIRECTS} redirects` };
+        }
+
+        const nextUrl = validateWebFetchUrl(new URL(redirectLocation, url).href);
+        if (visited.has(nextUrl.href)) {
+          throw { code: 'redirect_loop', message: 'WebFetch detected a redirect loop' };
+        }
+        if (urlOrigin(nextUrl) !== urlOrigin(url)) headers = {};
+        url = nextUrl;
+        visited.add(url.href);
+        redirectCount++;
+      }
 
       const responseHeaders = {};
       response.headers.forEach((value, key) => {
@@ -239,20 +610,27 @@
       });
 
       const contentType = response.headers.get('content-type') || '';
-      const body = await readBodyBytes(response, maxBodyBytes);
-      const bytes = body.bytes;
-      const textLike = isTextContentType(contentType);
+      if (!isTextContentType(contentType)) {
+        throw {
+          code: 'content_type_blocked',
+          message: `WebFetch only returns text-like content; received '${contentType || 'unknown'}'`,
+        };
+      }
+      const body = method === 'HEAD'
+        ? { bytes: new Uint8Array(0), totalBytes: 0, returnedBytes: 0, truncated: false }
+        : await readBodyBytes(response, maxBodyBytes);
 
       return {
-        url: response.url,
-        redirected: response.redirected,
+        url: response.url || url.href,
+        redirected: redirectCount > 0,
+        redirectCount,
         status: response.status,
         statusText: response.statusText,
         ok: response.ok,
         headers: responseHeaders,
         contentType,
-        bodyEncoding: textLike ? 'text' : 'base64',
-        body: textLike ? new TextDecoder().decode(bytes) : bytesToBase64(bytes),
+        bodyEncoding: 'text',
+        body: method === 'HEAD' ? '' : new TextDecoder().decode(body.bytes),
         bytes: body.totalBytes,
         returnedBytes: body.returnedBytes,
         truncated: body.truncated,
@@ -261,10 +639,16 @@
       if (err?.name === 'AbortError') {
         throw { code: 'timeout', message: `WebFetch timed out after ${timeoutMs} ms` };
       }
+      if (err && typeof err === 'object' && typeof err.code === 'string') throw err;
       throw { code: 'webfetch_failed', message: err?.message || 'WebFetch failed' };
-    } finally {
-      clearTimeout(timer);
     }
+  }
+
+  function handleWebFetch(request = {}) {
+    return withPrivilegedNetworkLock(async () => {
+      await webFetchGuardReady;
+      return handleWebFetchUnlocked(request);
+    });
   }
 
   function storageArea(areaName) {
@@ -348,23 +732,6 @@
     return out;
   }
 
-  function summarizeSdkWebFetchAllowlist(raw) {
-    const entries = raw && typeof raw === 'object' ? Object.entries(raw) : [];
-    let allowCount = 0;
-    let denyCount = 0;
-    for (let i = 0; i < entries.length; i++) {
-      const entry = entries[i][1];
-      if (!entry || typeof entry !== 'object') continue;
-      if (entry.decision === 'allow') allowCount++;
-      else if (entry.decision === 'deny') denyCount++;
-    }
-    return {
-      savedOriginCount: allowCount + denyCount,
-      allowCount,
-      denyCount,
-    };
-  }
-
   async function getSdkConfigSnapshot() {
     const syncResult = await storageGet('sync', Object.values(SDK_SYNC_STORAGE_KEYS));
     return {
@@ -372,7 +739,6 @@
       ultrascripts: {
         debug: !!syncResult[SDK_SYNC_STORAGE_KEYS.ultrascriptsDebug],
         modulePreferences: normalizeSdkUltrascriptsModules(syncResult[SDK_SYNC_STORAGE_KEYS.ultrascriptsModules]),
-        webfetch: summarizeSdkWebFetchAllowlist(syncResult[SDK_SYNC_STORAGE_KEYS.webfetchAllowlist]),
       },
     };
   }
@@ -725,26 +1091,31 @@
 
     for (let modelIndex = 0; modelIndex < models.length; modelIndex++) {
       const currentModel = models[modelIndex];
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), GEMINI_DEFAULT_TIMEOUT_MS);
       const url =
         `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent`;
       const payloadInfo = geminiPayload(task, currentModel);
 
       try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': settings.apiKey,
-          },
-          body: JSON.stringify(payloadInfo.payload),
-          credentials: 'omit',
-          cache: 'no-store',
-          signal: controller.signal,
+        const { response, bodyText } = await withPrivilegedNetworkLock(async () => {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), GEMINI_DEFAULT_TIMEOUT_MS);
+          try {
+            const lockedResponse = await fetch(url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': settings.apiKey,
+              },
+              body: JSON.stringify(payloadInfo.payload),
+              credentials: 'omit',
+              cache: 'no-store',
+              signal: controller.signal,
+            });
+            return { response: lockedResponse, bodyText: await lockedResponse.text() };
+          } finally {
+            clearTimeout(timer);
+          }
         });
-
-        const bodyText = await response.text();
         if (!response.ok) {
           const err = geminiHttpError(response.status, response.statusText, bodyText);
           const retryAfter = response.headers.get('retry-after');
@@ -828,8 +1199,6 @@
           backend: 'gemini',
           model: currentModel,
         };
-      } finally {
-        clearTimeout(timer);
       }
     }
 

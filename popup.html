@@ -161,7 +161,7 @@
                 </div>
                 <div class="whats-new-archive-item">
                   <span class="whats-new-item-icon icon-globe-lock" style="color: #3b82f6;"></span>
-                  <div><strong>Ultrascripts WebFetch Module</strong>: Allows scripts powered by Ultrascripts to send GET requests, and basic search. Allowed domains operated by the users of the script. Will likely be seeing improvements in the future.</div>
+                  <div><strong>Ultrascripts WebFetch Module</strong>: Allows scripts powered by Ultrascripts to read small public HTTPS resources without cookies or credentials.</div>
                 </div>
                 <div class="whats-new-archive-item">
                   <span class="whats-new-item-icon icon-clock" style="color: #eab308;"></span>
@@ -883,7 +883,7 @@
                     </span>
                     <h3 class="feature-title">WebFetch</h3>
                   </div>
-                  <p class="feature-desc">Consent-gated web requests and simple search</p>
+                  <p class="feature-desc">Bounded public HTTPS reads</p>
                 </div>
                 <label class="toggle sm">
                   <input type="checkbox" data-ultrascripts-module-toggle="webfetch" checked>
@@ -891,28 +891,8 @@
                 </label>
               </div>
               <div class="feature-details">
-                <p>WebFetch gives scripts conservative web access for live context: safe GET requests, basic search, origin allow/deny decisions, rate limits, and blocked local/private targets.</p>
-                <p class="feature-hint"><span class="icon-globe-lock"></span> Useful for current facts, public reference pages, lightweight lookups, and web-aware scripted tools.</p>
-                <div class="ultrascripts-consent-panel">
-                  <div class="ultrascripts-panel-heading">
-                    <span><span class="icon-shield-check"></span> Origin Permissions</span>
-                    <button class="btn btn-icon btn-ghost" id="webfetch-consent-refresh" aria-label="Refresh WebFetch origins" title="Refresh origins">
-                      <span class="icon-refresh-cw"></span>
-                    </button>
-                  </div>
-                  <div class="ultrascripts-consent-list" id="webfetch-consent-list"></div>
-                  <div class="ultrascripts-consent-editor">
-                    <input type="text" class="form-input" id="webfetch-origin-input" placeholder="https://example.com">
-                    <select class="form-select form-select-sm" id="webfetch-decision-select" aria-label="WebFetch origin decision">
-                      <option value="allow">Allow</option>
-                      <option value="deny">Deny</option>
-                      <option value="clear">Clear</option>
-                    </select>
-                    <button class="btn btn-icon btn-primary" id="webfetch-consent-save" aria-label="Save WebFetch origin" title="Save origin">
-                      <span class="icon-check"></span>
-                    </button>
-                  </div>
-                </div>
+                <p>WebFetch lets scripts read bounded text, JSON, HTML, and XML from public HTTPS resources. It never sends browser cookies or credentials.</p>
+                <p class="feature-hint"><span class="icon-globe-lock"></span> Enabling this module permits safe GET and HEAD requests. Disable it at any time to stop script web access.</p>
               </div>
             </article>
 

@@ -5,10 +5,11 @@
   "description": "An all-in-one browser extension for AI Dungeon that enhances the experience with QOL additions and brand new features.",
   "permissions": [
     "activeTab",
+    "declarativeNetRequestWithHostAccess",
+    "webRequest",
     "storage"
   ],
   "host_permissions": [
-    "http://*/*",
     "https://*/*"
   ],
   "background": {
@@ -62,7 +63,6 @@
         "services/ultrascripts/core.js",
         "services/ultrascripts/module-registry.js",
         "services/ultrascripts/ops-dispatcher.js",
-        "modules/webfetch/consent.js",
         "modules/webfetch/module.js",
         "modules/clock/module.js",
         "modules/weather/module.js",

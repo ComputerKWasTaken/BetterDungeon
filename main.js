@@ -105,37 +105,11 @@ class BetterDungeon {
           modules: window.Ultrascripts?.registry?.list?.() || [],
         });
         return true;
-      } else if (message.type === 'GET_WEBFETCH_CONSENT') {
-        this.handleGetWebFetchConsent().then(sendResponse);
-        return true;
-      } else if (message.type === 'SET_WEBFETCH_CONSENT') {
-        this.handleSetWebFetchConsent(message.origin, message.decision).then(sendResponse);
-        return true;
       } else if (message.type === 'REFRESH_CUSTOM_DYNAMIC_MODELS') {
         this.handleRefreshCustomDynamicModels(message.force !== false).then(sendResponse);
         return true;
       }
     });
-  }
-
-  async handleGetWebFetchConsent() {
-    try {
-      const consent = window.UltrascriptsWebFetchConsent;
-      if (!consent?.inspect) return { success: false, error: 'WebFetch consent broker not available' };
-      return { success: true, consent: await consent.inspect() };
-    } catch (error) {
-      return { success: false, error: error?.message || String(error) };
-    }
-  }
-
-  async handleSetWebFetchConsent(origin, decision) {
-    try {
-      const consent = window.UltrascriptsWebFetchConsent;
-      if (!consent?.setOrigin) return { success: false, error: 'WebFetch consent broker not available' };
-      return { success: true, result: await consent.setOrigin(origin, decision) };
-    } catch (error) {
-      return { success: false, error: error?.message || String(error) };
-    }
   }
 
   async handleRefreshCustomDynamicModels(force = true) {

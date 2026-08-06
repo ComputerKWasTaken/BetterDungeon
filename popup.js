@@ -21,7 +21,6 @@ const STORAGE_KEYS = {
   markdownInstructionPreset: 'betterDungeon_markdownInstructionPreset',
   ultrascriptsDebug: 'ultrascripts_debug',
   ultrascriptsModules: 'ultrascripts_enabled_modules',
-  webfetchAllowlist: 'ultrascripts_webfetch_allowlist',
   customHotkeys: 'betterDungeon_customHotkeys',
   customModeColors: 'betterDungeon_customModeColors',
   commandSubMode: 'betterDungeon_commandSubMode',
@@ -304,7 +303,6 @@ function initToggles() {
 
 function initUltrascriptsSettings() {
   loadUltrascriptsModuleToggles();
-  loadWebFetchConsentList();
   initGeminiSettings();
   refreshUltrascriptsState();
 
@@ -315,8 +313,6 @@ function initUltrascriptsSettings() {
   });
 
   document.getElementById('ultrascripts-refresh')?.addEventListener('click', refreshUltrascriptsState);
-  document.getElementById('webfetch-consent-refresh')?.addEventListener('click', loadWebFetchConsentList);
-  document.getElementById('webfetch-consent-save')?.addEventListener('click', saveWebFetchConsentFromForm);
 }
 
 function sendGeminiMessage(request) {
@@ -557,111 +553,6 @@ function updateUltrascriptsStatus(state, fallbackDetail = '') {
   detail.textContent = `${mounted.length}/${ULTRASCRIPTS_PUBLIC_MODULES.length} modules mounted, ${enabled.length} enabled.`;
 }
 
-function normalizeWebFetchStore(value) {
-  const out = {};
-  if (!value || typeof value !== 'object') return out;
-  Object.entries(value).forEach(([origin, entry]) => {
-    if (!entry || typeof entry !== 'object') return;
-    if (entry.decision !== 'allow' && entry.decision !== 'deny') return;
-    out[origin] = {
-      decision: entry.decision,
-      updatedAt: Number(entry.updatedAt || Date.now())
-    };
-  });
-  return out;
-}
-
-function loadWebFetchConsentList() {
-  chrome.storage.sync.get(STORAGE_KEYS.webfetchAllowlist, (result) => {
-    const store = normalizeWebFetchStore((result || {})[STORAGE_KEYS.webfetchAllowlist]);
-    renderWebFetchConsentList(store);
-  });
-}
-
-function renderWebFetchConsentList(store) {
-  const list = document.getElementById('webfetch-consent-list');
-  if (!list) return;
-
-  list.innerHTML = '';
-  const entries = Object.entries(store).sort(([a], [b]) => a.localeCompare(b));
-  if (!entries.length) {
-    const empty = document.createElement('div');
-    empty.className = 'ultrascripts-consent-empty';
-    empty.textContent = 'No saved origins';
-    list.appendChild(empty);
-    return;
-  }
-
-  entries.forEach(([origin, entry]) => {
-    const row = document.createElement('div');
-    row.className = 'ultrascripts-consent-row';
-
-    const originEl = document.createElement('span');
-    originEl.className = 'ultrascripts-consent-origin';
-    originEl.title = origin;
-    originEl.textContent = origin;
-
-    const badge = document.createElement('span');
-    badge.className = `ultrascripts-consent-badge ${entry.decision}`;
-    badge.textContent = entry.decision;
-
-    const clearBtn = document.createElement('button');
-    clearBtn.className = 'btn btn-icon btn-ghost';
-    clearBtn.type = 'button';
-    clearBtn.title = 'Clear origin';
-    clearBtn.setAttribute('aria-label', `Clear ${origin}`);
-    clearBtn.innerHTML = '<span class="icon-x"></span>';
-    clearBtn.addEventListener('click', () => setWebFetchConsent(origin, 'clear'));
-
-    row.append(originEl, badge, clearBtn);
-    list.appendChild(row);
-  });
-}
-
-function saveWebFetchConsentFromForm() {
-  const input = document.getElementById('webfetch-origin-input');
-  const select = document.getElementById('webfetch-decision-select');
-  if (!input || !select) return;
-
-  let origin = '';
-  try {
-    origin = new URL(input.value.trim()).origin;
-  } catch {
-    showToast('Enter a valid origin', 'error');
-    return;
-  }
-
-  setWebFetchConsent(origin, select.value).then(() => {
-    input.value = '';
-  });
-}
-
-async function setWebFetchConsent(origin, decision) {
-  try {
-    const response = await sendToActiveAIDungeon('SET_WEBFETCH_CONSENT', { origin, decision });
-    if (response?.success === false) throw new Error(response.error || 'WebFetch consent update failed');
-  } catch {
-    await setWebFetchConsentInStorage(origin, decision);
-  }
-
-  loadWebFetchConsentList();
-  showToast('WebFetch origin updated', 'success');
-}
-
-function setWebFetchConsentInStorage(origin, decision) {
-  return new Promise((resolve) => {
-    chrome.storage.sync.get(STORAGE_KEYS.webfetchAllowlist, (result) => {
-      const store = normalizeWebFetchStore((result || {})[STORAGE_KEYS.webfetchAllowlist]);
-      if (decision === 'clear') {
-        delete store[origin];
-      } else {
-        store[origin] = { decision, updatedAt: Date.now() };
-      }
-      chrome.storage.sync.set({ [STORAGE_KEYS.webfetchAllowlist]: store }, resolve);
-    });
-  });
-}
-
 function saveFeatureState(featureId, enabled) {
   log('[Popup] Saving feature state:', featureId, enabled);
   chrome.storage.sync.get(STORAGE_KEYS.features, (result) => {
@@ -680,7 +571,7 @@ function saveFeatureState(featureId, enabled) {
 }
 
 function setUltrascriptsModuleControlsEnabled(enabled) {
-  document.querySelectorAll('[data-ultrascripts-module-toggle], #ultrascripts-debug, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #ai-gemini-api-key, #ai-gemini-model-mode, #ai-gemini-model, #ai-gemini-save, #ai-gemini-test')
+  document.querySelectorAll('[data-ultrascripts-module-toggle], #ultrascripts-debug, #ai-gemini-api-key, #ai-gemini-model-mode, #ai-gemini-model, #ai-gemini-save, #ai-gemini-test')
     .forEach(control => {
       control.disabled = !enabled;
     });

@@ -8,9 +8,8 @@
 //   ultrascripts:in:webfetch          - response envelope (BD -> script)
 //   ultrascripts:test:webfetch        - human-readable trace card with results
 //
-// Note: The webfetch module requires user consent for each origin. If consent
-// is denied, the suite validates the denial error shape. Steps that hit real
-// URLs also require an internet connection.
+// Steps that hit real URLs require an internet connection. WebFetch should run
+// without an origin prompt whenever the module is enabled.
 
 // ---------- state ----------
 
@@ -37,7 +36,7 @@ var FWEB_STEPS = [
     module: 'webfetch',
     op: 'fetch',
     args: function () { return { url: 'https://httpbin.org/json' }; },
-    expect: 'ok-or-consent',
+    expect: 'ok',
     validate: function (r) {
       if (!r) return false;
       if (typeof r.status !== 'number') return false;
@@ -52,7 +51,7 @@ var FWEB_STEPS = [
     module: 'webfetch',
     op: 'fetch',
     args: function () { return { url: 'https://httpbin.org/get', method: 'HEAD' }; },
-    expect: 'ok-or-consent',
+    expect: 'ok',
     validate: function (r) {
       if (!r) return false;
       if (typeof r.status !== 'number') return false;
@@ -71,7 +70,7 @@ var FWEB_STEPS = [
         headers: { 'X-Test-Header': 'ultrascripts-test' }
       };
     },
-    expect: 'ok-or-consent',
+    expect: 'ok',
     validate: function (r) {
       if (!r || typeof r.status !== 'number') return false;
       if (typeof r.body !== 'string') return false;
@@ -79,45 +78,38 @@ var FWEB_STEPS = [
     }
   },
   {
-    label: 'search',
+    label: 'fetch-redirect',
     module: 'webfetch',
-    op: 'search',
-    args: function () { return { query: 'AI Dungeon game' }; },
-    expect: 'ok-or-consent',
+    op: 'fetch',
+    args: function () { return { url: 'https://httpbin.org/redirect/1' }; },
+    expect: 'ok',
     validate: function (r) {
-      if (!r) return false;
-      if (!Array.isArray(r.results)) return false;
-      if (r.results.length > 0) {
-        var first = r.results[0];
-        if (!first || typeof first.title !== 'string') return false;
-        if (typeof first.url !== 'string') return false;
-      }
-      return true;
+      return !!r && r.redirected === true && r.redirectCount === 1 && typeof r.body === 'string';
     }
+  },
+  {
+    label: 'err-http-scheme',
+    module: 'webfetch',
+    op: 'fetch',
+    args: function () { return { url: 'http://example.com/' }; },
+    expect: 'err',
+    errorCode: 'scheme_blocked'
   },
   {
     label: 'err-blocked-localhost',
     module: 'webfetch',
     op: 'fetch',
-    args: function () { return { url: 'http://localhost:8080/test' }; },
+    args: function () { return { url: 'https://localhost:8080/test' }; },
     expect: 'err',
-    errorCode: 'scheme_blocked',
-    validateErr: function (err) {
-      if (!err || typeof err.code !== 'string') return false;
-      // Could be scheme_blocked or handler_threw depending on validation order
-      return err.code === 'scheme_blocked' || err.code === 'invalid_args';
-    }
+    errorCode: 'host_blocked'
   },
   {
     label: 'err-blocked-private-ip',
     module: 'webfetch',
     op: 'fetch',
-    args: function () { return { url: 'http://192.168.1.1/' }; },
+    args: function () { return { url: 'https://192.168.1.1/' }; },
     expect: 'err',
-    validateErr: function (err) {
-      if (!err || typeof err.code !== 'string') return false;
-      return err.code === 'scheme_blocked' || err.code === 'invalid_args';
-    }
+    errorCode: 'host_blocked'
   },
   {
     label: 'err-no-url',
@@ -136,12 +128,28 @@ var FWEB_STEPS = [
     errorCode: 'invalid_args'
   },
   {
-    label: 'err-no-query',
+    label: 'err-body',
     module: 'webfetch',
-    op: 'search',
-    args: function () { return {}; },
+    op: 'fetch',
+    args: function () { return { url: 'https://example.com/', body: 'blocked' }; },
     expect: 'err',
     errorCode: 'invalid_args'
+  },
+  {
+    label: 'err-binary-content',
+    module: 'webfetch',
+    op: 'fetch',
+    args: function () { return { url: 'https://httpbin.org/image/png' }; },
+    expect: 'err',
+    errorCode: 'content_type_blocked'
+  },
+  {
+    label: 'err-removed-search',
+    module: 'webfetch',
+    op: 'search',
+    args: function () { return { query: 'AI Dungeon' }; },
+    expect: 'err',
+    errorCode: 'unknown_op'
   },
   {
     label: 'err-unknown-op',
@@ -337,7 +345,7 @@ function fwebCurrentStepIndex() {
 function fwebAdvance() {
   var s = fwebState();
 
-  if (!fwebHasOp('webfetch', 'fetch') || !fwebHasOp('webfetch', 'search')) {
+  if (!fwebHasOp('webfetch', 'fetch')) {
     s.phase = 'waiting for webfetch heartbeat';
     return;
   }
@@ -368,20 +376,7 @@ function fwebStepResult(step) {
 
   var pass = false, reason = '';
 
-  if (step.expect === 'ok-or-consent') {
-    // Steps hitting real URLs: accept ok with valid shape, or consent_denied/rate_limit errors
-    if (done.status === 'ok') {
-      pass = typeof step.validate === 'function' && !!step.validate(done.data);
-      if (!pass) reason = 'validate failed (ok path)';
-    } else if (done.status === 'err') {
-      var code = done.error && done.error.code;
-      // Consent denied or rate limited are acceptable non-ok outcomes
-      pass = code === 'consent_denied' || code === 'rate_limit';
-      if (!pass) reason = 'unexpected error: code=' + code;
-    } else {
-      reason = 'status=' + done.status;
-    }
-  } else if (step.expect === 'err' && step.errorCode) {
+  if (step.expect === 'err' && step.errorCode) {
     pass = done.status === 'err' && done.error && done.error.code === step.errorCode;
     if (!pass) {
       reason = done.status !== 'err'
@@ -450,7 +445,7 @@ function fwebWriteTrace() {
     heartbeat: {
       present: !!hb,
       protocol: hb && hb.ultrascripts && hb.ultrascripts.protocol,
-      webfetchAdvertised: fwebHasOp('webfetch', 'fetch') && fwebHasOp('webfetch', 'search')
+      webfetchAdvertised: fwebHasOp('webfetch', 'fetch') && !fwebHasOp('webfetch', 'search')
     },
     counts: counts,
     checksPass: counts.pending === 0 && counts.fail === 0,

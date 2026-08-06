@@ -1,7 +1,7 @@
 // modules/webfetch/module.js
 //
-// Ultrascripts Phase 5 reference ops module. Gives AI Dungeon scripts a guarded
-// way to make real http/https requests through BetterDungeon.
+// Gives AI Dungeon scripts a bounded, credential-free way to read small public
+// HTTPS resources through BetterDungeon.
 
 (function () {
   if (window.UltrascriptsWebFetchModule) return;
@@ -12,21 +12,37 @@
   const MAX_BODY_BYTES = 100000;
   const DEFAULT_RATE_LIMIT_PER_MINUTE = 20;
   const RATE_WINDOW_MS = 60000;
+  const MAX_URL_CHARS = 8192;
+  const MAX_HEADER_COUNT = 20;
+  const MAX_HEADER_NAME_CHARS = 128;
+  const MAX_HEADER_VALUE_CHARS = 2048;
+  const MAX_HEADER_TOTAL_CHARS = 8192;
 
-  const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+  const SAFE_METHODS = new Set(['GET', 'HEAD']);
   const BLOCKED_REQUEST_HEADERS = new Set([
+    'accept-encoding',
     'authorization',
-    'cookie',
-    'host',
-    'origin',
-    'referer',
-    'user-agent',
     'connection',
     'content-length',
+    'cookie',
+    'forwarded',
+    'host',
+    'origin',
     'proxy-authorization',
+    'referer',
+    'referrer',
+    'te',
+    'trailer',
+    'transfer-encoding',
+    'upgrade',
+    'user-agent',
+    'via',
     'x-forwarded-for',
+    'x-forwarded-host',
+    'x-forwarded-proto',
     'x-real-ip',
   ]);
+  const HEADER_NAME_PATTERN = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
 
   const rateBuckets = new Map(); // origin -> timestamp[]
 
@@ -44,6 +60,9 @@
     if (typeof value !== 'string' || value.trim() === '') {
       throw invalidArgs('url is required');
     }
+    if (value.length > MAX_URL_CHARS) {
+      throw invalidArgs(`url must not exceed ${MAX_URL_CHARS} characters`);
+    }
 
     let url;
     try {
@@ -52,8 +71,11 @@
       throw invalidArgs('url must be an absolute URL');
     }
 
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-      throw { code: 'scheme_blocked', message: `Scheme '${url.protocol}' is blocked` };
+    if (url.protocol !== 'https:') {
+      throw { code: 'scheme_blocked', message: 'WebFetch only supports HTTPS URLs' };
+    }
+    if (url.username || url.password) {
+      throw { code: 'credentials_blocked', message: 'URLs containing credentials are blocked' };
     }
 
     assertAllowedHost(url.hostname);
@@ -61,64 +83,116 @@
   }
 
   function assertAllowedHost(hostname) {
-    const host = String(hostname || '').toLowerCase().replace(/^\[|\]$/g, '');
+    const host = String(hostname || '').toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
     if (!host) throw invalidArgs('url hostname is required');
 
     if (
       host === 'localhost' ||
       host.endsWith('.localhost') ||
       host === 'local' ||
-      host.endsWith('.local') ||
-      host === '::' ||
-      host === '::1' ||
-      host === '0:0:0:0:0:0:0:0' ||
-      host === '0:0:0:0:0:0:0:1'
+      host.endsWith('.local')
     ) {
-      throw { code: 'scheme_blocked', message: `Host '${hostname}' is blocked` };
+      throw { code: 'host_blocked', message: `Host '${hostname}' is blocked` };
     }
 
     if (host.includes(':')) {
-      const firstSegment = host.split(':')[0];
-      const firstHextet = parseInt(firstSegment || '0', 16);
-      const uniqueLocal = firstHextet >= 0xfc00 && firstHextet <= 0xfdff;
-      const linkLocal = firstHextet >= 0xfe80 && firstHextet <= 0xfebf;
-      const mappedIpv4 = host.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
-
-      if (uniqueLocal || linkLocal || (mappedIpv4 && ipv4IsBlocked(mappedIpv4[1]))) {
-        throw { code: 'scheme_blocked', message: `Host '${hostname}' is blocked` };
+      if (ipv6IsBlocked(host)) {
+        throw { code: 'host_blocked', message: `Host '${hostname}' is blocked` };
       }
       return;
     }
 
     if (ipv4IsBlocked(host)) {
-      throw { code: 'scheme_blocked', message: `Host '${hostname}' is blocked` };
+      throw { code: 'host_blocked', message: `Host '${hostname}' is blocked` };
     }
   }
 
-  function ipv4IsBlocked(host) {
-    const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-    if (!ipv4) return false;
-
-    const parts = ipv4.slice(1).map(Number);
+  function parseIpv4(host) {
+    const match = String(host || '').match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (!match) return null;
+    const parts = match.slice(1).map(Number);
     if (parts.some((n) => n < 0 || n > 255)) {
       throw invalidArgs('url contains an invalid IPv4 host');
     }
+    return parts;
+  }
 
-    const [a, b] = parts;
+  function ipv4IsBlocked(host) {
+    const parts = parseIpv4(host);
+    if (!parts) return false;
+    const [a, b, c] = parts;
     return (
       a === 0 ||
       a === 10 ||
       a === 127 ||
+      (a === 100 && b >= 64 && b <= 127) ||
       (a === 169 && b === 254) ||
       (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168)
+      (a === 192 && b === 0 && c === 0) ||
+      (a === 192 && b === 0 && c === 2) ||
+      (a === 192 && b === 88 && c === 99) ||
+      (a === 192 && b === 168) ||
+      (a === 198 && (b === 18 || b === 19)) ||
+      (a === 198 && b === 51 && c === 100) ||
+      (a === 203 && b === 0 && c === 113) ||
+      a >= 224
+    );
+  }
+
+  function parseIpv6(host) {
+    let source = String(host || '').toLowerCase();
+    if (source.includes('%')) throw invalidArgs('IPv6 zone identifiers are blocked');
+
+    let ipv4Tail = null;
+    const lastColon = source.lastIndexOf(':');
+    if (source.includes('.') && lastColon >= 0) {
+      ipv4Tail = parseIpv4(source.slice(lastColon + 1));
+      if (!ipv4Tail) throw invalidArgs('url contains an invalid IPv6 host');
+      source = `${source.slice(0, lastColon)}:${((ipv4Tail[0] << 8) | ipv4Tail[1]).toString(16)}:${((ipv4Tail[2] << 8) | ipv4Tail[3]).toString(16)}`;
+    }
+
+    if ((source.match(/::/g) || []).length > 1) {
+      throw invalidArgs('url contains an invalid IPv6 host');
+    }
+
+    const halves = source.split('::');
+    const left = halves[0] ? halves[0].split(':') : [];
+    const right = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+    const missing = 8 - left.length - right.length;
+    if ((halves.length === 1 && missing !== 0) || (halves.length === 2 && missing < 1)) {
+      throw invalidArgs('url contains an invalid IPv6 host');
+    }
+
+    const groups = halves.length === 2
+      ? [...left, ...Array(missing).fill('0'), ...right]
+      : left;
+    if (groups.length !== 8 || groups.some((part) => !/^[0-9a-f]{1,4}$/.test(part))) {
+      throw invalidArgs('url contains an invalid IPv6 host');
+    }
+    return { groups: groups.map((part) => parseInt(part, 16)), ipv4Tail };
+  }
+
+  function ipv6IsBlocked(host) {
+    const parsed = parseIpv6(host);
+    const groups = parsed.groups;
+    const globalUnicast = (groups[0] & 0xe000) === 0x2000;
+    const protocolAssignments = groups[0] === 0x2001 && groups[1] < 0x0200;
+    const documentation = groups[0] === 0x2001 && groups[1] === 0x0db8;
+    const sixToFour = groups[0] === 0x2002;
+    const documentationV2 = groups[0] === 0x3fff && (groups[1] & 0xf000) === 0;
+    return (
+      !globalUnicast ||
+      protocolAssignments ||
+      documentation ||
+      sixToFour ||
+      documentationV2
     );
   }
 
   function normalizeMethod(value) {
     const method = String(value || 'GET').toUpperCase();
     if (!SAFE_METHODS.has(method)) {
-      throw invalidArgs(`method '${method}' is not supported in WebFetch v1`);
+      throw invalidArgs(`method '${method}' is not supported; use GET or HEAD`);
     }
     return method;
   }
@@ -129,12 +203,31 @@
       throw invalidArgs('headers must be an object');
     }
 
+    const entries = Object.entries(value);
+    if (entries.length > MAX_HEADER_COUNT) {
+      throw invalidArgs(`headers must not contain more than ${MAX_HEADER_COUNT} entries`);
+    }
+
     const headers = {};
     const stripped = [];
-    for (const [rawName, rawValue] of Object.entries(value)) {
+    let totalChars = 0;
+    for (const [rawName, rawValue] of entries) {
       const name = String(rawName || '').trim();
-      if (!name) continue;
+      if (!name || !HEADER_NAME_PATTERN.test(name) || name.length > MAX_HEADER_NAME_CHARS) {
+        throw invalidArgs(`header name '${name || '(empty)'}' is invalid or too long`);
+      }
+
       const lower = name.toLowerCase();
+      if (rawValue === undefined || rawValue === null) continue;
+
+      const headerValue = String(rawValue);
+      if (headerValue.length > MAX_HEADER_VALUE_CHARS || /[\r\n]/.test(headerValue)) {
+        throw invalidArgs(`header '${name}' has an invalid or oversized value`);
+      }
+      totalChars += name.length + headerValue.length;
+      if (totalChars > MAX_HEADER_TOTAL_CHARS) {
+        throw invalidArgs(`headers must not exceed ${MAX_HEADER_TOTAL_CHARS} combined characters`);
+      }
       if (
         BLOCKED_REQUEST_HEADERS.has(lower) ||
         lower.startsWith('sec-') ||
@@ -143,15 +236,9 @@
         stripped.push(name);
         continue;
       }
-      if (rawValue === undefined || rawValue === null) continue;
-      headers[name] = String(rawValue);
+      headers[name] = headerValue;
     }
     return { headers, stripped };
-  }
-
-  function normalizeBody(body, method) {
-    if (body === undefined || body === null) return undefined;
-    throw invalidArgs(`${method} requests cannot include a body in WebFetch v1`);
   }
 
   function prepareFetchArgs(args = {}) {
@@ -162,9 +249,9 @@
     const url = normalizeUrl(args.url);
     const method = normalizeMethod(args.method);
     const sanitized = sanitizeHeaders(args.headers);
-    const body = normalizeBody(args.body, method);
-    const timeoutMs = clampNumber(args.timeoutMs, DEFAULT_TIMEOUT_MS, 1000, MAX_TIMEOUT_MS);
-    const maxBodyBytes = clampNumber(args.maxBodyBytes, DEFAULT_MAX_BODY_BYTES, 1024, MAX_BODY_BYTES);
+    if (args.body !== undefined && args.body !== null) {
+      throw invalidArgs(`${method} requests cannot include a body`);
+    }
 
     return {
       url: url.href,
@@ -172,16 +259,21 @@
       method,
       headers: sanitized.headers,
       strippedRequestHeaders: sanitized.stripped,
-      body,
-      timeoutMs,
-      maxBodyBytes,
+      timeoutMs: clampNumber(args.timeoutMs, DEFAULT_TIMEOUT_MS, 1000, MAX_TIMEOUT_MS),
+      maxBodyBytes: clampNumber(args.maxBodyBytes, DEFAULT_MAX_BODY_BYTES, 1024, MAX_BODY_BYTES),
     };
   }
 
   function checkRateLimit(origin, limit = DEFAULT_RATE_LIMIT_PER_MINUTE) {
     const now = Date.now();
+    for (const [savedOrigin, savedBucket] of rateBuckets.entries()) {
+      while (savedBucket.length && now - savedBucket[0] >= RATE_WINDOW_MS) savedBucket.shift();
+      if (!savedBucket.length) rateBuckets.delete(savedOrigin);
+    }
+    while (!rateBuckets.has(origin) && rateBuckets.size >= 256) {
+      rateBuckets.delete(rateBuckets.keys().next().value);
+    }
     const bucket = rateBuckets.get(origin) || [];
-    while (bucket.length && now - bucket[0] >= RATE_WINDOW_MS) bucket.shift();
 
     if (bucket.length >= limit) {
       const retryAfterMs = Math.max(1, RATE_WINDOW_MS - (now - bucket[0]));
@@ -195,30 +287,6 @@
 
     bucket.push(now);
     rateBuckets.set(origin, bucket);
-  }
-
-  function consentBroker() {
-    return window.UltrascriptsWebFetchConsent;
-  }
-
-  async function ensureConsent(origin, details) {
-    const broker = consentBroker();
-    if (!broker || typeof broker.ensureAllowed !== 'function') {
-      throw {
-        code: 'consent_denied',
-        message: 'WebFetch consent broker is unavailable',
-      };
-    }
-
-    try {
-      return await broker.ensureAllowed(origin, details);
-    } catch (err) {
-      if (err && typeof err === 'object' && typeof err.code === 'string') throw err;
-      throw {
-        code: 'consent_denied',
-        message: err?.message ? `WebFetch consent check failed: ${err.message}` : 'WebFetch consent check failed',
-      };
-    }
   }
 
   function backgroundFetch(request) {
@@ -255,25 +323,19 @@
     throw response?.error || { code: 'webfetch_failed', message: 'Background fetch failed' };
   }
 
-  async function fetchOp(args, ctx, request) {
+  async function fetchOp(args, ctx) {
     const prepared = prepareFetchArgs(args);
-    await ensureConsent(prepared.origin, {
-      url: prepared.url,
-      method: prepared.method,
-      requestId: request?.id || null,
-    });
     checkRateLimit(prepared.origin, DEFAULT_RATE_LIMIT_PER_MINUTE);
 
     const response = await backgroundFetch({
       url: prepared.url,
       method: prepared.method,
       headers: prepared.headers,
-      body: prepared.body,
       timeoutMs: prepared.timeoutMs,
       maxBodyBytes: prepared.maxBodyBytes,
     });
 
-    ctx?.log?.('debug', 'WebFetch completed', prepared.method, prepared.url, response.status);
+    ctx?.log?.('debug', 'WebFetch completed', prepared.method, prepared.origin, response.status);
     return {
       ...response,
       request: {
@@ -285,81 +347,17 @@
     };
   }
 
-  function flattenDuckDuckGoTopics(topics, out = []) {
-    if (!Array.isArray(topics)) return out;
-    for (const item of topics) {
-      if (!item || typeof item !== 'object') continue;
-      if (Array.isArray(item.Topics)) {
-        flattenDuckDuckGoTopics(item.Topics, out);
-        continue;
-      }
-      if (item.Text || item.FirstURL) {
-        out.push({
-          text: item.Text || '',
-          url: item.FirstURL || '',
-        });
-      }
-    }
-    return out;
-  }
-
-  async function searchOp(args = {}, ctx, request) {
-    if (!args || typeof args !== 'object' || Array.isArray(args)) {
-      throw invalidArgs('args must be an object');
-    }
-    const query = String(args.query || '').trim();
-    if (!query) throw invalidArgs('query is required');
-
-    const maxResults = clampNumber(args.maxResults, 5, 1, 10);
-    const url =
-      'https://api.duckduckgo.com/?format=json&no_html=1&skip_disambig=1&q=' +
-      encodeURIComponent(query);
-
-    const response = await fetchOp({
-      url,
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-      timeoutMs: args.timeoutMs,
-      maxBodyBytes: args.maxBodyBytes || 60000,
-    }, ctx, request);
-
-    let parsed = null;
-    if (response.bodyEncoding === 'text' && response.body) {
-      try { parsed = JSON.parse(response.body); }
-      catch { parsed = null; }
-    }
-
-    const related = flattenDuckDuckGoTopics(parsed?.RelatedTopics).slice(0, maxResults);
-    return {
-      query,
-      provider: 'duckduckgo',
-      status: response.status,
-      heading: parsed?.Heading || '',
-      answer: parsed?.Answer || '',
-      abstractText: parsed?.AbstractText || '',
-      abstractUrl: parsed?.AbstractURL || '',
-      related,
-      source: response.url,
-      truncated: response.truncated,
-    };
-  }
-
   const UltrascriptsWebFetchModule = {
     id: 'webfetch',
     version: '1.0.0',
     label: 'WebFetch',
-    description: 'Fetches http/https URLs for Ultrascripts scripts with consent, rate limits, and response shaping.',
+    description: 'Reads bounded public HTTPS resources without cookies, credentials, or origin prompts.',
 
     ops: {
       fetch: {
         idempotent: 'safe',
         timeoutMs: MAX_TIMEOUT_MS,
         handler: fetchOp,
-      },
-      search: {
-        idempotent: 'safe',
-        timeoutMs: MAX_TIMEOUT_MS,
-        handler: searchOp,
       },
     },
 
