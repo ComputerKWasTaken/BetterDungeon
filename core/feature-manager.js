@@ -92,6 +92,10 @@ class FeatureManager {
     if (typeof CustomDynamicFeature !== 'undefined') {
       this.featureClasses.set('customDynamic', CustomDynamicFeature);
     }
+
+    if (typeof NavigatorFeature !== 'undefined') {
+      this.featureClasses.set('navigator', NavigatorFeature);
+    }
   }
 
   async loadFeaturesFromStorage() {
@@ -101,7 +105,7 @@ class FeatureManager {
       // Always-on QOL features that don't need user toggling
       const alwaysEnabled = ['storyCardAnalytics', 'autoEnableScripts'];
       // Features that are disabled by default
-      const defaultOff = ['autoSee', 'textToSpeech', 'customDynamic'];
+      const defaultOff = ['autoSee', 'textToSpeech', 'customDynamic', 'navigator'];
       
       const enabled = alwaysEnabled.includes(id) || 
                       savedStates[id] === true || 

@@ -88,7 +88,8 @@ const DEFAULT_FEATURES = {
   storyCardModalDock: true,
   inputHistory: true,
   textToSpeech: false,
-  customDynamic: false
+  customDynamic: false,
+  navigator: false
 };
 
 const ULTRASCRIPTS_PUBLIC_MODULES = [

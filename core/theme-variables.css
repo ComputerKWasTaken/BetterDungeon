@@ -335,6 +335,7 @@
   --bd-section-formatting:  var(--bd-purple);
   --bd-section-automations: var(--bd-amber);
 
+  --bd-icon-navigator:    var(--bd-accent-primary);
   --bd-icon-hotkeys:      var(--bd-amber);
   --bd-icon-palette:      var(--bd-pink);
   --bd-icon-notes:        var(--bd-green);
