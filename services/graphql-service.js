@@ -64,6 +64,7 @@
           authorsNote
           instructions
           state {
+            instructions
             storySummary
             __typename
           }
@@ -382,6 +383,9 @@
         throw new Error(`Navigator context lookup returned no adventure for ${resolvedShortId}.`);
       }
 
+      const stateInstructions = this.normalizeInstructionText(adventure.state?.instructions);
+      const flatInstructions = this.normalizeInstructionText(adventure.instructions);
+
       return {
         id: String(adventure.id),
         shortId: adventure.shortId || resolvedShortId,
@@ -390,9 +394,32 @@
         thirdPerson: typeof adventure.thirdPerson === 'boolean' ? adventure.thirdPerson : null,
         memory: typeof adventure.memory === 'string' ? adventure.memory : '',
         authorsNote: typeof adventure.authorsNote === 'string' ? adventure.authorsNote : '',
-        instructions: typeof adventure.instructions === 'string' ? adventure.instructions : '',
+        instructions: stateInstructions || flatInstructions,
+        instructionsSource: stateInstructions ? 'state' : (flatInstructions ? 'flat' : 'none'),
         storySummary: typeof adventure.state?.storySummary === 'string' ? adventure.state.storySummary : '',
       };
+    }
+
+    normalizeInstructionText(value) {
+      if (typeof value === 'string') return value.trim() ? value : '';
+      if (Array.isArray(value)) {
+        return value
+          .map(item => this.normalizeInstructionText(item))
+          .filter(Boolean)
+          .join('\n');
+      }
+      if (!value || typeof value !== 'object') return '';
+
+      const preferredKeys = ['aiInstructions', 'instructions', 'text', 'content', 'value', 'prompt'];
+      for (const key of preferredKeys) {
+        const normalized = this.normalizeInstructionText(value[key]);
+        if (normalized) return normalized;
+      }
+
+      const normalizedValues = Object.values(value)
+        .map(item => this.normalizeInstructionText(item))
+        .filter(Boolean);
+      return normalizedValues.join('\n');
     }
 
     async getAiVisibleVersions(options = {}) {
