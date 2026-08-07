@@ -21,9 +21,13 @@
   const WEBFETCH_MESSAGE = 'ULTRASCRIPTS_WEBFETCH_FETCH';
   const SDK_MESSAGE = 'ULTRASCRIPTS_SDK_REQUEST';
   const GEMINI_MESSAGE = 'ULTRASCRIPTS_AI_GEMINI';
+  const GEMINI_CHAT_PORT = 'BETTERDUNGEON_AI_CHAT_GEMINI_V1';
   const DEFAULT_TIMEOUT_MS = 15000;
   const MAX_TIMEOUT_MS = 30000;
   const GEMINI_DEFAULT_TIMEOUT_MS = 120000;
+  const GEMINI_CHAT_KEEPALIVE_MS = 20000;
+  const GEMINI_CHAT_START_TIMEOUT_MS = 5000;
+  const GEMINI_CHAT_TERMINAL_GRACE_MS = 1000;
   const GEMINI_PROMPT_MAX_CHARS = 12000;
   const GEMINI_DEFAULT_MODEL = 'gemini-3.5-flash-lite';
   const GEMINI_DEFAULT_MODEL_MODE = 'auto';
@@ -132,6 +136,7 @@
     lastFallbackMode: null,
     lastAttemptedModels: [],
   };
+  const activeGeminiChatPorts = new Set();
 
   function normalizeError(error) {
     if (error && typeof error === 'object') {
@@ -902,6 +907,82 @@
     };
   }
 
+  function normalizeGeminiChatTask(task) {
+    if (!isObject(task)) {
+      throw { code: 'invalid_args', message: 'Gemini chat task must be an object', retryable: false };
+    }
+    if (task.op !== 'chat') {
+      throw { code: 'invalid_args', message: 'Gemini chat task op must be chat', retryable: false };
+    }
+    if (typeof task.systemInstruction !== 'string' || !task.systemInstruction.trim()) {
+      throw { code: 'invalid_args', message: 'systemInstruction is required', retryable: false };
+    }
+    if (!Array.isArray(task.messages) || task.messages.length === 0) {
+      throw { code: 'invalid_args', message: 'messages must be a non-empty array', retryable: false };
+    }
+
+    const messages = task.messages.map((message, index) => {
+      if (!isObject(message)) {
+        throw { code: 'invalid_args', message: `messages[${index}] must be an object`, retryable: false };
+      }
+      if (message.role !== 'user' && message.role !== 'assistant') {
+        throw {
+          code: 'invalid_args',
+          message: `messages[${index}].role must be user or assistant`,
+          retryable: false,
+        };
+      }
+      if (typeof message.content !== 'string' || !message.content.trim()) {
+        throw {
+          code: 'invalid_args',
+          message: `messages[${index}].content must be a non-empty string`,
+          retryable: false,
+        };
+      }
+      return { role: message.role, content: message.content };
+    });
+
+    if (messages[messages.length - 1].role !== 'user') {
+      throw { code: 'invalid_args', message: 'the final chat message must have role user', retryable: false };
+    }
+    if (!isObject(task.budget)) {
+      throw { code: 'invalid_args', message: 'budget must be an object', retryable: false };
+    }
+
+    const maxInputChars = Number(task.budget.maxInputChars);
+    const maxOutputTokens = Number(task.budget.maxOutputTokens);
+    if (!Number.isSafeInteger(maxInputChars) || maxInputChars <= 0) {
+      throw { code: 'invalid_args', message: 'budget.maxInputChars must be a positive integer', retryable: false };
+    }
+    if (!Number.isSafeInteger(maxOutputTokens) || maxOutputTokens <= 0) {
+      throw { code: 'invalid_args', message: 'budget.maxOutputTokens must be a positive integer', retryable: false };
+    }
+
+    const systemInstructionChars = task.systemInstruction.length;
+    const messageChars = messages.reduce((total, message) => total + message.content.length, 0);
+    const inputChars = systemInstructionChars + messageChars;
+    if (inputChars > maxInputChars) {
+      throw {
+        code: 'invalid_args',
+        message: `chat input must be ${maxInputChars} characters or less`,
+        retryable: false,
+        maxChars: maxInputChars,
+        actualChars: inputChars,
+      };
+    }
+
+    return {
+      id: typeof task.id === 'string' && task.id ? task.id : null,
+      messages,
+      systemInstruction: task.systemInstruction,
+      systemInstructionChars,
+      inputChars,
+      messageCount: messages.length,
+      budget: { maxInputChars, maxOutputTokens },
+      thinking: normalizeGeminiThinking(task.thinking),
+    };
+  }
+
   function normalizeGeminiThinking(thinking) {
     if (thinking === undefined || thinking === null) return { level: GEMINI_DEFAULT_THINKING_LEVEL };
     if (typeof thinking === 'string') thinking = { level: thinking };
@@ -993,6 +1074,29 @@
     if (thinking.config) payload.generation_config = thinking.config;
 
     return { payload, thinking };
+  }
+
+  function geminiChatPayload(task, model) {
+    const thinking = geminiThinkingConfigForModel(model, task.thinking);
+    const generationConfig = {
+      max_output_tokens: task.budget.maxOutputTokens,
+    };
+    if (thinking.config) Object.assign(generationConfig, thinking.config);
+
+    return {
+      payload: {
+        model,
+        input: task.messages.map(message => ({
+          role: message.role,
+          content: message.content,
+        })),
+        system_instruction: task.systemInstruction,
+        generation_config: generationConfig,
+        stream: true,
+        store: false,
+      },
+      thinking,
+    };
   }
 
   function geminiThinkingMeta(task, model, thinking, options = {}) {
@@ -1112,6 +1216,240 @@
     }
 
     return text;
+  }
+
+  function geminiStreamError(event, model) {
+    const providerReason = geminiProviderReason(event);
+    const providerCode = String(event?.error?.code || providerReason || '').trim();
+    const providerMessage = event?.error?.message || providerReason || 'Gemini stream failed.';
+    if (providerReason === 'PROHIBITED_CONTENT' || providerReason === 'SAFETY') {
+      return geminiBlockedError(providerReason, providerMessage, model);
+    }
+    if (providerCode === '429' || /RESOURCE_EXHAUSTED|RATE_LIMIT|TOO_MANY_REQUESTS/i.test(providerCode)) {
+      return {
+        code: 'rate_limit',
+        message: 'Gemini rate limit reached.',
+        retryable: true,
+        backend: 'gemini',
+        detail: providerMessage,
+        model,
+      };
+    }
+    if (providerCode === '401' || providerCode === '403' || /UNAUTHENTICATED|PERMISSION_DENIED|API_KEY/i.test(providerCode)) {
+      return {
+        code: 'auth_failed',
+        message: 'Gemini API key was rejected.',
+        retryable: false,
+        backend: 'gemini',
+        detail: providerMessage,
+        model,
+      };
+    }
+    if (/DEADLINE|GATEWAY_TIMEOUT|TIMEOUT/i.test(providerCode)) {
+      return {
+        code: 'timeout',
+        message: providerMessage,
+        retryable: true,
+        backend: 'gemini',
+        detail: providerMessage,
+        model,
+      };
+    }
+    if (providerCode === '400' || /INVALID_ARGUMENT|BAD_REQUEST/i.test(providerCode)) {
+      return {
+        code: 'invalid_args',
+        message: providerMessage,
+        retryable: false,
+        backend: 'gemini',
+        detail: providerMessage,
+        model,
+      };
+    }
+    return {
+      code: 'backend_failed',
+      message: providerMessage,
+      retryable: true,
+      backend: 'gemini',
+      detail: providerMessage,
+      model,
+    };
+  }
+
+  function takeSseFrame(buffer) {
+    const match = /(?:\r\n|\r|\n){2}/.exec(buffer);
+    if (!match) return null;
+    return {
+      frame: buffer.slice(0, match.index),
+      rest: buffer.slice(match.index + match[0].length),
+    };
+  }
+
+  function parseSseFrame(frame) {
+    const data = String(frame || '')
+      .split(/\r\n|\r|\n/)
+      .filter(line => line.startsWith('data:'))
+      .map(line => line.slice(5).replace(/^ /, ''))
+      .join('\n');
+    if (!data) return null;
+    if (data.trim() === '[DONE]') return { done: true, event: null };
+    try {
+      return { done: false, event: JSON.parse(data) };
+    } catch (err) {
+      throw {
+        code: 'invalid_response',
+        message: 'Gemini returned an invalid streaming event.',
+        retryable: false,
+        backend: 'gemini',
+        detail: err?.message || 'invalid_stream_json',
+      };
+    }
+  }
+
+  async function readGeminiInteractionStream(response, model, onDelta) {
+    if (!response?.body?.getReader) {
+      throw {
+        code: 'invalid_response',
+        message: 'Gemini did not return a readable stream.',
+        retryable: false,
+        backend: 'gemini',
+        model,
+      };
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    const stepTypes = new Map();
+    let buffer = '';
+    let text = '';
+    let sequence = 0;
+    let completedInteraction = null;
+    let providerModel = model;
+    let interactionId = null;
+    let observedProviderReason = null;
+    let sawDone = false;
+    let streamFinished = false;
+
+    const handleEvent = (event) => {
+      if (!event || typeof event !== 'object') return;
+      const eventType = String(event.event_type || '');
+      const eventReason = geminiProviderReason(event);
+      if (eventReason) observedProviderReason = eventReason;
+
+      if (eventType === 'error') throw geminiStreamError(event, model);
+      if (eventType === 'interaction.created') {
+        interactionId = typeof event?.interaction?.id === 'string' ? event.interaction.id : interactionId;
+        providerModel = typeof event?.interaction?.model === 'string' ? event.interaction.model : providerModel;
+        return;
+      }
+      if (eventType === 'step.start') {
+        if (Number.isSafeInteger(event.index) && typeof event?.step?.type === 'string') {
+          stepTypes.set(event.index, event.step.type);
+        }
+        return;
+      }
+      if (eventType === 'step.stop') {
+        if (Number.isSafeInteger(event.index)) stepTypes.delete(event.index);
+        return;
+      }
+      if (eventType === 'step.delta') {
+        if (
+          stepTypes.get(event.index) === 'model_output' &&
+          event?.delta?.type === 'text' &&
+          typeof event.delta.text === 'string' &&
+          event.delta.text
+        ) {
+          text += event.delta.text;
+          sequence += 1;
+          onDelta(event.delta.text, sequence);
+        }
+        return;
+      }
+      if (eventType === 'interaction.completed') {
+        completedInteraction = isObject(event.interaction) ? event.interaction : {};
+        interactionId = typeof completedInteraction.id === 'string' ? completedInteraction.id : interactionId;
+        providerModel = typeof completedInteraction.model === 'string'
+          ? completedInteraction.model
+          : providerModel;
+      }
+    };
+
+    const drainFrames = (flush = false) => {
+      let next;
+      while ((next = takeSseFrame(buffer))) {
+        buffer = next.rest;
+        const parsed = parseSseFrame(next.frame);
+        if (!parsed) continue;
+        if (parsed.done) {
+          sawDone = true;
+          continue;
+        }
+        handleEvent(parsed.event);
+      }
+      if (flush && buffer.trim()) {
+        const parsed = parseSseFrame(buffer);
+        buffer = '';
+        if (parsed?.done) sawDone = true;
+        else if (parsed?.event) handleEvent(parsed.event);
+      }
+    };
+
+    try {
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        buffer += decoder.decode(chunk.value, { stream: true });
+        drainFrames();
+      }
+      buffer += decoder.decode();
+      drainFrames(true);
+      streamFinished = true;
+    } finally {
+      if (!streamFinished) {
+        try { await reader.cancel(); } catch { /* noop */ }
+      }
+      try { reader.releaseLock(); } catch { /* noop */ }
+    }
+
+    if (!completedInteraction) {
+      throw {
+        code: 'invalid_response',
+        message: sawDone
+          ? 'Gemini ended the stream without a completion event.'
+          : 'Gemini stream closed before completion.',
+        retryable: true,
+        backend: 'gemini',
+        model,
+      };
+    }
+    if (completedInteraction.status && completedInteraction.status !== 'completed') {
+      throw geminiStreamError({
+        error: completedInteraction.error,
+        status: completedInteraction.status,
+        incomplete_details: completedInteraction.incomplete_details,
+      }, model);
+    }
+    if (observedProviderReason === 'PROHIBITED_CONTENT' || observedProviderReason === 'SAFETY') {
+      throw geminiBlockedError(observedProviderReason, observedProviderReason, model);
+    }
+    if (!text) {
+      throw {
+        code: 'invalid_response',
+        message: observedProviderReason
+          ? `Gemini returned no text output (${observedProviderReason}).`
+          : 'Gemini returned no model output text.',
+        retryable: false,
+        backend: 'gemini',
+        providerReason: observedProviderReason,
+        model,
+      };
+    }
+
+    return {
+      text,
+      interactionId,
+      providerModel,
+      usage: completedInteraction.usage || null,
+    };
   }
 
   async function callGeminiInteraction(settings, task) {
@@ -1248,6 +1586,144 @@
     };
   }
 
+  function geminiAbortError(model) {
+    return {
+      code: 'aborted',
+      message: 'AI chat request was aborted.',
+      retryable: false,
+      backend: 'gemini',
+      model,
+    };
+  }
+
+  function abortException() {
+    const err = new Error('Aborted');
+    err.name = 'AbortError';
+    return err;
+  }
+
+  async function callGeminiChatStream(settings, task, session, onDelta) {
+    if (!settings.keyConfigured) {
+      throw {
+        code: 'not_configured',
+        message: 'No Gemini API key is configured.',
+        retryable: false,
+        backend: 'gemini',
+      };
+    }
+
+    const models = geminiQueryModels(settings);
+    let lastError = null;
+
+    for (let modelIndex = 0; modelIndex < models.length; modelIndex++) {
+      const currentModel = models[modelIndex];
+      const url = 'https://generativelanguage.googleapis.com/v1/interactions';
+      const payloadInfo = geminiChatPayload(task, currentModel);
+      let timedOut = false;
+
+      try {
+        const attempt = await withPrivilegedNetworkLock(async () => {
+          if (session.controller.signal.aborted) throw abortException();
+          const timer = setTimeout(() => {
+            timedOut = true;
+            if (!session.abortReason) session.abortReason = 'timeout';
+            session.controller.abort();
+          }, GEMINI_DEFAULT_TIMEOUT_MS);
+          try {
+            const response = await fetch(url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': settings.apiKey,
+              },
+              body: JSON.stringify(payloadInfo.payload),
+              credentials: 'omit',
+              cache: 'no-store',
+              signal: session.controller.signal,
+            });
+            if (!response.ok) {
+              return { response, bodyText: await response.text(), streamResult: null };
+            }
+            const streamResult = await readGeminiInteractionStream(response, currentModel, onDelta);
+            return { response, bodyText: null, streamResult };
+          } finally {
+            clearTimeout(timer);
+          }
+        });
+
+        if (!attempt.response.ok) {
+          const err = geminiHttpError(
+            attempt.response.status,
+            attempt.response.statusText,
+            attempt.bodyText,
+          );
+          const retryAfter = attempt.response.headers.get('retry-after');
+          if (retryAfter) {
+            const seconds = Number(retryAfter);
+            if (Number.isFinite(seconds)) err.retryAfterMs = Math.max(0, seconds * 1000);
+          }
+          err.model = currentModel;
+          if (
+            err.code === 'rate_limit' &&
+            settings?.modelMode !== 'manual' &&
+            modelIndex + 1 < models.length
+          ) {
+            lastError = err;
+            continue;
+          }
+          throw err;
+        }
+
+        const streamResult = attempt.streamResult;
+        const base = {
+          backend: 'gemini',
+          generatedAtIso: new Date().toISOString(),
+          model: currentModel,
+          providerModel: streamResult.providerModel || currentModel,
+          interactionId: streamResult.interactionId || null,
+          usage: streamResult.usage || null,
+          status: geminiStatus(settings, currentModel),
+          thinking: geminiThinkingMeta(task, currentModel, payloadInfo.thinking),
+          fallback: {
+            mode: settings?.modelMode || GEMINI_DEFAULT_MODEL_MODE,
+            attemptedModels: models.slice(0, modelIndex + 1),
+          },
+          text: streamResult.text,
+        };
+        geminiRememberSuccess(base);
+        return base;
+      } catch (err) {
+        if (err?.name === 'AbortError' || session.controller.signal.aborted) {
+          if (timedOut || session.abortReason === 'timeout') {
+            throw {
+              code: 'timeout',
+              message: `Gemini chat timed out after ${GEMINI_DEFAULT_TIMEOUT_MS} ms.`,
+              retryable: true,
+              backend: 'gemini',
+              model: currentModel,
+            };
+          }
+          throw geminiAbortError(currentModel);
+        }
+        if (err?.code) throw err;
+        throw {
+          code: 'backend_failed',
+          message: err?.message || 'Gemini chat request failed.',
+          retryable: true,
+          backend: 'gemini',
+          model: currentModel,
+        };
+      }
+    }
+
+    throw lastError || {
+      code: 'rate_limit',
+      message: 'Gemini rate limit reached.',
+      retryable: true,
+      backend: 'gemini',
+    };
+  }
+
   async function handleGemini(request = {}) {
     const op = String(request.op || '').trim();
     if (op === 'settings:set') {
@@ -1290,6 +1766,208 @@
       throw { code: 'invalid_args', message: `SDK op '${op || '(empty)'}' is not supported` };
     }
     return getSdkConfigSnapshot();
+  }
+
+  function handleGeminiChatPort(port) {
+    try {
+      if (port?.sender?.id && port.sender.id !== extensionRuntime.id) {
+        port.disconnect();
+        return;
+      }
+    } catch {
+      try { port.disconnect(); } catch { /* noop */ }
+      return;
+    }
+
+    const session = {
+      requestId: null,
+      started: false,
+      terminal: false,
+      closed: false,
+      controller: null,
+      abortReason: null,
+      keepaliveTimer: null,
+      terminalTimer: null,
+      startTimer: null,
+    };
+    activeGeminiChatPorts.add(port);
+
+    const safePost = (message) => {
+      if (session.closed) return false;
+      try {
+        port.postMessage(message);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    const clearTimers = () => {
+      if (session.startTimer) clearTimeout(session.startTimer);
+      if (session.keepaliveTimer) clearInterval(session.keepaliveTimer);
+      if (session.terminalTimer) clearTimeout(session.terminalTimer);
+      session.startTimer = null;
+      session.keepaliveTimer = null;
+      session.terminalTimer = null;
+    };
+
+    const teardown = (reason, disconnect = true) => {
+      if (session.closed) return;
+      session.closed = true;
+      clearTimers();
+      if (session.controller && !session.controller.signal.aborted) {
+        if (!session.abortReason) session.abortReason = reason;
+        session.controller.abort();
+      }
+      try { port.onMessage.removeListener(onMessage); } catch { /* noop */ }
+      try { port.onDisconnect.removeListener(onDisconnect); } catch { /* noop */ }
+      activeGeminiChatPorts.delete(port);
+      if (disconnect) {
+        try { port.disconnect(); } catch { /* noop */ }
+      }
+      if (session.started) {
+        console.log('[GeminiChat] Stream closed', {
+          requestId: session.requestId,
+          reason,
+          activePorts: activeGeminiChatPorts.size,
+        });
+      }
+    };
+
+    const terminal = (type, payload) => {
+      if (session.closed || session.terminal) return;
+      session.terminal = true;
+      if (session.keepaliveTimer) clearInterval(session.keepaliveTimer);
+      session.keepaliveTimer = null;
+      const posted = safePost({
+        v: 1,
+        type,
+        requestId: session.requestId,
+        ...payload,
+      });
+      if (!posted) {
+        teardown(`${type}-post-failed`);
+        return;
+      }
+      if (session.closed) return;
+      session.terminalTimer = setTimeout(() => {
+        teardown(`${type}-grace-expired`);
+      }, GEMINI_CHAT_TERMINAL_GRACE_MS);
+    };
+
+    function onDisconnect() {
+      try { void extensionRuntime.lastError; } catch { /* noop */ }
+      teardown('disconnect', false);
+    }
+
+    function onMessage(message) {
+      if (session.closed || !message || message.v !== 1) return;
+
+      if (message.type === 'abort') {
+        if (!session.started || message.requestId !== session.requestId) return;
+        session.abortReason = 'caller';
+        if (session.controller && !session.controller.signal.aborted) session.controller.abort();
+        teardown('abort');
+        return;
+      }
+
+      if (message.type !== 'start') {
+        if (session.started) {
+          terminal('error', {
+            error: normalizeError({
+              code: 'invalid_args',
+              message: `Gemini chat message '${message.type || '(empty)'}' is not supported`,
+              retryable: false,
+            }),
+          });
+        }
+        return;
+      }
+
+      if (session.started) {
+        terminal('error', {
+          error: normalizeError({
+            code: 'invalid_args',
+            message: 'Gemini chat port already has an active request',
+            retryable: false,
+          }),
+        });
+        return;
+      }
+
+      session.requestId = typeof message.requestId === 'string' && message.requestId
+        ? message.requestId
+        : null;
+      if (!session.requestId) {
+        teardown('invalid-request-id');
+        return;
+      }
+
+      let task;
+      try {
+        task = normalizeGeminiChatTask(message.task);
+        if (task.id && task.id !== session.requestId) {
+          throw {
+            code: 'invalid_args',
+            message: 'Gemini chat request id does not match the task id',
+            retryable: false,
+          };
+        }
+      } catch (err) {
+        session.started = true;
+        terminal('error', { error: normalizeError(err) });
+        return;
+      }
+
+      session.started = true;
+      session.controller = new AbortController();
+      if (session.startTimer) clearTimeout(session.startTimer);
+      session.startTimer = null;
+      session.keepaliveTimer = setInterval(() => {
+        if (!safePost({ v: 1, type: 'keepalive', requestId: session.requestId })) {
+          teardown('keepalive-post-failed');
+        }
+      }, GEMINI_CHAT_KEEPALIVE_MS);
+      console.log('[GeminiChat] Stream started', {
+        requestId: session.requestId,
+        activePorts: activeGeminiChatPorts.size,
+      });
+
+      getGeminiSettings()
+        .then(settings => callGeminiChatStream(settings, task, session, (text, sequence) => {
+          if (session.closed || session.terminal) return;
+          if (!safePost({
+            v: 1,
+            type: 'delta',
+            requestId: session.requestId,
+            sequence,
+            text,
+          })) {
+            teardown('delta-post-failed');
+          }
+        }))
+        .then((result) => {
+          if (session.closed) return;
+          terminal('complete', { result });
+        })
+        .catch((error) => {
+          if (session.closed) return;
+          terminal('error', { error: normalizeError(error) });
+        });
+    }
+
+    port.onMessage.addListener(onMessage);
+    port.onDisconnect.addListener(onDisconnect);
+    session.startTimer = setTimeout(() => {
+      teardown('start-timeout');
+    }, GEMINI_CHAT_START_TIMEOUT_MS);
+  }
+
+  if (extensionRuntime.onConnect?.addListener) {
+    extensionRuntime.onConnect.addListener((port) => {
+      if (!port || port.name !== GEMINI_CHAT_PORT) return;
+      handleGeminiChatPort(port);
+    });
   }
 
   extensionRuntime.onMessage.addListener((message, _sender, sendResponse) => {
