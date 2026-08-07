@@ -608,7 +608,10 @@ class NavigatorFeature {
     const { node, body, status } = parts;
     node.dataset.status = message.status;
 
-    this.renderText(body, message.content || '');
+    const isAssistant = message.role === 'assistant';
+    body.classList.toggle('bd-navigator-markdown', isAssistant);
+    if (isAssistant) this.renderMarkdown(body, message.content || '');
+    else this.renderText(body, message.content || '');
 
     if (message.status === 'pending') {
       status.replaceChildren(this.createThinkingIndicator());
@@ -623,7 +626,6 @@ class NavigatorFeature {
     }
   }
 
-  // Model output is untrusted text. It is written with textContent only.
   renderText(container, text) {
     container.replaceChildren();
     if (!text) return;
@@ -640,6 +642,376 @@ class NavigatorFeature {
       });
 
       container.appendChild(paragraph);
+    }
+  }
+
+  // Model output is untrusted. Markdown is converted with DOM nodes only;
+  // raw HTML is never parsed or assigned to innerHTML.
+  renderMarkdown(container, text) {
+    container.replaceChildren();
+    if (!text) return;
+
+    const lines = String(text).replace(/\r\n?/g, '\n').split('\n');
+    let index = 0;
+
+    while (index < lines.length) {
+      const line = lines[index];
+      if (!line.trim()) {
+        index++;
+        continue;
+      }
+
+      const fence = this.matchMarkdownFence(line);
+      if (fence) {
+        const codeLines = [];
+        index++;
+        while (index < lines.length && !this.isMarkdownFenceClose(lines[index], fence)) {
+          codeLines.push(lines[index]);
+          index++;
+        }
+        if (index < lines.length) index++;
+
+        const pre = document.createElement('pre');
+        const code = document.createElement('code');
+        if (fence.language) code.dataset.language = fence.language;
+        code.textContent = codeLines.join('\n');
+        pre.appendChild(code);
+        container.appendChild(pre);
+        continue;
+      }
+
+      const heading = line.match(/^\s*(#{1,6})\s+(.+?)\s*#*\s*$/);
+      if (heading) {
+        const level = Math.min(heading[1].length + 2, 6);
+        const node = document.createElement(`h${level}`);
+        this.renderInlineMarkdown(node, heading[2]);
+        container.appendChild(node);
+        index++;
+        continue;
+      }
+
+      if (/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+        container.appendChild(document.createElement('hr'));
+        index++;
+        continue;
+      }
+
+      const tableHeader = this.splitMarkdownTableRow(line);
+      const tableDivider = this.parseMarkdownTableDivider(lines[index + 1]);
+      if (tableHeader && tableDivider && tableHeader.length === tableDivider.length) {
+        const table = document.createElement('table');
+        const head = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        tableHeader.forEach((cellText, cellIndex) => {
+          const cell = document.createElement('th');
+          if (tableDivider[cellIndex]) cell.dataset.align = tableDivider[cellIndex];
+          this.renderInlineMarkdown(cell, cellText);
+          headRow.appendChild(cell);
+        });
+        head.appendChild(headRow);
+        table.appendChild(head);
+        index += 2;
+
+        const body = document.createElement('tbody');
+        while (index < lines.length) {
+          const cells = this.splitMarkdownTableRow(lines[index]);
+          if (!cells || cells.length !== tableHeader.length) break;
+          const row = document.createElement('tr');
+          cells.forEach((cellText, cellIndex) => {
+            const cell = document.createElement('td');
+            if (tableDivider[cellIndex]) cell.dataset.align = tableDivider[cellIndex];
+            this.renderInlineMarkdown(cell, cellText);
+            row.appendChild(cell);
+          });
+          body.appendChild(row);
+          index++;
+        }
+        if (body.children.length) table.appendChild(body);
+        container.appendChild(table);
+        continue;
+      }
+
+      if (/^\s*>\s?/.test(line)) {
+        const quoted = [];
+        while (index < lines.length && /^\s*>\s?/.test(lines[index])) {
+          quoted.push(lines[index].replace(/^\s*>\s?/, ''));
+          index++;
+        }
+        const quote = document.createElement('blockquote');
+        this.renderMarkdown(quote, quoted.join('\n'));
+        container.appendChild(quote);
+        continue;
+      }
+
+      const listMatch = this.matchMarkdownListItem(line);
+      if (listMatch) {
+        const parsedList = this.parseMarkdownList(lines, index);
+        container.appendChild(parsedList.node);
+        index = parsedList.index;
+        continue;
+      }
+
+      const paragraphLines = [];
+      while (
+        index < lines.length &&
+        lines[index].trim() &&
+        !this.isMarkdownBlockStart(lines[index], lines[index + 1])
+      ) {
+        paragraphLines.push(lines[index]);
+        index++;
+      }
+      if (!paragraphLines.length) {
+        paragraphLines.push(lines[index]);
+        index++;
+      }
+
+      const paragraph = document.createElement('p');
+      paragraph.className = 'bd-navigator-paragraph';
+      paragraphLines.forEach((paragraphLine, lineIndex) => {
+        const visibleLine = paragraphLine.replace(/(?: {2,}|\\)$/, '');
+        this.renderInlineMarkdown(paragraph, visibleLine);
+        if (lineIndex >= paragraphLines.length - 1) return;
+        paragraph.appendChild(document.createElement('br'));
+      });
+      container.appendChild(paragraph);
+    }
+  }
+
+  matchMarkdownFence(line) {
+    const match = String(line || '').match(/^\s{0,3}(`{3,}|~{3,})[ \t]*([^\s`]*)[^\r\n]*$/);
+    if (!match) return null;
+    return {
+      marker: match[1][0],
+      length: match[1].length,
+      language: (match[2] || '').toLowerCase(),
+    };
+  }
+
+  isMarkdownFenceClose(line, fence) {
+    const match = String(line || '').match(/^\s{0,3}(`+|~+)\s*$/);
+    return !!(
+      match &&
+      match[1][0] === fence.marker &&
+      match[1].length >= fence.length
+    );
+  }
+
+  splitMarkdownTableRow(line) {
+    const source = String(line || '').trim();
+    if (!source || !source.includes('|')) return null;
+
+    const value = source.replace(/^\|/, '').replace(/\|$/, '');
+    const cells = [];
+    let cell = '';
+    let escaped = false;
+    for (const char of value) {
+      if (escaped) {
+        cell += char;
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = true;
+      } else if (char === '|') {
+        cells.push(cell.trim());
+        cell = '';
+      } else {
+        cell += char;
+      }
+    }
+    if (escaped) cell += '\\';
+    cells.push(cell.trim());
+    return cells.length > 1 ? cells : null;
+  }
+
+  parseMarkdownTableDivider(line) {
+    const cells = this.splitMarkdownTableRow(line);
+    if (!cells || cells.some(cell => !/^:?-{3,}:?$/.test(cell))) return null;
+    return cells.map(cell => {
+      const left = cell.startsWith(':');
+      const right = cell.endsWith(':');
+      if (left && right) return 'center';
+      if (right) return 'right';
+      return 'left';
+    });
+  }
+
+  markdownIndent(value) {
+    return String(value || '').replace(/\t/g, '    ').length;
+  }
+
+  matchMarkdownListItem(line) {
+    const match = String(line || '').match(/^([ \t]*)(?:([-+*])|(\d+)[.)])[ \t]+(.+)$/);
+    if (!match) return null;
+    return {
+      indent: this.markdownIndent(match[1]),
+      ordered: !!match[3],
+      start: match[3] ? Number(match[3]) : null,
+      content: match[4],
+    };
+  }
+
+  parseMarkdownList(lines, startIndex) {
+    const first = this.matchMarkdownListItem(lines[startIndex]);
+    const list = document.createElement(first.ordered ? 'ol' : 'ul');
+    if (first.ordered && first.start > 1) list.start = first.start;
+
+    const baseIndent = first.indent;
+    const ordered = first.ordered;
+    let index = startIndex;
+
+    while (index < lines.length) {
+      const itemMatch = this.matchMarkdownListItem(lines[index]);
+      if (!itemMatch || itemMatch.indent !== baseIndent || itemMatch.ordered !== ordered) break;
+
+      const item = document.createElement('li');
+      this.renderInlineMarkdown(item, itemMatch.content);
+      index++;
+
+      while (index < lines.length) {
+        let contentIndex = index;
+        while (contentIndex < lines.length && !lines[contentIndex].trim()) contentIndex++;
+
+        const nestedItem = this.matchMarkdownListItem(lines[contentIndex]);
+        if (nestedItem && nestedItem.indent > baseIndent) {
+          const nested = this.parseMarkdownList(lines, contentIndex);
+          item.appendChild(nested.node);
+          index = nested.index;
+          continue;
+        }
+
+        const nestedBlock = String(lines[contentIndex] || '').match(/^([ \t]+)>\s?(.*)$/);
+        if (nestedBlock && this.markdownIndent(nestedBlock[1]) > baseIndent) {
+          const quoted = [];
+          index = contentIndex;
+          while (index < lines.length) {
+            const quoteLine = String(lines[index] || '').match(/^([ \t]+)>\s?(.*)$/);
+            if (!quoteLine || this.markdownIndent(quoteLine[1]) <= baseIndent) break;
+            quoted.push(quoteLine[2]);
+            index++;
+          }
+          const quote = document.createElement('blockquote');
+          this.renderMarkdown(quote, quoted.join('\n'));
+          item.appendChild(quote);
+          continue;
+        }
+
+        const continuation = String(lines[contentIndex] || '').match(/^([ \t]+)(\S.*)$/);
+        if (continuation && this.markdownIndent(continuation[1]) > baseIndent) {
+          item.appendChild(document.createElement('br'));
+          this.renderInlineMarkdown(item, continuation[2]);
+          index = contentIndex + 1;
+          continue;
+        }
+        break;
+      }
+
+      list.appendChild(item);
+
+      let nextItemIndex = index;
+      while (nextItemIndex < lines.length && !lines[nextItemIndex].trim()) nextItemIndex++;
+      const nextItem = this.matchMarkdownListItem(lines[nextItemIndex]);
+      if (!nextItem || nextItem.indent !== baseIndent || nextItem.ordered !== ordered) break;
+      index = nextItemIndex;
+    }
+
+    return { node: list, index };
+  }
+
+  isMarkdownBlockStart(line, nextLine = '') {
+    if (!line || !line.trim()) return true;
+    if (this.matchMarkdownFence(line)) return true;
+    if (/^\s*#{1,6}\s+/.test(line)) return true;
+    if (/^\s*>\s?/.test(line)) return true;
+    if (this.matchMarkdownListItem(line)) return true;
+    if (/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line)) return true;
+    const tableHeader = this.splitMarkdownTableRow(line);
+    const tableDivider = this.parseMarkdownTableDivider(nextLine);
+    if (tableHeader && tableDivider && tableHeader.length === tableDivider.length) return true;
+    return false;
+  }
+
+  renderInlineMarkdown(container, text) {
+    let remaining = String(text || '');
+    let plain = '';
+
+    const flushPlain = () => {
+      if (!plain) return;
+      container.appendChild(document.createTextNode(plain));
+      plain = '';
+    };
+
+    while (remaining) {
+      const escaped = remaining.match(/^\\([\\`*_[\]~])/);
+      if (escaped) {
+        plain += escaped[1];
+        remaining = remaining.slice(escaped[0].length);
+        continue;
+      }
+
+      const code = remaining.match(/^`([^`\n]+)`/);
+      if (code) {
+        flushPlain();
+        const node = document.createElement('code');
+        node.textContent = code[1];
+        container.appendChild(node);
+        remaining = remaining.slice(code[0].length);
+        continue;
+      }
+
+      const link = remaining.match(/^\[([^\]\n]+)]\(([^)\s]+)\)/);
+      if (link) {
+        const node = this.createSafeMarkdownLink(link[1], link[2]);
+        if (node) {
+          flushPlain();
+          container.appendChild(node);
+          remaining = remaining.slice(link[0].length);
+          continue;
+        }
+      }
+
+      const formats = [
+        { pattern: /^\*\*\*([^*\n]+)\*\*\*/, tag: 'strong', nested: 'em' },
+        { pattern: /^___([^_\n]+)___/, tag: 'strong', nested: 'em' },
+        { pattern: /^\*\*([^*\n]+)\*\*/, tag: 'strong' },
+        { pattern: /^__([^_\n]+)__/, tag: 'strong' },
+        { pattern: /^~~([^~\n]+)~~/, tag: 'del' },
+        { pattern: /^\*([^*\n]+)\*/, tag: 'em' },
+        { pattern: /^_([^_\n]+)_/, tag: 'em' },
+      ];
+      let formatted = false;
+      for (const format of formats) {
+        const match = remaining.match(format.pattern);
+        if (!match) continue;
+        flushPlain();
+        const node = document.createElement(format.tag);
+        const target = format.nested ? document.createElement(format.nested) : node;
+        this.renderInlineMarkdown(target, match[1]);
+        if (target !== node) node.appendChild(target);
+        container.appendChild(node);
+        remaining = remaining.slice(match[0].length);
+        formatted = true;
+        break;
+      }
+      if (formatted) continue;
+
+      plain += remaining[0];
+      remaining = remaining.slice(1);
+    }
+
+    flushPlain();
+  }
+
+  createSafeMarkdownLink(label, href) {
+    try {
+      const url = new URL(href, window.location.href);
+      if (!['http:', 'https:', 'mailto:'].includes(url.protocol)) return null;
+      const link = document.createElement('a');
+      link.textContent = label;
+      link.href = url.href;
+      link.rel = 'noopener noreferrer';
+      if (url.protocol !== 'mailto:') link.target = '_blank';
+      return link;
+    } catch {
+      return null;
     }
   }
 
