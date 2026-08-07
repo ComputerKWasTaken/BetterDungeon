@@ -22,6 +22,8 @@
   const SDK_MESSAGE = 'ULTRASCRIPTS_SDK_REQUEST';
   const GEMINI_MESSAGE = 'ULTRASCRIPTS_AI_GEMINI';
   const GEMINI_CHAT_PORT = 'BETTERDUNGEON_AI_CHAT_GEMINI_V1';
+  const OPENAI_MESSAGE = 'ULTRASCRIPTS_AI_OPENAI';
+  const OPENAI_CHAT_PORT = 'BETTERDUNGEON_AI_CHAT_OPENAI_V1';
   const DEFAULT_TIMEOUT_MS = 15000;
   const MAX_TIMEOUT_MS = 30000;
   const GEMINI_DEFAULT_TIMEOUT_MS = 120000;
@@ -44,6 +46,12 @@
     apiKey: 'ultrascripts_ai_gemini_api_key',
     model: 'ultrascripts_ai_gemini_model',
     modelMode: 'ultrascripts_ai_gemini_model_mode',
+  };
+  const OPENAI_DEFAULT_BASE_URL = 'https://api.openai.com/v1';
+  const OPENAI_STORAGE_KEYS = {
+    baseUrl: 'ultrascripts_ai_openai_base_url',
+    apiKey: 'ultrascripts_ai_openai_api_key',
+    model: 'ultrascripts_ai_openai_model',
   };
   const DEFAULT_MAX_BODY_BYTES = 50000;
   const MAX_BODY_BYTES = 100000;
@@ -136,7 +144,11 @@
     lastFallbackMode: null,
     lastAttemptedModels: [],
   };
-  const activeGeminiChatPorts = new Set();
+  const openaiRuntimeState = {
+    lastModel: null,
+    lastResolvedAtIso: null,
+  };
+  const activeAiChatPorts = new Set();
 
   function normalizeError(error) {
     if (error && typeof error === 'object') {
@@ -1760,6 +1772,517 @@
     throw { code: 'invalid_args', message: `Gemini op '${op || '(empty)'}' is not supported`, retryable: false };
   }
 
+  function normalizeOpenAiBaseUrl(value) {
+    let url = String(value || '').trim();
+    if (!url) return '';
+    url = url.replace(/\/+$/, '');
+    url = url.replace(/\/chat\/completions$/, '');
+    if (!/^https?:\/\//i.test(url)) return '';
+    return url;
+  }
+
+  function normalizeOpenAiModel(value) {
+    return String(value || '').trim();
+  }
+
+  async function getOpenAiSettings() {
+    const local = await storageGet('local', Object.values(OPENAI_STORAGE_KEYS));
+    const baseUrl = normalizeOpenAiBaseUrl(local[OPENAI_STORAGE_KEYS.baseUrl]);
+    const apiKey = String(local[OPENAI_STORAGE_KEYS.apiKey] || '').trim();
+    const model = normalizeOpenAiModel(local[OPENAI_STORAGE_KEYS.model]);
+    return {
+      baseUrl,
+      apiKey,
+      model,
+      keyConfigured: !!apiKey,
+      configured: !!(baseUrl && model),
+    };
+  }
+
+  function openaiRememberSuccess(result) {
+    openaiRuntimeState.lastModel = typeof result?.model === 'string' ? result.model : null;
+    openaiRuntimeState.lastResolvedAtIso =
+      typeof result?.generatedAtIso === 'string' ? result.generatedAtIso : new Date().toISOString();
+  }
+
+  function openaiResetRuntimeState() {
+    openaiRuntimeState.lastModel = null;
+    openaiRuntimeState.lastResolvedAtIso = null;
+  }
+
+  function openaiStatus(settings) {
+    const ready = !!settings?.configured;
+    return {
+      backend: 'openai',
+      backendLabel: 'OpenAI-Compatible',
+      ready,
+      available: ready,
+      reason: ready ? null : 'ai_backend_not_configured',
+      supports: { text: true, json: true, thinking: false },
+      config: {
+        provider: 'openai',
+        api: 'chat-completions',
+        stateless: true,
+        keyConfigured: !!settings?.keyConfigured,
+        baseUrl: settings?.baseUrl || '',
+        baseUrlConfigured: !!settings?.baseUrl,
+        model: settings?.model || '',
+        selectedModel: settings?.model || '',
+        activeModel: openaiRuntimeState.lastModel,
+        lastResolvedModel: openaiRuntimeState.lastModel,
+        lastResolvedAtIso: openaiRuntimeState.lastResolvedAtIso,
+      },
+      message: ready
+        ? 'OpenAI-compatible backend is configured.'
+        : 'Add a base URL and model in BetterDungeon to enable the OpenAI-compatible backend.',
+    };
+  }
+
+  function openaiJsonSchemaInstruction(schema) {
+    return `Respond with a single JSON object that conforms to this JSON schema. Output only the JSON object with no surrounding prose or code fences.\nSchema: ${JSON.stringify(schema)}`;
+  }
+
+  function openaiPayload(task, model) {
+    const messages = [];
+    if (task.output.type === 'json' && task.output.schema) {
+      messages.push({ role: 'system', content: openaiJsonSchemaInstruction(task.output.schema) });
+    }
+    messages.push({ role: 'user', content: task.prompt });
+
+    const payload = { model, messages, stream: false };
+    if (task.output.type === 'json') {
+      payload.response_format = { type: 'json_object' };
+    }
+    return { payload };
+  }
+
+  function openaiChatPayload(task, model) {
+    return {
+      payload: {
+        model,
+        messages: [
+          { role: 'system', content: task.systemInstruction },
+          ...task.messages.map(message => ({ role: message.role, content: message.content })),
+        ],
+        max_tokens: task.budget.maxOutputTokens,
+        stream: true,
+      },
+    };
+  }
+
+  function openaiBlockedError(detail, model) {
+    return {
+      code: 'safety_blocked',
+      message: 'The OpenAI-compatible provider blocked the request with a content filter.',
+      retryable: false,
+      backend: 'openai',
+      providerReason: 'content_filter',
+      detail: detail || 'content_filter',
+      model,
+    };
+  }
+
+  function openaiHttpError(status, statusText, bodyText, model) {
+    let parsed = null;
+    try { parsed = JSON.parse(bodyText || '{}'); } catch { parsed = null; }
+    const providerMessage =
+      parsed?.error?.message ||
+      (typeof parsed?.error === 'string' ? parsed.error : null) ||
+      statusText ||
+      `HTTP ${status}`;
+    const base = {
+      status,
+      statusText,
+      backend: 'openai',
+      detail: providerMessage,
+      model,
+    };
+
+    if (/content_filter|content management policy/i.test(providerMessage)) {
+      return { ...base, ...openaiBlockedError(providerMessage, model) };
+    }
+    if (status === 401 || status === 403) {
+      return { ...base, code: 'auth_failed', message: 'OpenAI-compatible API key was rejected.', retryable: false };
+    }
+    if (status === 404) {
+      return { ...base, code: 'invalid_args', message: `Endpoint or model not found: ${providerMessage}`, retryable: false };
+    }
+    if (status === 429) {
+      return { ...base, code: 'rate_limit', message: 'OpenAI-compatible rate limit reached.', retryable: true };
+    }
+    if (status >= 500) {
+      return { ...base, code: 'backend_failed', message: 'OpenAI-compatible service failed.', retryable: true };
+    }
+    if (status === 400) {
+      return { ...base, code: 'invalid_args', message: providerMessage, retryable: false };
+    }
+    return { ...base, code: 'backend_failed', message: providerMessage, retryable: status >= 500 };
+  }
+
+  function openaiNotConfiguredError() {
+    return {
+      code: 'not_configured',
+      message: 'The OpenAI-compatible backend needs a base URL and model.',
+      retryable: false,
+      backend: 'openai',
+    };
+  }
+
+  function openaiRequestHeaders(settings) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (settings.apiKey) headers.Authorization = `Bearer ${settings.apiKey}`;
+    return headers;
+  }
+
+  function extractOpenAiText(data, model) {
+    const choice = Array.isArray(data?.choices) ? data.choices[0] : null;
+    if (choice?.finish_reason === 'content_filter') {
+      throw openaiBlockedError(choice?.finish_reason, model);
+    }
+    const text = typeof choice?.message?.content === 'string' ? choice.message.content : '';
+    if (!text) {
+      throw {
+        code: 'invalid_response',
+        message: 'OpenAI-compatible provider returned no message content.',
+        retryable: false,
+        backend: 'openai',
+        model,
+      };
+    }
+    return text;
+  }
+
+  async function callOpenAiChatCompletion(settings, task) {
+    if (!settings.configured) throw openaiNotConfiguredError();
+
+    const model = settings.model;
+    const url = `${settings.baseUrl}/chat/completions`;
+    const payloadInfo = openaiPayload(task, model);
+
+    try {
+      const { response, bodyText } = await withPrivilegedNetworkLock(async () => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), GEMINI_DEFAULT_TIMEOUT_MS);
+        try {
+          const lockedResponse = await fetch(url, {
+            method: 'POST',
+            headers: openaiRequestHeaders(settings),
+            body: JSON.stringify(payloadInfo.payload),
+            credentials: 'omit',
+            cache: 'no-store',
+            signal: controller.signal,
+          });
+          return { response: lockedResponse, bodyText: await lockedResponse.text() };
+        } finally {
+          clearTimeout(timer);
+        }
+      });
+
+      if (!response.ok) {
+        const err = openaiHttpError(response.status, response.statusText, bodyText, model);
+        const retryAfter = response.headers.get('retry-after');
+        if (retryAfter) {
+          const seconds = Number(retryAfter);
+          if (Number.isFinite(seconds)) err.retryAfterMs = Math.max(0, seconds * 1000);
+        }
+        throw err;
+      }
+
+      let data = null;
+      try {
+        data = JSON.parse(bodyText || '{}');
+      } catch (err) {
+        throw {
+          code: 'invalid_response',
+          message: 'OpenAI-compatible provider returned invalid JSON.',
+          retryable: false,
+          backend: 'openai',
+          detail: err?.message || 'invalid_json',
+          model,
+        };
+      }
+
+      const text = extractOpenAiText(data, model);
+      const base = {
+        backend: 'openai',
+        generatedAtIso: new Date().toISOString(),
+        model,
+        providerModel: data?.model || model,
+        usage: data?.usage || null,
+        status: openaiStatus(settings),
+      };
+      openaiRememberSuccess(base);
+
+      if (task.output.type === 'json') {
+        try {
+          return { ...base, json: JSON.parse(text), text };
+        } catch (err) {
+          throw {
+            code: 'invalid_response',
+            message: 'OpenAI-compatible provider returned invalid JSON text.',
+            retryable: false,
+            backend: 'openai',
+            detail: err?.message || 'invalid_json',
+            model,
+          };
+        }
+      }
+
+      return { ...base, text };
+    } catch (err) {
+      if (err?.name === 'AbortError') {
+        throw {
+          code: 'timeout',
+          message: `OpenAI-compatible query timed out after ${GEMINI_DEFAULT_TIMEOUT_MS} ms.`,
+          retryable: true,
+          backend: 'openai',
+          model,
+        };
+      }
+      if (err?.code) throw err;
+      throw {
+        code: 'backend_failed',
+        message: err?.message || 'OpenAI-compatible request failed.',
+        retryable: true,
+        backend: 'openai',
+        model,
+      };
+    }
+  }
+
+  async function readOpenAiChatStream(response, model, onDelta) {
+    if (!response?.body?.getReader) {
+      throw {
+        code: 'invalid_response',
+        message: 'OpenAI-compatible provider did not return a readable stream.',
+        retryable: false,
+        backend: 'openai',
+        model,
+      };
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let text = '';
+    let sequence = 0;
+    let providerModel = model;
+    let usage = null;
+    let finishReason = null;
+    let sawDone = false;
+    let streamFinished = false;
+
+    const handleEvent = (event) => {
+      if (!event || typeof event !== 'object') return;
+      if (event.error) {
+        const providerMessage = event.error?.message || 'OpenAI-compatible stream failed.';
+        throw {
+          code: 'backend_failed',
+          message: providerMessage,
+          retryable: true,
+          backend: 'openai',
+          detail: providerMessage,
+          model,
+        };
+      }
+      if (typeof event.model === 'string' && event.model) providerModel = event.model;
+      if (event.usage && typeof event.usage === 'object') usage = event.usage;
+      const choice = Array.isArray(event.choices) ? event.choices[0] : null;
+      if (!choice) return;
+      if (typeof choice.finish_reason === 'string' && choice.finish_reason) {
+        finishReason = choice.finish_reason;
+      }
+      const delta = typeof choice?.delta?.content === 'string' ? choice.delta.content : '';
+      if (delta) {
+        text += delta;
+        sequence += 1;
+        onDelta(delta, sequence);
+      }
+    };
+
+    const drainFrames = (flush = false) => {
+      let next;
+      while ((next = takeSseFrame(buffer))) {
+        buffer = next.rest;
+        const parsed = parseSseFrame(next.frame);
+        if (!parsed) continue;
+        if (parsed.done) {
+          sawDone = true;
+          continue;
+        }
+        handleEvent(parsed.event);
+      }
+      if (flush && buffer.trim()) {
+        const parsed = parseSseFrame(buffer);
+        buffer = '';
+        if (parsed?.done) sawDone = true;
+        else if (parsed?.event) handleEvent(parsed.event);
+      }
+    };
+
+    try {
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        buffer += decoder.decode(chunk.value, { stream: true });
+        drainFrames();
+      }
+      buffer += decoder.decode();
+      drainFrames(true);
+      streamFinished = true;
+    } finally {
+      if (!streamFinished) {
+        try { await reader.cancel(); } catch { /* noop */ }
+      }
+      try { reader.releaseLock(); } catch { /* noop */ }
+    }
+
+    if (finishReason === 'content_filter') {
+      throw openaiBlockedError(finishReason, model);
+    }
+    if (!text) {
+      throw {
+        code: 'invalid_response',
+        message: sawDone
+          ? 'OpenAI-compatible provider returned no streamed text.'
+          : 'OpenAI-compatible stream closed before completion.',
+        retryable: !sawDone,
+        backend: 'openai',
+        model,
+      };
+    }
+
+    return { text, providerModel, usage, finishReason };
+  }
+
+  async function callOpenAiChatStream(settings, task, session, onDelta) {
+    if (!settings.configured) throw openaiNotConfiguredError();
+
+    const model = settings.model;
+    const url = `${settings.baseUrl}/chat/completions`;
+    const payloadInfo = openaiChatPayload(task, model);
+    let timedOut = false;
+
+    try {
+      const attempt = await withPrivilegedNetworkLock(async () => {
+        if (session.controller.signal.aborted) throw abortException();
+        const timer = setTimeout(() => {
+          timedOut = true;
+          if (!session.abortReason) session.abortReason = 'timeout';
+          session.controller.abort();
+        }, GEMINI_DEFAULT_TIMEOUT_MS);
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: openaiRequestHeaders(settings),
+            body: JSON.stringify(payloadInfo.payload),
+            credentials: 'omit',
+            cache: 'no-store',
+            signal: session.controller.signal,
+          });
+          if (!response.ok) {
+            return { response, bodyText: await response.text(), streamResult: null };
+          }
+          const streamResult = await readOpenAiChatStream(response, model, onDelta);
+          return { response, bodyText: null, streamResult };
+        } finally {
+          clearTimeout(timer);
+        }
+      });
+
+      if (!attempt.response.ok) {
+        const err = openaiHttpError(
+          attempt.response.status,
+          attempt.response.statusText,
+          attempt.bodyText,
+          model,
+        );
+        const retryAfter = attempt.response.headers.get('retry-after');
+        if (retryAfter) {
+          const seconds = Number(retryAfter);
+          if (Number.isFinite(seconds)) err.retryAfterMs = Math.max(0, seconds * 1000);
+        }
+        throw err;
+      }
+
+      const streamResult = attempt.streamResult;
+      const base = {
+        backend: 'openai',
+        generatedAtIso: new Date().toISOString(),
+        model,
+        providerModel: streamResult.providerModel || model,
+        usage: streamResult.usage || null,
+        status: openaiStatus(settings),
+        text: streamResult.text,
+      };
+      openaiRememberSuccess(base);
+      return base;
+    } catch (err) {
+      if (err?.name === 'AbortError' || session.controller.signal.aborted) {
+        if (timedOut || session.abortReason === 'timeout') {
+          throw {
+            code: 'timeout',
+            message: `OpenAI-compatible chat timed out after ${GEMINI_DEFAULT_TIMEOUT_MS} ms.`,
+            retryable: true,
+            backend: 'openai',
+            model,
+          };
+        }
+        throw {
+          code: 'aborted',
+          message: 'AI chat request was aborted.',
+          retryable: false,
+          backend: 'openai',
+          model,
+        };
+      }
+      if (err?.code) throw err;
+      throw {
+        code: 'backend_failed',
+        message: err?.message || 'OpenAI-compatible chat request failed.',
+        retryable: true,
+        backend: 'openai',
+        model,
+      };
+    }
+  }
+
+  async function handleOpenAi(request = {}) {
+    const op = String(request.op || '').trim();
+    if (op === 'settings:set') {
+      const next = {};
+      if (request.baseUrl !== undefined) {
+        next[OPENAI_STORAGE_KEYS.baseUrl] = normalizeOpenAiBaseUrl(request.baseUrl);
+      }
+      if (request.apiKey !== undefined) {
+        next[OPENAI_STORAGE_KEYS.apiKey] = String(request.apiKey || '').trim();
+      }
+      if (request.model !== undefined) {
+        next[OPENAI_STORAGE_KEYS.model] = normalizeOpenAiModel(request.model);
+      }
+      await storageSet('local', next);
+      openaiResetRuntimeState();
+      return openaiStatus(await getOpenAiSettings());
+    }
+
+    const settings = await getOpenAiSettings();
+    if (op === 'status') return openaiStatus(settings);
+    if (op === 'test') {
+      const task = normalizeGeminiTask({
+        id: 'popup-test',
+        prompt: 'Reply with exactly: BetterDungeon OpenAI ready',
+        output: { type: 'text' },
+      });
+      return callOpenAiChatCompletion(settings, task);
+    }
+    if (op === 'query') {
+      const task = normalizeGeminiTask(request.task);
+      return callOpenAiChatCompletion(settings, task);
+    }
+
+    throw { code: 'invalid_args', message: `OpenAI op '${op || '(empty)'}' is not supported`, retryable: false };
+  }
+
   async function handleSdk(request = {}) {
     const op = String(request.op || '').trim();
     if (op !== 'config') {
@@ -1768,7 +2291,7 @@
     return getSdkConfigSnapshot();
   }
 
-  function handleGeminiChatPort(port) {
+  function handleAiChatPort(port, driver) {
     try {
       if (port?.sender?.id && port.sender.id !== extensionRuntime.id) {
         port.disconnect();
@@ -1790,7 +2313,7 @@
       terminalTimer: null,
       startTimer: null,
     };
-    activeGeminiChatPorts.add(port);
+    activeAiChatPorts.add(port);
 
     const safePost = (message) => {
       if (session.closed) return false;
@@ -1821,15 +2344,15 @@
       }
       try { port.onMessage.removeListener(onMessage); } catch { /* noop */ }
       try { port.onDisconnect.removeListener(onDisconnect); } catch { /* noop */ }
-      activeGeminiChatPorts.delete(port);
+      activeAiChatPorts.delete(port);
       if (disconnect) {
         try { port.disconnect(); } catch { /* noop */ }
       }
       if (session.started) {
-        console.log('[GeminiChat] Stream closed', {
+        console.log(`[${driver.logTag}] Stream closed`, {
           requestId: session.requestId,
           reason,
-          activePorts: activeGeminiChatPorts.size,
+          activePorts: activeAiChatPorts.size,
         });
       }
     };
@@ -1876,7 +2399,7 @@
           terminal('error', {
             error: normalizeError({
               code: 'invalid_args',
-              message: `Gemini chat message '${message.type || '(empty)'}' is not supported`,
+              message: `${driver.label} chat message '${message.type || '(empty)'}' is not supported`,
               retryable: false,
             }),
           });
@@ -1888,7 +2411,7 @@
         terminal('error', {
           error: normalizeError({
             code: 'invalid_args',
-            message: 'Gemini chat port already has an active request',
+            message: `${driver.label} chat port already has an active request`,
             retryable: false,
           }),
         });
@@ -1905,11 +2428,11 @@
 
       let task;
       try {
-        task = normalizeGeminiChatTask(message.task);
+        task = driver.normalizeChatTask(message.task);
         if (task.id && task.id !== session.requestId) {
           throw {
             code: 'invalid_args',
-            message: 'Gemini chat request id does not match the task id',
+            message: `${driver.label} chat request id does not match the task id`,
             retryable: false,
           };
         }
@@ -1928,13 +2451,13 @@
           teardown('keepalive-post-failed');
         }
       }, GEMINI_CHAT_KEEPALIVE_MS);
-      console.log('[GeminiChat] Stream started', {
+      console.log(`[${driver.logTag}] Stream started`, {
         requestId: session.requestId,
-        activePorts: activeGeminiChatPorts.size,
+        activePorts: activeAiChatPorts.size,
       });
 
-      getGeminiSettings()
-        .then(settings => callGeminiChatStream(settings, task, session, (text, sequence) => {
+      driver.getSettings()
+        .then(settings => driver.callChatStream(settings, task, session, (text, sequence) => {
           if (session.closed || session.terminal) return;
           if (!safePost({
             v: 1,
@@ -1963,10 +2486,28 @@
     }, GEMINI_CHAT_START_TIMEOUT_MS);
   }
 
+  const AI_CHAT_PORT_DRIVERS = {
+    [GEMINI_CHAT_PORT]: {
+      label: 'Gemini',
+      logTag: 'GeminiChat',
+      normalizeChatTask: normalizeGeminiChatTask,
+      getSettings: getGeminiSettings,
+      callChatStream: callGeminiChatStream,
+    },
+    [OPENAI_CHAT_PORT]: {
+      label: 'OpenAI-compatible',
+      logTag: 'OpenAIChat',
+      normalizeChatTask: normalizeGeminiChatTask,
+      getSettings: getOpenAiSettings,
+      callChatStream: callOpenAiChatStream,
+    },
+  };
+
   if (extensionRuntime.onConnect?.addListener) {
     extensionRuntime.onConnect.addListener((port) => {
-      if (!port || port.name !== GEMINI_CHAT_PORT) return;
-      handleGeminiChatPort(port);
+      const driver = port ? AI_CHAT_PORT_DRIVERS[port.name] : null;
+      if (!driver) return;
+      handleAiChatPort(port, driver);
     });
   }
 
@@ -1992,6 +2533,15 @@
     if (!message || message.type !== GEMINI_MESSAGE) return false;
 
     handleGemini(message.request)
+      .then((data) => sendResponse({ ok: true, data }))
+      .catch((error) => sendResponse({ ok: false, error: normalizeError(error) }));
+    return true;
+  });
+
+  extensionRuntime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (!message || message.type !== OPENAI_MESSAGE) return false;
+
+    handleOpenAi(message.request)
       .then((data) => sendResponse({ ok: true, data }))
       .catch((error) => sendResponse({ ok: false, error: normalizeError(error) }));
     return true;
