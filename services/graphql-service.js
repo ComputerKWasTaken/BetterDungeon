@@ -53,6 +53,24 @@
         }
       }`,
 
+      navigatorAdventureContext: `query GetBetterDungeonNavigatorContext($shortId: String) {
+        adventure(shortId: $shortId) {
+          id
+          shortId
+          title
+          actionCount
+          thirdPerson
+          memory
+          authorsNote
+          instructions
+          state {
+            storySummary
+            __typename
+          }
+          __typename
+        }
+      }`,
+
       scenarioStart: `query BetterDungeonScenarioStartViewGetScenario($shortId: String, $viewPublished: Boolean) {
         scenario(shortId: $shortId, viewPublished: $viewPublished) {
           id
@@ -344,6 +362,37 @@
       };
       this.identityCache.set(resolvedShortId, identity);
       return identity;
+    }
+
+    async getNavigatorAdventureContext(shortId = null, options = {}) {
+      const ws = this.getWs();
+      const resolvedShortId = shortId || ws?.getAdventureShortId?.() || this.getShortIdFromUrl();
+      if (!resolvedShortId) {
+        throw new Error('Adventure shortId is unknown. Open an adventure first.');
+      }
+
+      const result = await this.request(
+        'GetBetterDungeonNavigatorContext',
+        { shortId: resolvedShortId },
+        BetterDungeonGQLService.QUERIES.navigatorAdventureContext,
+        options
+      );
+      const adventure = result?.data?.adventure;
+      if (!adventure?.id) {
+        throw new Error(`Navigator context lookup returned no adventure for ${resolvedShortId}.`);
+      }
+
+      return {
+        id: String(adventure.id),
+        shortId: adventure.shortId || resolvedShortId,
+        title: typeof adventure.title === 'string' ? adventure.title : '',
+        actionCount: Number.isFinite(adventure.actionCount) ? adventure.actionCount : null,
+        thirdPerson: typeof adventure.thirdPerson === 'boolean' ? adventure.thirdPerson : null,
+        memory: typeof adventure.memory === 'string' ? adventure.memory : '',
+        authorsNote: typeof adventure.authorsNote === 'string' ? adventure.authorsNote : '',
+        instructions: typeof adventure.instructions === 'string' ? adventure.instructions : '',
+        storySummary: typeof adventure.state?.storySummary === 'string' ? adventure.state.storySummary : '',
+      };
     }
 
     async getAiVisibleVersions(options = {}) {

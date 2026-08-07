@@ -4,10 +4,9 @@
 // request lifecycle, abort, input budgeting, and per-adventure persistence.
 //
 // The drawer UI talks only to this class, and this class talks only to the
-// first-party chat surface on UltrascriptsAIExecutor. Grounding (platform
-// primer, plot components, story cards, recent story) is deliberately absent in
-// this shell pass and will be layered in behind buildSystemInstruction() and
-// buildRequestMessages() without changing the UI contract.
+// first-party chat surface on UltrascriptsAIExecutor. Grounding stays behind
+// buildSystemInstruction() and buildRequestMessages() so later tools do not
+// change the drawer contract.
 
 (function () {
   if (typeof window === 'undefined' || window.NavigatorSession) return;
@@ -19,6 +18,7 @@
   // script-facing ai.query cap, which stays at 12k characters.
   const MAX_INPUT_CHARS = 60000;
   const MAX_OUTPUT_TOKENS = 2048;
+  const MAX_HISTORY_CHARS = 12000;
 
   // A single user turn longer than this can never fit alongside a system
   // instruction, so it is rejected before a request is attempted.
@@ -27,22 +27,6 @@
   // Persistence bounds. Transcripts are convenience state, not archives.
   const MAX_PERSISTED_MESSAGES = 80;
   const MAX_PERSISTED_CHARS = 120000;
-
-  // Placeholder grounding. This is intentionally honest about what Navigator
-  // cannot yet see so it does not invent knowledge of the player's adventure.
-  const PLACEHOLDER_SYSTEM_INSTRUCTION = [
-    'You are Navigator, an assistant built into BetterDungeon for players of AI Dungeon.',
-    'You help players maintain and improve the adventures they are playing: Plot Components',
-    '(AI Instructions, Plot Essentials, Author\'s Note, Story Summary) and Story Cards.',
-    '',
-    'Important limitation for this build: you have NOT been given the contents of the',
-    'player\'s adventure. You cannot see their Plot Components, Story Cards, or story text.',
-    'If a question depends on that content, say plainly that you cannot see it yet and ask',
-    'the player to paste the relevant part. Never guess at or invent their adventure content.',
-    '',
-    'Be concise and practical. When you propose replacement text for a component or card,',
-    'give the exact text the player can copy.',
-  ].join('\n');
 
   function createId(prefix) {
     return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -66,6 +50,13 @@
       this.sending = false;
       this.loaded = false;
       this.saveTimer = null;
+      this.contextReader = typeof NavigatorContext !== 'undefined'
+        ? new NavigatorContext(this.adventureId)
+        : null;
+      this.contextSnapshot = null;
+      this.contextState = 'idle';
+      this.contextRevision = 0;
+      this.contextControllers = new Set();
       this.debug = false;
     }
 
@@ -199,6 +190,55 @@
       }
     }
 
+    // ==================== GROUNDING ====================
+
+    getContextSummary() {
+      return {
+        state: this.contextState,
+        partial: this.contextSnapshot?.partial === true,
+        capturedAtIso: this.contextSnapshot?.capturedAtIso || null,
+        ...(this.contextSnapshot?.summary || {}),
+      };
+    }
+
+    async refreshContext(options = {}) {
+      if (!this.contextReader) {
+        const error = {
+          code: 'unavailable',
+          message: 'Navigator adventure grounding is not loaded. Reload the page and try again.',
+          retryable: true,
+        };
+        this.contextState = 'error';
+        this.emit('context', this.getContextSummary());
+        throw error;
+      }
+
+      const revision = ++this.contextRevision;
+      const ownController = options.signal ? null : new AbortController();
+      const signal = options.signal || ownController.signal;
+      if (ownController) this.contextControllers.add(ownController);
+      this.contextState = 'loading';
+      this.emit('context', this.getContextSummary());
+
+      try {
+        const snapshot = await this.contextReader.build({ signal });
+        if (revision === this.contextRevision) {
+          this.contextSnapshot = snapshot;
+          this.contextState = snapshot.partial ? 'partial' : 'ready';
+          this.emit('context', this.getContextSummary());
+        }
+        return snapshot;
+      } catch (error) {
+        if (revision === this.contextRevision && String(error?.code || '').toLowerCase() !== 'aborted') {
+          this.contextState = 'error';
+          this.emit('context', this.getContextSummary());
+        }
+        throw error;
+      } finally {
+        if (ownController) this.contextControllers.delete(ownController);
+      }
+    }
+
     // ==================== PROVIDER READINESS ====================
 
     async checkReady() {
@@ -227,8 +267,9 @@
 
     // ==================== REQUEST ASSEMBLY ====================
 
-    buildSystemInstruction() {
-      return PLACEHOLDER_SYSTEM_INSTRUCTION;
+    async buildSystemInstruction(signal) {
+      const snapshot = await this.refreshContext({ signal });
+      return snapshot.systemInstruction;
     }
 
     // Select the newest history that fits the input budget. The final user
@@ -246,7 +287,7 @@
         throw new Error('Navigator has no pending question to send.');
       }
 
-      const budget = MAX_INPUT_CHARS - systemInstruction.length;
+      const budget = Math.min(MAX_HISTORY_CHARS, MAX_INPUT_CHARS - systemInstruction.length);
       const selected = [];
       let used = 0;
 
@@ -266,7 +307,12 @@
         selected.shift();
       }
 
-      return { messages: selected, truncated: selected.length < usable.length };
+      return {
+        messages: selected,
+        truncated: selected.length < usable.length,
+        historyChars: selected.reduce((sum, message) => sum + message.content.length, 0),
+        omittedMessages: Math.max(0, usable.length - selected.length),
+      };
     }
 
     // ==================== SEND ====================
@@ -317,15 +363,25 @@
 
       const assistant = this.addMessage({ role: 'assistant', status: 'pending', content: '' });
       this.streamingMessageId = assistant.id;
-      this.controller = new AbortController();
+      const turnController = new AbortController();
+      this.controller = turnController;
 
       let request;
       try {
-        const systemInstruction = this.buildSystemInstruction();
+        const systemInstruction = await this.buildSystemInstruction(turnController.signal);
         const built = this.buildRequestMessages(systemInstruction);
-        request = { systemInstruction, messages: built.messages, truncated: built.truncated };
+        request = {
+          systemInstruction,
+          messages: built.messages,
+          truncated: built.truncated,
+          historyChars: built.historyChars,
+          omittedMessages: built.omittedMessages,
+        };
       } catch (error) {
-        this.finishWithError(assistant.id, { code: 'invalid_args', message: error.message });
+        this.finishWithError(
+          assistant.id,
+          error?.code ? error : { code: 'invalid_args', message: error?.message || 'Navigator context could not be assembled.' }
+        );
         return;
       }
 
@@ -342,7 +398,7 @@
         }, {
           consumer: CONSUMER,
           requestId: `navigator-${this.adventureId || 'unknown'}-${Date.now()}`,
-          signal: this.controller.signal,
+          signal: turnController.signal,
           onDelta: (delta) => {
             if (this.streamingMessageId !== assistant.id) return;
             const message = this.findMessage(assistant.id);
@@ -441,6 +497,10 @@
 
     destroy() {
       this.abort();
+      for (const controller of this.contextControllers) {
+        try { controller.abort(); } catch { /* noop */ }
+      }
+      this.contextControllers.clear();
       if (this.saveTimer) {
         clearTimeout(this.saveTimer);
         this.saveTimer = null;
@@ -453,6 +513,7 @@
   NavigatorSession.CONSUMER = CONSUMER;
   NavigatorSession.MAX_INPUT_CHARS = MAX_INPUT_CHARS;
   NavigatorSession.MAX_OUTPUT_TOKENS = MAX_OUTPUT_TOKENS;
+  NavigatorSession.MAX_HISTORY_CHARS = MAX_HISTORY_CHARS;
   NavigatorSession.MAX_USER_MESSAGE_CHARS = MAX_USER_MESSAGE_CHARS;
 
   window.NavigatorSession = NavigatorSession;

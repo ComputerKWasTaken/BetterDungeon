@@ -6,8 +6,8 @@
 // Navigator overlays the right gutter instead of reflowing the layout, and
 // falls back to a full-screen sheet when there is no gutter to occupy.
 //
-// This pass is the shell plus live streaming chat. Adventure grounding lives
-// behind NavigatorSession and is deliberately not wired up yet.
+// NavigatorSession owns live streaming chat and a bounded, read-only adventure
+// snapshot assembled from Plot Components, Story Cards, and recent actions.
 
 class NavigatorFeature {
   static id = 'navigator';
@@ -207,6 +207,9 @@ class NavigatorFeature {
     // leaving it on screen until storage resolves.
     this.renderTranscript();
     this.session.load().then(() => this.renderTranscript());
+    this.session.refreshContext().catch(error => {
+      this.log('[Navigator] Initial context refresh failed:', error);
+    });
   }
 
   teardownSession() {
@@ -233,6 +236,8 @@ class NavigatorFeature {
     } else if (event === 'update') {
       this.updateMessageNode(payload);
       this.scrollToBottom();
+    } else if (event === 'context') {
+      this.updateSubtitle();
     }
 
     this.updateComposerState();
@@ -365,7 +370,7 @@ class NavigatorFeature {
       <span class="bd-navigator-empty-icon icon-compass" aria-hidden="true"></span>
       <p class="bd-navigator-empty-title">Ask Navigator</p>
       <p class="bd-navigator-empty-text">Navigator can help you plan Plot Component rewrites, draft Story Cards, and think through where your story is going.</p>
-      <p class="bd-navigator-empty-note">It cannot read this adventure yet, so paste in anything it needs to see.</p>
+      <p class="bd-navigator-empty-note">Navigator reads a budgeted snapshot of this adventure. It can draft changes, but cannot apply them.</p>
     `;
     transcript.appendChild(empty);
 
@@ -442,6 +447,7 @@ class NavigatorFeature {
 
   closeDrawer() {
     if (!this.drawer) return;
+    if (this.session?.isBusy) this.session.abort();
     this.isOpen = false;
     this.drawer.hidden = true;
     this.launcher?.classList.remove('bd-navigator-launcher-active');
@@ -529,7 +535,25 @@ class NavigatorFeature {
 
   updateSubtitle() {
     const subtitle = this.drawer?.querySelector('.bd-navigator-subtitle');
-    if (subtitle) subtitle.textContent = 'No adventure context yet';
+    if (!subtitle) return;
+
+    const context = this.session?.getContextSummary?.();
+    if (!context || context.state === 'idle') {
+      subtitle.textContent = 'Preparing adventure context…';
+      return;
+    }
+    if (context.state === 'loading') {
+      subtitle.textContent = 'Refreshing adventure context…';
+      return;
+    }
+    if (context.state === 'error') {
+      subtitle.textContent = 'Adventure context unavailable';
+      return;
+    }
+
+    const title = context.title ? `${context.title} · ` : '';
+    const coverage = `${context.plotPopulated || 0}/4 plot · ${context.cardsIncluded || 0}/${context.cardsTotal || 0} cards · ${context.actionsIncluded || 0} actions`;
+    subtitle.textContent = `${title}${coverage}${context.partial ? ' · partial' : ''}`;
   }
 
   // ==================== TRANSCRIPT RENDERING ====================
