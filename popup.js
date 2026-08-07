@@ -9,6 +9,9 @@ const DEBUG = false;
 const AI_GEMINI_MESSAGE = 'ULTRASCRIPTS_AI_GEMINI';
 const AI_DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite';
 const AI_DEFAULT_GEMINI_MODEL_MODE = 'auto';
+const AI_OPENAI_MESSAGE = 'ULTRASCRIPTS_AI_OPENAI';
+const AI_DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
+const AI_DEFAULT_PROVIDER_STORAGE_KEY = 'ultrascripts_ai_default_provider';
 
 const STORAGE_KEYS = {
   features: 'betterDungeonFeatures',
@@ -305,6 +308,8 @@ function initToggles() {
 function initUltrascriptsSettings() {
   loadUltrascriptsModuleToggles();
   initGeminiSettings();
+  initOpenAiSettings();
+  initDefaultProviderSetting();
   refreshUltrascriptsState();
 
   document.querySelectorAll('[data-ultrascripts-module-toggle]').forEach(toggle => {
@@ -477,6 +482,136 @@ function initGeminiSettings() {
   document.getElementById('ai-gemini-test')?.addEventListener('click', testGeminiSettings);
 }
 
+function sendOpenAiMessage(request) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ type: AI_OPENAI_MESSAGE, request }, (response) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        reject(new Error(lastError.message || 'OpenAI backend request failed'));
+        return;
+      }
+      if (response?.ok) {
+        resolve(response.data);
+        return;
+      }
+      reject(response?.error || { code: 'backend_failed', message: 'OpenAI backend request failed' });
+    });
+  });
+}
+
+function setOpenAiStatusText(status, pendingText) {
+  const el = document.getElementById('ai-openai-status');
+  if (!el) return;
+  if (pendingText) {
+    el.textContent = pendingText;
+    return;
+  }
+  if (!status) {
+    el.textContent = 'Not checked';
+    return;
+  }
+  el.textContent = status.ready
+    ? `Ready (${status.config?.model || 'model set'})`
+    : 'Base URL and model required';
+}
+
+async function loadOpenAiSettings() {
+  try {
+    const status = await sendOpenAiMessage({ op: 'status' });
+    const baseUrlInput = document.getElementById('ai-openai-base-url');
+    const keyInput = document.getElementById('ai-openai-api-key');
+    const modelInput = document.getElementById('ai-openai-model');
+    if (baseUrlInput) baseUrlInput.value = status.config?.baseUrl || '';
+    if (keyInput) {
+      keyInput.value = '';
+      keyInput.placeholder = status.config?.keyConfigured ? 'Saved locally' : 'sk-... (optional for local servers)';
+    }
+    if (modelInput) modelInput.value = status.config?.model || '';
+    setOpenAiStatusText(status);
+  } catch {
+    setOpenAiStatusText(null, 'Unavailable');
+  }
+}
+
+async function saveOpenAiSettings() {
+  const baseUrlInput = document.getElementById('ai-openai-base-url');
+  const keyInput = document.getElementById('ai-openai-api-key');
+  const modelInput = document.getElementById('ai-openai-model');
+  const request = {
+    op: 'settings:set',
+    baseUrl: baseUrlInput?.value?.trim() || AI_DEFAULT_OPENAI_BASE_URL,
+    model: modelInput?.value?.trim() || '',
+  };
+  const apiKey = keyInput?.value?.trim();
+  if (apiKey) request.apiKey = apiKey;
+
+  setOpenAiStatusText(null, 'Saving...');
+  try {
+    const status = await sendOpenAiMessage(request);
+    if (baseUrlInput) baseUrlInput.value = status.config?.baseUrl || '';
+    if (keyInput) {
+      keyInput.value = '';
+      keyInput.placeholder = status.config?.keyConfigured ? 'Saved locally' : 'sk-... (optional for local servers)';
+    }
+    setOpenAiStatusText(status);
+    showToast('OpenAI-compatible settings saved', 'success');
+  } catch (err) {
+    setOpenAiStatusText(null, 'Save failed');
+    showToast(err?.message || 'OpenAI-compatible settings failed to save', 'error');
+  }
+}
+
+async function clearOpenAiApiKey() {
+  const keyInput = document.getElementById('ai-openai-api-key');
+  setOpenAiStatusText(null, 'Clearing key...');
+  try {
+    const status = await sendOpenAiMessage({ op: 'settings:set', apiKey: '' });
+    if (keyInput) {
+      keyInput.value = '';
+      keyInput.placeholder = 'sk-... (optional for local servers)';
+    }
+    setOpenAiStatusText(status);
+    showToast('OpenAI-compatible API key cleared', 'success');
+  } catch (err) {
+    await loadOpenAiSettings();
+    showToast(err?.message || 'OpenAI-compatible API key could not be cleared', 'error');
+  }
+}
+
+async function testOpenAiSettings() {
+  setOpenAiStatusText(null, 'Testing...');
+  try {
+    const result = await sendOpenAiMessage({ op: 'test' });
+    setOpenAiStatusText(result.status);
+    showToast('OpenAI-compatible test succeeded', 'success');
+  } catch (err) {
+    await loadOpenAiSettings();
+    showToast(err?.message || 'OpenAI-compatible test failed', 'error');
+  }
+}
+
+function initOpenAiSettings() {
+  loadOpenAiSettings();
+  document.getElementById('ai-openai-save')?.addEventListener('click', saveOpenAiSettings);
+  document.getElementById('ai-openai-clear-key')?.addEventListener('click', clearOpenAiApiKey);
+  document.getElementById('ai-openai-test')?.addEventListener('click', testOpenAiSettings);
+}
+
+function initDefaultProviderSetting() {
+  const select = document.getElementById('ai-default-provider');
+  if (!select) return;
+  chrome.storage.sync.get(AI_DEFAULT_PROVIDER_STORAGE_KEY, (result) => {
+    const stored = (result || {})[AI_DEFAULT_PROVIDER_STORAGE_KEY];
+    select.value = stored === 'openai' ? 'openai' : 'gemini';
+  });
+  select.addEventListener('change', () => {
+    const value = select.value === 'openai' ? 'openai' : 'gemini';
+    chrome.storage.sync.set({ [AI_DEFAULT_PROVIDER_STORAGE_KEY]: value }, () => {
+      showToast(`Default AI provider set to ${value === 'openai' ? 'OpenAI-Compatible' : 'Gemini'}`, 'success');
+    });
+  });
+}
+
 function defaultUltrascriptsModuleState() {
   return ULTRASCRIPTS_PUBLIC_MODULES.reduce((out, id) => {
     out[id] = true;
@@ -576,7 +711,7 @@ function saveFeatureState(featureId, enabled) {
 }
 
 function setUltrascriptsModuleControlsEnabled(enabled) {
-  document.querySelectorAll('[data-ultrascripts-module-toggle], #ultrascripts-debug, #ai-gemini-api-key, #ai-gemini-model-mode, #ai-gemini-model, #ai-gemini-save, #ai-gemini-test')
+  document.querySelectorAll('[data-ultrascripts-module-toggle], #ultrascripts-debug, #ai-gemini-api-key, #ai-gemini-model-mode, #ai-gemini-model, #ai-gemini-save, #ai-gemini-test, #ai-openai-base-url, #ai-openai-api-key, #ai-openai-model, #ai-openai-save, #ai-openai-clear-key, #ai-openai-test, #ai-default-provider')
     .forEach(control => {
       control.disabled = !enabled;
     });
