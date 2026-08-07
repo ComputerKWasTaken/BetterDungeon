@@ -1087,8 +1087,8 @@
       payload: {
         model,
         input: task.messages.map(message => ({
-          role: message.role,
-          content: message.content,
+          type: message.role === 'user' ? 'user_input' : 'model_output',
+          content: [{ type: 'text', text: message.content }],
         })),
         system_instruction: task.systemInstruction,
         generation_config: generationConfig,
