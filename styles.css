@@ -3268,13 +3268,15 @@ html.bd-story-card-dock-active > body {
   color: var(--bd-accent-primary);
   font-size: var(--bd-font-size-xl);
   cursor: pointer;
+  touch-action: none;
+  user-select: none;
   box-shadow: var(--bd-shadow-lg);
   transition: transform var(--bd-transition-fast),
               background var(--bd-transition-fast),
               box-shadow var(--bd-transition-fast);
 }
 
-.bd-navigator-launcher:hover {
+.bd-navigator-launcher:hover:not(.bd-navigator-launcher-dragging) {
   transform: translateY(-1px);
   background: var(--bd-bg-active);
   box-shadow: var(--bd-shadow-xl), var(--bd-shadow-glow);
@@ -3288,6 +3290,15 @@ html.bd-story-card-dock-active > body {
 .bd-navigator-launcher-active {
   background: var(--bd-accent-muted);
   border-color: var(--bd-accent-primary);
+}
+
+.bd-navigator-launcher:active {
+  cursor: grabbing;
+}
+
+.bd-navigator-launcher-dragging {
+  cursor: grabbing;
+  transform: none;
 }
 
 .bd-navigator-drawer {
@@ -3887,11 +3898,15 @@ body.bd-navigator-resizing {
   background: var(--bd-bg-tertiary);
 }
 
+.bd-navigator-input-shell {
+  position: relative;
+}
+
 .bd-navigator-input {
   display: block;
   width: 100%;
   max-height: 160px;
-  padding: var(--bd-space-2) var(--bd-space-3);
+  padding: var(--bd-space-2) 48px var(--bd-space-2) var(--bd-space-3);
   border: 1px solid var(--bd-input-border);
   border-radius: var(--bd-radius-lg);
   background: var(--bd-input-bg);
@@ -3951,6 +3966,9 @@ body.bd-navigator-resizing {
 }
 
 .bd-navigator-send {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
   display: flex;
   align-items: center;
   justify-content: center;

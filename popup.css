@@ -346,6 +346,25 @@ body.mobile {
   color: var(--text-muted);
 }
 
+.feature-card[data-feature="artisan"] .feature-desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teaser {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
 .feature-details {
   display: none;
   padding: 0 14px 14px;
@@ -375,6 +394,10 @@ body.mobile {
 
 .feature-details strong {
   color: var(--accent);
+}
+
+.feature-details > :last-child {
+  margin-bottom: 0;
 }
 
 .feature-details code {
@@ -409,6 +432,22 @@ body.mobile {
 
 .feature-hint a:hover {
   text-decoration: underline;
+}
+
+.feature-hints {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.feature-hints .feature-hint {
+  margin-top: 0 !important;
+  color: var(--text-secondary) !important;
 }
 
 .feature-option {
@@ -1662,6 +1701,7 @@ body.mobile {
 .character-description-preview {
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   color: var(--text-muted);

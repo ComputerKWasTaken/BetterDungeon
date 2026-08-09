@@ -236,15 +236,15 @@ function activateTab(tab) {
 
 function initFeatureCards() {
   const cards = document.querySelectorAll('.feature-card');
-  
+
   cards.forEach(card => {
     const row = card.querySelector('.feature-row');
-    if (!row) return;
-    
+    if (!row || card.classList.contains('static-card')) return;
+
     row.addEventListener('click', (e) => {
       // Don't toggle if clicking on the toggle switch
       if (e.target.closest('.toggle')) return;
-      
+
       card.classList.toggle('expanded');
     });
   });

@@ -16,6 +16,8 @@ class NavigatorFeature {
   static MAX_DRAWER_WIDTH = 560;
   static SHEET_BREAKPOINT = 900;
   static WIDTH_STORAGE_KEY = 'betterDungeon_navigator_width';
+  static POSITION_STORAGE_KEY = 'betterDungeon_navigator_position';
+  static LAUNCHER_MARGIN = 12;
 
   constructor() {
     this.enabled = true;
@@ -37,6 +39,7 @@ class NavigatorFeature {
 
     this.isOpen = false;
     this.drawerWidth = 420;
+    this.launcherPosition = null;
     this.autoScroll = true;
 
     this.boundUrlChange = null;
@@ -50,6 +53,8 @@ class NavigatorFeature {
     this.dragState = null;
     this.boundDragMove = null;
     this.boundDragEnd = null;
+    this.launcherDragState = null;
+    this.suppressLauncherClick = false;
   }
 
   log(message, ...args) {
@@ -85,6 +90,7 @@ class NavigatorFeature {
     console.log('[Navigator] Destroying Navigator feature...');
     this.stopAdventureChangeDetection();
     this.endDrag();
+    this.endLauncherDrag();
     this.teardownSession();
     this.removeUI();
     console.log('[Navigator] Cleanup complete');
@@ -156,7 +162,10 @@ class NavigatorFeature {
     });
     this.adventureObserver.observe(document.body, { childList: true, subtree: true });
 
-    this.boundResize = () => this.applyLayout();
+    this.boundResize = () => {
+      this.applyLayout();
+      this.applyLauncherPosition();
+    };
     window.addEventListener('resize', this.boundResize);
 
     this.boundKeydown = (event) => this.handleGlobalKeydown(event);
@@ -253,21 +262,38 @@ class NavigatorFeature {
     if (!this.isExtensionContextValid()) return;
     const stored = await new Promise((resolve) => {
       try {
-        chrome.storage.local.get(
+        chrome.storage.local.get([
           NavigatorFeature.WIDTH_STORAGE_KEY,
-          result => resolve((result || {})[NavigatorFeature.WIDTH_STORAGE_KEY])
-        );
+          NavigatorFeature.POSITION_STORAGE_KEY
+        ], result => resolve(result || {}));
       } catch {
-        resolve(null);
+        resolve({});
       }
     });
-    if (Number.isFinite(stored)) this.drawerWidth = this.clampWidth(stored);
+    if (Number.isFinite(stored[NavigatorFeature.WIDTH_STORAGE_KEY])) {
+      this.drawerWidth = this.clampWidth(stored[NavigatorFeature.WIDTH_STORAGE_KEY]);
+    }
+    const position = stored[NavigatorFeature.POSITION_STORAGE_KEY];
+    if (Number.isFinite(position?.x) && Number.isFinite(position?.y)) {
+      this.launcherPosition = { x: position.x, y: position.y };
+    }
   }
 
   saveWidth() {
     if (!this.isExtensionContextValid()) return;
     try {
       chrome.storage.local.set({ [NavigatorFeature.WIDTH_STORAGE_KEY]: this.drawerWidth });
+    } catch {
+      /* noop */
+    }
+  }
+
+  saveLauncherPosition() {
+    if (!this.isExtensionContextValid() || !this.launcherPosition) return;
+    try {
+      chrome.storage.local.set({
+        [NavigatorFeature.POSITION_STORAGE_KEY]: this.launcherPosition
+      });
     } catch {
       /* noop */
     }
@@ -327,12 +353,23 @@ class NavigatorFeature {
     button.type = 'button';
     button.className = 'bd-navigator-launcher';
     button.setAttribute('aria-label', 'Open Navigator');
-    button.title = 'Navigator (Alt+N)';
+    button.title = 'Navigator (Alt+N) - drag to reposition';
     button.innerHTML = '<span class="icon-compass" aria-hidden="true"></span>';
-    button.addEventListener('click', () => this.toggleDrawer());
+    button.addEventListener('click', () => {
+      if (this.suppressLauncherClick) {
+        this.suppressLauncherClick = false;
+        return;
+      }
+      this.toggleDrawer();
+    });
+    button.addEventListener('pointerdown', event => this.beginLauncherDrag(event));
+    button.addEventListener('pointermove', event => this.onLauncherDrag(event));
+    button.addEventListener('pointerup', event => this.endLauncherDrag(event));
+    button.addEventListener('pointercancel', event => this.endLauncherDrag(event));
 
     document.body.appendChild(button);
     this.launcher = button;
+    this.applyLauncherPosition();
   }
 
   createDrawer() {
@@ -374,9 +411,7 @@ class NavigatorFeature {
     empty.className = 'bd-navigator-empty';
     empty.innerHTML = `
       <span class="bd-navigator-empty-icon icon-compass" aria-hidden="true"></span>
-      <p class="bd-navigator-empty-title">Ask Navigator</p>
-      <p class="bd-navigator-empty-text">Navigator can help maintain Plot Components, Story Cards, and the direction of your adventure.</p>
-      <p class="bd-navigator-empty-note">Navigator reads a budgeted snapshot. Proposed changes require your approval before they are applied.</p>
+      <p class="bd-navigator-empty-text"><strong>I'm Navigator.</strong> I'm an AI agent designed to help you improve and modify your adventures. Let's get started.</p>
     `;
     transcript.appendChild(empty);
 
@@ -385,14 +420,16 @@ class NavigatorFeature {
     const composer = document.createElement('div');
     composer.className = 'bd-navigator-composer';
     composer.innerHTML = `
-      <textarea class="bd-navigator-input" rows="1" placeholder="Ask Navigator..." aria-label="Message Navigator"></textarea>
+      <div class="bd-navigator-input-shell">
+        <textarea class="bd-navigator-input" rows="1" placeholder="Ask Navigator..." aria-label="Message Navigator"></textarea>
+        <button type="button" class="bd-navigator-send" aria-label="Send message">
+          <span class="icon-send" aria-hidden="true"></span>
+        </button>
+      </div>
       <div class="bd-navigator-composer-actions">
         <span class="bd-navigator-hint">Enter to send &middot; Shift+Enter for a new line</span>
         <button type="button" class="bd-navigator-stop" hidden>
           <span class="icon-square" aria-hidden="true"></span> Stop
-        </button>
-        <button type="button" class="bd-navigator-send" aria-label="Send message">
-          <span class="icon-send" aria-hidden="true"></span>
         </button>
       </div>
     `;
@@ -476,6 +513,66 @@ class NavigatorFeature {
   }
 
   // ==================== RESIZE ====================
+
+  applyLauncherPosition() {
+    if (!this.launcher || !this.launcherPosition) return;
+    const rect = this.launcher.getBoundingClientRect();
+    const margin = NavigatorFeature.LAUNCHER_MARGIN;
+    const maxX = Math.max(margin, window.innerWidth - rect.width - margin);
+    const maxY = Math.max(margin, window.innerHeight - rect.height - margin);
+    this.launcherPosition = {
+      x: Math.max(margin, Math.min(maxX, this.launcherPosition.x)),
+      y: Math.max(margin, Math.min(maxY, this.launcherPosition.y))
+    };
+    this.launcher.style.left = `${this.launcherPosition.x}px`;
+    this.launcher.style.top = `${this.launcherPosition.y}px`;
+    this.launcher.style.right = 'auto';
+    this.launcher.style.bottom = 'auto';
+  }
+
+  beginLauncherDrag(event) {
+    if (event.button !== 0 || !this.launcher) return;
+    const rect = this.launcher.getBoundingClientRect();
+    this.launcherDragState = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: rect.left,
+      originY: rect.top,
+      moved: false
+    };
+    this.launcher.classList.add('bd-navigator-launcher-dragging');
+    this.launcher.setPointerCapture?.(event.pointerId);
+  }
+
+  onLauncherDrag(event) {
+    const state = this.launcherDragState;
+    if (!state || state.pointerId !== event.pointerId) return;
+    const deltaX = event.clientX - state.startX;
+    const deltaY = event.clientY - state.startY;
+    if (!state.moved && Math.hypot(deltaX, deltaY) < 4) return;
+    state.moved = true;
+    event.preventDefault();
+    this.launcherPosition = { x: state.originX + deltaX, y: state.originY + deltaY };
+    this.applyLauncherPosition();
+  }
+
+  endLauncherDrag(event) {
+    const state = this.launcherDragState;
+    if (!state || (event && state.pointerId !== event.pointerId)) return;
+    this.launcherDragState = null;
+    this.launcher?.classList.remove('bd-navigator-launcher-dragging');
+    if (event && this.launcher?.hasPointerCapture?.(event.pointerId)) {
+      this.launcher.releasePointerCapture(event.pointerId);
+    }
+    if (state.moved) {
+      this.suppressLauncherClick = true;
+      this.saveLauncherPosition();
+      setTimeout(() => {
+        this.suppressLauncherClick = false;
+      }, 0);
+    }
+  }
 
   beginDrag(event) {
     if (this.drawer?.classList.contains('bd-navigator-sheet')) return;

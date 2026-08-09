@@ -193,6 +193,66 @@
         </div>
       </div>
 
+      <!-- AI Agents -->
+      <div class="section section-collapsible" data-section="ai-agents">
+        <button class="section-header section-header-collapsible" data-collapse="ai-agents" aria-expanded="true">
+          <span class="section-icon icon-bot" style="color: var(--bd-cyan);"></span>
+          <h2 class="section-title">AI Agents</h2>
+          <span class="section-chevron icon-chevron-down"></span>
+        </button>
+        <div class="section-body" id="collapse-ai-agents">
+
+          <article class="feature-card" data-feature="navigator">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-icon-navigator);">
+                    <span class="icon-compass"></span>
+                  </span>
+                  <h3 class="feature-title">Navigator</h3>
+                </div>
+                <p class="feature-desc">Your AI agent for improving and modifying adventures</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-navigator">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feature-details">
+              <p>Navigator understands your current adventure, answers questions about it, and helps you safely refine Plot Components and Story Cards through changes you approve.</p>
+              <div class="feature-hints">
+                <p class="feature-hint"><span class="icon-lightbulb"></span> Open Navigator with the draggable compass button on the adventure page, or press <strong>Alt+N</strong>.</p>
+                <p class="feature-hint"><span class="icon-triangle-alert"></span> Every change requires your approval. Navigator uses the AI provider configured under <strong>Ultrascripts &gt; AI</strong>.</p>
+              </div>
+              <div class="feature-option">
+                <span class="option-label">Read-only mode</span>
+                <label class="toggle sm">
+                  <input type="checkbox" id="navigator-read-only">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+          </article>
+
+          <!-- Artisan -->
+          <article class="feature-card static-card" data-feature="artisan">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-pink);">
+                    <span class="icon-paintbrush"></span>
+                  </span>
+                  <h3 class="feature-title">Artisan</h3>
+                </div>
+                <p class="feature-desc">Your AI agent for creating and polishing scenarios</p>
+              </div>
+              <span class="teaser">Teaser</span>
+            </div>
+          </article>
+
+        </div>
+      </div>
+
       <!-- Input Modes -->
       <div class="section section-collapsible" data-section="input-modes">
         <button class="section-header section-header-collapsible" data-collapse="input-modes" aria-expanded="true">
@@ -556,49 +616,6 @@
             <div class="feature-details">
               <p>Docks the story card modal to the <strong>right side of the screen</strong>, allowing you to scroll through your story while editing Story Cards.</p>
               <p class="feature-hint"><span class="icon-lightbulb"></span> Great for checking context without closing the editor.</p>
-            </div>
-          </article>
-
-        </div>
-      </div>
-
-      <!-- Navigator -->
-      <div class="section section-collapsible" data-section="navigator">
-        <button class="section-header section-header-collapsible" data-collapse="navigator" aria-expanded="true">
-          <span class="section-icon icon-compass" style="color: var(--bd-icon-navigator);"></span>
-          <h2 class="section-title">Navigator</h2>
-          <span class="section-chevron icon-chevron-down"></span>
-        </button>
-        <div class="section-body" id="collapse-navigator">
-
-          <!-- Navigator -->
-          <article class="feature-card" data-feature="navigator">
-            <div class="feature-row">
-              <div class="feature-info">
-                <div class="feature-title-row">
-                  <span class="feature-icon" style="color: var(--bd-icon-navigator);">
-                    <span class="icon-compass"></span>
-                  </span>
-                  <h3 class="feature-title">Navigator</h3>
-                </div>
-                <p class="feature-desc">AI copilot for the adventure you are playing</p>
-              </div>
-              <label class="toggle">
-                <input type="checkbox" id="feature-navigator">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="feature-details">
-              <p>Adds a Navigator panel that can inspect your adventure and propose confirmed Plot Component or Story Card changes.</p>
-              <p class="feature-hint"><span class="icon-lightbulb"></span> Open it with the compass button on the right edge of the adventure page, or press <strong>Alt+N</strong>.</p>
-              <p class="feature-hint"><span class="icon-triangle-alert"></span> Every mutation requires approval in the Navigator drawer. Requires an AI provider under <strong>Ultrascripts &gt; AI</strong>.</p>
-              <div class="feature-option">
-                <span class="option-label">Read-only mode</span>
-                <label class="toggle sm">
-                  <input type="checkbox" id="navigator-read-only">
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
             </div>
           </article>
 
