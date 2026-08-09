@@ -412,6 +412,12 @@ class NavigatorFeature {
     empty.innerHTML = `
       <span class="bd-navigator-empty-icon icon-compass" aria-hidden="true"></span>
       <p class="bd-navigator-empty-text"><strong>I'm Navigator.</strong> I'm an AI agent designed to help you improve and modify your adventures. Let's get started.</p>
+      <div class="bd-navigator-quick-actions" aria-label="Suggested prompts">
+        <button type="button" data-prompt="Review my Plot Components and suggest the most important improvements.">Review my plot</button>
+        <button type="button" data-prompt="Review my AI Instructions and propose a clearer, more effective version.">Improve AI Instructions</button>
+        <button type="button" data-prompt="Check my Story Cards for gaps, contradictions, or weak entries.">Check Story Cards</button>
+        <button type="button" data-prompt="Use the recent story and adventure context to suggest what should happen next.">Brainstorm what happens next</button>
+      </div>
     `;
     transcript.appendChild(empty);
 
@@ -421,15 +427,12 @@ class NavigatorFeature {
     composer.className = 'bd-navigator-composer';
     composer.innerHTML = `
       <div class="bd-navigator-input-shell">
-        <textarea class="bd-navigator-input" rows="1" placeholder="Ask Navigator..." aria-label="Message Navigator"></textarea>
-        <button type="button" class="bd-navigator-send" aria-label="Send message">
-          <span class="icon-send" aria-hidden="true"></span>
-        </button>
-      </div>
-      <div class="bd-navigator-composer-actions">
-        <span class="bd-navigator-hint">Enter to send &middot; Shift+Enter for a new line</span>
+        <textarea class="bd-navigator-input" rows="3" placeholder="Ask Navigator..." aria-label="Message Navigator"></textarea>
         <button type="button" class="bd-navigator-stop" hidden>
           <span class="icon-square" aria-hidden="true"></span> Stop
+        </button>
+        <button type="button" class="bd-navigator-send" aria-label="Send message">
+          <span class="icon-send" aria-hidden="true"></span>
         </button>
       </div>
     `;
@@ -450,6 +453,9 @@ class NavigatorFeature {
     this.stopBtn.addEventListener('click', () => this.session?.abort());
 
     this.sendBtn.addEventListener('click', () => this.handleSend());
+    empty.querySelectorAll('.bd-navigator-quick-actions button').forEach(button => {
+      button.addEventListener('click', () => this.handleQuickAction(button.dataset.prompt));
+    });
 
     this.inputEl.addEventListener('input', () => this.autosizeInput());
     this.inputEl.addEventListener('keydown', (event) => {
@@ -626,6 +632,13 @@ class NavigatorFeature {
     this.updateComposerState();
   }
 
+  handleQuickAction(prompt) {
+    if (!this.inputEl || !prompt || this.session?.isBusy) return;
+    this.inputEl.value = prompt;
+    this.autosizeInput();
+    this.handleSend();
+  }
+
   updatePermissionUI() {
     const readOnly = this.session?.getPermissionState?.().readOnly === true;
     if (this.readOnlyBadge) this.readOnlyBadge.hidden = !readOnly;
@@ -649,6 +662,9 @@ class NavigatorFeature {
     const busy = !!this.session?.isBusy;
     if (this.sendBtn) this.sendBtn.disabled = busy;
     if (this.stopBtn) this.stopBtn.hidden = !this.session?.isChatBusy;
+    this.emptyEl?.querySelectorAll('.bd-navigator-quick-actions button').forEach(button => {
+      button.disabled = busy;
+    });
   }
 
   updateSubtitle() {

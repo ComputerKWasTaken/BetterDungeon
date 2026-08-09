@@ -3465,6 +3465,48 @@ body.bd-navigator-resizing {
   color: var(--bd-text-secondary);
 }
 
+.bd-navigator-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--bd-space-2);
+  max-width: 460px;
+  margin: var(--bd-space-4) auto 0;
+}
+
+.bd-navigator-quick-actions button {
+  padding: var(--bd-space-2) var(--bd-space-3);
+  border: 1px solid var(--bd-border-default);
+  border-radius: var(--bd-radius-full);
+  background: var(--bd-bg-tertiary);
+  color: var(--bd-text-secondary);
+  font-family: inherit;
+  font-size: var(--bd-font-size-sm);
+  line-height: var(--bd-line-height-tight);
+  cursor: pointer;
+  transition: border-color var(--bd-transition-fast),
+              background var(--bd-transition-fast),
+              color var(--bd-transition-fast),
+              transform var(--bd-transition-fast);
+}
+
+.bd-navigator-quick-actions button:hover:not(:disabled) {
+  border-color: var(--bd-border-accent);
+  background: var(--bd-accent-muted);
+  color: var(--bd-accent-light);
+  transform: translateY(-1px);
+}
+
+.bd-navigator-quick-actions button:focus-visible {
+  outline: none;
+  box-shadow: var(--bd-input-focus-ring);
+}
+
+.bd-navigator-quick-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .bd-navigator-empty-note {
   margin: 0;
   font-size: var(--bd-font-size-sm);
@@ -3893,7 +3935,7 @@ body.bd-navigator-resizing {
 
 .bd-navigator-composer {
   flex-shrink: 0;
-  padding: var(--bd-space-3) var(--bd-space-4) var(--bd-space-4);
+  padding: var(--bd-space-3) var(--bd-space-4);
   border-top: 1px solid var(--bd-border-subtle);
   background: var(--bd-bg-tertiary);
 }
@@ -3905,8 +3947,9 @@ body.bd-navigator-resizing {
 .bd-navigator-input {
   display: block;
   width: 100%;
+  min-height: 88px;
   max-height: 160px;
-  padding: var(--bd-space-2) 48px var(--bd-space-2) var(--bd-space-3);
+  padding: var(--bd-space-3) 54px var(--bd-space-3) var(--bd-space-3);
   border: 1px solid var(--bd-input-border);
   border-radius: var(--bd-radius-lg);
   background: var(--bd-input-bg);
@@ -3928,20 +3971,10 @@ body.bd-navigator-resizing {
   color: var(--bd-text-muted);
 }
 
-.bd-navigator-composer-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--bd-space-2);
-  margin-top: var(--bd-space-2);
-}
-
-.bd-navigator-hint {
-  flex: 1;
-  font-size: var(--bd-font-size-xs);
-  color: var(--bd-text-muted);
-}
-
 .bd-navigator-stop {
+  position: absolute;
+  right: 56px;
+  bottom: 12px;
   display: inline-flex;
   align-items: center;
   gap: var(--bd-space-1);
@@ -3967,13 +4000,13 @@ body.bd-navigator-resizing {
 
 .bd-navigator-send {
   position: absolute;
-  right: 6px;
-  bottom: 6px;
+  right: 10px;
+  bottom: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   padding: 0;
   border: none;
   border-radius: var(--bd-radius-lg);
