@@ -369,6 +369,11 @@
   --bd-mode-story-glow:    rgba(251, 191, 36, 0.15);
   --bd-mode-story-rgb:     251, 191, 36;
 
+  --bd-mode-guide:         var(--bd-pink);
+  --bd-mode-guide-light:   #f472b6;
+  --bd-mode-guide-glow:    rgba(236, 72, 153, 0.15);
+  --bd-mode-guide-rgb:     236, 72, 153;
+
   --bd-mode-see:           var(--bd-cyan);
   --bd-mode-see-light:     var(--bd-cyan-light);
   --bd-mode-see-glow:      rgba(6, 182, 212, 0.15);

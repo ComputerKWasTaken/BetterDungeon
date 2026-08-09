@@ -14,6 +14,7 @@ class InputModeColorFeature {
     try: '#a855f7',      // Purple - Uncertainty, magic, RNG
     say: '#22c55e',      // Green - Dialogue, communication
     story: '#fbbf24',    // Amber/Gold - Authorial, creativity
+    guide: '#ec4899',    // Pink - Direction, guidance, navigation
     see: '#06b6d4',      // Cyan - Clarity, vision, perception
     command: '#f97316'   // Orange - Authority, directives
   };
@@ -272,6 +273,7 @@ class InputModeColorFeature {
       { selector: '[aria-label="Set to \'Try\' mode"]', mode: 'try' },
       { selector: '[aria-label="Set to \'Say\' mode"]', mode: 'say' },
       { selector: '[aria-label="Set to \'Story\' mode"]', mode: 'story' },
+      { selector: '[aria-label="Set to \'Guide\' mode"]', mode: 'guide' },
       { selector: '[aria-label="Set to \'See\' mode"]', mode: 'see' },
       { selector: '[aria-label="Set to \'Command\' mode"]', mode: 'command' }
     ];
@@ -288,6 +290,7 @@ class InputModeColorFeature {
           'try': 'var(--bd-mode-try-rgb)',
           'say': 'var(--bd-mode-say-rgb)',
           'story': 'var(--bd-mode-story-rgb)',
+          'guide': 'var(--bd-mode-guide-rgb)',
           'see': 'var(--bd-mode-see-rgb)',
           'command': 'var(--bd-mode-command-rgb)'
         };

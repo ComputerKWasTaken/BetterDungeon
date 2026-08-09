@@ -22,6 +22,7 @@ class HotkeyFeature {
     'modeTry': { selector: '[aria-label="Set to \'Try\' mode"]', description: 'Try Mode', requiresMenu: true, featureDependent: 'try', category: 'modes' },
     'modeSay': { selector: '[aria-label="Set to \'Say\' mode"]', description: 'Say Mode', requiresMenu: true, category: 'modes' },
     'modeStory': { selector: '[aria-label="Set to \'Story\' mode"]', description: 'Story Mode', requiresMenu: true, category: 'modes' },
+    'modeGuide': { selector: '[aria-label="Set to \'Guide\' mode"]', description: 'Guide Mode', requiresMenu: true, category: 'modes' },
     'modeSee': { selector: '[aria-label="Set to \'See\' mode"]', description: 'See Mode', requiresMenu: true, category: 'modes' },
     'modeCommand': { selector: '[aria-label="Set to \'Command\' mode"]', description: 'Command Mode', requiresMenu: true, featureDependent: 'command', category: 'modes' }
   };
@@ -39,8 +40,9 @@ class HotkeyFeature {
     '2': 'modeTry',
     '3': 'modeSay',
     '4': 'modeStory',
-    '5': 'modeSee',
-    '6': 'modeCommand'
+    '5': 'modeGuide',
+    '6': 'modeSee',
+    '7': 'modeCommand'
   };
 
   constructor() {

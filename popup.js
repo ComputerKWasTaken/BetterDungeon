@@ -35,6 +35,7 @@ const DEFAULT_MODE_COLORS = {
   try: '#a855f7',      // Purple - Uncertainty, magic, RNG
   say: '#22c55e',      // Green - Dialogue, communication
   story: '#fbbf24',    // Amber/Gold - Authorial, creativity
+  guide: '#ec4899',    // Pink - Direction, guidance, navigation
   see: '#06b6d4',      // Cyan - Clarity, vision, perception
   command: '#f97316'   // Orange - Authority, directives
 };
@@ -52,6 +53,7 @@ const HOTKEY_ACTIONS = {
   'modeTry': { description: 'Try Mode*', category: 'modes' },
   'modeSay': { description: 'Say Mode', category: 'modes' },
   'modeStory': { description: 'Story Mode', category: 'modes' },
+  'modeGuide': { description: 'Guide Mode', category: 'modes' },
   'modeSee': { description: 'See Mode', category: 'modes' },
   'modeCommand': { description: 'Command Mode*', category: 'modes' }
 };
@@ -69,8 +71,9 @@ const DEFAULT_HOTKEY_BINDINGS = {
   '2': 'modeTry',
   '3': 'modeSay',
   '4': 'modeStory',
-  '5': 'modeSee',
-  '6': 'modeCommand'
+  '5': 'modeGuide',
+  '6': 'modeSee',
+  '7': 'modeCommand'
 };
 
 const DEFAULT_FEATURES = {

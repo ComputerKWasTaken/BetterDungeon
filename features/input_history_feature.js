@@ -19,6 +19,7 @@ class InputHistoryFeature {
       'do': '[aria-label="Set to \'Do\' mode"]',
       'say': '[aria-label="Set to \'Say\' mode"]',
       'story': '[aria-label="Set to \'Story\' mode"]',
+      'guide': '[aria-label="Set to \'Guide\' mode"]',
       'see': '[aria-label="Set to \'See\' mode"]',
       'try': '[aria-label="Set to \'Try\' mode"]',
       'command': '[aria-label="Set to \'Command\' mode"]'

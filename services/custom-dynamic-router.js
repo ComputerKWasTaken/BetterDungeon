@@ -42,7 +42,7 @@
 
   const MODEL_KEY_RE = /^(?:model|modelid|model_id|aimodel|ai_model|storymodel|story_model|textmodel|text_model|providerModel|storyAiVersionName|aiVersionName|modelVersion|modelVersionName|versionName)$/i;
   const ACTION_KEY_RE = /^(?:action|actiontype|action_type|input|text|prompt|userinput|user_input|storyinput|story_input|command|message|mode|type)$/i;
-  const ACTION_VALUE_RE = /^(?:continue|do|say|story|see|take[_ -]?action|retry|regenerate)$/i;
+  const ACTION_VALUE_RE = /^(?:continue|do|say|story|guide|see|take[_ -]?action|retry|regenerate)$/i;
   const GENERATION_OPERATION_RE = /(?:generate|continue|retry|take.?action|submit.?action|perform.?action|create.?action|send.?action|story.?action|add.?action|adventure.?action|actionRequest|retryAction)/i;
   const URL_GENERATION_RE = /(?:generate|continue|retry|take.?action|story.?action|actions?\/(?:create|add|send)|(?:create|add|send)\/?actions?)/i;
   window.addEventListener('message', handleBridgeMessage, false);

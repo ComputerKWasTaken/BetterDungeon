@@ -422,6 +422,11 @@
   --bd-mode-glow: var(--bd-mode-story-glow);
 }
 
+.bd-input-mode-colored[data-bd-input-mode="guide"] {
+  --bd-mode-border: rgba(var(--bd-mode-guide-rgb), 0.6);
+  --bd-mode-glow: var(--bd-mode-guide-glow);
+}
+
 .bd-input-mode-colored[data-bd-input-mode="see"] {
   --bd-mode-border: rgba(var(--bd-mode-see-rgb), 0.6);
   --bd-mode-glow: var(--bd-mode-see-glow);
