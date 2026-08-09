@@ -6,8 +6,8 @@
 // Navigator overlays the right gutter instead of reflowing the layout, and
 // falls back to a full-screen sheet when there is no gutter to occupy.
 //
-// NavigatorSession owns live streaming chat and a bounded, read-only adventure
-// snapshot assembled from Plot Components, Story Cards, and recent actions.
+// NavigatorSession owns live streaming chat, adventure context, and confirmed
+// mutation proposals assembled from Plot Components, Story Cards, and actions.
 
 class NavigatorFeature {
   static id = 'navigator';
@@ -32,6 +32,7 @@ class NavigatorFeature {
     this.sendBtn = null;
     this.stopBtn = null;
     this.emptyEl = null;
+    this.readOnlyBadge = null;
     this.messageNodes = new Map();
 
     this.isOpen = false;
@@ -238,6 +239,9 @@ class NavigatorFeature {
       this.scrollToBottom();
     } else if (event === 'context') {
       this.updateSubtitle();
+    } else if (event === 'permissions' || event === 'idle') {
+      this.updatePermissionUI();
+      this.renderAllProposalStates();
     }
 
     this.updateComposerState();
@@ -313,6 +317,7 @@ class NavigatorFeature {
     this.sendBtn = null;
     this.stopBtn = null;
     this.emptyEl = null;
+    this.readOnlyBadge = null;
     this.messageNodes.clear();
     this.isOpen = false;
   }
@@ -351,6 +356,7 @@ class NavigatorFeature {
         <h2 class="bd-navigator-title">Navigator</h2>
         <p class="bd-navigator-subtitle"></p>
       </div>
+      <span class="bd-navigator-read-only" hidden>Read-only</span>
       <button type="button" class="bd-navigator-icon-btn bd-navigator-clear" aria-label="Clear conversation" title="Clear conversation">
         <span class="icon-eraser" aria-hidden="true"></span>
       </button>
@@ -369,8 +375,8 @@ class NavigatorFeature {
     empty.innerHTML = `
       <span class="bd-navigator-empty-icon icon-compass" aria-hidden="true"></span>
       <p class="bd-navigator-empty-title">Ask Navigator</p>
-      <p class="bd-navigator-empty-text">Navigator can help you plan Plot Component rewrites, draft Story Cards, and think through where your story is going.</p>
-      <p class="bd-navigator-empty-note">Navigator reads a budgeted snapshot of this adventure. It can draft changes, but cannot apply them.</p>
+      <p class="bd-navigator-empty-text">Navigator can help maintain Plot Components, Story Cards, and the direction of your adventure.</p>
+      <p class="bd-navigator-empty-note">Navigator reads a budgeted snapshot. Proposed changes require your approval before they are applied.</p>
     `;
     transcript.appendChild(empty);
 
@@ -400,6 +406,7 @@ class NavigatorFeature {
     this.inputEl = composer.querySelector('.bd-navigator-input');
     this.sendBtn = composer.querySelector('.bd-navigator-send');
     this.stopBtn = composer.querySelector('.bd-navigator-stop');
+    this.readOnlyBadge = header.querySelector('.bd-navigator-read-only');
 
     header.querySelector('.bd-navigator-close').addEventListener('click', () => this.closeDrawer());
     header.querySelector('.bd-navigator-clear').addEventListener('click', () => this.handleClear());
@@ -423,6 +430,7 @@ class NavigatorFeature {
 
     this.applyLayout();
     this.updateSubtitle();
+    this.updatePermissionUI();
     this.updateComposerState();
     this.renderTranscript();
   }
@@ -447,7 +455,7 @@ class NavigatorFeature {
 
   closeDrawer() {
     if (!this.drawer) return;
-    if (this.session?.isBusy) this.session.abort();
+    if (this.session?.isChatBusy) this.session.abort();
     this.isOpen = false;
     this.drawer.hidden = true;
     this.launcher?.classList.remove('bd-navigator-launcher-active');
@@ -521,6 +529,19 @@ class NavigatorFeature {
     this.updateComposerState();
   }
 
+  updatePermissionUI() {
+    const readOnly = this.session?.getPermissionState?.().readOnly === true;
+    if (this.readOnlyBadge) this.readOnlyBadge.hidden = !readOnly;
+    if (this.emptyEl) {
+      const note = this.emptyEl.querySelector('.bd-navigator-empty-note');
+      if (note) {
+        note.textContent = readOnly
+          ? 'Read-only mode is enabled. Navigator can inspect and draft, but mutation tools are unavailable.'
+          : 'Navigator reads a budgeted snapshot. Proposed changes require your approval before they are applied.';
+      }
+    }
+  }
+
   handleClear() {
     if (!this.session) return;
     this.session.clear();
@@ -530,7 +551,7 @@ class NavigatorFeature {
   updateComposerState() {
     const busy = !!this.session?.isBusy;
     if (this.sendBtn) this.sendBtn.disabled = busy;
-    if (this.stopBtn) this.stopBtn.hidden = !busy;
+    if (this.stopBtn) this.stopBtn.hidden = !this.session?.isChatBusy;
   }
 
   updateSubtitle() {
@@ -552,7 +573,7 @@ class NavigatorFeature {
     }
 
     const title = context.title ? `${context.title} · ` : '';
-    const coverage = `${context.plotPopulated || 0}/4 plot · ${context.cardsIncluded || 0}/${context.cardsTotal || 0} cards · ${context.actionsIncluded || 0} actions`;
+    const coverage = `${context.plotPopulated || 0}/4 plot · ${context.cardsIncluded || 0}/${context.cardsTotal || 0} card directory · ${context.actionsIncluded || 0} actions`;
     subtitle.textContent = `${title}${coverage}${context.partial ? ' · partial' : ''}`;
   }
 
@@ -592,9 +613,12 @@ class NavigatorFeature {
     const status = document.createElement('div');
     status.className = 'bd-navigator-message-status';
 
-    node.append(body, status);
+    const proposals = document.createElement('div');
+    proposals.className = 'bd-navigator-proposals';
+
+    node.append(body, proposals, status);
     this.transcriptEl.appendChild(node);
-    this.messageNodes.set(message.id, { node, body, status });
+    this.messageNodes.set(message.id, { node, body, proposals, status });
     this.updateMessageNode(message);
   }
 
@@ -605,13 +629,14 @@ class NavigatorFeature {
       return;
     }
 
-    const { node, body, status } = parts;
+    const { node, body, proposals, status } = parts;
     node.dataset.status = message.status;
 
     const isAssistant = message.role === 'assistant';
     body.classList.toggle('bd-navigator-markdown', isAssistant);
     if (isAssistant) this.renderMarkdown(body, message.content || '');
     else this.renderText(body, message.content || '');
+    this.renderProposals(proposals, message);
 
     if (message.status === 'pending') {
       status.replaceChildren(this.createThinkingIndicator());
@@ -624,6 +649,155 @@ class NavigatorFeature {
       status.replaceChildren();
       status.className = 'bd-navigator-message-status';
     }
+  }
+
+  renderAllProposalStates() {
+    for (const message of this.session?.getMessages?.() || []) {
+      const parts = this.messageNodes.get(message.id);
+      if (parts?.proposals) this.renderProposals(parts.proposals, message);
+    }
+  }
+
+  renderProposals(container, message) {
+    container.replaceChildren();
+    const proposals = Array.isArray(message.proposals) ? message.proposals : [];
+    if (!proposals.length) return;
+
+    const readOnly = this.session?.getPermissionState?.().readOnly === true;
+    const chatBusy = this.session?.isBusy === true;
+    for (const proposal of proposals) {
+      container.appendChild(this.createProposalCard(message.id, proposal, { readOnly, chatBusy }));
+    }
+  }
+
+  createProposalCard(messageId, proposal, state) {
+    const card = document.createElement('section');
+    card.className = 'bd-navigator-proposal';
+    card.dataset.status = proposal.status;
+
+    const header = document.createElement('div');
+    header.className = 'bd-navigator-proposal-header';
+    const heading = document.createElement('div');
+    heading.className = 'bd-navigator-proposal-heading';
+    const action = document.createElement('span');
+    action.className = 'bd-navigator-proposal-action';
+    action.textContent = this.proposalActionLabel(proposal);
+    const target = document.createElement('strong');
+    target.className = 'bd-navigator-proposal-target';
+    target.textContent = proposal.targetLabel || 'Proposed change';
+    heading.append(action, target);
+    const status = document.createElement('span');
+    status.className = 'bd-navigator-proposal-status';
+    status.textContent = this.proposalStatusLabel(proposal.status);
+    header.append(heading, status);
+    card.appendChild(header);
+
+    if (proposal.reason) {
+      const reason = document.createElement('p');
+      reason.className = 'bd-navigator-proposal-reason';
+      reason.textContent = proposal.reason;
+      card.appendChild(reason);
+    }
+
+    const changes = document.createElement('div');
+    changes.className = 'bd-navigator-proposal-changes';
+    for (const change of proposal.changes || []) {
+      changes.appendChild(this.createProposalChange(change));
+    }
+    card.appendChild(changes);
+
+    if (proposal.irreversible) {
+      const warning = document.createElement('p');
+      warning.className = 'bd-navigator-proposal-warning';
+      warning.textContent = 'Deletion is permanent. Navigator cannot undo this action.';
+      card.appendChild(warning);
+    }
+
+    if (proposal.error?.message) {
+      const error = document.createElement('p');
+      error.className = 'bd-navigator-proposal-error';
+      error.textContent = proposal.error.message;
+      card.appendChild(error);
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'bd-navigator-proposal-buttons';
+    const reject = document.createElement('button');
+    reject.type = 'button';
+    reject.className = 'bd-navigator-proposal-reject';
+    reject.textContent = 'Reject';
+    const apply = document.createElement('button');
+    apply.type = 'button';
+    apply.className = proposal.kind === 'story_card_delete'
+      ? 'bd-navigator-proposal-apply bd-navigator-proposal-delete'
+      : 'bd-navigator-proposal-apply';
+    apply.textContent = proposal.kind === 'story_card_delete' ? 'Delete card' : 'Apply';
+
+    const pending = proposal.status === 'pending';
+    reject.disabled = !pending || state.chatBusy;
+    apply.disabled = !pending || state.chatBusy || state.readOnly;
+    if (state.readOnly && pending) apply.title = 'Read-only mode is enabled.';
+    else if (state.chatBusy && pending) apply.title = 'Wait for Navigator to finish this response.';
+    reject.addEventListener('click', () => this.session?.rejectProposal(messageId, proposal.id));
+    apply.addEventListener('click', () => this.session?.applyProposal(messageId, proposal.id));
+    actions.append(reject, apply);
+    card.appendChild(actions);
+    return card;
+  }
+
+  createProposalChange(change) {
+    const row = document.createElement('div');
+    row.className = 'bd-navigator-proposal-change';
+    const label = document.createElement('span');
+    label.className = 'bd-navigator-proposal-field';
+    label.textContent = change.label || 'Value';
+    const comparison = document.createElement('div');
+    comparison.className = 'bd-navigator-proposal-comparison';
+    comparison.append(
+      this.createProposalValue('Before', change.before),
+      this.createProposalValue('After', change.after)
+    );
+    row.append(label, comparison);
+    return row;
+  }
+
+  createProposalValue(labelText, value) {
+    const wrap = document.createElement('div');
+    wrap.className = 'bd-navigator-proposal-value';
+    const label = document.createElement('span');
+    label.textContent = labelText;
+    const content = document.createElement('pre');
+    const normalized = value === null || value === undefined ? '' : String(value);
+    content.textContent = normalized || '(empty)';
+    wrap.append(label, content);
+    return wrap;
+  }
+
+  proposalActionLabel(proposal) {
+    const labels = {
+      add: 'Add',
+      modify: 'Modify',
+      remove: 'Remove',
+      enable: 'Enable',
+      disable: 'Disable',
+      create: 'Create',
+      delete: 'Delete',
+    };
+    return labels[proposal.action] || 'Change';
+  }
+
+  proposalStatusLabel(status) {
+    const labels = {
+      pending: 'Needs approval',
+      queued: 'Queued',
+      applying: 'Applying…',
+      applied: 'Applied',
+      rejected: 'Rejected',
+      conflict: 'Conflict',
+      error: 'Failed',
+      expired: 'Expired',
+    };
+    return labels[status] || String(status || 'Pending');
   }
 
   renderText(container, text) {
@@ -970,17 +1144,22 @@ class NavigatorFeature {
 
       const formats = [
         { pattern: /^\*\*\*([^*\n]+)\*\*\*/, tag: 'strong', nested: 'em' },
-        { pattern: /^___([^_\n]+)___/, tag: 'strong', nested: 'em' },
+        { pattern: /^___([^_\n]+)___/, tag: 'strong', nested: 'em', underscore: true },
         { pattern: /^\*\*([^*\n]+)\*\*/, tag: 'strong' },
-        { pattern: /^__([^_\n]+)__/, tag: 'strong' },
+        { pattern: /^__([^_\n]+)__/, tag: 'strong', underscore: true },
         { pattern: /^~~([^~\n]+)~~/, tag: 'del' },
         { pattern: /^\*([^*\n]+)\*/, tag: 'em' },
-        { pattern: /^_([^_\n]+)_/, tag: 'em' },
+        { pattern: /^_([^_\n]+)_/, tag: 'em', underscore: true },
       ];
       let formatted = false;
       for (const format of formats) {
         const match = remaining.match(format.pattern);
         if (!match) continue;
+        if (format.underscore) {
+          const previous = plain.slice(-1) || container.textContent.slice(-1);
+          const following = remaining[match[0].length] || '';
+          if (/^[\p{L}\p{N}]$/u.test(previous) || /^[\p{L}\p{N}]$/u.test(following)) continue;
+        }
         flushPlain();
         const node = document.createElement(format.tag);
         const target = format.nested ? document.createElement(format.nested) : node;

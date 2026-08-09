@@ -919,6 +919,55 @@
     };
   }
 
+  function normalizeChatFunctionTools(tools) {
+    if (tools === undefined || tools === null) return [];
+    if (!Array.isArray(tools) || tools.length > 16) {
+      throw { code: 'invalid_args', message: 'tools must contain at most 16 entries', retryable: false };
+    }
+    return tools.map((tool, index) => {
+      if (!isObject(tool) || typeof tool.name !== 'string' || !/^[a-z][a-z0-9_]{0,63}$/.test(tool.name)) {
+        throw { code: 'invalid_args', message: `tools[${index}] is invalid`, retryable: false };
+      }
+      if (typeof tool.description !== 'string' || !tool.description.trim() || !isObject(tool.parameters)) {
+        throw { code: 'invalid_args', message: `tools[${index}] declaration is incomplete`, retryable: false };
+      }
+      return {
+        name: tool.name,
+        description: tool.description.trim(),
+        parameters: cloneJson(tool.parameters),
+      };
+    });
+  }
+
+  function normalizeChatToolResults(results) {
+    if (results === undefined || results === null) return [];
+    if (!Array.isArray(results) || results.length > 16) {
+      throw { code: 'invalid_args', message: 'toolResults must contain at most 16 entries', retryable: false };
+    }
+    return results.map((result, index) => {
+      if (!isObject(result) || typeof result.callId !== 'string' || !result.callId.trim()) {
+        throw { code: 'invalid_args', message: `toolResults[${index}].callId is required`, retryable: false };
+      }
+      if (typeof result.name !== 'string' || !/^[a-z][a-z0-9_]{0,63}$/.test(result.name)) {
+        throw { code: 'invalid_args', message: `toolResults[${index}].name is invalid`, retryable: false };
+      }
+      return {
+        callId: result.callId.trim(),
+        name: result.name,
+        result: cloneJson(result.result),
+        isError: result.isError === true,
+      };
+    });
+  }
+
+  function normalizeChatContinuation(value) {
+    if (value === undefined || value === null) return null;
+    if (!isObject(value) || typeof value.provider !== 'string' || !value.provider.trim()) {
+      throw { code: 'invalid_args', message: 'continuation.provider is required', retryable: false };
+    }
+    return cloneJson(value);
+  }
+
   function normalizeGeminiChatTask(task) {
     if (!isObject(task)) {
       throw { code: 'invalid_args', message: 'Gemini chat task must be an object', retryable: false };
@@ -970,9 +1019,17 @@
       throw { code: 'invalid_args', message: 'budget.maxOutputTokens must be a positive integer', retryable: false };
     }
 
+    const tools = normalizeChatFunctionTools(task.tools);
+    const toolResults = normalizeChatToolResults(task.toolResults);
+    const continuation = normalizeChatContinuation(task.continuation);
+    if (toolResults.length && !continuation) {
+      throw { code: 'invalid_args', message: 'continuation is required with toolResults', retryable: false };
+    }
     const systemInstructionChars = task.systemInstruction.length;
     const messageChars = messages.reduce((total, message) => total + message.content.length, 0);
-    const inputChars = systemInstructionChars + messageChars;
+    const inputChars = systemInstructionChars + messageChars +
+      JSON.stringify(tools).length + JSON.stringify(toolResults).length +
+      (continuation ? JSON.stringify(continuation).length : 0);
     if (inputChars > maxInputChars) {
       throw {
         code: 'invalid_args',
@@ -992,6 +1049,9 @@
       messageCount: messages.length,
       budget: { maxInputChars, maxOutputTokens },
       thinking: normalizeGeminiThinking(task.thinking),
+      tools,
+      toolResults,
+      continuation,
     };
   }
 
@@ -1095,19 +1155,50 @@
     };
     if (thinking.config) Object.assign(generationConfig, thinking.config);
 
+    const continuationSteps = [];
+    if (task.continuation) {
+      if (task.continuation.provider !== 'gemini' || !Array.isArray(task.continuation.steps)) {
+        throw { code: 'invalid_args', message: 'Gemini continuation state is invalid.', retryable: false };
+      }
+      continuationSteps.push(...cloneJson(task.continuation.steps));
+    }
+    for (const result of task.toolResults) {
+      continuationSteps.push({
+        type: 'function_result',
+        name: result.name,
+        call_id: result.callId,
+        is_error: result.isError === true,
+        result: [{ type: 'text', text: JSON.stringify(result.result) }],
+      });
+    }
+
+    const input = task.messages.map(message => ({
+      type: message.role === 'user' ? 'user_input' : 'model_output',
+      content: [{ type: 'text', text: message.content }],
+    }));
+    input.push(...continuationSteps);
+
+    const payload = {
+      model,
+      input,
+      system_instruction: task.systemInstruction,
+      generation_config: generationConfig,
+      stream: true,
+      store: false,
+    };
+    if (task.tools.length) {
+      payload.tools = task.tools.map(tool => ({
+        type: 'function',
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.parameters,
+      }));
+    }
+
     return {
-      payload: {
-        model,
-        input: task.messages.map(message => ({
-          type: message.role === 'user' ? 'user_input' : 'model_output',
-          content: [{ type: 'text', text: message.content }],
-        })),
-        system_instruction: task.systemInstruction,
-        generation_config: generationConfig,
-        stream: true,
-        store: false,
-      },
+      payload,
       thinking,
+      continuationSteps,
     };
   }
 
@@ -1331,6 +1422,8 @@
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     const stepTypes = new Map();
+    const streamedSteps = new Map();
+    const streamedArgumentText = new Map();
     let buffer = '';
     let text = '';
     let sequence = 0;
@@ -1341,9 +1434,23 @@
     let sawDone = false;
     let streamFinished = false;
 
+    const emitText = (value) => {
+      if (typeof value !== 'string' || !value) return;
+      text += value;
+      sequence += 1;
+      onDelta(value, sequence);
+    };
+
+    const appendTextContent = (blocks, value) => {
+      if (!Array.isArray(blocks) || typeof value !== 'string' || !value) return;
+      const last = blocks[blocks.length - 1];
+      if (last?.type === 'text' && typeof last.text === 'string') last.text += value;
+      else blocks.push({ type: 'text', text: value });
+    };
+
     const handleEvent = (event) => {
       if (!event || typeof event !== 'object') return;
-      const eventType = String(event.event_type || '');
+      const eventType = String(event.event_type || event.type || '');
       const eventReason = geminiProviderReason(event);
       if (eventReason) observedProviderReason = eventReason;
 
@@ -1355,7 +1462,17 @@
       }
       if (eventType === 'step.start') {
         if (Number.isSafeInteger(event.index) && typeof event?.step?.type === 'string') {
-          stepTypes.set(event.index, event.step.type);
+          const step = cloneJson(event.step);
+          stepTypes.set(event.index, step.type);
+          streamedSteps.set(event.index, step);
+          if (step.type === 'function_call' && typeof step.arguments === 'string') {
+            streamedArgumentText.set(event.index, step.arguments);
+          }
+          if (step.type === 'model_output' && Array.isArray(step.content)) {
+            for (const block of step.content) {
+              if (block?.type === 'text') emitText(block.text);
+            }
+          }
         }
         return;
       }
@@ -1364,15 +1481,41 @@
         return;
       }
       if (eventType === 'step.delta') {
-        if (
-          stepTypes.get(event.index) === 'model_output' &&
-          event?.delta?.type === 'text' &&
-          typeof event.delta.text === 'string' &&
-          event.delta.text
-        ) {
-          text += event.delta.text;
-          sequence += 1;
-          onDelta(event.delta.text, sequence);
+        const stepType = stepTypes.get(event.index);
+        const step = streamedSteps.get(event.index);
+        if (stepType === 'function_call') {
+          const argumentChunk = typeof event?.delta?.partial_arguments === 'string'
+            ? event.delta.partial_arguments
+            : (typeof event?.delta?.arguments === 'string' ? event.delta.arguments : '');
+          if (
+            argumentChunk &&
+            (event?.delta?.type === 'arguments' || event?.delta?.type === 'arguments_delta')
+          ) {
+            streamedArgumentText.set(
+              event.index,
+              `${streamedArgumentText.get(event.index) || ''}${argumentChunk}`
+            );
+          }
+          return;
+        }
+        if (stepType === 'thought' && step) {
+          if (event?.delta?.type === 'thought_signature' && typeof event.delta.signature === 'string') {
+            step.signature = event.delta.signature;
+          } else if (event?.delta?.type === 'thought_summary' && event.delta.content) {
+            if (!Array.isArray(step.summary)) step.summary = [];
+            const content = cloneJson(event.delta.content);
+            if (content?.type === 'text' && typeof content.text === 'string') {
+              appendTextContent(step.summary, content.text);
+            } else if (content) {
+              step.summary.push(content);
+            }
+          }
+          return;
+        }
+        if (stepType === 'model_output' && step && event?.delta?.type === 'text') {
+          if (!Array.isArray(step.content)) step.content = [];
+          appendTextContent(step.content, event.delta.text);
+          emitText(event.delta.text);
         }
         return;
       }
@@ -1433,7 +1576,59 @@
         model,
       };
     }
-    if (completedInteraction.status && completedInteraction.status !== 'completed') {
+
+    const completedSteps = Array.isArray(completedInteraction.steps) && completedInteraction.steps.length
+      ? cloneJson(completedInteraction.steps)
+      : Array.from(streamedSteps.entries())
+        .sort((left, right) => left[0] - right[0])
+        .map(([index, step]) => {
+          const out = cloneJson(step);
+          const argumentText = streamedArgumentText.get(index);
+          if (out?.type === 'function_call' && typeof argumentText === 'string' && argumentText) {
+            out.arguments = argumentText;
+          }
+          return out;
+        });
+    const functionSteps = completedSteps.filter(step => step?.type === 'function_call');
+    const rawFunctionCalls = functionSteps.length
+      ? functionSteps.map(step => ({
+        id: step.id,
+        name: step.name,
+        arguments: step.arguments,
+        argumentText: typeof step.arguments === 'string' ? step.arguments : '',
+      }))
+      : [];
+    const toolCalls = rawFunctionCalls.map((call, index) => {
+      let args = isObject(call.arguments) ? cloneJson(call.arguments) : null;
+      if (!args) {
+        try { args = JSON.parse(call.argumentText || '{}'); } catch (error) {
+          throw {
+            code: 'invalid_response',
+            message: `Gemini returned invalid arguments for tool call ${index + 1}.`,
+            retryable: false,
+            backend: 'gemini',
+            detail: error?.message || 'invalid_tool_arguments',
+            model,
+          };
+        }
+      }
+      if (typeof call.id !== 'string' || !call.id || typeof call.name !== 'string' || !call.name || !isObject(args)) {
+        throw {
+          code: 'invalid_response',
+          message: 'Gemini returned a malformed function call.',
+          retryable: false,
+          backend: 'gemini',
+          model,
+        };
+      }
+      return { id: call.id, name: call.name, arguments: args };
+    });
+
+    if (
+      completedInteraction.status &&
+      completedInteraction.status !== 'completed' &&
+      !(completedInteraction.status === 'requires_action' && toolCalls.length)
+    ) {
       throw geminiStreamError({
         error: completedInteraction.error,
         status: completedInteraction.status,
@@ -1443,7 +1638,7 @@
     if (observedProviderReason === 'PROHIBITED_CONTENT' || observedProviderReason === 'SAFETY') {
       throw geminiBlockedError(observedProviderReason, observedProviderReason, model);
     }
-    if (!text) {
+    if (!text && !toolCalls.length) {
       throw {
         code: 'invalid_response',
         message: observedProviderReason
@@ -1455,9 +1650,38 @@
         model,
       };
     }
+    if (toolCalls.length && !completedSteps.length) {
+      throw {
+        code: 'invalid_response',
+        message: 'Gemini returned tool calls without the continuation steps required for a stateless follow-up.',
+        retryable: false,
+        backend: 'gemini',
+        model,
+      };
+    }
+
+    const continuationSteps = completedSteps.map(step => {
+      if (step?.type !== 'function_call') return step;
+      const call = toolCalls.find(candidate => candidate.id === step.id);
+      return call ? { ...step, arguments: cloneJson(call.arguments) } : step;
+    });
+    if (
+      toolCalls.length &&
+      continuationSteps.some(step => step?.type === 'thought' && !String(step.signature || '').trim())
+    ) {
+      throw {
+        code: 'invalid_response',
+        message: 'Gemini omitted a thought signature required for a stateless tool follow-up.',
+        retryable: false,
+        backend: 'gemini',
+        model,
+      };
+    }
 
     return {
       text,
+      toolCalls,
+      steps: continuationSteps,
       interactionId,
       providerModel,
       usage: completedInteraction.usage || null,
@@ -1701,6 +1925,14 @@
             attemptedModels: models.slice(0, modelIndex + 1),
           },
           text: streamResult.text,
+          toolCalls: streamResult.toolCalls,
+          continuation: streamResult.toolCalls.length ? {
+            provider: 'gemini',
+            steps: [
+              ...payloadInfo.continuationSteps,
+              ...streamResult.steps,
+            ],
+          } : null,
         };
         geminiRememberSuccess(base);
         return base;
@@ -1857,16 +2089,45 @@
   }
 
   function openaiChatPayload(task, model) {
+    const continuationMessages = [];
+    if (task.continuation) {
+      if (task.continuation.provider !== 'openai' || !Array.isArray(task.continuation.messages)) {
+        throw { code: 'invalid_args', message: 'OpenAI continuation state is invalid.', retryable: false };
+      }
+      continuationMessages.push(...cloneJson(task.continuation.messages));
+    }
+    for (const result of task.toolResults) {
+      continuationMessages.push({
+        role: 'tool',
+        tool_call_id: result.callId,
+        name: result.name,
+        content: JSON.stringify(result.result),
+      });
+    }
+    const payload = {
+      model,
+      messages: [
+        { role: 'system', content: task.systemInstruction },
+        ...task.messages.map(message => ({ role: message.role, content: message.content })),
+        ...continuationMessages,
+      ],
+      max_tokens: task.budget.maxOutputTokens,
+      stream: true,
+    };
+    if (task.tools.length) {
+      payload.tools = task.tools.map(tool => ({
+        type: 'function',
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.parameters,
+        },
+      }));
+      payload.tool_choice = 'auto';
+    }
     return {
-      payload: {
-        model,
-        messages: [
-          { role: 'system', content: task.systemInstruction },
-          ...task.messages.map(message => ({ role: message.role, content: message.content })),
-        ],
-        max_tokens: task.budget.maxOutputTokens,
-        stream: true,
-      },
+      payload,
+      continuationMessages,
     };
   }
 
@@ -2069,6 +2330,7 @@
     let providerModel = model;
     let usage = null;
     let finishReason = null;
+    const toolCallParts = new Map();
     let sawDone = false;
     let streamFinished = false;
 
@@ -2092,6 +2354,15 @@
       if (typeof choice.finish_reason === 'string' && choice.finish_reason) {
         finishReason = choice.finish_reason;
       }
+      const deltaToolCalls = Array.isArray(choice?.delta?.tool_calls) ? choice.delta.tool_calls : [];
+      deltaToolCalls.forEach((part, order) => {
+        const index = Number.isSafeInteger(part?.index) ? part.index : order;
+        const current = toolCallParts.get(index) || { id: '', name: '', arguments: '' };
+        if (typeof part?.id === 'string' && part.id) current.id = part.id;
+        if (typeof part?.function?.name === 'string') current.name += part.function.name;
+        if (typeof part?.function?.arguments === 'string') current.arguments += part.function.arguments;
+        toolCallParts.set(index, current);
+      });
       const delta = typeof choice?.delta?.content === 'string' ? choice.delta.content : '';
       if (delta) {
         text += delta;
@@ -2140,7 +2411,32 @@
     if (finishReason === 'content_filter') {
       throw openaiBlockedError(finishReason, model);
     }
-    if (!text) {
+    const toolCalls = Array.from(toolCallParts.entries())
+      .sort((left, right) => left[0] - right[0])
+      .map(([, call], index) => {
+        let args;
+        try { args = JSON.parse(call.arguments || '{}'); } catch (error) {
+          throw {
+            code: 'invalid_response',
+            message: `OpenAI-compatible provider returned invalid arguments for tool call ${index + 1}.`,
+            retryable: false,
+            backend: 'openai',
+            detail: error?.message || 'invalid_tool_arguments',
+            model,
+          };
+        }
+        if (!call.id || !call.name || !isObject(args)) {
+          throw {
+            code: 'invalid_response',
+            message: 'OpenAI-compatible provider returned a malformed tool call.',
+            retryable: false,
+            backend: 'openai',
+            model,
+          };
+        }
+        return { id: call.id, name: call.name, arguments: args };
+      });
+    if (!text && !toolCalls.length) {
       throw {
         code: 'invalid_response',
         message: sawDone
@@ -2152,7 +2448,7 @@
       };
     }
 
-    return { text, providerModel, usage, finishReason };
+    return { text, toolCalls, providerModel, usage, finishReason };
   }
 
   async function callOpenAiChatStream(settings, task, session, onDelta) {
@@ -2214,6 +2510,25 @@
         usage: streamResult.usage || null,
         status: openaiStatus(settings),
         text: streamResult.text,
+        toolCalls: streamResult.toolCalls,
+        continuation: streamResult.toolCalls.length ? {
+          provider: 'openai',
+          messages: [
+            ...payloadInfo.continuationMessages,
+            {
+              role: 'assistant',
+              content: streamResult.text || null,
+              tool_calls: streamResult.toolCalls.map(call => ({
+                id: call.id,
+                type: 'function',
+                function: {
+                  name: call.name,
+                  arguments: JSON.stringify(call.arguments),
+                },
+              })),
+            },
+          ],
+        } : null,
       };
       openaiRememberSuccess(base);
       return base;

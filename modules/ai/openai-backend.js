@@ -185,6 +185,8 @@
             usage: result.usage,
             fallback: result.fallback,
             text: result.text,
+            toolCalls: result.toolCalls,
+            continuation: result.continuation,
           });
           return;
         }

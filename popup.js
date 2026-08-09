@@ -30,6 +30,7 @@ const STORAGE_KEYS = {
   textToSpeech: 'betterDungeon_textToSpeechSettings',
   customDynamicConfig: 'betterDungeon_customDynamicConfig',
   customDynamicRuntime: 'betterDungeon_customDynamicRuntime',
+  navigatorReadOnly: 'betterDungeon_navigator_read_only',
 };
 
 // Default mode colors (hex format)
@@ -281,6 +282,11 @@ function initToggles() {
     if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.autoApply] ?? false;
   });
 
+  chrome.storage.sync.get(STORAGE_KEYS.navigatorReadOnly, (result) => {
+    const toggle = document.getElementById('navigator-read-only');
+    if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.navigatorReadOnly] === true;
+  });
+
   // Setup change handlers
   document.querySelectorAll('input[type="checkbox"][id^="feature-"]').forEach(toggle => {
     toggle.addEventListener('change', () => {
@@ -293,6 +299,10 @@ function initToggles() {
   document.getElementById('auto-apply-instructions')?.addEventListener('change', (e) => {
     chrome.storage.sync.set({ [STORAGE_KEYS.autoApply]: e.target.checked });
     notifyContentScript('SET_AUTO_APPLY', { enabled: e.target.checked });
+  });
+
+  document.getElementById('navigator-read-only')?.addEventListener('change', (e) => {
+    chrome.storage.sync.set({ [STORAGE_KEYS.navigatorReadOnly]: e.target.checked });
   });
 
   // Ultrascripts debug toggle

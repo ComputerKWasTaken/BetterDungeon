@@ -184,6 +184,8 @@
             thinking: result.thinking,
             fallback: result.fallback,
             text: result.text,
+            toolCalls: result.toolCalls,
+            continuation: result.continuation,
           });
           return;
         }
