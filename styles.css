@@ -3935,7 +3935,7 @@ body.bd-navigator-resizing {
 
 .bd-navigator-composer {
   flex-shrink: 0;
-  padding: var(--bd-space-3) var(--bd-space-4);
+  padding: 10px var(--bd-space-3) 12px;
   border-top: 1px solid var(--bd-border-subtle);
   background: var(--bd-bg-tertiary);
 }
@@ -3947,11 +3947,11 @@ body.bd-navigator-resizing {
 .bd-navigator-input {
   display: block;
   width: 100%;
-  min-height: 88px;
-  max-height: 160px;
-  padding: var(--bd-space-3) 54px var(--bd-space-3) var(--bd-space-3);
+  min-height: 50px;
+  max-height: 132px;
+  padding: 13px 52px 13px var(--bd-space-4);
   border: 1px solid var(--bd-input-border);
-  border-radius: var(--bd-radius-lg);
+  border-radius: 25px;
   background: var(--bd-input-bg);
   color: var(--bd-text-primary);
   font-family: inherit;
@@ -3973,16 +3973,18 @@ body.bd-navigator-resizing {
 
 .bd-navigator-stop {
   position: absolute;
-  right: 56px;
-  bottom: 12px;
+  right: 8px;
+  bottom: 8px;
   display: inline-flex;
   align-items: center;
-  gap: var(--bd-space-1);
-  padding: var(--bd-space-1) var(--bd-space-2);
-  border: 1px solid var(--bd-border-default);
-  border-radius: var(--bd-radius-md);
-  background: var(--bd-btn-secondary-bg);
-  color: var(--bd-text-secondary);
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: var(--bd-radius-full);
+  background: var(--bd-btn-primary-bg);
+  color: var(--bd-text-on-accent);
   font-family: inherit;
   font-size: var(--bd-font-size-sm);
   cursor: pointer;
@@ -3990,8 +3992,8 @@ body.bd-navigator-resizing {
 }
 
 .bd-navigator-stop:hover {
-  background: var(--bd-btn-secondary-hover);
-  color: var(--bd-text-primary);
+  background: var(--bd-btn-primary-hover);
+  box-shadow: var(--bd-btn-primary-shadow);
 }
 
 .bd-navigator-stop[hidden] {
@@ -4000,16 +4002,16 @@ body.bd-navigator-resizing {
 
 .bd-navigator-send {
   position: absolute;
-  right: 10px;
-  bottom: 10px;
+  right: 8px;
+  bottom: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   padding: 0;
   border: none;
-  border-radius: var(--bd-radius-lg);
+  border-radius: var(--bd-radius-full);
   background: var(--bd-btn-primary-bg);
   color: var(--bd-text-on-accent);
   font-size: var(--bd-font-size-lg);
@@ -4025,4 +4027,8 @@ body.bd-navigator-resizing {
 .bd-navigator-send:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+.bd-navigator-send[hidden] {
+  display: none;
 }

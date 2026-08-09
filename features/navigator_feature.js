@@ -427,9 +427,9 @@ class NavigatorFeature {
     composer.className = 'bd-navigator-composer';
     composer.innerHTML = `
       <div class="bd-navigator-input-shell">
-        <textarea class="bd-navigator-input" rows="3" placeholder="Ask Navigator..." aria-label="Message Navigator"></textarea>
-        <button type="button" class="bd-navigator-stop" hidden>
-          <span class="icon-square" aria-hidden="true"></span> Stop
+        <textarea class="bd-navigator-input" rows="1" placeholder="Ask Navigator..." aria-label="Message Navigator"></textarea>
+        <button type="button" class="bd-navigator-stop" aria-label="Stop generating" title="Stop generating" hidden>
+          <span class="icon-square" aria-hidden="true"></span>
         </button>
         <button type="button" class="bd-navigator-send" aria-label="Send message">
           <span class="icon-send" aria-hidden="true"></span>
@@ -660,8 +660,12 @@ class NavigatorFeature {
 
   updateComposerState() {
     const busy = !!this.session?.isBusy;
-    if (this.sendBtn) this.sendBtn.disabled = busy;
-    if (this.stopBtn) this.stopBtn.hidden = !this.session?.isChatBusy;
+    const chatBusy = !!this.session?.isChatBusy;
+    if (this.sendBtn) {
+      this.sendBtn.disabled = busy;
+      this.sendBtn.hidden = chatBusy;
+    }
+    if (this.stopBtn) this.stopBtn.hidden = !chatBusy;
     this.emptyEl?.querySelectorAll('.bd-navigator-quick-actions button').forEach(button => {
       button.disabled = busy;
     });
