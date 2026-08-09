@@ -393,13 +393,15 @@ class NavigatorFeature {
         <h2 class="bd-navigator-title">Navigator</h2>
         <p class="bd-navigator-subtitle"></p>
       </div>
-      <span class="bd-navigator-read-only" hidden>Read-only</span>
-      <button type="button" class="bd-navigator-icon-btn bd-navigator-clear" aria-label="Clear conversation" title="Clear conversation">
-        <span class="icon-eraser" aria-hidden="true"></span>
-      </button>
-      <button type="button" class="bd-navigator-icon-btn bd-navigator-close" aria-label="Close Navigator" title="Close">
-        <span class="icon-x" aria-hidden="true"></span>
-      </button>
+      <div class="bd-navigator-header-actions">
+        <span class="bd-navigator-read-only" hidden>Read-only</span>
+        <button type="button" class="bd-navigator-icon-btn bd-navigator-clear" aria-label="Clear conversation" title="Clear conversation">
+          <span class="icon-eraser" aria-hidden="true"></span>
+        </button>
+        <button type="button" class="bd-navigator-icon-btn bd-navigator-close" aria-label="Close Navigator" title="Close Navigator">
+          <span class="icon-x" aria-hidden="true"></span>
+        </button>
+      </div>
     `;
 
     const transcript = document.createElement('div');

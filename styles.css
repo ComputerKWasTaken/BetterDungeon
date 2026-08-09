@@ -3353,16 +3353,26 @@ body.bd-navigator-resizing {
 .bd-navigator-header {
   display: flex;
   align-items: center;
-  gap: var(--bd-space-2);
+  gap: var(--bd-space-3);
   flex-shrink: 0;
-  padding: var(--bd-space-3) var(--bd-space-4);
+  min-height: 64px;
+  padding: 10px var(--bd-space-3);
   border-bottom: 1px solid var(--bd-border-subtle);
-  background: var(--bd-bg-tertiary);
+  background: linear-gradient(180deg, var(--bd-bg-tertiary), var(--bd-bg-secondary));
 }
 
 .bd-navigator-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--bd-border-accent);
+  border-radius: var(--bd-radius-full);
+  background: var(--bd-accent-muted);
   color: var(--bd-accent-primary);
-  font-size: var(--bd-font-size-xl);
+  font-size: var(--bd-font-size-lg);
 }
 
 .bd-navigator-heading {
@@ -3379,12 +3389,19 @@ body.bd-navigator-resizing {
 }
 
 .bd-navigator-subtitle {
-  margin: 0;
+  margin: 2px 0 0;
   font-size: var(--bd-font-size-xs);
   color: var(--bd-text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.bd-navigator-header-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 4px;
 }
 
 .bd-navigator-read-only {
@@ -3406,14 +3423,14 @@ body.bd-navigator-resizing {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border: none;
-  border-radius: var(--bd-radius-md);
+  border-radius: var(--bd-radius-full);
   background: transparent;
   color: var(--bd-text-secondary);
-  font-size: var(--bd-font-size-lg);
+  font-size: var(--bd-font-size-base);
   cursor: pointer;
   transition: background var(--bd-transition-fast), color var(--bd-transition-fast);
 }
@@ -3421,6 +3438,16 @@ body.bd-navigator-resizing {
 .bd-navigator-icon-btn:hover {
   background: var(--bd-tag-hover-bg);
   color: var(--bd-text-primary);
+}
+
+.bd-navigator-icon-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--bd-input-focus-ring);
+}
+
+.bd-navigator-close:hover {
+  background: var(--bd-error-bg);
+  color: var(--bd-error-light);
 }
 
 .bd-navigator-transcript {
