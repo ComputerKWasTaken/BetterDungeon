@@ -203,7 +203,7 @@
       this.messages = Array.isArray(stored?.messages)
         ? stored.messages.map(message => {
           const restored = message.status === 'streaming' || message.status === 'pending'
-            ? { ...message, status: message.content ? 'aborted' : 'error' }
+            ? { ...message, status: message.content ? 'aborted' : 'error', toolActivity: null }
             : { ...message };
           if (Array.isArray(restored.proposals)) {
             restored.proposals = restored.proposals.map(proposal => (
@@ -616,6 +616,7 @@
       try {
         const tools = this.getToolDefinitions();
         const toolNames = [];
+        const completedReadToolNames = [];
         let continuation = null;
         let toolResults = [];
         let toolRounds = 0;
@@ -646,6 +647,7 @@
               roundReceivedDelta = true;
               message.content += delta.text;
               message.status = 'streaming';
+              message.toolActivity = null;
               this.emit('update', message);
               this.schedulePersist();
             },
@@ -661,6 +663,7 @@
           ) {
             message.content += result.text;
             message.status = 'streaming';
+            message.toolActivity = null;
             this.emit('update', message);
           }
           finalMeta = result?.meta || finalMeta;
@@ -689,6 +692,9 @@
             assistant.id
           );
           toolResults = executed.results;
+          completedReadToolNames.push(...executed.results
+            .filter(item => !item.isError && !this.isMutationTool(item.name))
+            .map(item => item.name));
           toolResultChars += executed.charsUsed;
           continuation = result.continuation;
         }
@@ -705,6 +711,7 @@
             toolRounds,
             toolResultChars,
             toolsUsed: Array.from(new Set(toolNames)),
+            readToolsCompleted: Array.from(new Set(completedReadToolNames)),
           },
         });
         this.persist();
@@ -729,10 +736,15 @@
           status: partial ? 'aborted' : 'error',
           error: partial ? null : this.describeError(error),
           excluded: true,
+          toolActivity: null,
         });
         this.excludePrecedingUserMessage(messageId);
       } else {
-        this.updateMessage(messageId, { status: 'error', error: this.describeError(error) });
+        this.updateMessage(messageId, {
+          status: 'error',
+          error: this.describeError(error),
+          toolActivity: null,
+        });
       }
 
       // A provider refusal is caused by the content of the turn that triggered

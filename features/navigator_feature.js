@@ -757,13 +757,22 @@ class NavigatorFeature {
     else this.renderText(body, message.content || '');
     this.renderProposals(proposals, message);
 
-    if (message.status === 'pending') {
-      status.replaceChildren(this.createThinkingIndicator());
-    } else if (message.status === 'error') {
+    const readToolActivity = this.getReadToolNames(message.toolActivity?.names);
+    const completedReadTools = this.getReadToolNames(message.meta?.readToolsCompleted);
+    if (message.status === 'error') {
       status.replaceChildren(this.createErrorNode(message.error));
     } else if (message.status === 'aborted') {
       status.textContent = 'Stopped.';
       status.className = 'bd-navigator-message-status bd-navigator-status-muted';
+    } else if (readToolActivity.length) {
+      status.replaceChildren(this.createToolActivityIndicator(readToolActivity, false));
+      status.className = 'bd-navigator-message-status';
+    } else if (message.status === 'pending') {
+      status.replaceChildren(this.createThinkingIndicator());
+      status.className = 'bd-navigator-message-status';
+    } else if (message.status === 'complete' && completedReadTools.length) {
+      status.replaceChildren(this.createToolActivityIndicator(completedReadTools, true));
+      status.className = 'bd-navigator-message-status';
     } else {
       status.replaceChildren();
       status.className = 'bd-navigator-message-status';
@@ -1317,8 +1326,51 @@ class NavigatorFeature {
     const wrap = document.createElement('span');
     wrap.className = 'bd-navigator-thinking';
     wrap.setAttribute('aria-label', 'Navigator is thinking');
+
+    const label = document.createElement('span');
+    label.className = 'bd-navigator-activity-label';
+    label.textContent = 'Thinking';
+    wrap.appendChild(label);
+
+    const dots = document.createElement('span');
+    dots.className = 'bd-navigator-thinking-dots';
+    dots.setAttribute('aria-hidden', 'true');
     for (let i = 0; i < 3; i++) {
-      wrap.appendChild(document.createElement('i'));
+      dots.appendChild(document.createElement('i'));
+    }
+    wrap.appendChild(dots);
+    return wrap;
+  }
+
+  getReadToolNames(names) {
+    if (!Array.isArray(names)) return [];
+    return Array.from(new Set(names.filter(name => (
+      typeof name === 'string' && !name.startsWith('propose_')
+    ))));
+  }
+
+  createToolActivityIndicator(names, complete) {
+    const wrap = document.createElement('span');
+    wrap.className = `bd-navigator-tool-activity${complete ? ' bd-navigator-tool-complete' : ''}`;
+
+    const icon = document.createElement('span');
+    const onlySearch = names.length === 1 && names[0] === 'search_story_cards';
+    const onlyRead = names.length === 1 && names[0] === 'get_story_card';
+    icon.className = onlySearch ? 'icon-search' : (onlyRead ? 'icon-book-open-text' : 'icon-wand-sparkles');
+    icon.setAttribute('aria-hidden', 'true');
+
+    const label = document.createElement('span');
+    if (onlySearch) label.textContent = complete ? 'Searched Story Cards' : 'Searching Story Cards';
+    else if (onlyRead) label.textContent = complete ? 'Read Story Card' : 'Reading Story Card';
+    else if (complete) label.textContent = `Used ${names.length} Story Card tools`;
+    else label.textContent = `Using ${names.length} Story Card tools`;
+
+    wrap.append(icon, label);
+    if (!complete) {
+      const pulse = document.createElement('i');
+      pulse.className = 'bd-navigator-tool-pulse';
+      pulse.setAttribute('aria-hidden', 'true');
+      wrap.appendChild(pulse);
     }
     return wrap;
   }

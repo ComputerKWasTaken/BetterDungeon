@@ -3921,12 +3921,20 @@ body.bd-navigator-resizing {
 
 .bd-navigator-thinking {
   display: inline-flex;
-  gap: 4px;
   align-items: center;
-  height: 16px;
+  gap: var(--bd-space-2);
+  min-height: 24px;
+  color: var(--bd-text-muted);
+  font-size: var(--bd-font-size-sm);
 }
 
-.bd-navigator-thinking i {
+.bd-navigator-thinking-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bd-navigator-thinking-dots i {
   width: 5px;
   height: 5px;
   border-radius: var(--bd-radius-full);
@@ -3934,8 +3942,40 @@ body.bd-navigator-resizing {
   animation: bd-navigator-pulse 1.2s infinite ease-in-out;
 }
 
-.bd-navigator-thinking i:nth-child(2) { animation-delay: 0.15s; }
-.bd-navigator-thinking i:nth-child(3) { animation-delay: 0.3s; }
+.bd-navigator-thinking-dots i:nth-child(2) { animation-delay: 0.15s; }
+.bd-navigator-thinking-dots i:nth-child(3) { animation-delay: 0.3s; }
+
+.bd-navigator-tool-activity {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bd-space-2);
+  min-height: 28px;
+  padding: 4px var(--bd-space-2);
+  border: 1px solid var(--bd-border-accent);
+  border-radius: var(--bd-radius-full);
+  background: var(--bd-accent-muted);
+  color: var(--bd-accent-light);
+  font-size: var(--bd-font-size-sm);
+}
+
+.bd-navigator-tool-complete {
+  border-color: var(--bd-border-subtle);
+  background: transparent;
+  color: var(--bd-text-muted);
+}
+
+.bd-navigator-tool-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--bd-radius-full);
+  background: currentColor;
+  animation: bd-navigator-tool-pulse 1.2s infinite ease-in-out;
+}
+
+@keyframes bd-navigator-tool-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.75); }
+  50%      { opacity: 1; transform: scale(1); }
+}
 
 @keyframes bd-navigator-pulse {
   0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
@@ -3943,7 +3983,8 @@ body.bd-navigator-resizing {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bd-navigator-thinking i { animation: none; opacity: 0.6; }
+  .bd-navigator-thinking-dots i,
+  .bd-navigator-tool-pulse { animation: none; opacity: 0.6; }
   .bd-navigator-launcher { transition: none; }
 }
 
