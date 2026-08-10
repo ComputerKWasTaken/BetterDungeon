@@ -105,7 +105,7 @@ class FeatureManager {
       // Always-on QOL features that don't need user toggling
       const alwaysEnabled = ['storyCardAnalytics', 'autoEnableScripts'];
       // Features that are disabled by default
-      const defaultOff = ['autoSee', 'textToSpeech', 'customDynamic', 'navigator'];
+      const defaultOff = ['autoSee', 'textToSpeech', 'customDynamic'];
       
       const enabled = alwaysEnabled.includes(id) || 
                       savedStates[id] === true || 

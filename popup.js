@@ -107,7 +107,7 @@ const DEFAULT_FEATURES = {
   inputHistory: true,
   textToSpeech: false,
   customDynamic: false,
-  navigator: false
+  navigator: true
 };
 
 const ULTRASCRIPTS_PUBLIC_MODULES = [

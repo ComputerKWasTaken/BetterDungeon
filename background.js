@@ -95,6 +95,7 @@
     inputHistory: true,
     textToSpeech: false,
     customDynamic: false,
+    navigator: true,
   };
   const SDK_ULTRASCRIPTS_MODULES = [
     'widget',
