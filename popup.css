@@ -492,6 +492,199 @@ body.mobile {
   padding-top: 12px;
 }
 
+.ai-provider-routing {
+  margin: 14px 0 12px;
+  padding: 12px;
+  background: linear-gradient(135deg, var(--accent-muted), var(--bg-elevated));
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-lg);
+}
+
+.ai-provider-routing .form-group {
+  margin-bottom: 7px;
+}
+
+.ai-provider-routing-summary {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.ai-provider-routing-summary[data-state="ready"] {
+  color: var(--success);
+}
+
+.ai-provider-routing-summary[data-state="warning"] {
+  color: var(--warning);
+}
+
+.ai-provider-panel {
+  margin-top: 10px;
+  padding: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.ai-provider-panel[data-selected="true"] {
+  border-color: var(--border-accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.ai-provider-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.ai-provider-panel-header h4 {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.ai-provider-panel-header p {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.ai-provider-badge {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.ai-provider-badge[data-state="ready"] {
+  color: var(--success);
+  border-color: rgba(34, 197, 94, 0.28);
+  background: var(--success-muted);
+}
+
+.ai-provider-badge[data-state="warning"],
+.ai-provider-badge[data-state="dirty"] {
+  color: var(--warning);
+  border-color: rgba(245, 158, 11, 0.28);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.ai-provider-badge[data-state="error"] {
+  color: var(--error);
+  border-color: rgba(239, 68, 68, 0.28);
+  background: var(--error-muted);
+}
+
+.ai-provider-panel .form-group {
+  margin-bottom: 11px;
+}
+
+.form-label-optional {
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 400;
+}
+
+.form-help {
+  margin-top: 5px;
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.ai-provider-validation {
+  display: none;
+  margin: -2px 0 10px;
+  color: var(--error);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.ai-provider-validation:not(:empty) {
+  display: block;
+}
+
+.form-input[aria-invalid="true"] {
+  border-color: var(--error);
+  box-shadow: 0 0 0 2px var(--error-muted);
+}
+
+.ai-provider-status-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 2px 0 10px;
+  padding: 9px 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.ai-provider-status-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.ai-provider-status-card strong,
+.ai-provider-status-card span:not(.ai-provider-status-dot) {
+  display: block;
+}
+
+.ai-provider-status-card strong {
+  color: var(--text-primary);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.ai-provider-status-card span:not(.ai-provider-status-dot) {
+  margin-top: 1px;
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.ai-provider-status-card[data-state="ready"] .ai-provider-status-dot {
+  background: var(--success);
+  box-shadow: 0 0 0 3px var(--success-muted);
+}
+
+.ai-provider-status-card[data-state="warning"] .ai-provider-status-dot,
+.ai-provider-status-card[data-state="dirty"] .ai-provider-status-dot {
+  background: var(--warning);
+}
+
+.ai-provider-status-card[data-state="error"] {
+  border-color: rgba(239, 68, 68, 0.25);
+}
+
+.ai-provider-status-card[data-state="error"] .ai-provider-status-dot {
+  background: var(--error);
+  box-shadow: 0 0 0 3px var(--error-muted);
+}
+
+.ai-provider-panel .btn-row {
+  align-items: stretch;
+}
+
+.ai-provider-panel .btn-row .btn {
+  padding-inline: 8px;
+  font-size: 10px;
+}
+
 .ultrascripts-status-panel {
   display: grid;
   grid-template-columns: auto 1fr auto;

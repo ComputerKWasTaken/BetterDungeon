@@ -47,7 +47,7 @@
     model: 'ultrascripts_ai_gemini_model',
     modelMode: 'ultrascripts_ai_gemini_model_mode',
   };
-  const OPENAI_DEFAULT_BASE_URL = 'https://api.openai.com/v1';
+  const OPENAI_DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
   const OPENAI_STORAGE_KEYS = {
     baseUrl: 'ultrascripts_ai_openai_base_url',
     apiKey: 'ultrascripts_ai_openai_api_key',
@@ -2270,9 +2270,9 @@
         model,
         providerModel: data?.model || model,
         usage: data?.usage || null,
-        status: openaiStatus(settings),
       };
       openaiRememberSuccess(base);
+      base.status = openaiStatus(settings);
 
       if (task.output.type === 'json') {
         try {

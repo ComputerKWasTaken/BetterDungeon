@@ -1029,79 +1029,111 @@
                 </label>
               </div>
               <div class="feature-details">
-                <p>AI lets scripts send asynchronous model queries and receive text or schema-backed JSON results on a later turn.</p>
-                <p class="feature-hint"><span class="icon-brain-circuit"></span> Add an API key to enable <code>ai.query</code>. Get a key from <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer">Google AI Studio</a>.</p>
-                <div class="form-group">
-                  <label class="form-label" for="ai-gemini-api-key">Gemini API Key</label>
-                  <input type="password" class="form-input" id="ai-gemini-api-key" placeholder="AIza...">
+                <p>Choose the provider used by Ultrascripts, Character Prefill, and Navigator. Provider changes are explicit; BetterDungeon never sends a request to a different provider as a fallback.</p>
+
+                <div class="ai-provider-routing">
+                  <div class="form-group">
+                    <label class="form-label" for="ai-default-provider">Active provider</label>
+                    <select class="form-input" id="ai-default-provider">
+                      <option value="gemini">Google Gemini</option>
+                      <option value="openai">OpenAI-compatible endpoint</option>
+                    </select>
+                  </div>
+                  <p class="ai-provider-routing-summary" id="ai-default-provider-status">Checking provider...</p>
                 </div>
-                <div class="form-group">
-                  <label class="form-label" for="ai-gemini-model-mode">Model Selection</label>
-                  <select class="form-input" id="ai-gemini-model-mode">
-                    <option value="auto">Best available (automatic stepdown)</option>
-                    <option value="manual">Manual model</option>
-                  </select>
-                </div>
-                <div class="form-group" id="ai-gemini-model-group">
-                  <label class="form-label" for="ai-gemini-model">Model</label>
-                  <input type="text" class="form-input" id="ai-gemini-model" placeholder="gemini-3.5-flash-lite">
-                </div>
-                <div class="feature-option">
-                  <span class="option-label">Status</span>
-                  <span class="option-value" id="ai-gemini-status">Not checked</span>
-                </div>
-                <div class="btn-row">
-                  <button class="btn btn-action" id="ai-gemini-save" type="button">
-                    <span class="icon-save"></span>
-                    Save
-                  </button>
-                  <button class="btn btn-ghost" id="ai-gemini-clear-key" type="button">
-                    <span class="icon-eraser"></span>
-                    Clear Key
-                  </button>
-                  <button class="btn btn-ghost" id="ai-gemini-test" type="button">
-                    <span class="icon-circle-check"></span>
-                    Test
-                  </button>
-                </div>
-                <p class="feature-hint"><span class="icon-brain-circuit"></span> Or connect any OpenAI-compatible endpoint (OpenAI, OpenRouter, Groq, local servers, and more).</p>
-                <div class="form-group">
-                  <label class="form-label" for="ai-openai-base-url">OpenAI-Compatible Base URL</label>
-                  <input type="text" class="form-input" id="ai-openai-base-url" placeholder="https://api.openai.com/v1">
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="ai-openai-api-key">API Key</label>
-                  <input type="password" class="form-input" id="ai-openai-api-key" placeholder="sk-... (optional for local servers)">
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="ai-openai-model">Model</label>
-                  <input type="text" class="form-input" id="ai-openai-model" placeholder="gpt-5-mini">
-                </div>
-                <div class="feature-option">
-                  <span class="option-label">Status</span>
-                  <span class="option-value" id="ai-openai-status">Not checked</span>
-                </div>
-                <div class="btn-row">
-                  <button class="btn btn-action" id="ai-openai-save" type="button">
-                    <span class="icon-save"></span>
-                    Save
-                  </button>
-                  <button class="btn btn-ghost" id="ai-openai-clear-key" type="button">
-                    <span class="icon-eraser"></span>
-                    Clear Key
-                  </button>
-                  <button class="btn btn-ghost" id="ai-openai-test" type="button">
-                    <span class="icon-circle-check"></span>
-                    Test
-                  </button>
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="ai-default-provider">Default Provider</label>
-                  <select class="form-input" id="ai-default-provider">
-                    <option value="gemini">Gemini</option>
-                    <option value="openai">OpenAI-Compatible</option>
-                  </select>
-                </div>
+
+                <section class="ai-provider-panel" id="ai-gemini-panel" data-provider="gemini">
+                  <div class="ai-provider-panel-header">
+                    <div>
+                      <h4>Google Gemini</h4>
+                      <p>Managed model stepdown through the Gemini Interactions API.</p>
+                    </div>
+                    <span class="ai-provider-badge" id="ai-gemini-status" data-state="pending">Checking</span>
+                  </div>
+                  <p class="feature-hint"><span class="icon-key-round"></span> Get a key from <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer">Google AI Studio</a>.</p>
+                  <div class="form-group">
+                    <label class="form-label" for="ai-gemini-api-key">API key</label>
+                    <input type="password" class="form-input" id="ai-gemini-api-key" placeholder="AIza..." autocomplete="off" spellcheck="false">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="ai-gemini-model-mode">Model selection</label>
+                    <select class="form-input" id="ai-gemini-model-mode">
+                      <option value="auto">Best available (automatic stepdown)</option>
+                      <option value="manual">Manual model</option>
+                    </select>
+                  </div>
+                  <div class="form-group" id="ai-gemini-model-group">
+                    <label class="form-label" for="ai-gemini-model">Model</label>
+                    <input type="text" class="form-input" id="ai-gemini-model" placeholder="gemini-3.5-flash-lite" spellcheck="false">
+                  </div>
+                  <div class="btn-row">
+                    <button class="btn btn-action" id="ai-gemini-save" type="button">
+                      <span class="icon-save"></span>
+                      Save
+                    </button>
+                    <button class="btn btn-ghost" id="ai-gemini-test" type="button">
+                      <span class="icon-circle-check"></span>
+                      Test
+                    </button>
+                    <button class="btn btn-ghost" id="ai-gemini-clear-key" type="button">
+                      <span class="icon-eraser"></span>
+                      Clear key
+                    </button>
+                  </div>
+                </section>
+
+                <section class="ai-provider-panel" id="ai-openai-panel" data-provider="openai">
+                  <div class="ai-provider-panel-header">
+                    <div>
+                      <h4>OpenAI-compatible</h4>
+                      <p>Connect OpenRouter or another HTTPS Chat Completions endpoint.</p>
+                    </div>
+                    <span class="ai-provider-badge" id="ai-openai-status" data-state="pending">Checking</span>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="ai-openai-service">Service</label>
+                    <select class="form-input" id="ai-openai-service">
+                      <option value="openrouter">OpenRouter</option>
+                      <option value="custom">Custom endpoint</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="ai-openai-base-url">Base URL</label>
+                    <input type="url" class="form-input" id="ai-openai-base-url" placeholder="https://openrouter.ai/api/v1" aria-describedby="ai-openai-base-url-help ai-openai-validation" spellcheck="false">
+                    <p class="form-help" id="ai-openai-base-url-help">Include the API version path, such as <code>/v1</code>. BetterDungeon adds <code>/chat/completions</code>.</p>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="ai-openai-api-key">API key <span class="form-label-optional">optional when the endpoint requires none</span></label>
+                    <input type="password" class="form-input" id="ai-openai-api-key" placeholder="Paste a key" autocomplete="off" spellcheck="false">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="ai-openai-model">Model ID</label>
+                    <input type="text" class="form-input" id="ai-openai-model" placeholder="openai/gpt-5-mini" aria-describedby="ai-openai-model-help ai-openai-validation" spellcheck="false">
+                    <p class="form-help" id="ai-openai-model-help">Use the exact model identifier accepted by your endpoint.</p>
+                  </div>
+                  <div class="ai-provider-validation" id="ai-openai-validation" role="status" aria-live="polite"></div>
+                  <div class="ai-provider-status-card" id="ai-openai-status-card" data-state="pending">
+                    <span class="ai-provider-status-dot" aria-hidden="true"></span>
+                    <div>
+                      <strong id="ai-openai-status-title">Checking configuration</strong>
+                      <span id="ai-openai-status-detail">Reading locally saved settings...</span>
+                    </div>
+                  </div>
+                  <div class="btn-row">
+                    <button class="btn btn-action" id="ai-openai-save" type="button">
+                      <span class="icon-save"></span>
+                      Save
+                    </button>
+                    <button class="btn btn-ghost" id="ai-openai-test" type="button">
+                      <span class="icon-circle-check"></span>
+                      Save &amp; test
+                    </button>
+                    <button class="btn btn-ghost" id="ai-openai-clear-key" type="button">
+                      <span class="icon-eraser"></span>
+                      Clear key
+                    </button>
+                  </div>
+                </section>
               </div>
             </article>
 

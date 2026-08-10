@@ -10,8 +10,19 @@ const AI_GEMINI_MESSAGE = 'ULTRASCRIPTS_AI_GEMINI';
 const AI_DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite';
 const AI_DEFAULT_GEMINI_MODEL_MODE = 'auto';
 const AI_OPENAI_MESSAGE = 'ULTRASCRIPTS_AI_OPENAI';
-const AI_DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
 const AI_DEFAULT_PROVIDER_STORAGE_KEY = 'ultrascripts_ai_default_provider';
+const AI_DEFAULT_OPENAI_SERVICE = 'openrouter';
+const AI_OPENAI_SERVICES = Object.freeze({
+  openrouter: 'https://openrouter.ai/api/v1',
+});
+
+let aiDefaultProvider = 'gemini';
+let geminiStatusSnapshot = null;
+let openAiStatusSnapshot = null;
+let openAiSettingsLoaded = false;
+let openAiOperationPending = false;
+let openAiSettingsDirty = false;
+let openAiLastError = null;
 
 const STORAGE_KEYS = {
   features: 'betterDungeonFeatures',
@@ -351,34 +362,86 @@ function sendGeminiMessage(request) {
   });
 }
 
-function setGeminiStatusText(status, pendingText) {
-  const el = document.getElementById('ai-gemini-status');
-  if (pendingText) {
-    if (el) el.textContent = pendingText;
-    setCharacterAIStatus(pendingText, 'pending');
+function providerDisplayLabel(provider) {
+  return provider === 'openai' ? 'OpenAI-compatible' : 'Gemini';
+}
+
+function setProviderBadge(element, text, state = 'pending', detail = '') {
+  if (!element) return;
+  element.textContent = text;
+  element.dataset.state = state;
+  element.title = detail || text;
+}
+
+function updateAIProviderSummary() {
+  const provider = aiDefaultProvider === 'openai' ? 'openai' : 'gemini';
+  const status = provider === 'openai' ? openAiStatusSnapshot : geminiStatusSnapshot;
+  const summary = document.getElementById('ai-default-provider-status');
+  const select = document.getElementById('ai-default-provider');
+  document.querySelectorAll('.ai-provider-panel').forEach(panel => {
+    panel.dataset.selected = String(panel.dataset.provider === provider);
+  });
+  if (select && select.value !== provider) select.value = provider;
+
+  if (!summary) return;
+  if (provider === 'openai' && openAiSettingsDirty) {
+    summary.textContent = 'OpenAI-compatible selected · save or test your changed settings';
+    summary.dataset.state = 'warning';
+    setCharacterAIStatus('AI provider has unsaved settings', 'missing');
+    return;
+  }
+  if (provider === 'openai' && openAiLastError) {
+    summary.textContent = 'OpenAI-compatible selected · the latest connection test failed';
+    summary.dataset.state = 'warning';
+    setCharacterAIStatus('OpenAI-compatible connection failed', 'missing');
     return;
   }
   if (!status) {
-    if (el) el.textContent = 'Not checked';
-    setCharacterAIStatus('AI provider not checked', 'unknown');
+    summary.textContent = `${providerDisplayLabel(provider)} selected · checking configuration`;
+    summary.dataset.state = 'pending';
+    setCharacterAIStatus('Checking AI provider...', 'pending');
     return;
   }
+
+  const model = status.config?.activeModel || status.config?.lastResolvedModel ||
+    status.config?.selectedModel || status.config?.model || '';
+  if (status.ready) {
+    summary.textContent = `${providerDisplayLabel(provider)} selected${model ? ` · ${model}` : ''}`;
+    summary.dataset.state = 'ready';
+    setCharacterAIStatus(`${providerDisplayLabel(provider)} ready`, 'ready');
+    return;
+  }
+
+  summary.textContent = `${providerDisplayLabel(provider)} selected · setup required before AI requests can run`;
+  summary.dataset.state = 'warning';
+  setCharacterAIStatus('Selected AI provider needs setup', 'missing');
+}
+
+function setGeminiStatusText(status, pendingText) {
+  const el = document.getElementById('ai-gemini-status');
+  if (pendingText) {
+    setProviderBadge(el, pendingText, 'pending');
+    return;
+  }
+  if (!status) {
+    geminiStatusSnapshot = null;
+    setProviderBadge(el, 'Unavailable', 'error');
+    updateAIProviderSummary();
+    return;
+  }
+  geminiStatusSnapshot = status;
   const modelMode = status.config?.modelMode || AI_DEFAULT_GEMINI_MODEL_MODE;
   const selectedModel = status.config?.selectedModel || status.config?.model || AI_DEFAULT_GEMINI_MODEL;
   const activeModel = status.config?.activeModel || status.config?.lastResolvedModel || null;
-  const text = status.ready
+  const detail = status.ready
     ? (
       modelMode === 'manual'
         ? `Ready (manual: ${selectedModel})`
         : `Ready (auto: ${activeModel || selectedModel})`
     )
     : 'API key required';
-  if (el) el.textContent = text;
-  const providerLabel = status.backendLabel || status.providerLabel || 'Gemini';
-  setCharacterAIStatus(
-    status.ready ? `${providerLabel} ready` : 'AI provider setup required',
-    status.ready ? 'ready' : 'missing'
-  );
+  setProviderBadge(el, status.ready ? 'Ready' : 'Setup needed', status.ready ? 'ready' : 'warning', detail);
+  updateAIProviderSummary();
 }
 
 function setCharacterAIStatus(text, state = 'unknown') {
@@ -394,7 +457,10 @@ function openAISettingsFromCharacters() {
     const card = document.getElementById('ai-settings-card');
     card?.classList.add('expanded');
     card?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    setTimeout(() => document.getElementById('ai-gemini-api-key')?.focus(), 250);
+    setTimeout(() => {
+      const target = aiDefaultProvider === 'openai' ? 'ai-openai-base-url' : 'ai-gemini-api-key';
+      document.getElementById(target)?.focus();
+    }, 250);
   });
 }
 
@@ -512,20 +578,174 @@ function sendOpenAiMessage(request) {
   });
 }
 
-function setOpenAiStatusText(status, pendingText) {
-  const el = document.getElementById('ai-openai-status');
-  if (!el) return;
-  if (pendingText) {
-    el.textContent = pendingText;
+function openAiErrorMessage(error) {
+  const code = String(error?.code || '').trim();
+  if (code === 'auth_failed') return 'The endpoint rejected the API key.';
+  if (code === 'rate_limit') return 'The endpoint rate limit was reached. Try again later.';
+  if (code === 'safety_blocked' || code === 'prohibited_content') {
+    return 'The endpoint content filter blocked the test.';
+  }
+  if (code === 'timeout') return 'The endpoint did not respond before the timeout.';
+  if (code === 'not_configured') return 'Save a base URL and model before testing.';
+  return error?.message || 'The endpoint could not complete the connection test.';
+}
+
+function setOpenAiStatusView({ status = null, pending = '', error = null, dirty = false } = {}) {
+  const badge = document.getElementById('ai-openai-status');
+  const card = document.getElementById('ai-openai-status-card');
+  const title = document.getElementById('ai-openai-status-title');
+  const detail = document.getElementById('ai-openai-status-detail');
+
+  if (pending) {
+    setProviderBadge(badge, pending, 'pending');
+    if (card) card.dataset.state = 'pending';
+    if (title) title.textContent = pending;
+    if (detail) detail.textContent = 'Please keep the popup open.';
     return;
   }
+
+  if (dirty) {
+    openAiSettingsDirty = true;
+    setProviderBadge(badge, 'Unsaved', 'dirty');
+    if (card) card.dataset.state = 'dirty';
+    if (title) title.textContent = 'Unsaved changes';
+    if (detail) detail.textContent = 'Save the configuration, or use Save & test to verify it immediately.';
+    updateAIProviderSummary();
+    return;
+  }
+
+  if (error) {
+    const message = openAiErrorMessage(error);
+    openAiLastError = error;
+    setProviderBadge(badge, 'Test failed', 'error', message);
+    if (card) card.dataset.state = 'error';
+    if (title) title.textContent = 'Connection failed';
+    if (detail) detail.textContent = message;
+    updateAIProviderSummary();
+    return;
+  }
+
+  openAiLastError = null;
+  openAiStatusSnapshot = status;
+  openAiSettingsLoaded = true;
   if (!status) {
-    el.textContent = 'Not checked';
+    setProviderBadge(badge, 'Unavailable', 'error');
+    if (card) card.dataset.state = 'error';
+    if (title) title.textContent = 'Provider unavailable';
+    if (detail) detail.textContent = 'BetterDungeon could not read the provider configuration.';
+    updateAIProviderSummary();
     return;
   }
-  el.textContent = status.ready
-    ? `Ready (${status.config?.model || 'model set'})`
-    : 'Base URL and model required';
+
+  if (!status.ready) {
+    setProviderBadge(badge, 'Setup needed', 'warning');
+    if (card) card.dataset.state = 'warning';
+    if (title) title.textContent = 'Setup required';
+    if (detail) detail.textContent = 'Enter an HTTPS base URL and exact model ID, then save and test.';
+    updateAIProviderSummary();
+    return;
+  }
+
+  const model = status.config?.activeModel || status.config?.lastResolvedModel || status.config?.model || 'configured model';
+  const verified = !!(status.config?.activeModel || status.config?.lastResolvedModel);
+  setProviderBadge(badge, verified ? 'Connected' : 'Configured', 'ready', model);
+  if (card) card.dataset.state = 'ready';
+  if (title) title.textContent = verified ? 'Connection verified' : 'Configuration saved';
+  if (detail) {
+    detail.textContent = verified
+      ? `${model} responded successfully.`
+      : `Ready to test ${model}.`;
+  }
+  updateAIProviderSummary();
+}
+
+function setOpenAiStatusText(status, pendingText) {
+  setOpenAiStatusView(pendingText ? { pending: pendingText } : { status });
+}
+
+function setOpenAiValidation(message = '', invalidFields = []) {
+  const validation = document.getElementById('ai-openai-validation');
+  if (validation) validation.textContent = message;
+  const invalid = new Set(invalidFields);
+  ['ai-openai-base-url', 'ai-openai-model'].forEach(id => {
+    const input = document.getElementById(id);
+    if (!input) return;
+    if (invalid.has(id)) input.setAttribute('aria-invalid', 'true');
+    else input.removeAttribute('aria-invalid');
+  });
+}
+
+function normalizeOpenAiBaseUrlInput(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return { error: 'Enter the endpoint base URL.', field: 'ai-openai-base-url' };
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'https:') {
+      return { error: 'Use an HTTPS endpoint URL.', field: 'ai-openai-base-url' };
+    }
+    if (url.search || url.hash) {
+      return { error: 'The base URL cannot contain a query string or fragment.', field: 'ai-openai-base-url' };
+    }
+    let normalized = url.toString().replace(/\/+$/, '');
+    normalized = normalized.replace(/\/chat\/completions$/i, '');
+    return { value: normalized };
+  } catch {
+    return { error: 'Enter a complete URL such as https://openrouter.ai/api/v1.', field: 'ai-openai-base-url' };
+  }
+}
+
+function collectOpenAiSettings() {
+  const baseUrlInput = document.getElementById('ai-openai-base-url');
+  const keyInput = document.getElementById('ai-openai-api-key');
+  const modelInput = document.getElementById('ai-openai-model');
+  const baseUrl = normalizeOpenAiBaseUrlInput(baseUrlInput?.value);
+  const model = String(modelInput?.value || '').trim();
+  const invalidFields = [];
+  const errors = [];
+  if (baseUrl.error) {
+    errors.push(baseUrl.error);
+    invalidFields.push(baseUrl.field);
+  }
+  if (!model) {
+    errors.push('Enter the exact model ID.');
+    invalidFields.push('ai-openai-model');
+  }
+  if (errors.length) {
+    setOpenAiValidation(errors.join(' '), invalidFields);
+    return null;
+  }
+  setOpenAiValidation();
+  if (baseUrlInput) baseUrlInput.value = baseUrl.value;
+  const request = { op: 'settings:set', baseUrl: baseUrl.value, model };
+  const apiKey = keyInput?.value?.trim();
+  if (apiKey) request.apiKey = apiKey;
+  return request;
+}
+
+function detectOpenAiService(baseUrl) {
+  const normalized = String(baseUrl || '').replace(/\/+$/, '').toLowerCase();
+  return Object.entries(AI_OPENAI_SERVICES).find(([, url]) => url.toLowerCase() === normalized)?.[0] || 'custom';
+}
+
+function syncOpenAiService(baseUrl) {
+  const select = document.getElementById('ai-openai-service');
+  if (select) select.value = detectOpenAiService(baseUrl);
+}
+
+function setOpenAiOperationPending(pending) {
+  openAiOperationPending = pending;
+  const aiEnabled = document.querySelector('[data-ultrascripts-module-toggle="ai"]')?.checked !== false;
+  document.querySelectorAll('#ai-openai-panel input, #ai-openai-panel select, #ai-openai-panel button').forEach(control => {
+    control.disabled = pending || !aiEnabled;
+  });
+  document.getElementById('ai-openai-panel')?.setAttribute('aria-busy', String(pending));
+}
+
+function markOpenAiSettingsDirty() {
+  if (!openAiSettingsLoaded || openAiOperationPending) return;
+  openAiSettingsDirty = true;
+  openAiLastError = null;
+  setOpenAiStatusView({ dirty: true });
 }
 
 async function loadOpenAiSettings() {
@@ -534,77 +754,122 @@ async function loadOpenAiSettings() {
     const baseUrlInput = document.getElementById('ai-openai-base-url');
     const keyInput = document.getElementById('ai-openai-api-key');
     const modelInput = document.getElementById('ai-openai-model');
-    if (baseUrlInput) baseUrlInput.value = status.config?.baseUrl || '';
+    const savedBaseUrl = status.config?.baseUrl || '';
+    const displayedBaseUrl = savedBaseUrl || AI_OPENAI_SERVICES[AI_DEFAULT_OPENAI_SERVICE];
+    if (baseUrlInput) baseUrlInput.value = displayedBaseUrl;
     if (keyInput) {
       keyInput.value = '';
       keyInput.placeholder = status.config?.keyConfigured ? 'Saved locally' : 'sk-... (optional for local servers)';
     }
     if (modelInput) modelInput.value = status.config?.model || '';
+    syncOpenAiService(displayedBaseUrl);
+    openAiSettingsDirty = false;
     setOpenAiStatusText(status);
-  } catch {
-    setOpenAiStatusText(null, 'Unavailable');
+  } catch (error) {
+    openAiSettingsLoaded = true;
+    setOpenAiStatusView({ error });
   }
 }
 
-async function saveOpenAiSettings() {
-  const baseUrlInput = document.getElementById('ai-openai-base-url');
+async function persistOpenAiSettings() {
+  const request = collectOpenAiSettings();
+  if (!request) return null;
   const keyInput = document.getElementById('ai-openai-api-key');
-  const modelInput = document.getElementById('ai-openai-model');
-  const request = {
-    op: 'settings:set',
-    baseUrl: baseUrlInput?.value?.trim() || AI_DEFAULT_OPENAI_BASE_URL,
-    model: modelInput?.value?.trim() || '',
-  };
-  const apiKey = keyInput?.value?.trim();
-  if (apiKey) request.apiKey = apiKey;
+  const baseUrlInput = document.getElementById('ai-openai-base-url');
+  const status = await sendOpenAiMessage(request);
+  if (baseUrlInput) baseUrlInput.value = status.config?.baseUrl || '';
+  if (keyInput) {
+    keyInput.value = '';
+    keyInput.placeholder = status.config?.keyConfigured ? 'Saved locally' : 'Paste a key';
+  }
+  syncOpenAiService(status.config?.baseUrl || '');
+  openAiSettingsDirty = false;
+  openAiLastError = null;
+  setOpenAiStatusView({ status });
+  return status;
+}
 
+async function saveOpenAiSettings() {
+  if (openAiOperationPending) return;
+  setOpenAiOperationPending(true);
   setOpenAiStatusText(null, 'Saving...');
   try {
-    const status = await sendOpenAiMessage(request);
-    if (baseUrlInput) baseUrlInput.value = status.config?.baseUrl || '';
-    if (keyInput) {
-      keyInput.value = '';
-      keyInput.placeholder = status.config?.keyConfigured ? 'Saved locally' : 'sk-... (optional for local servers)';
+    const status = await persistOpenAiSettings();
+    if (!status) {
+      setOpenAiStatusView({ dirty: true });
+      return;
     }
-    setOpenAiStatusText(status);
     showToast('OpenAI-compatible settings saved', 'success');
   } catch (err) {
-    setOpenAiStatusText(null, 'Save failed');
+    setOpenAiStatusView({ error: err });
     showToast(err?.message || 'OpenAI-compatible settings failed to save', 'error');
+  } finally {
+    setOpenAiOperationPending(false);
   }
 }
 
 async function clearOpenAiApiKey() {
+  if (openAiOperationPending) return;
   const keyInput = document.getElementById('ai-openai-api-key');
+  setOpenAiOperationPending(true);
   setOpenAiStatusText(null, 'Clearing key...');
   try {
     const status = await sendOpenAiMessage({ op: 'settings:set', apiKey: '' });
     if (keyInput) {
       keyInput.value = '';
-      keyInput.placeholder = 'sk-... (optional for local servers)';
+      keyInput.placeholder = 'Paste a key';
     }
-    setOpenAiStatusText(status);
+    openAiSettingsDirty = false;
+    setOpenAiStatusView({ status });
     showToast('OpenAI-compatible API key cleared', 'success');
   } catch (err) {
-    await loadOpenAiSettings();
+    setOpenAiStatusView({ error: err });
     showToast(err?.message || 'OpenAI-compatible API key could not be cleared', 'error');
+  } finally {
+    setOpenAiOperationPending(false);
   }
 }
 
 async function testOpenAiSettings() {
+  if (openAiOperationPending) return;
+  if (!collectOpenAiSettings()) {
+    setOpenAiStatusView({ dirty: true });
+    return;
+  }
+  setOpenAiOperationPending(true);
   setOpenAiStatusText(null, 'Testing...');
   try {
+    const saved = await persistOpenAiSettings();
+    if (!saved) return;
+    setOpenAiStatusText(null, 'Testing...');
     const result = await sendOpenAiMessage({ op: 'test' });
-    setOpenAiStatusText(result.status);
+    setOpenAiStatusView({ status: result.status });
     showToast('OpenAI-compatible test succeeded', 'success');
   } catch (err) {
-    await loadOpenAiSettings();
+    setOpenAiStatusView({ error: err });
     showToast(err?.message || 'OpenAI-compatible test failed', 'error');
+  } finally {
+    setOpenAiOperationPending(false);
   }
 }
 
 function initOpenAiSettings() {
   loadOpenAiSettings();
+  document.getElementById('ai-openai-service')?.addEventListener('change', event => {
+    const baseUrl = AI_OPENAI_SERVICES[event.target.value];
+    if (baseUrl) {
+      const input = document.getElementById('ai-openai-base-url');
+      if (input) input.value = baseUrl;
+    }
+    markOpenAiSettingsDirty();
+  });
+  ['ai-openai-base-url', 'ai-openai-api-key', 'ai-openai-model'].forEach(id => {
+    document.getElementById(id)?.addEventListener('input', () => {
+      if (id === 'ai-openai-base-url') syncOpenAiService(document.getElementById(id)?.value);
+      setOpenAiValidation();
+      markOpenAiSettingsDirty();
+    });
+  });
   document.getElementById('ai-openai-save')?.addEventListener('click', saveOpenAiSettings);
   document.getElementById('ai-openai-clear-key')?.addEventListener('click', clearOpenAiApiKey);
   document.getElementById('ai-openai-test')?.addEventListener('click', testOpenAiSettings);
@@ -615,12 +880,29 @@ function initDefaultProviderSetting() {
   if (!select) return;
   chrome.storage.sync.get(AI_DEFAULT_PROVIDER_STORAGE_KEY, (result) => {
     const stored = (result || {})[AI_DEFAULT_PROVIDER_STORAGE_KEY];
-    select.value = stored === 'openai' ? 'openai' : 'gemini';
+    aiDefaultProvider = stored === 'openai' ? 'openai' : 'gemini';
+    select.value = aiDefaultProvider;
+    updateAIProviderSummary();
   });
   select.addEventListener('change', () => {
     const value = select.value === 'openai' ? 'openai' : 'gemini';
+    if (value === 'openai' && !openAiStatusSnapshot?.ready) {
+      select.value = aiDefaultProvider;
+      document.getElementById('ai-openai-panel')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      document.getElementById('ai-openai-base-url')?.focus();
+      showToast('Save an OpenAI-compatible base URL and model before selecting it', 'error');
+      return;
+    }
     chrome.storage.sync.set({ [AI_DEFAULT_PROVIDER_STORAGE_KEY]: value }, () => {
-      showToast(`Default AI provider set to ${value === 'openai' ? 'OpenAI-Compatible' : 'Gemini'}`, 'success');
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        select.value = aiDefaultProvider;
+        showToast(lastError.message || 'AI provider selection could not be saved', 'error');
+        return;
+      }
+      aiDefaultProvider = value;
+      updateAIProviderSummary();
+      showToast(`Active AI provider set to ${providerDisplayLabel(value)}`, 'success');
     });
   });
 }
@@ -724,7 +1006,7 @@ function saveFeatureState(featureId, enabled) {
 }
 
 function setUltrascriptsModuleControlsEnabled(enabled) {
-  document.querySelectorAll('[data-ultrascripts-module-toggle], #ultrascripts-debug, #ai-gemini-api-key, #ai-gemini-model-mode, #ai-gemini-model, #ai-gemini-save, #ai-gemini-test, #ai-openai-base-url, #ai-openai-api-key, #ai-openai-model, #ai-openai-save, #ai-openai-clear-key, #ai-openai-test, #ai-default-provider')
+  document.querySelectorAll('[data-ultrascripts-module-toggle], #ultrascripts-debug, #ai-gemini-api-key, #ai-gemini-model-mode, #ai-gemini-model, #ai-gemini-save, #ai-gemini-clear-key, #ai-gemini-test, #ai-openai-service, #ai-openai-base-url, #ai-openai-api-key, #ai-openai-model, #ai-openai-save, #ai-openai-clear-key, #ai-openai-test, #ai-default-provider')
     .forEach(control => {
       control.disabled = !enabled;
     });
