@@ -8,6 +8,7 @@
     constructor() {
       this.debug = false;
       this.identityCache = new Map();
+      this.scenarioIdentityState = new Map();
     }
 
     static FORBIDDEN_REPLAY_HEADERS = new Set([
@@ -444,28 +445,23 @@
       const resolvedShortId = shortId || identity?.shortId;
       if (!resolvedShortId) return;
       const cached = identity || this.identityCache.get(resolvedShortId);
-      if (!cached || cached.scenarioId || cached.scenarioIdPromise) return;
+      if (!cached || cached.scenarioId || this.scenarioIdentityState.get(resolvedShortId)?.attempted) return;
 
-      cached.scenarioIdPromise = new Promise((resolve) => {
-        setTimeout(async () => {
-          try {
-            const result = await this.request(
-              'GetBetterDungeonAdventureIdentity',
-              { shortId: resolvedShortId },
-              BetterDungeonGQLService.QUERIES.adventureIdentity,
-              { timeoutMs: 10000 }
-            );
-            const adventure = result?.data?.adventure;
-            if (adventure?.scenarioId) cached.scenarioId = adventure.scenarioId;
-          } catch (error) {
-            this.log('Background scenario identity lookup failed:', error);
-          } finally {
-            delete cached.scenarioIdPromise;
-            resolve(cached);
-          }
-        }, 0);
-      });
-      return cached.scenarioIdPromise;
+      this.scenarioIdentityState.set(resolvedShortId, { attempted: true });
+      void (async () => {
+        try {
+          const result = await this.request(
+            'GetBetterDungeonAdventureIdentity',
+            { shortId: resolvedShortId },
+            BetterDungeonGQLService.QUERIES.adventureIdentity,
+            { timeoutMs: 10000 }
+          );
+          const adventure = result?.data?.adventure;
+          if (adventure?.scenarioId) cached.scenarioId = adventure.scenarioId;
+        } catch (error) {
+          this.log('Background scenario identity lookup failed:', error);
+        }
+      })();
     }
 
     async getNavigatorAdventureContext(shortId = null, options = {}) {
