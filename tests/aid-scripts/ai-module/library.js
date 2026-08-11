@@ -206,7 +206,7 @@ function faiQueueQuery(kind) {
       }
       : kind === 'json'
       ? {
-        prompt: 'Return JSON with ok true and label "gemini".',
+        prompt: 'Return JSON with ok true and label "compatible".',
         thinking: 'low',
         output: {
           type: 'json',
@@ -272,8 +272,9 @@ function faiStatusPass() {
   var data = faiStatusData();
   return !!(
     data &&
-    data.backend === 'gemini' &&
-    data.backendLabel === 'Gemini' &&
+    data.provider === 'openai-compatible' &&
+    data.backend === 'openai-compatible' &&
+    data.backendLabel === 'OpenAI-Compatible' &&
     typeof data.ready === 'boolean' &&
     data.available === data.ready &&
     (data.phase === 'live' || data.phase === 'executor') &&
@@ -281,17 +282,17 @@ function faiStatusPass() {
     data.supports &&
     data.supports.text === true &&
     data.supports.json === true &&
-    data.supports.thinking === true &&
+    typeof data.supports.thinking === 'boolean' &&
     data.config &&
-    data.config.provider === 'gemini' &&
-    data.config.api === 'interactions' &&
-    data.config.apiVersion === 'v1' &&
+    data.config.provider === 'openai-compatible' &&
+    data.config.backend === 'openai-compatible' &&
+    ['gemini', 'openrouter', 'custom'].indexOf(data.config.service) !== -1 &&
+    data.config.api === 'chat-completions' &&
     data.config.stateless === true &&
-    data.config.adjustableSafety === 'provider-default' &&
     typeof data.config.keyConfigured === 'boolean' &&
     typeof data.config.model === 'string' &&
-    Array.isArray(data.config.fallbackModels) &&
-    data.config.fallbackModels[0] === 'gemini-3.5-flash-lite' &&
+    Array.isArray(data.config.fallbackChain) &&
+    (data.config.service !== 'gemini' || data.config.modelMode !== 'auto' || data.config.fallbackChain[0] === 'gemini-3.5-flash-lite') &&
     data.config.thinkingDefault === 'minimal' &&
     Array.isArray(data.config.thinkingLevels) &&
     data.config.thinkingLevels.indexOf('minimal') !== -1 &&
@@ -304,7 +305,7 @@ function faiStatusPass() {
     data.contract.thinkingLevels.indexOf('minimal') !== -1 &&
     data.contract.defaultThinking === 'minimal' &&
     data.executor &&
-    data.executor.version === '0.5.0-provider-router' &&
+    data.executor.version === '0.6.0-openai-compatible' &&
     data.executor.promptMaxChars === 12000 &&
     data.executor.backendConfigured === true
   );
@@ -313,16 +314,20 @@ function faiStatusPass() {
 function faiMetaPass(meta, outputType) {
   return !!(
     meta &&
-    meta.backend === 'gemini' &&
+    meta.provider === 'openai-compatible' &&
+    meta.backend === 'openai-compatible' &&
+    ['gemini', 'openrouter', 'custom'].indexOf(meta.service) !== -1 &&
     meta.outputType === outputType &&
     typeof meta.promptChars === 'number' &&
     typeof meta.generatedAtIso === 'string' &&
     typeof meta.model === 'string' &&
-    meta.thinking &&
-    typeof meta.thinking.requestedLevel === 'string' &&
-    typeof meta.thinking.applied === 'boolean' &&
-    typeof meta.thinking.family === 'string' &&
-    typeof meta.thinking.defaulted === 'boolean'
+    (faiStatusData().supports.thinking !== true || (
+      meta.thinking &&
+      typeof meta.thinking.requestedLevel === 'string' &&
+      typeof meta.thinking.applied === 'boolean' &&
+      typeof meta.thinking.family === 'string' &&
+      typeof meta.thinking.defaulted === 'boolean'
+    ))
   );
 }
 
@@ -353,8 +358,10 @@ function faiQueryPass(kind) {
         done.data.json.ok === true &&
         typeof done.data.json.label === 'string' &&
         faiMetaPass(done.data.meta, 'json') &&
-        done.data.meta.thinking.requestedLevel === 'low' &&
-        done.data.meta.thinking.defaulted === false
+        (status.supports.thinking !== true || (
+          done.data.meta.thinking.requestedLevel === 'low' &&
+          done.data.meta.thinking.defaulted === false
+        ))
       );
     }
     return !!(
@@ -364,8 +371,10 @@ function faiQueryPass(kind) {
       typeof done.data.text === 'string' &&
       done.data.text.length > 0 &&
       faiMetaPass(done.data.meta, 'text') &&
-      done.data.meta.thinking.requestedLevel === 'minimal' &&
-      done.data.meta.thinking.defaulted === true
+      (status.supports.thinking !== true || (
+        done.data.meta.thinking.requestedLevel === 'minimal' &&
+        done.data.meta.thinking.defaulted === true
+      ))
     );
   }
   return !!(
@@ -374,7 +383,7 @@ function faiQueryPass(kind) {
     done.error &&
     done.error.code === 'not_configured' &&
     done.error.retryable === false &&
-    done.error.backend === 'gemini'
+    done.error.backend === 'openai-compatible'
   );
 }
 

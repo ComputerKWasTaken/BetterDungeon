@@ -16,7 +16,8 @@
     "service_worker": "background.js",
     "scripts": [
       "utils/browser-polyfill.js",
-      "background.js"
+      "background.js",
+      "background-ai-openai-compatible.js"
     ]
   },
   "browser_specific_settings": {
@@ -71,8 +72,7 @@
         "modules/sdk/module.js",
         "modules/audio/module.js",
         "modules/ai/executor.js",
-        "modules/ai/gemini-backend.js",
-        "modules/ai/openai-backend.js",
+        "modules/ai/openai-compatible-backend.js",
         "modules/ai/module.js",
         "modules/widget/validators.js",
         "modules/widget/renderer.js",

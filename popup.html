@@ -60,7 +60,7 @@
             <span class="whats-new-compact-icon icon-sparkles"></span>
             <span class="whats-new-compact-text">
               <strong id="whats-new-title">What's New</strong>
-              <span class="whats-new-compact-summary">Navigator &middot; Provider choice &middot; Ultrascripts upgrades</span>
+              <span class="whats-new-compact-summary">Navigator &middot; Compatible AI profiles &middot; Ultrascripts upgrades</span>
             </span>
           </span>
           <span class="whats-new-compact-right">
@@ -104,11 +104,11 @@
                 <div class="whats-new-archive-item whats-new-archive-item-group">
                   <span class="whats-new-item-icon icon-brain-circuit" style="color: #6366f1;"></span>
                   <div>
-                    <div><strong>AI Provider Choice</strong>: Use Google Gemini or connect an OpenAI-compatible endpoint for Ultrascripts, Character Prefill, and Navigator.</div>
+                    <div><strong>One Compatible AI Backend</strong>: Gemini, OpenRouter, and remote custom services now share one OpenAI-compatible endpoint for Ultrascripts, Character Prefill, and Navigator.</div>
                     <ul class="whats-new-sublist">
-                      <li><strong>OpenRouter First</strong>: OpenRouter is the default compatible service, with support for a custom HTTPS Chat Completions endpoint.</li>
-                      <li><strong>Explicit Routing</strong>: BetterDungeon uses only the provider you select and never silently sends adventure content elsewhere as a fallback.</li>
-                      <li><strong>Clear Setup</strong>: Improved provider status, inline validation, connection testing, and actionable failure messages.</li>
+                      <li><strong>Gemini Default</strong>: Gemini keeps its automatic 429-only model stepdown and remains the default service.</li>
+                      <li><strong>Explicit Services</strong>: BetterDungeon never silently sends adventure content to a different service.</li>
+                      <li><strong>Profile Setup</strong>: Save Gemini, OpenRouter, or custom HTTPS profile settings in one panel with inline validation and connection testing.</li>
                     </ul>
                   </div>
                 </div>
@@ -120,7 +120,7 @@
                       <li><strong>Reliable Heartbeat</strong>: Scripts can distinguish a live BetterDungeon client from stale state more accurately.</li>
                       <li><strong>Audio Module</strong>: Scripts can request bounded synthesized sound effects with waveforms, pitch sweeps, envelopes, volume, and stop controls.</li>
                       <li><strong>Revised WebFetch</strong>: Safe public HTTPS reads are simpler and no longer interrupted by per-origin approval prompts.</li>
-                      <li><strong>Modernized AI</strong>: Gemini now uses the Interactions API with visible model stepdown and structured content-block errors, while the public <code>ai.query</code> contract remains unchanged.</li>
+                      <li><strong>Modernized AI</strong>: One OpenAI-compatible Chat Completions backend now preserves Gemini reasoning, structured output, safety diagnostics, and multi-step tool state while the public <code>ai.query</code> contract remains unchanged.</li>
                     </ul>
                   </div>
                 </div>
@@ -1077,106 +1077,64 @@
                 </label>
               </div>
               <div class="feature-details">
-                <p>Choose the provider used by Ultrascripts, Character Prefill, and Navigator. Provider changes are explicit; BetterDungeon never sends a request to a different provider as a fallback.</p>
+                <p>All remote services use one OpenAI-compatible Chat Completions backend. The selected service is activated when you save; BetterDungeon never falls back across services.</p>
 
-                <div class="ai-provider-routing">
+                <section class="ai-provider-panel" id="ai-endpoint-panel" data-provider="openai-compatible">
+                  <div class="ai-provider-panel-header">
+                    <div>
+                      <h4>OpenAI-compatible endpoint</h4>
+                      <p>Gemini is the default; OpenRouter and remote custom HTTPS endpoints (including Mistral-compatible URLs) use the same protocol.</p>
+                    </div>
+                    <span class="ai-provider-badge" id="ai-endpoint-status" data-state="pending">Checking</span>
+                  </div>
                   <div class="form-group">
-                    <label class="form-label" for="ai-default-provider">Active provider</label>
-                    <select class="form-input" id="ai-default-provider">
+                    <label class="form-label" for="ai-endpoint-service">Service</label>
+                    <select class="form-input" id="ai-endpoint-service">
                       <option value="gemini">Google Gemini</option>
-                      <option value="openai">OpenAI-compatible endpoint</option>
-                    </select>
-                  </div>
-                  <p class="ai-provider-routing-summary" id="ai-default-provider-status">Checking provider...</p>
-                </div>
-
-                <section class="ai-provider-panel" id="ai-gemini-panel" data-provider="gemini">
-                  <div class="ai-provider-panel-header">
-                    <div>
-                      <h4>Google Gemini</h4>
-                      <p>Managed model stepdown through the Gemini Interactions API.</p>
-                    </div>
-                    <span class="ai-provider-badge" id="ai-gemini-status" data-state="pending">Checking</span>
-                  </div>
-                  <p class="feature-hint"><span class="icon-key-round"></span> Get a key from <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer">Google AI Studio</a>.</p>
-                  <div class="form-group">
-                    <label class="form-label" for="ai-gemini-api-key">API key</label>
-                    <input type="password" class="form-input" id="ai-gemini-api-key" placeholder="AIza..." autocomplete="off" spellcheck="false">
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="ai-gemini-model-mode">Model selection</label>
-                    <select class="form-input" id="ai-gemini-model-mode">
-                      <option value="auto">Best available (automatic stepdown)</option>
-                      <option value="manual">Manual model</option>
-                    </select>
-                  </div>
-                  <div class="form-group" id="ai-gemini-model-group">
-                    <label class="form-label" for="ai-gemini-model">Model</label>
-                    <input type="text" class="form-input" id="ai-gemini-model" placeholder="gemini-3.5-flash-lite" spellcheck="false">
-                  </div>
-                  <div class="btn-row">
-                    <button class="btn btn-action" id="ai-gemini-save" type="button">
-                      <span class="icon-save"></span>
-                      Save
-                    </button>
-                    <button class="btn btn-ghost" id="ai-gemini-test" type="button">
-                      <span class="icon-circle-check"></span>
-                      Test
-                    </button>
-                    <button class="btn btn-ghost" id="ai-gemini-clear-key" type="button">
-                      <span class="icon-eraser"></span>
-                      Clear key
-                    </button>
-                  </div>
-                </section>
-
-                <section class="ai-provider-panel" id="ai-openai-panel" data-provider="openai">
-                  <div class="ai-provider-panel-header">
-                    <div>
-                      <h4>OpenAI-compatible</h4>
-                      <p>Connect OpenRouter or another HTTPS Chat Completions endpoint.</p>
-                    </div>
-                    <span class="ai-provider-badge" id="ai-openai-status" data-state="pending">Checking</span>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="ai-openai-service">Service</label>
-                    <select class="form-input" id="ai-openai-service">
                       <option value="openrouter">OpenRouter</option>
                       <option value="custom">Custom endpoint</option>
                     </select>
                   </div>
                   <div class="form-group">
-                    <label class="form-label" for="ai-openai-base-url">Base URL</label>
-                    <input type="url" class="form-input" id="ai-openai-base-url" placeholder="https://openrouter.ai/api/v1" aria-describedby="ai-openai-base-url-help ai-openai-validation" spellcheck="false">
-                    <p class="form-help" id="ai-openai-base-url-help">Include the API version path, such as <code>/v1</code>. BetterDungeon adds <code>/chat/completions</code>.</p>
+                    <label class="form-label" for="ai-endpoint-base-url">Base URL</label>
+                    <input type="url" class="form-input" id="ai-endpoint-base-url" aria-describedby="ai-endpoint-base-url-help ai-endpoint-validation" spellcheck="false">
+                    <p class="form-help" id="ai-endpoint-base-url-help">Gemini and OpenRouter use their official locked URL. Custom endpoints must use HTTPS; BetterDungeon adds <code>/chat/completions</code>.</p>
                   </div>
                   <div class="form-group">
-                    <label class="form-label" for="ai-openai-api-key">API key <span class="form-label-optional">optional when the endpoint requires none</span></label>
-                    <input type="password" class="form-input" id="ai-openai-api-key" placeholder="Paste a key" autocomplete="off" spellcheck="false">
+                    <label class="form-label" for="ai-endpoint-api-key">API key <span class="form-label-optional" id="ai-endpoint-key-optional"></span></label>
+                    <input type="password" class="form-input" id="ai-endpoint-api-key" placeholder="Paste a key" autocomplete="off" spellcheck="false">
                   </div>
-                  <div class="form-group">
-                    <label class="form-label" for="ai-openai-model">Model ID</label>
-                    <input type="text" class="form-input" id="ai-openai-model" placeholder="openai/gpt-5-mini" aria-describedby="ai-openai-model-help ai-openai-validation" spellcheck="false">
-                    <p class="form-help" id="ai-openai-model-help">Use the exact model identifier accepted by your endpoint.</p>
+                  <div class="form-group" id="ai-endpoint-model-mode-group">
+                    <label class="form-label" for="ai-endpoint-model-mode">Model selection</label>
+                    <select class="form-input" id="ai-endpoint-model-mode">
+                      <option value="auto">Best available (429 stepdown)</option>
+                      <option value="manual">Manual model</option>
+                    </select>
                   </div>
-                  <div class="ai-provider-validation" id="ai-openai-validation" role="status" aria-live="polite"></div>
-                  <div class="ai-provider-status-card" id="ai-openai-status-card" data-state="pending">
+                  <div class="form-group" id="ai-endpoint-model-group">
+                    <label class="form-label" for="ai-endpoint-model">Model ID</label>
+                    <input type="text" class="form-input" id="ai-endpoint-model" placeholder="gemini-3.5-flash-lite" aria-describedby="ai-endpoint-model-help ai-endpoint-validation" spellcheck="false">
+                    <p class="form-help" id="ai-endpoint-model-help">Use the exact model identifier accepted by the selected service.</p>
+                  </div>
+                  <p class="feature-hint" id="ai-endpoint-gemini-help"><span class="icon-key-round"></span> Get a Gemini key from <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer">Google AI Studio</a>.</p>
+                  <div class="ai-provider-validation" id="ai-endpoint-validation" role="status" aria-live="polite"></div>
+                  <div class="ai-provider-status-card" id="ai-endpoint-status-card" data-state="pending">
                     <span class="ai-provider-status-dot" aria-hidden="true"></span>
                     <div>
-                      <strong id="ai-openai-status-title">Checking configuration</strong>
-                      <span id="ai-openai-status-detail">Reading locally saved settings...</span>
+                      <strong id="ai-endpoint-status-title">Checking configuration</strong>
+                      <span id="ai-endpoint-status-detail">Reading locally saved settings...</span>
                     </div>
                   </div>
                   <div class="btn-row">
-                    <button class="btn btn-action" id="ai-openai-save" type="button">
+                    <button class="btn btn-action" id="ai-endpoint-save" type="button">
                       <span class="icon-save"></span>
                       Save
                     </button>
-                    <button class="btn btn-ghost" id="ai-openai-test" type="button">
+                    <button class="btn btn-ghost" id="ai-endpoint-test" type="button">
                       <span class="icon-circle-check"></span>
                       Save &amp; test
                     </button>
-                    <button class="btn btn-ghost" id="ai-openai-clear-key" type="button">
+                    <button class="btn btn-ghost" id="ai-endpoint-clear-key" type="button">
                       <span class="icon-eraser"></span>
                       Clear key
                     </button>
@@ -1662,6 +1620,7 @@
   <script src="utils/browser-polyfill.js"></script>
   <script src="services/tutorial-service.js"></script>
   <script src="utils/markdown-config.js"></script>
+  <script src="popup-ai-endpoint.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

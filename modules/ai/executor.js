@@ -7,7 +7,7 @@
 (function () {
   if (window.UltrascriptsAIExecutor) return;
 
-  const VERSION = '0.5.0-provider-router';
+  const VERSION = '0.6.0-openai-compatible';
   const PROMPT_MAX_CHARS = 12000;
   const OUTPUT_TYPES = Object.freeze(['text', 'json']);
   const THINKING_LEVELS = Object.freeze(['minimal', 'low', 'medium', 'high']);
@@ -305,6 +305,14 @@
     };
   }
 
+  function providerSupports(provider) {
+    if (!provider) return normalizeSupports(null);
+    const raw = typeof provider.supports === 'function'
+      ? provider.supports()
+      : provider.supports;
+    return normalizeSupports(raw);
+  }
+
   function normalizeId(value, label) {
     const id = typeof value === 'string' ? value.trim().toLowerCase() : '';
     if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(id)) {
@@ -327,7 +335,9 @@
       label: typeof provider.label === 'string' && provider.label.trim()
         ? provider.label.trim()
         : id,
-      supports: normalizeSupports(provider.supports),
+      supports: typeof provider.supports === 'function'
+        ? provider.supports
+        : normalizeSupports(provider.supports),
     };
   }
 
@@ -400,7 +410,7 @@
     return {
       id: provider.id,
       label: provider.label,
-      supports: normalizeSupports(provider.supports),
+      supports: providerSupports(provider),
       status,
     };
   }
@@ -493,6 +503,7 @@
     };
     if (typeof result?.model === 'string') meta.model = result.model;
     if (typeof result?.providerModel === 'string') meta.providerModel = result.providerModel;
+    if (typeof result?.service === 'string') meta.service = result.service;
     if (result?.thinking) meta.thinking = cloneJson(result.thinking);
     if (result?.fallback) meta.fallback = cloneJson(result.fallback);
     if (result?.usage) meta.usage = cloneJson(result.usage);
@@ -524,6 +535,7 @@
     };
     if (typeof result?.model === 'string') meta.model = result.model;
     if (typeof result?.providerModel === 'string') meta.providerModel = result.providerModel;
+    if (typeof result?.service === 'string') meta.service = result.service;
     if (result?.thinking) meta.thinking = cloneJson(result.thinking);
     if (result?.fallback) meta.fallback = cloneJson(result.fallback);
     if (result?.usage) meta.usage = cloneJson(result.usage);
@@ -575,7 +587,7 @@
       };
     }
 
-    const supports = normalizeSupports(provider.supports);
+    const supports = providerSupports(provider);
     if (supports[task.output.type] !== true) {
       throw {
         code: 'unavailable',

@@ -26,9 +26,9 @@ The current release is **BetterDungeon v2.1.0**. Its headline addition is Naviga
 - **Navigator** — Grounded, multi-turn streaming chat with Plot Component and Recent Story context, selective Story Card research, rich Markdown, quick actions, and visible tool activity.
 - **Confirmed modifications** — Navigator can propose changes to Plot Components, Third Person, and all five editable Story Card fields. Every write requires direct approval, conflict checks, and server read-back.
 - **Read-only mode** — Remove Navigator's mutation tools while retaining chat and Story Card research.
-- **AI provider choice** — Select Gemini or an OpenAI-compatible endpoint for Ultrascripts, Character Prefill, and Navigator. OpenRouter is the default compatible service, with custom HTTPS endpoints also supported.
-- **Improved provider setup** — Explicit routing, connection testing, inline validation, and actionable provider errors without silent cross-provider fallback.
-- **Ultrascripts reliability** — A stronger liveness heartbeat, revised WebFetch behavior, and a modernized Gemini Interactions backend while preserving the existing `ai.query` contract.
+- **One compatible AI backend** — Gemini (default), OpenRouter, and remote custom HTTPS services share one OpenAI-compatible Chat Completions implementation for Ultrascripts, Character Prefill, and Navigator.
+- **Profile-based setup** — One service panel provides local profile storage, connection testing, validation, and explicit activation without cross-service fallback.
+- **Ultrascripts reliability** — A stronger liveness heartbeat, revised WebFetch behavior, and compatible structured output, reasoning, safety, and tool continuation while preserving the existing `ai.query` contract.
 - **Audio module** — Bounded synthesized effects with configurable waveforms, pitch, envelopes, volume, replay prevention, and stop behavior.
 
 Previous release notes remain available from the version switcher in BetterDungeon's What's New panel.
@@ -98,7 +98,7 @@ Available modules include:
 
 | Module | What it enables |
 | --- | --- |
-| `ai` | Asynchronous requests through the player's configured AI provider |
+| `ai` | Asynchronous requests through the player's configured compatible endpoint service |
 | `widget` | RPG HUDs, stat bars, inventories, buttons, and status panels |
 | `webfetch` | Bounded, credential-free reads of public HTTPS resources |
 | `clock` | Local time, timestamps, offsets, and IANA timezones |
@@ -114,7 +114,7 @@ Check out the [Ultrascripts examples](examples/README.md) if you want to start b
 1. Install BetterDungeon and open [AI Dungeon](https://play.aidungeon.com/).
 2. Open the BetterDungeon popup from your browser toolbar or the in-game sidebar.
 3. Enable the features you want to use.
-4. If you want to use AI-powered features or script-side AI, configure an AI provider in the **Ultrascripts** settings.
+4. If you want AI-powered features or script-side AI, configure a Gemini, OpenRouter, or remote custom endpoint profile in **Ultrascripts** settings.
 
 The WebFetch module toggle controls access to bounded public HTTPS reads. Requests never include browser cookies or ambient credentials.
 

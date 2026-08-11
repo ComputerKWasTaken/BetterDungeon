@@ -1,8 +1,8 @@
 # Ultrascripts AI Module - AI Dungeon Test Suite
 
 End-to-end contract test scripts for the BetterDungeon Ultrascripts AI module.
-The current default backend is Gemini, but the suite is centered on the public
-`status` and `query` contract.
+The default service is Gemini, but every remote service runs through the single
+`openai-compatible` backend and the suite remains centered on `status` and `query`.
 
 ## What It Covers
 
@@ -14,8 +14,8 @@ The suite verifies:
 - The legacy provider alias is not advertised as a heartbeat module.
 - `ai.status` reports query readiness, configured model selection, and key
   configuration state.
-- Status reports the stateless Gemini Interactions transport and the current
-  `gemini-3.5-flash-lite`-first automatic model chain.
+- Status reports the stateless Chat Completions transport, selected service,
+  and the `gemini-3.5-flash-lite`-first chain when Gemini automatic mode is active.
 - Plain text `ai.query` returns text when the backend is configured, or
   `not_configured` when no key is saved.
 - Schema-backed JSON `ai.query` returns parsed JSON when the backend is configured,
@@ -26,8 +26,8 @@ The suite verifies:
   metadata.
 - Schema-less JSON `ai.query` returns terminal `invalid_args`.
 - Invalid thinking levels return terminal `invalid_args`.
-- Gemini adjustable-filter blocks use `safety_blocked`; non-adjustable policy
-  blocks use `prohibited_content`.
+- Compatible content filters use `safety_blocked`; Gemini prohibited-content
+  policy blocks remain distinct as `prohibited_content`.
 
 ## Setup
 
@@ -64,10 +64,11 @@ A successful run ends with:
 - `phase: "complete"`
 - `checksPass: true`
 - `heartbeat.aiOps: ["status", "query"]`
-- `status.data.backend: "gemini"`
-- `status.data.executor.version: "0.5.0-provider-router"`
-- `status.data.config.api: "interactions"`
-- `status.data.config.fallbackModels[0]: "gemini-3.5-flash-lite"`
+- `status.data.backend: "openai-compatible"`
+- `status.data.config.service: "gemini" | "openrouter" | "custom"`
+- `status.data.executor.version: "0.6.0-openai-compatible"`
+- `status.data.config.api: "chat-completions"`
+- `status.data.config.fallbackChain[0]: "gemini-3.5-flash-lite"` in Gemini automatic mode
 - `status.data.contract.defaultThinking: "minimal"`
 - `status.data.config.keyConfigured: true` for live generation
 - `textQuery.response.status: "ok"` when configured

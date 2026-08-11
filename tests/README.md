@@ -10,12 +10,20 @@ code - anything here is for verifying behavior, not for shipping.
   the live Full Ultrascripts protocol. Pasted into a scenario's Scripting panel.
   Each subfolder targets one Ultrascripts module or feature.
 
-  - **`aid-scripts/ai-module/`** - Placeholder suite for the Ultrascripts AI
+  - **`aid-scripts/ai-module/`** - Live suite for the Ultrascripts AI
     module (`modules/ai/module.js`). Verifies heartbeat advertises only
     `status` and `query`, that `ai.status` reports query readiness, and that
     text, schema-backed JSON, query metadata, per-query thinking, missing-key,
     schema guard, and thinking guard paths behave. See its `README.md` for
     setup and reading the trace card.
+
+- **`ai-compatible-contract.test.js`** - Mocked desktop runtime contract for
+  profile cleanup/validation, dynamic capabilities, compatible text/JSON
+  payloads, Gemini reasoning and 429 stepdown, streaming/cancellation/timeout,
+  error mapping, and exact opaque thought-signature replay across tool rounds.
+
+Run it with `node tests/ai-compatible-contract.test.js`.
+Complete `AI_COMPATIBLE_RELEASE_GATE.md` before publishing V2.1.
 
   - **`aid-scripts/sdk-module/`** - End-to-end suite for the Ultrascripts SDK
     module (`modules/sdk/module.js`). Exercises `version` and `config` ops.
