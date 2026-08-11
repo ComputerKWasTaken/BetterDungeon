@@ -399,6 +399,7 @@
       const wsAdventureId = ws?.getAdventureId?.();
       const cached = this.identityCache.get(resolvedShortId);
       if (cached && (cached.adventureId || cached.id)) {
+        this.resolveScenarioIdInBackground(resolvedShortId, cached);
         return cached;
       }
 
@@ -412,6 +413,7 @@
           source: 'ws',
         };
         this.identityCache.set(resolvedShortId, identity);
+        this.resolveScenarioIdInBackground(resolvedShortId, identity);
         return identity;
       }
 
@@ -436,6 +438,34 @@
       };
       this.identityCache.set(resolvedShortId, identity);
       return identity;
+    }
+
+    resolveScenarioIdInBackground(shortId, identity = null) {
+      const resolvedShortId = shortId || identity?.shortId;
+      if (!resolvedShortId) return;
+      const cached = identity || this.identityCache.get(resolvedShortId);
+      if (!cached || cached.scenarioId || cached.scenarioIdPromise) return;
+
+      cached.scenarioIdPromise = new Promise((resolve) => {
+        setTimeout(async () => {
+          try {
+            const result = await this.request(
+              'GetBetterDungeonAdventureIdentity',
+              { shortId: resolvedShortId },
+              BetterDungeonGQLService.QUERIES.adventureIdentity,
+              { timeoutMs: 10000 }
+            );
+            const adventure = result?.data?.adventure;
+            if (adventure?.scenarioId) cached.scenarioId = adventure.scenarioId;
+          } catch (error) {
+            this.log('Background scenario identity lookup failed:', error);
+          } finally {
+            delete cached.scenarioIdPromise;
+            resolve(cached);
+          }
+        }, 0);
+      });
+      return cached.scenarioIdPromise;
     }
 
     async getNavigatorAdventureContext(shortId = null, options = {}) {
