@@ -7,7 +7,6 @@
 (function () {
   if (typeof window === 'undefined' || window.NavigatorMutations) return;
 
-  const READ_ONLY_STORAGE_KEY = 'betterDungeon_navigator_read_only';
   const MAX_PROPOSAL_CHARS = 40000;
   const MAX_REASON_CHARS = 1000;
   const ID_ATTEMPTS = 8;
@@ -226,31 +225,12 @@
       if (!isExtensionContextValid()) {
         throw { code: 'extension_context_invalid', message: 'The extension was reloaded. Reload this page before applying changes.' };
       }
-      return new Promise(resolve => {
-        let settled = false;
-        const finish = value => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timer);
-          resolve(value);
-        };
-        const timer = setTimeout(() => finish(true), 2000);
-        try {
-          chrome.storage.sync.get(READ_ONLY_STORAGE_KEY, result => {
-            try {
-              if (chrome.runtime?.lastError) {
-                finish(true);
-                return;
-              }
-              finish((result || {})[READ_ONLY_STORAGE_KEY] === true);
-            } catch {
-              finish(true);
-            }
-          });
-        } catch {
-          finish(true);
-        }
-      });
+      try {
+        const settings = await NavigatorSettings.load();
+        return settings.readOnly === true;
+      } catch {
+        return true;
+      }
     }
 
     createProposal(name, rawArgs, options = {}) {
@@ -543,7 +523,6 @@
   }
 
   NavigatorMutations.DEFINITIONS = DEFINITIONS;
-  NavigatorMutations.READ_ONLY_STORAGE_KEY = READ_ONLY_STORAGE_KEY;
   NavigatorMutations.MAX_PROPOSAL_CHARS = MAX_PROPOSAL_CHARS;
   window.NavigatorMutations = NavigatorMutations;
 

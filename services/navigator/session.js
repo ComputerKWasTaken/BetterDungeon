@@ -22,7 +22,6 @@
   const MAX_TOOL_ROUNDS = 6;
   const MAX_TOOL_RESULT_CHARS_PER_TURN = 16000;
   const TOOL_ERROR_RESERVE_CHARS = 256;
-  const READ_ONLY_STORAGE_KEY = 'betterDungeon_navigator_read_only';
   const TOOL_GUIDANCE = [
     '',
     '=== NAVIGATOR STORY CARD TOOLS ===',
@@ -90,14 +89,19 @@
       this.contextControllers = new Set();
       this.applyController = null;
       this.mutationQueue = Promise.resolve();
-      this.readOnly = false;
-      this.boundStorageChange = (changes, areaName) => this.onStorageChange(changes, areaName);
-      this.settingsReady = this.loadReadOnlyMode();
+      this.settings = typeof NavigatorSettings !== 'undefined'
+        ? { ...NavigatorSettings.DEFAULTS }
+        : { readOnly: false, thinkingLevel: 'low', sendReasoningToCustom: false };
+      this.boundSettingsChange = settings => this.onSettingsChange(settings);
+      this.settingsUnsubscribe = null;
+      this.settingsReady = this.loadSettings();
       this.destroyed = false;
       this.debug = false;
 
       try {
-        chrome.storage?.onChanged?.addListener(this.boundStorageChange);
+        if (typeof NavigatorSettings !== 'undefined') {
+          this.settingsUnsubscribe = NavigatorSettings.watch(this.boundSettingsChange);
+        }
       } catch {
         /* noop */
       }
@@ -219,43 +223,26 @@
       this.emit('reset', this.messages);
     }
 
-    async loadReadOnlyMode() {
-      if (!isExtensionContextValid()) {
+    async loadSettings() {
+      if (!isExtensionContextValid() || typeof NavigatorSettings === 'undefined') {
         this.readOnly = true;
         return;
       }
-      this.readOnly = await new Promise(resolve => {
-        let settled = false;
-        const finish = value => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timer);
-          resolve(value);
-        };
-        const timer = setTimeout(() => finish(true), 2000);
-        try {
-          chrome.storage.sync.get(READ_ONLY_STORAGE_KEY, result => {
-            try {
-              if (chrome.runtime?.lastError) {
-                finish(true);
-                return;
-              }
-              finish((result || {})[READ_ONLY_STORAGE_KEY] === true);
-            } catch {
-              finish(true);
-            }
-          });
-        } catch {
-          finish(true);
-        }
-      });
+      try {
+        this.settings = await NavigatorSettings.load();
+      } catch {
+        this.settings = { ...NavigatorSettings.DEFAULTS };
+      }
+      this.readOnly = this.settings.readOnly === true;
       this.emit('permissions', { readOnly: this.readOnly });
+      this.emit('settings', this.settings);
     }
 
-    onStorageChange(changes, areaName) {
-      if (areaName !== 'sync' || !changes?.[READ_ONLY_STORAGE_KEY]) return;
-      this.readOnly = changes[READ_ONLY_STORAGE_KEY].newValue === true;
+    onSettingsChange(settings) {
+      this.settings = settings;
+      this.readOnly = settings.readOnly === true;
       this.emit('permissions', { readOnly: this.readOnly });
+      this.emit('settings', settings);
     }
 
     getPermissionState() {
@@ -629,8 +616,16 @@
           const result = await window.UltrascriptsAIExecutor.chat({
             systemInstruction: request.systemInstruction,
             messages: request.messages,
-            budget: { maxInputChars: MAX_INPUT_CHARS, maxOutputTokens: MAX_OUTPUT_TOKENS },
-            thinking: { level: 'low' },
+            budget: {
+              maxInputChars: MAX_INPUT_CHARS,
+              maxOutputTokens: window.NavigatorSettings?.outputTokensFor
+                ? window.NavigatorSettings.outputTokensFor(this.settings.thinkingLevel, { maxOutputTokensCeiling: 12288 })
+                : ({ off: 2048, minimal: 2048, low: 3072, medium: 6144, high: 12288 }[this.settings.thinkingLevel] || 3072),
+            },
+            thinking: {
+              level: this.settings.thinkingLevel,
+              sendReasoningToCustom: this.settings.sendReasoningToCustom === true,
+            },
             tools,
             ...(continuation ? { continuation, toolResults } : {}),
           }, {
@@ -928,11 +923,7 @@
         this.saveTimer = null;
       }
       this.persist();
-      try {
-        chrome.storage?.onChanged?.removeListener(this.boundStorageChange);
-      } catch {
-        /* noop */
-      }
+      try { this.settingsUnsubscribe?.(); } catch { /* noop */ }
       this.listeners.clear();
     }
   }

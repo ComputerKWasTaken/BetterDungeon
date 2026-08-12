@@ -34,6 +34,8 @@
   const LEGACY_SYNC_KEYS = Object.freeze(['ultrascripts_ai_default_provider']);
   const SERVICES = Object.freeze(['gemini', 'openrouter', 'custom']);
   const THINKING_LEVELS = Object.freeze(['minimal', 'low', 'medium', 'high']);
+  const CHAT_THINKING_LEVELS = Object.freeze(['off', ...THINKING_LEVELS]);
+  const thinkingCapabilityCache = new Map();
   const OUTPUT_TYPES = Object.freeze(['text', 'json']);
   const TIMEOUT_MS = 120000;
   const KEEPALIVE_MS = 20000;
@@ -328,14 +330,15 @@
     };
   }
 
-  function normalizeThinking(value) {
+  function normalizeThinking(value, chat = false) {
     if (value === undefined || value === null) return { level: AI_DEFAULT_THINKING_LEVEL };
     const raw = typeof value === 'string' ? value : value?.level;
     const level = trim(raw || AI_DEFAULT_THINKING_LEVEL).toLowerCase();
-    if (!THINKING_LEVELS.includes(level)) {
-      throw { code: 'invalid_args', message: `thinking.level must be one of: ${THINKING_LEVELS.join(', ')}`, retryable: false };
+    const levels = chat ? CHAT_THINKING_LEVELS : THINKING_LEVELS;
+    if (!levels.includes(level)) {
+      throw { code: 'invalid_args', message: `thinking.level must be one of: ${levels.join(', ')}`, retryable: false };
     }
-    return { level };
+    return chat ? { level, sendReasoningToCustom: value?.sendReasoningToCustom === true } : { level };
   }
 
   const AI_DEFAULT_THINKING_LEVEL = 'minimal';
@@ -359,7 +362,7 @@
       id: typeof task.id === 'string' ? task.id : null,
       prompt: task.prompt,
       promptChars: Number(task.promptChars || task.prompt.length),
-      thinking: normalizeThinking(task.thinking),
+      thinking: normalizeThinking(task.thinking, false),
       output: { type, schema: output.schema ? cloneJson(output.schema) : undefined },
     };
   }
@@ -444,7 +447,7 @@
       inputChars,
       messageCount: messages.length,
       budget: { maxInputChars, maxOutputTokens },
-      thinking: normalizeThinking(task.thinking),
+      thinking: normalizeThinking(task.thinking, true),
       tools,
       toolResults,
       continuation,
@@ -455,9 +458,23 @@
     return `Respond with one JSON object conforming to this JSON schema. Output only JSON.\nSchema: ${JSON.stringify(schema)}`;
   }
 
-  function applyThinking(payload, settings, model, thinking) {
-    if (settings.service !== 'gemini') return null;
-    const requestedLevel = normalizeThinking(thinking).level;
+  function applyThinking(payload, settings, model, thinking, chat = false) {
+    if (settings.service !== 'gemini' && !chat) return null;
+    const requestedLevel = normalizeThinking(thinking, chat).level;
+    const key = `${settings.service}:${model}`;
+    if (settings.service === 'openrouter') {
+      payload.reasoning = requestedLevel === 'off'
+        ? { enabled: false }
+        : { effort: requestedLevel, exclude: true };
+      return { requestedLevel, appliedLevel: requestedLevel, family: 'openrouter', applied: true, defaulted: requestedLevel === 'low' };
+    }
+    if (settings.service === 'custom') {
+      if (thinking?.sendReasoningToCustom !== true) {
+        return { requestedLevel, appliedLevel: null, family: 'custom', applied: false, defaulted: requestedLevel === 'low', reason: 'disabled' };
+      }
+      payload.reasoning_effort = requestedLevel;
+      return { requestedLevel, appliedLevel: requestedLevel, family: 'custom', applied: true, defaulted: requestedLevel === 'low' };
+    }
     if (/^gemma-/i.test(model)) {
       if (requestedLevel !== 'minimal') {
         payload.extra_body = {
@@ -477,13 +494,14 @@
         toggle: true,
       };
     }
-    payload.reasoning_effort = requestedLevel;
+    payload.reasoning_effort = requestedLevel === 'off' ? 'none' : requestedLevel;
     return {
       requestedLevel,
       appliedLevel: requestedLevel,
       family: 'gemini',
       applied: true,
       defaulted: requestedLevel === AI_DEFAULT_THINKING_LEVEL,
+      ...(thinkingCapabilityCache.get(key) === false ? { applied: false, reason: 'not_supported', appliedLevel: null } : {}),
     };
   }
 
@@ -499,7 +517,7 @@
         ? { type: 'json_schema', json_schema: { name: 'betterdungeon_response', schema: cloneJson(task.output.schema) } }
         : { type: 'json_object' };
     }
-    const thinking = applyThinking(payload, settings, model, task.thinking);
+    const thinking = applyThinking(payload, settings, model, task.thinking, false);
     return { payload, thinking };
   }
 
@@ -533,7 +551,7 @@
       payload.tools = task.tools.map(tool => ({ type: 'function', function: cloneJson(tool) }));
       payload.tool_choice = 'auto';
     }
-    const thinking = applyThinking(payload, settings, model, task.thinking);
+    const thinking = applyThinking(payload, settings, model, task.thinking, true);
     return { payload, thinking, continuationMessages };
   }
 
@@ -591,7 +609,13 @@
     }
     if (response.status === 404) return { ...base, code: 'invalid_args', message: `Endpoint or model not found: ${detail}`, retryable: false };
     if (response.status === 429) return { ...base, code: 'rate_limit', message: `${settings.service} rate limit reached.`, retryable: true };
-    if (response.status === 400) return { ...base, code: 'invalid_args', message: detail, retryable: false };
+    if (response.status === 400) return {
+      ...base,
+      code: 'invalid_args',
+      message: detail,
+      retryable: false,
+      unsupportedReasoning: /reasoning_effort|reasoning|unknown parameter|unsupported parameter|unrecognized parameter/i.test(detail),
+    };
     if (response.status >= 500) return { ...base, code: 'backend_failed', message: `${settings.service} service failed.`, retryable: true };
     return { ...base, code: 'backend_failed', message: detail, retryable: false };
   }
@@ -830,13 +854,34 @@
       return { id: call.id, name: call.function.name, arguments: args };
     });
     if (!text && !publicCalls.length) {
+      if (finishReason === 'length') {
+        throw {
+          code: 'output_exhausted',
+          message: `Navigator used its whole output budget reasoning at the ${settings.service} configured thinking level; lower the thinking level.`,
+          retryable: false,
+          backend: PROVIDER_ID,
+          service: settings.service,
+          model,
+        };
+      }
       throw { code: 'invalid_response', message: sawDone ? 'OpenAI-compatible provider returned no streamed output.' : 'OpenAI-compatible stream closed before completion.', retryable: !sawDone, backend: PROVIDER_ID, service: settings.service, model };
     }
-    return { text, toolCalls: publicCalls, assistantMessage, providerModel, usage };
+    return { text, toolCalls: publicCalls, assistantMessage, providerModel, usage, finishReason };
   }
 
   async function chatAttempt(config, settings, task, session, model, attempted, onDelta) {
     const info = chatPayload(task, settings, model);
+    settings.requestedThinkingLevel = info.thinking?.requestedLevel || task.thinking?.level || 'low';
+    const capabilityKey = `${settings.service}:${model}`;
+    if (thinkingCapabilityCache.get(capabilityKey) === false) {
+      delete info.payload.reasoning_effort;
+      delete info.payload.reasoning;
+      if (info.thinking) {
+        info.thinking.applied = false;
+        info.thinking.appliedLevel = null;
+        info.thinking.reason = 'not_supported';
+      }
+    }
     let response;
     try {
       response = await fetchWithTimeout(`${settings.baseUrl}/chat/completions`, {
@@ -850,7 +895,17 @@
       }
       throw { code: 'backend_failed', message: error?.message || 'OpenAI-compatible chat request failed.', retryable: true, backend: PROVIDER_ID, service: settings.service, model };
     }
-    if (!response.ok) throw httpError(response, await response.text(), model, settings);
+    if (!response.ok) {
+      const error = httpError(response, await response.text(), model, settings);
+      if (error.unsupportedReasoning && info.thinking?.applied && !session.reasoningRetried) {
+        session.reasoningRetried = true;
+        thinkingCapabilityCache.set(capabilityKey, false);
+        delete info.payload.reasoning_effort;
+        delete info.payload.reasoning;
+        return chatAttempt(config, settings, task, session, model, attempted, onDelta);
+      }
+      throw error;
+    }
     let streamed;
     try {
       streamed = await readStream(response, model, settings, onDelta);

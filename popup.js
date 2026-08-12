@@ -276,9 +276,13 @@ function initToggles() {
     if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.autoApply] ?? false;
   });
 
-  chrome.storage.sync.get(STORAGE_KEYS.navigatorReadOnly, (result) => {
+  NavigatorSettings.load().then((settings) => {
     const toggle = document.getElementById('navigator-read-only');
-    if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.navigatorReadOnly] === true;
+    if (toggle) toggle.checked = settings.readOnly === true;
+    const level = document.getElementById('navigator-thinking-level');
+    if (level) level.value = settings.thinkingLevel;
+    const capability = document.getElementById('navigator-provider-capability');
+    if (capability) capability.textContent = `Configured level: ${settings.thinkingLevel}. Provider capability is read from Ultrascripts > AI.`;
   });
 
   // Setup change handlers
@@ -296,7 +300,10 @@ function initToggles() {
   });
 
   document.getElementById('navigator-read-only')?.addEventListener('change', (e) => {
-    chrome.storage.sync.set({ [STORAGE_KEYS.navigatorReadOnly]: e.target.checked });
+    NavigatorSettings.save({ readOnly: e.target.checked });
+  });
+  document.getElementById('navigator-thinking-level')?.addEventListener('change', e => {
+    NavigatorSettings.save({ thinkingLevel: e.target.value });
   });
 
   // Ultrascripts debug toggle

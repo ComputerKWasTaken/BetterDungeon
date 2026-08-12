@@ -279,6 +279,18 @@
                   <span class="toggle-slider"></span>
                 </label>
               </div>
+              <div class="feature-option">
+                <label class="option-label" for="navigator-thinking-level">Thinking level</label>
+                <select class="form-input form-input-sm" id="navigator-thinking-level">
+                  <option value="off">Off</option>
+                  <option value="minimal">Minimal</option>
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </div>
+              <p class="feature-hint" id="navigator-provider-capability">Provider capability is read from Ultrascripts &gt; AI.</p>
+              <p class="feature-hint"><span class="icon-link"></span> Credentials stay in <a href="#ai-settings-card">Ultrascripts &gt; AI</a>; Navigator never displays API keys.</p>
             </div>
           </article>
 
@@ -1620,6 +1632,7 @@
   <script src="utils/browser-polyfill.js"></script>
   <script src="services/tutorial-service.js"></script>
   <script src="utils/markdown-config.js"></script>
+  <script src="services/navigator/settings.js"></script>
   <script src="popup-ai-endpoint.js"></script>
   <script src="popup.js"></script>
 </body>

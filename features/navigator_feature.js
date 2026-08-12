@@ -395,9 +395,12 @@ class NavigatorFeature {
       </div>
       <div class="bd-navigator-header-actions">
         <span class="bd-navigator-read-only" hidden>Read-only</span>
-        <button type="button" class="bd-navigator-icon-btn bd-navigator-clear" aria-label="Clear conversation" title="Clear conversation">
-          <span class="icon-eraser" aria-hidden="true"></span>
-        </button>
+       <button type="button" class="bd-navigator-icon-btn bd-navigator-clear" aria-label="Clear conversation" title="Clear conversation">
+         <span class="icon-eraser" aria-hidden="true"></span>
+       </button>
+       <button type="button" class="bd-navigator-icon-btn bd-navigator-settings" aria-label="Navigator settings" title="Navigator settings">
+         <span class="icon-settings"></span>
+       </button>
         <button type="button" class="bd-navigator-icon-btn bd-navigator-close" aria-label="Close Navigator" title="Close Navigator">
           <span class="icon-x" aria-hidden="true"></span>
         </button>
@@ -439,7 +442,25 @@ class NavigatorFeature {
       </div>
     `;
 
-    drawer.append(resize, header, transcript, composer);
+    const settingsPanel = document.createElement('section');
+    settingsPanel.className = 'bd-navigator-settings-panel';
+    settingsPanel.hidden = true;
+    settingsPanel.innerHTML = `
+      <label class="bd-navigator-settings-label" for="bd-navigator-thinking-level">Thinking level</label>
+      <select class="bd-navigator-settings-select" id="bd-navigator-thinking-level">
+        <option value="off">Off</option>
+        <option value="minimal">Minimal</option>
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+      </select>
+    `;
+    const settingsSelect = settingsPanel.querySelector('select');
+    if (typeof NavigatorSettings !== 'undefined') {
+      NavigatorSettings.load().then(settings => { settingsSelect.value = settings.thinkingLevel; });
+      settingsSelect.addEventListener('change', () => NavigatorSettings.save({ thinkingLevel: settingsSelect.value }));
+    }
+    drawer.append(resize, header, settingsPanel, transcript, composer);
     document.body.appendChild(drawer);
 
     this.drawer = drawer;
@@ -452,6 +473,10 @@ class NavigatorFeature {
 
     header.querySelector('.bd-navigator-close').addEventListener('click', () => this.closeDrawer());
     header.querySelector('.bd-navigator-clear').addEventListener('click', () => this.handleClear());
+    header.querySelector('.bd-navigator-settings').addEventListener('click', () => {
+      const existing = this.drawer?.querySelector('.bd-navigator-settings-panel');
+      if (existing) existing.hidden = !existing.hidden;
+    });
     this.stopBtn.addEventListener('click', () => this.session?.abort());
 
     this.sendBtn.addEventListener('click', () => this.handleSend());

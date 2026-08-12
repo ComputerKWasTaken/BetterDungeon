@@ -11,6 +11,7 @@
   const PROMPT_MAX_CHARS = 12000;
   const OUTPUT_TYPES = Object.freeze(['text', 'json']);
   const THINKING_LEVELS = Object.freeze(['minimal', 'low', 'medium', 'high']);
+  const CHAT_THINKING_LEVELS = Object.freeze(['off', ...THINKING_LEVELS]);
   const DEFAULT_THINKING_LEVEL = 'minimal';
   const CHAT_MAX_TOOLS = 16;
   const CHAT_MAX_TOOL_RESULTS = 16;
@@ -84,6 +85,19 @@
       throw invalidArgs(`thinking.level must be one of: ${THINKING_LEVELS.join(', ')}`);
     }
     return { level };
+  }
+
+  function normalizeChatThinking(thinking) {
+    if (thinking === undefined || thinking === null) return { level: 'low' };
+    if (typeof thinking === 'string') thinking = { level: thinking };
+    if (!isObject(thinking)) throw invalidArgs('thinking must be a string or object');
+    const rawLevel = thinking.level === undefined ? 'low' : thinking.level;
+    if (typeof rawLevel !== 'string') throw invalidArgs('thinking.level must be a string');
+    const level = rawLevel.trim().toLowerCase();
+    if (CHAT_THINKING_LEVELS.indexOf(level) === -1) {
+      throw invalidArgs(`thinking.level must be one of: ${CHAT_THINKING_LEVELS.join(', ')}`);
+    }
+    return { level, sendReasoningToCustom: thinking.sendReasoningToCustom === true };
   }
 
   function normalizeQuery(args) {
@@ -261,7 +275,7 @@
       systemInstructionChars,
       inputChars,
       budget,
-      thinking: normalizeThinking(normalized.thinking),
+      thinking: normalizeChatThinking(normalized.thinking),
       tools,
       toolResults,
       continuation,

@@ -3445,6 +3445,28 @@ body.bd-navigator-resizing {
   box-shadow: var(--bd-input-focus-ring);
 }
 
+.bd-navigator-settings-panel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--bd-border-default);
+  background: var(--bd-bg-secondary);
+}
+
+.bd-navigator-settings-label {
+  color: var(--bd-text-muted);
+  font-size: 12px;
+}
+
+.bd-navigator-settings-select {
+  min-width: 110px;
+  color: var(--bd-text-primary);
+  background: var(--bd-bg-primary);
+  border: 1px solid var(--bd-border-default);
+  border-radius: 4px;
+}
+
 .bd-navigator-close:hover {
   background: var(--bd-error-bg);
   color: var(--bd-error-light);
