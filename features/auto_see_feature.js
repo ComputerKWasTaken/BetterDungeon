@@ -66,6 +66,7 @@ class AutoSeeFeature {
         actionWindow(limit: $limit, desc: $desc) {
           id
           adventureId
+          type
           updatedAt
           __typename
         }
@@ -73,19 +74,6 @@ class AutoSeeFeature {
       }
     }`;
 
-    this.REFETCH_LATEST_ACTION_FOR_TIMEOUT_QUERY = `query RefetchLatestActionForTimeout($shortId: String, $limit: Int, $desc: Boolean) {
-      adventure(shortId: $shortId) {
-        id
-        actionCount
-        actionWindow(limit: $limit, desc: $desc) {
-          id
-          adventureId
-          updatedAt
-          __typename
-        }
-        __typename
-      }
-    }`;
   }
 
   async init() {
@@ -465,25 +453,19 @@ class AutoSeeFeature {
     try {
       this.log('[AutoSee] Sending GraphQL See action', { operationId, requestKey, baseline });
       const identity = await gql.getAdventureIdentity(adventureAtStart, { timeoutMs: 10000 });
-      const shortId = identity.shortId || adventureAtStart;
-
       const completion = gql.waitForActionUpdate(
         (detail) => (
           this.isOperationValid(operationId) &&
           this.currentAdventureId === adventureAtStart &&
-          this.isSeeActionComplete(detail, baseline, requestKey)
+          this.isSeeActionComplete(detail, requestKey)
         ),
-        this.TIMEOUTS.PROCESSING_OPERATION
-      ).catch((error) => {
-        if (this.isOperationValid(operationId) && this.isProcessing) {
-          this.log('[AutoSee] Timed out waiting for See action update:', error.message || error);
-        }
-        return null;
-      });
+        this.TIMEOUTS.PROCESSING_OPERATION - 1000
+      );
+      const shortId = identity.shortId || adventureAtStart;
 
       const batchResults = await gql.requestBatch([
         this.createSubmitTelemetryOperation(identity),
-        this.createLatestActionOperation('GetLatestActionForTimeout', shortId),
+        this.createLatestActionOperation(shortId),
         this.createActionRequestOperation(identity, requestKey),
       ], { timeoutMs: this.TIMEOUTS.PROCESSING_OPERATION });
 
@@ -492,34 +474,39 @@ class AutoSeeFeature {
         throw new Error(actionRequest.message || 'ActionRequest failed.');
       }
 
-      const latestBefore = this.extractLatestActionSnapshot(
-        this.findBatchResult(batchResults, 'adventure')
-      );
-      const refetchCompletion = this.refetchLatestActionForTimeout(
-        gql,
-        shortId,
-        latestBefore,
-        operationId,
-        adventureAtStart,
-        this.TIMEOUTS.PROCESSING_OPERATION
-      )
-        .catch((error) => {
-          if (this.isOperationValid(operationId) && this.isProcessing) {
-            this.log('[AutoSee] Failed to refetch latest action after See:', error.message || error);
-          }
-          return null;
-        });
-
-      const completionResult = await this.waitForCompletionSignals([
-        completion.then(detail => detail ? { source: 'ws', detail } : null),
-        refetchCompletion,
-      ], this.TIMEOUTS.PROCESSING_OPERATION);
-
-      if (!completionResult) {
-        this.log('[AutoSee] See action submitted, but no completion signal was observed.');
-      } else {
-        this.log('[AutoSee] See action completed through', completionResult.source);
+      let completionDetail;
+      try {
+        completionDetail = await completion;
+      } catch (error) {
+        if (!this.isOperationValid(operationId)) return;
+        const fallback = await gql.request(
+          'GetLatestActionForTimeout',
+          this.createLatestActionOperation(shortId).variables,
+          this.GET_LATEST_ACTION_FOR_TIMEOUT_QUERY,
+          { timeoutMs: 10000 }
+        );
+        const latest = fallback?.data?.adventure?.actionWindow?.[0];
+        const landed = !!(
+          latest &&
+          String(latest.type || '').toLowerCase() === 'see' &&
+          this.isAfterBaseline(latest.id, baseline)
+        );
+        this.log(
+          landed
+            ? '[AutoSee] Matching actionUpdates frame timed out, but latest-action fallback confirms See landed; completion telemetry skipped.'
+            : '[AutoSee] Matching actionUpdates frame timed out and latest-action fallback did not confirm See; completion telemetry skipped.',
+          { requestKey, latest, error: error.message || error }
+        );
+        return;
       }
+      const completedAt = Date.now();
+      await gql.request(
+        'SendEvent',
+        this.createCompletionTelemetryVariables(identity, requestKey, completionDetail, completedAt),
+        this.SEND_EVENT_QUERY,
+        { timeoutMs: this.TIMEOUTS.PROCESSING_OPERATION }
+      );
+      this.log('[AutoSee] See action completed through matching action update', completionDetail);
     } catch (error) {
       if (this.isOperationValid(operationId)) {
         console.error('[AutoSee] Error during GraphQL See action:', error);
@@ -546,8 +533,6 @@ class AutoSeeFeature {
       actionType: 'see',
     };
 
-    if (identity.scenarioId) clientInfo.scenarioId = identity.scenarioId;
-
     return {
       operationName: 'SendEvent',
       variables: {
@@ -561,17 +546,15 @@ class AutoSeeFeature {
     };
   }
 
-  createLatestActionOperation(operationName, shortId) {
+  createLatestActionOperation(shortId) {
     return {
-      operationName,
+      operationName: 'GetLatestActionForTimeout',
       variables: {
         shortId,
         limit: 1,
         desc: true,
       },
-      query: operationName === 'RefetchLatestActionForTimeout'
-        ? this.REFETCH_LATEST_ACTION_FOR_TIMEOUT_QUERY
-        : this.GET_LATEST_ACTION_FOR_TIMEOUT_QUERY,
+      query: this.GET_LATEST_ACTION_FOR_TIMEOUT_QUERY,
     };
   }
 
@@ -591,108 +574,39 @@ class AutoSeeFeature {
     };
   }
 
+  createCompletionTelemetryVariables(identity, requestKey, detail, completedAt) {
+    return {
+      input: {
+        eventType: 'user',
+        eventName: 'action_roundtrip_completed',
+        metadata: {
+          clientInfo: {
+            platform: 'web',
+            userAgent: String(navigator.userAgent || '').toLowerCase(),
+            nativeAppPlatform: null,
+            surface: 'aidungeon',
+            actionType: 'see',
+            requestKey,
+            roundtripMs: completedAt - this.operationStartTime,
+            actionCount: Array.isArray(detail?.actions) ? detail.actions.length : 0,
+            adventureId: identity.adventureId,
+            scenarioId: identity.scenarioId || undefined,
+            submittedAt: this.operationStartTime,
+            completedAt,
+          },
+        },
+      },
+    };
+  }
+
   findBatchResult(batchResults, dataKey) {
     const items = Array.isArray(batchResults) ? batchResults : [batchResults];
     return items.find(item => item?.data && Object.prototype.hasOwnProperty.call(item.data, dataKey)) || null;
   }
 
-  extractLatestActionSnapshot(result) {
-    const adventure = result?.data?.adventure;
-    const latest = Array.isArray(adventure?.actionWindow) ? adventure.actionWindow[0] : null;
-    return {
-      actionCount: Number.isFinite(adventure?.actionCount) ? adventure.actionCount : null,
-      latestActionId: latest?.id != null ? String(latest.id) : null,
-      latestUpdatedAt: latest?.updatedAt || null,
-      adventureId: adventure?.id != null ? String(adventure.id) : null,
-    };
-  }
-
-  async refetchLatestActionForTimeout(gql, shortId, baseline, operationId, adventureAtStart, timeoutMs) {
-    const deadline = Date.now() + timeoutMs;
-
-    while (Date.now() < deadline) {
-      if (!this.isProcessing || !this.isOperationValid(operationId) || this.currentAdventureId !== adventureAtStart) {
-        return null;
-      }
-
-      const requestTimeoutMs = Math.max(1000, Math.min(15000, deadline - Date.now()));
-      const result = await gql.request(
-        'RefetchLatestActionForTimeout',
-        this.createLatestActionOperation('RefetchLatestActionForTimeout', shortId).variables,
-        this.REFETCH_LATEST_ACTION_FOR_TIMEOUT_QUERY,
-        { timeoutMs: requestTimeoutMs }
-      );
-      const snapshot = this.extractLatestActionSnapshot(result);
-
-      if (this.hasLatestActionAdvanced(snapshot, baseline)) {
-        return {
-          source: 'latest-action-refetch',
-          snapshot,
-        };
-      }
-
-      await this.wait(Math.min(1500, Math.max(0, deadline - Date.now())));
-    }
-
-    return null;
-  }
-
-  hasLatestActionAdvanced(snapshot, baseline) {
-    if (!snapshot || !baseline) return true;
-    if (Number.isFinite(snapshot.actionCount) && Number.isFinite(baseline.actionCount)) {
-      if (snapshot.actionCount > baseline.actionCount) return true;
-    }
-    if (snapshot.latestActionId && baseline.latestActionId && snapshot.latestActionId !== baseline.latestActionId) {
-      return true;
-    }
-    if (snapshot.latestUpdatedAt && baseline.latestUpdatedAt && snapshot.latestUpdatedAt !== baseline.latestUpdatedAt) {
-      return true;
-    }
-    return false;
-  }
-
-  waitForCompletionSignals(promises, timeoutMs) {
-    return new Promise((resolve) => {
-      let settled = false;
-      let remaining = promises.length;
-      const timer = setTimeout(() => finish(null), timeoutMs);
-
-      const finish = (result) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        resolve(result);
-      };
-
-      for (const promise of promises) {
-        Promise.resolve(promise).then((result) => {
-          if (result) {
-            finish(result);
-            return;
-          }
-          remaining--;
-          if (remaining <= 0) finish(null);
-        }).catch(() => {
-          remaining--;
-          if (remaining <= 0) finish(null);
-        });
-      }
-    });
-  }
-
-  isSeeActionComplete(detail, baseline, requestKey) {
+  isSeeActionComplete(detail, requestKey) {
     if (!detail || detail.source === 'initial') return false;
-    if (detail.key && requestKey && detail.key === requestKey) return true;
-
-    const candidates = Array.isArray(detail.changed) && detail.changed.length > 0
-      ? detail.changed
-      : (Array.isArray(detail.actions) ? detail.actions : []);
-
-    return candidates.some(action =>
-      this.isLiveAction(action) &&
-      String(action.type || '').toLowerCase() === 'see' &&
-      this.isAfterBaseline(action.id, baseline)
-    );
+    return !!(detail.key && requestKey && detail.key === requestKey);
   }
 
   getActionBaseline() {
@@ -732,10 +646,6 @@ class AutoSeeFeature {
   createRequestKey() {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
     return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-  }
-
-  wait(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   detectCurrentInputMode() {
