@@ -23,7 +23,6 @@ code - anything here is for verifying behavior, not for shipping.
   error mapping, and exact opaque thought-signature replay across tool rounds.
 
 Run it with `node tests/ai-compatible-contract.test.js`.
-Complete `AI_COMPATIBLE_RELEASE_GATE.md` before publishing V2.1.
 
   - **`aid-scripts/sdk-module/`** - End-to-end suite for the Ultrascripts SDK
     module (`modules/sdk/module.js`). Exercises `version` and `config` ops.

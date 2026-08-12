@@ -786,7 +786,7 @@
       const code = String(error?.code || '').toLowerCase();
       switch (code) {
         case 'prohibited_content':
-          return { code, message: 'The AI provider refused this request under its content policy. This is a known limitation while Gemini is the only provider.' };
+          return { code, message: 'The selected AI service refused this request under its content policy. Choose another configured service if appropriate.' };
         case 'safety_blocked':
           return { code, message: 'The AI provider blocked this request under its safety filters. Try rephrasing.' };
         case 'not_configured':
