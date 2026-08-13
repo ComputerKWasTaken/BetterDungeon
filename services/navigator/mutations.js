@@ -10,6 +10,7 @@
   const MAX_PROPOSAL_CHARS = 40000;
   const MAX_REASON_CHARS = 1000;
   const ID_ATTEMPTS = 8;
+  const READ_ONLY_STORAGE_KEY = 'betterDungeon_navigator_read_only';
 
   const TEXT_COMPONENTS = Object.freeze({
     ai_instructions: { label: 'AI Instructions', field: 'instructions', transport: 'state' },
@@ -224,6 +225,28 @@
     async readOnlyEnabled() {
       if (!isExtensionContextValid()) {
         throw { code: 'extension_context_invalid', message: 'The extension was reloaded. Reload this page before applying changes.' };
+      }
+      if (typeof NavigatorSettings === 'undefined') {
+        try {
+          return await new Promise((resolve, reject) => {
+            let settled = false;
+            const timer = setTimeout(() => {
+              if (!settled) {
+                settled = true;
+                reject(new Error('Navigator read-only storage timed out.'));
+              }
+            }, 2000);
+            chrome.storage.sync.get(READ_ONLY_STORAGE_KEY, result => {
+              if (settled) return;
+              settled = true;
+              clearTimeout(timer);
+              if (chrome.runtime?.lastError) reject(chrome.runtime.lastError);
+              else resolve(result?.[READ_ONLY_STORAGE_KEY] === true);
+            });
+          });
+        } catch {
+          return true;
+        }
       }
       try {
         const settings = await NavigatorSettings.load();
@@ -524,6 +547,7 @@
 
   NavigatorMutations.DEFINITIONS = DEFINITIONS;
   NavigatorMutations.MAX_PROPOSAL_CHARS = MAX_PROPOSAL_CHARS;
+  NavigatorMutations.READ_ONLY_STORAGE_KEY = READ_ONLY_STORAGE_KEY;
   window.NavigatorMutations = NavigatorMutations;
 
   if (typeof module !== 'undefined' && module.exports) {
