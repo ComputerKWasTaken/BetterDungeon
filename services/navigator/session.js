@@ -232,7 +232,7 @@
       try {
         this.settings = await NavigatorSettings.load();
       } catch {
-        this.settings = { ...NavigatorSettings.DEFAULTS };
+        this.settings = { ...NavigatorSettings.DEFAULTS, readOnly: true };
       }
       this.readOnly = this.settings.readOnly === true;
       this.emit('permissions', { readOnly: this.readOnly });
