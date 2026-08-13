@@ -829,11 +829,9 @@ class NavigatorFeature {
     } else if (message.status === 'pending' && message.streamStage === 'reasoning') {
       status.replaceChildren(this.createStageIndicator('Reasoning', message));
       status.className = 'bd-navigator-message-status bd-navigator-reasoning-active';
-    } else if (message.status === 'streaming' && message.streamStage === 'writing') {
-      status.replaceChildren(this.createStageIndicator('Writing', message));
-      status.className = 'bd-navigator-message-status';
     } else if (message.status === 'complete' && completedReadTools.length) {
       status.replaceChildren(this.createToolActivityIndicator(completedReadTools, true));
+      status.appendChild(this.createCompletionFooter(message));
       status.className = 'bd-navigator-message-status';
     } else if (message.status === 'complete') {
       status.replaceChildren(this.createCompletionFooter(message));
@@ -1416,7 +1414,7 @@ class NavigatorFeature {
     const label = document.createElement('span');
     label.className = 'bd-navigator-activity-label';
     label.textContent = stage === 'Reasoning' && elapsed >= threshold
-      ? 'Still reasoning — you can stop'
+      ? `Still reasoning — ${level} · ${elapsed}s · you can stop`
       : `${stage} · ${level} · ${elapsed}s`;
     wrap.appendChild(label);
     if (stage === 'Reasoning') {
@@ -1436,7 +1434,10 @@ class NavigatorFeature {
     const level = meta.thinking?.appliedLevel || meta.thinkingLevel || this.session?.settings?.thinkingLevel || 'low';
     const duration = Number.isFinite(meta.durationMs) ? `${Math.round(meta.durationMs / 1000)}s` : '—';
     const reasoningTokens = meta.usage?.completion_tokens_details?.reasoning_tokens;
-    footer.textContent = `Applied ${level} · ${duration}${Number.isFinite(reasoningTokens) ? ` · ${reasoningTokens} reasoning tokens` : ''}`;
+    footer.textContent = level === 'off'
+      ? duration
+      : `Applied ${level} · ${duration}`;
+    if (Number.isFinite(reasoningTokens)) footer.textContent += ` · ${reasoningTokens} reasoning tokens`;
     if (meta.thinking?.applied === false) footer.textContent += ' · provider did not apply it';
     return footer;
   }

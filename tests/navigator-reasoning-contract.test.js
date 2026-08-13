@@ -125,7 +125,13 @@ vm.runInContext(fs.readFileSync(path.join(root, 'services/navigator/settings.js'
   assert.match(background, /onStage/);
   assert.match(fs.readFileSync(path.join(root, 'modules/ai/openai-compatible-backend.js'), 'utf8'), /message\.type === 'stage'/);
   assert.match(fs.readFileSync(path.join(root, 'services/navigator/session.js'), 'utf8'), /streamStage: 'connecting'/);
-  assert.match(fs.readFileSync(path.join(root, 'features/navigator_feature.js'), 'utf8'), /Still reasoning/);
+  const sessionSource = fs.readFileSync(path.join(root, 'services/navigator/session.js'), 'utf8');
+  const featureSource = fs.readFileSync(path.join(root, 'features/navigator_feature.js'), 'utf8');
+  assert.match(sessionSource, /get isChatBusy\(\)/);
+  assert.match(sessionSource, /return this\.sending \|\| this\.streamingMessageId !== null/);
+  assert.match(featureSource, /setInterval\(\(\) =>/);
+  assert.match(featureSource, /this\.session\?\.isChatBusy/);
+  assert.match(featureSource, /Still reasoning — \$\{level\} · \$\{elapsed\}s/);
   console.log('Navigator settings and reasoning contract tests passed');
 })().catch(error => {
   console.error(error);

@@ -3941,6 +3941,11 @@ body.bd-navigator-resizing {
   color: var(--bd-text-muted);
 }
 
+.bd-navigator-activity-label {
+  display: inline-flex;
+  align-items: center;
+}
+
 .bd-navigator-thinking {
   display: inline-flex;
   align-items: center;
