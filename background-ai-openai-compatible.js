@@ -466,14 +466,14 @@
       payload.reasoning = requestedLevel === 'off'
         ? { enabled: false }
         : { effort: requestedLevel, exclude: true };
-      return { requestedLevel, appliedLevel: requestedLevel, family: 'openrouter', applied: true, defaulted: requestedLevel === 'low' };
+      return { requestedLevel, appliedLevel: requestedLevel, family: 'openrouter', applied: true, defaulted: requestedLevel === AI_DEFAULT_THINKING_LEVEL };
     }
     if (settings.service === 'custom') {
       if (thinking?.sendReasoningToCustom !== true) {
-        return { requestedLevel, appliedLevel: null, family: 'custom', applied: false, defaulted: requestedLevel === 'low', reason: 'disabled' };
+        return { requestedLevel, appliedLevel: null, family: 'custom', applied: false, defaulted: requestedLevel === AI_DEFAULT_THINKING_LEVEL, reason: 'disabled' };
       }
       payload.reasoning_effort = requestedLevel;
-      return { requestedLevel, appliedLevel: requestedLevel, family: 'custom', applied: true, defaulted: requestedLevel === 'low' };
+      return { requestedLevel, appliedLevel: requestedLevel, family: 'custom', applied: true, defaulted: requestedLevel === AI_DEFAULT_THINKING_LEVEL };
     }
     if (/^gemma-/i.test(model)) {
       if (requestedLevel !== 'minimal') {
@@ -857,7 +857,7 @@
       if (finishReason === 'length') {
         throw {
           code: 'output_exhausted',
-          message: `Navigator used its whole output budget reasoning at the ${settings.service} configured thinking level; lower the thinking level.`,
+          message: `Navigator used its whole output budget at the ${settings.requestedThinkingLevel || AI_DEFAULT_THINKING_LEVEL} thinking level; lower the thinking level.`,
           retryable: false,
           backend: PROVIDER_ID,
           service: settings.service,
@@ -871,7 +871,7 @@
 
   async function chatAttempt(config, settings, task, session, model, attempted, onDelta, onStage) {
     const info = chatPayload(task, settings, model);
-    settings.requestedThinkingLevel = info.thinking?.requestedLevel || task.thinking?.level || 'low';
+    settings.requestedThinkingLevel = info.thinking?.requestedLevel || AI_DEFAULT_THINKING_LEVEL;
     const capabilityKey = `${settings.service}:${model}`;
     if (thinkingCapabilityCache.get(capabilityKey) === false) {
       delete info.payload.reasoning_effort;
@@ -902,7 +902,7 @@
         thinkingCapabilityCache.set(capabilityKey, false);
         delete info.payload.reasoning_effort;
         delete info.payload.reasoning;
-        return chatAttempt(config, settings, task, session, model, attempted, onDelta);
+        return chatAttempt(config, settings, task, session, model, attempted, onDelta, onStage);
       }
       throw error;
     }

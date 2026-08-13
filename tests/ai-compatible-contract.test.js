@@ -163,6 +163,9 @@ global.fetch = async (url, init) => {
   if (prompt.includes('manual-rate-limit') || prompt.includes('openrouter-rate-limit')) {
     return jsonResponse(429, { error: { message: 'quota' } });
   }
+  if (prompt.includes('custom-unsupported') && payload.reasoning_effort) {
+    return jsonResponse(400, { error: { message: 'unknown parameter reasoning_effort' } });
+  }
   if (!payload.stream) {
     const content = payload.response_format ? JSON.stringify({ ok: true }) : `answer:${payload.model}`;
     return jsonResponse(200, { model: `${payload.model}-provider`, choices: [{ message: { content } }], usage: { total_tokens: 7 } });
@@ -300,6 +303,14 @@ async function configure(service, profile) {
   assert.equal(customBad.ready, false);
   const customGood = await configure('custom', { baseUrl: 'https://provider.example/v1', model: 'custom-model' });
   assert.equal(customGood.ready, true);
+  const retryStages = [];
+  const retryResult = await window.UltrascriptsAIExecutor.chat(chatArgs('custom-unsupported', {
+    thinking: { level: 'high', sendReasoningToCustom: true },
+  }), { onStage: stage => retryStages.push(stage) });
+  assert.equal(retryResult.text, 'Hello world');
+  assert.deepEqual(retryStages, ['connected', 'streaming']);
+  assert.equal(requests.at(-2).payload.reasoning_effort, 'high');
+  assert.equal(requests.at(-1).payload.reasoning_effort, undefined);
 
   await configure('gemini', { modelMode: 'manual', model: 'gemini-tool-model' });
   const deltas = [];

@@ -121,6 +121,9 @@ vm.runInContext(fs.readFileSync(path.join(root, 'services/navigator/settings.js'
   assert.match(background, /reasoning_effort = requestedLevel/);
   assert.match(background, /unsupportedReasoning/);
   assert.match(background, /output_exhausted/);
+  assert.match(background, /onDelta, onStage\);/);
+  assert.match(background, /at the \$\{settings\.requestedThinkingLevel/);
+  assert.match(background, /defaulted: requestedLevel === AI_DEFAULT_THINKING_LEVEL/);
   assert.match(background, /type: 'stage'/);
   assert.match(background, /onStage/);
   assert.match(fs.readFileSync(path.join(root, 'modules/ai/openai-compatible-backend.js'), 'utf8'), /message\.type === 'stage'/);
