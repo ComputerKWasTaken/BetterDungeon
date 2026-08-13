@@ -10,6 +10,7 @@
   const STORAGE_KEY = 'betterDungeon_navigator_settings';
   const LEGACY_READ_ONLY_KEY = 'betterDungeon_navigator_read_only';
   const VERSION = 1;
+  const MAX_OUTPUT_TOKENS_CEILING = 12288;
   const DEFAULTS = Object.freeze({
     version: VERSION,
     readOnly: false,
@@ -62,12 +63,20 @@
 
   function get(keys) {
     const area = storage();
-    if (!area?.get) return Promise.resolve({});
-    return new Promise(resolve => {
+    if (!area?.get) return Promise.reject(new Error('Navigator settings storage is unavailable.'));
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (callback, value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        callback(value);
+      };
+      const timer = setTimeout(() => finish(reject, new Error('Navigator settings storage timed out.')), 2000);
       try {
-        area.get(keys, result => resolve(result || {}));
-      } catch {
-        resolve({});
+        area.get(keys, result => finish(resolve, result || {}));
+      } catch (error) {
+        finish(reject, error);
       }
     });
   }
@@ -119,7 +128,7 @@
     const requested = base[enumOrDefault(level, THINKING_LEVELS, DEFAULTS.thinkingLevel)] || base.low;
     const ceiling = Number.isSafeInteger(profile.maxOutputTokensCeiling) && profile.maxOutputTokensCeiling > 0
       ? profile.maxOutputTokensCeiling
-      : requested;
+      : MAX_OUTPUT_TOKENS_CEILING;
     return Math.min(requested, ceiling);
   }
 
@@ -130,7 +139,7 @@
         for (const listener of listeners) {
           try { listener(settings); } catch { /* noop */ }
         }
-      });
+      }).catch(() => {});
     });
   } catch {
     /* noop */
@@ -140,6 +149,7 @@
     STORAGE_KEY,
     LEGACY_READ_ONLY_KEY,
     VERSION,
+    MAX_OUTPUT_TOKENS_CEILING,
     DEFAULTS,
     THINKING_LEVELS,
     outputTokensFor,

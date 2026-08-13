@@ -24,7 +24,6 @@ const STORAGE_KEYS = {
   textToSpeech: 'betterDungeon_textToSpeechSettings',
   customDynamicConfig: 'betterDungeon_customDynamicConfig',
   customDynamicRuntime: 'betterDungeon_customDynamicRuntime',
-  navigatorReadOnly: 'betterDungeon_navigator_read_only',
 };
 
 // Default mode colors (hex format)
@@ -209,6 +208,13 @@ function initNavigation() {
     item.addEventListener('click', () => {
       activateTab(item.dataset.tab);
     });
+  });
+  document.getElementById('navigator-ai-settings-link')?.addEventListener('click', event => {
+    event.preventDefault();
+    activateTab('ultrascripts');
+    const card = document.getElementById('ai-settings-card');
+    card?.classList.add('expanded');
+    card?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 }
 

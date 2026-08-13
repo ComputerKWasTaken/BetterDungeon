@@ -869,7 +869,7 @@
     return { text, toolCalls: publicCalls, assistantMessage, providerModel, usage, finishReason };
   }
 
-  async function chatAttempt(config, settings, task, session, model, attempted, onDelta) {
+  async function chatAttempt(config, settings, task, session, model, attempted, onDelta, onStage) {
     const info = chatPayload(task, settings, model);
     settings.requestedThinkingLevel = info.thinking?.requestedLevel || task.thinking?.level || 'low';
     const capabilityKey = `${settings.service}:${model}`;
@@ -908,7 +908,15 @@
     }
     let streamed;
     try {
-      streamed = await readStream(response, model, settings, onDelta);
+      let streamingEmitted = false;
+      onStage?.('connected');
+      streamed = await readStream(response, model, settings, (text, sequence) => {
+        if (!streamingEmitted) {
+          streamingEmitted = true;
+          onStage?.('streaming');
+        }
+        onDelta(text, sequence);
+      });
     } catch (error) {
       if (session.controller.signal.aborted) {
         const timeout = session.abortReason === 'timeout';
@@ -939,7 +947,7 @@
     return result;
   }
 
-  async function callChatStream(config, task, session, onDelta) {
+  async function callChatStream(config, task, session, onDelta, onStage) {
     const settings = settingsFor(config);
     if (!settings.configured) throw notConfigured(settings);
     const models = modelsFor(settings);
@@ -948,7 +956,7 @@
       const model = models[index];
       attempted.push(model);
       try {
-        return await chatAttempt(config, settings, task, session, model, attempted, onDelta);
+        return await chatAttempt(config, settings, task, session, model, attempted, onDelta, onStage);
       } catch (error) {
         if (!(error?.code === 'rate_limit' && settings.service === 'gemini' && settings.modelMode === 'auto' && index < models.length - 1)) throw error;
       }
@@ -1055,6 +1063,8 @@
       getConfig()
         .then(config => callChatStream(config, task, session, (text, sequence) => {
           if (!session.closed && !session.terminal && !safePost({ v: 1, type: 'delta', requestId: session.requestId, sequence, text })) teardown('delta-post-failed');
+        }, stage => {
+          if (!session.closed && !session.terminal && !safePost({ v: 1, type: 'stage', requestId: session.requestId, stage })) teardown('stage-post-failed');
         }))
         .then(result => { clearTimeout(timeout); if (!session.closed) terminal('complete', { result }); })
         .catch(error => { clearTimeout(timeout); if (!session.closed) terminal('error', { error: normalizeError(error) }); });

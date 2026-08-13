@@ -659,6 +659,9 @@
     if (options.onDelta !== undefined && typeof options.onDelta !== 'function') {
       throw invalidArgs('onDelta must be a function');
     }
+    if (options.onStage !== undefined && typeof options.onStage !== 'function') {
+      throw invalidArgs('onStage must be a function');
+    }
     if (options.signal?.aborted) {
       throw {
         code: 'aborted',
@@ -672,6 +675,7 @@
     const result = await provider.streamChat(cloneJson(task), {
       signal: options.signal || null,
       onDelta: options.onDelta || null,
+      onStage: options.onStage || null,
     });
     const toolCalls = normalizeToolCalls(result);
     const responseText = typeof result?.text === 'string' ? result.text : '';

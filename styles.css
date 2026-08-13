@@ -3950,6 +3950,11 @@ body.bd-navigator-resizing {
   font-size: var(--bd-font-size-sm);
 }
 
+.bd-navigator-reasoning-active {
+  color: var(--bd-text-primary);
+  font-weight: 600;
+}
+
 .bd-navigator-thinking-dots {
   display: inline-flex;
   align-items: center;
@@ -4084,6 +4089,11 @@ body.bd-navigator-resizing {
 .bd-navigator-stop:hover {
   background: var(--bd-btn-primary-hover);
   box-shadow: var(--bd-btn-primary-shadow);
+}
+
+.bd-navigator-stop-emphasized {
+  font-weight: 700;
+  box-shadow: 0 0 0 2px var(--bd-border-focus);
 }
 
 .bd-navigator-stop[hidden] {

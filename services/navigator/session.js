@@ -89,6 +89,7 @@
       this.contextControllers = new Set();
       this.applyController = null;
       this.mutationQueue = Promise.resolve();
+      this.readOnly = true;
       this.settings = typeof NavigatorSettings !== 'undefined'
         ? { ...NavigatorSettings.DEFAULTS }
         : { readOnly: false, thinkingLevel: 'low', sendReasoningToCustom: false };
@@ -571,7 +572,13 @@
         return;
       }
 
-      const assistant = this.addMessage({ role: 'assistant', status: 'pending', content: '' });
+      const assistant = this.addMessage({
+        role: 'assistant',
+        status: 'pending',
+        content: '',
+        streamStage: 'connecting',
+        streamStartedAt: Date.now(),
+      });
       this.streamingMessageId = assistant.id;
       const turnController = new AbortController();
       this.controller = turnController;
@@ -618,9 +625,7 @@
             messages: request.messages,
             budget: {
               maxInputChars: MAX_INPUT_CHARS,
-              maxOutputTokens: window.NavigatorSettings?.outputTokensFor
-                ? window.NavigatorSettings.outputTokensFor(this.settings.thinkingLevel, { maxOutputTokensCeiling: 12288 })
-                : ({ off: 2048, minimal: 2048, low: 3072, medium: 6144, high: 12288 }[this.settings.thinkingLevel] || 3072),
+              maxOutputTokens: NavigatorSettings.outputTokensFor(this.settings.thinkingLevel),
             },
             thinking: {
               level: this.settings.thinkingLevel,
@@ -642,9 +647,17 @@
               roundReceivedDelta = true;
               message.content += delta.text;
               message.status = 'streaming';
+              message.streamStage = 'writing';
               message.toolActivity = null;
               this.emit('update', message);
               this.schedulePersist();
+            },
+            onStage: (stage) => {
+              if (this.streamingMessageId !== assistant.id) return;
+              const message = this.findMessage(assistant.id);
+              if (!message) return;
+              message.streamStage = stage === 'connected' ? 'reasoning' : 'writing';
+              this.emit('update', message);
             },
           });
 
@@ -703,6 +716,8 @@
           toolActivity: null,
           meta: {
             ...(finalMeta || {}),
+            durationMs: assistant.streamStartedAt ? Math.max(0, Date.now() - assistant.streamStartedAt) : null,
+            thinkingLevel: finalMeta?.thinking?.appliedLevel || this.settings.thinkingLevel,
             toolRounds,
             toolResultChars,
             toolsUsed: Array.from(new Set(toolNames)),

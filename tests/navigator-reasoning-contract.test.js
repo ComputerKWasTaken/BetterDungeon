@@ -56,6 +56,45 @@ vm.runInContext(fs.readFileSync(path.join(root, 'services/navigator/settings.js'
   assert.equal(syncStore.betterDungeon_navigator_read_only, true);
   assert.equal(context.window.NavigatorSettings.outputTokensFor('high', { maxOutputTokensCeiling: 6144 }), 6144);
   assert.equal(context.window.NavigatorSettings.outputTokensFor('off', { maxOutputTokensCeiling: 6144 }), 2048);
+  assert.equal(context.window.NavigatorSettings.MAX_OUTPUT_TOKENS_CEILING, 12288);
+
+  const failingContext = {
+    console,
+    setTimeout,
+    clearTimeout,
+    window: {},
+    chrome: { runtime: {}, storage: { sync: {
+      get(keys, callback) { throw new Error('storage failed'); },
+    } } },
+  };
+  vm.createContext(failingContext);
+  vm.runInContext(fs.readFileSync(path.join(root, 'services/navigator/settings.js'), 'utf8'), failingContext);
+  await assert.rejects(() => failingContext.window.NavigatorSettings.load(), /storage failed/);
+  failingContext.chrome.runtime.id = 'test-extension';
+  vm.runInContext(fs.readFileSync(path.join(root, 'services/navigator/mutations.js'), 'utf8'), failingContext);
+  const failingMutations = new failingContext.window.NavigatorMutations('short');
+  await assert.rejects(
+    () => failingMutations.apply({ status: 'applying', shortId: 'short' }),
+    error => error?.code === 'read_only'
+  );
+
+  const timeoutContext = {
+    console,
+    setTimeout,
+    clearTimeout,
+    window: {},
+    chrome: { runtime: {}, storage: { sync: { get() {} } } },
+  };
+  vm.createContext(timeoutContext);
+  vm.runInContext(fs.readFileSync(path.join(root, 'services/navigator/settings.js'), 'utf8'), timeoutContext);
+  await assert.rejects(() => timeoutContext.window.NavigatorSettings.load(), /timed out/);
+  timeoutContext.chrome.runtime.id = 'test-extension';
+  vm.runInContext(fs.readFileSync(path.join(root, 'services/navigator/mutations.js'), 'utf8'), timeoutContext);
+  const timeoutMutations = new timeoutContext.window.NavigatorMutations('short');
+  await assert.rejects(
+    () => timeoutMutations.apply({ status: 'applying', shortId: 'short' }),
+    error => error?.code === 'read_only'
+  );
 
   const executorContext = {
     console,
@@ -82,6 +121,11 @@ vm.runInContext(fs.readFileSync(path.join(root, 'services/navigator/settings.js'
   assert.match(background, /reasoning_effort = requestedLevel/);
   assert.match(background, /unsupportedReasoning/);
   assert.match(background, /output_exhausted/);
+  assert.match(background, /type: 'stage'/);
+  assert.match(background, /onStage/);
+  assert.match(fs.readFileSync(path.join(root, 'modules/ai/openai-compatible-backend.js'), 'utf8'), /message\.type === 'stage'/);
+  assert.match(fs.readFileSync(path.join(root, 'services/navigator/session.js'), 'utf8'), /streamStage: 'connecting'/);
+  assert.match(fs.readFileSync(path.join(root, 'features/navigator_feature.js'), 'utf8'), /Still reasoning/);
   console.log('Navigator settings and reasoning contract tests passed');
 })().catch(error => {
   console.error(error);

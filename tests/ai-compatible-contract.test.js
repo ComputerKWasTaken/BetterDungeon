@@ -303,9 +303,14 @@ async function configure(service, profile) {
 
   await configure('gemini', { modelMode: 'manual', model: 'gemini-tool-model' });
   const deltas = [];
-  const streamed = await window.UltrascriptsAIExecutor.chat(chatArgs('stream text'), { onDelta: delta => deltas.push(delta.text) });
+  const stages = [];
+  const streamed = await window.UltrascriptsAIExecutor.chat(chatArgs('stream text'), {
+    onDelta: delta => deltas.push(delta.text),
+    onStage: stage => stages.push(stage),
+  });
   assert.equal(streamed.text, 'Hello world');
   assert.deepEqual(deltas, ['Hello ', 'world']);
+  assert.deepEqual(stages, ['connected', 'streaming']);
 
   const tools = [
     { name: 'read_card', description: 'Read one card.', parameters: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },

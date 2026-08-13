@@ -35,6 +35,9 @@ class NavigatorFeature {
     this.stopBtn = null;
     this.emptyEl = null;
     this.readOnlyBadge = null;
+    this.settingsUnsubscribe = null;
+    this.settingsSelect = null;
+    this.reasoningTimer = null;
     this.messageNodes = new Map();
 
     this.isOpen = false;
@@ -344,6 +347,11 @@ class NavigatorFeature {
     this.stopBtn = null;
     this.emptyEl = null;
     this.readOnlyBadge = null;
+    try { this.settingsUnsubscribe?.(); } catch { /* noop */ }
+    this.settingsUnsubscribe = null;
+    this.settingsSelect = null;
+    if (this.reasoningTimer) clearInterval(this.reasoningTimer);
+    this.reasoningTimer = null;
     this.messageNodes.clear();
     this.isOpen = false;
   }
@@ -395,12 +403,12 @@ class NavigatorFeature {
       </div>
       <div class="bd-navigator-header-actions">
         <span class="bd-navigator-read-only" hidden>Read-only</span>
-       <button type="button" class="bd-navigator-icon-btn bd-navigator-clear" aria-label="Clear conversation" title="Clear conversation">
-         <span class="icon-eraser" aria-hidden="true"></span>
-       </button>
-       <button type="button" class="bd-navigator-icon-btn bd-navigator-settings" aria-label="Navigator settings" title="Navigator settings">
-         <span class="icon-settings"></span>
-       </button>
+        <button type="button" class="bd-navigator-icon-btn bd-navigator-clear" aria-label="Clear conversation" title="Clear conversation">
+          <span class="icon-eraser" aria-hidden="true"></span>
+        </button>
+        <button type="button" class="bd-navigator-icon-btn bd-navigator-settings" aria-label="Navigator settings" title="Navigator settings">
+          <span class="icon-settings" aria-hidden="true"></span>
+        </button>
         <button type="button" class="bd-navigator-icon-btn bd-navigator-close" aria-label="Close Navigator" title="Close Navigator">
           <span class="icon-x" aria-hidden="true"></span>
         </button>
@@ -456,9 +464,15 @@ class NavigatorFeature {
       </select>
     `;
     const settingsSelect = settingsPanel.querySelector('select');
+    this.settingsSelect = settingsSelect;
     if (typeof NavigatorSettings !== 'undefined') {
       NavigatorSettings.load().then(settings => { settingsSelect.value = settings.thinkingLevel; });
       settingsSelect.addEventListener('change', () => NavigatorSettings.save({ thinkingLevel: settingsSelect.value }));
+      this.settingsUnsubscribe = NavigatorSettings.watch(settings => {
+        if (this.settingsSelect && document.activeElement !== this.settingsSelect) {
+          this.settingsSelect.value = settings.thinkingLevel;
+        }
+      });
     }
     drawer.append(resize, header, settingsPanel, transcript, composer);
     document.body.appendChild(drawer);
@@ -692,7 +706,17 @@ class NavigatorFeature {
       this.sendBtn.disabled = busy;
       this.sendBtn.hidden = chatBusy;
     }
-    if (this.stopBtn) this.stopBtn.hidden = !chatBusy;
+    const activeMessage = this.session?.getMessages?.().find(message => (
+      message.id === this.session?.streamingMessageId
+    ));
+    if (this.stopBtn) {
+      this.stopBtn.hidden = !chatBusy;
+      this.stopBtn.classList.toggle('bd-navigator-stop-emphasized', activeMessage?.streamStage === 'reasoning');
+    }
+    if (!chatBusy && this.reasoningTimer) {
+      clearInterval(this.reasoningTimer);
+      this.reasoningTimer = null;
+    }
     this.emptyEl?.querySelectorAll('.bd-navigator-quick-actions button').forEach(button => {
       button.disabled = busy;
     });
@@ -737,6 +761,13 @@ class NavigatorFeature {
     this.updateEmptyState();
     this.updateComposerState();
     this.scrollToBottom(true);
+    if (!this.reasoningTimer && this.session?.isChatBusy) {
+      this.reasoningTimer = setInterval(() => {
+        for (const message of this.session?.getMessages?.() || []) {
+          if (message.streamStage === 'reasoning') this.updateMessageNode(message);
+        }
+      }, 1000);
+    }
   }
 
   updateEmptyState() {
@@ -792,11 +823,20 @@ class NavigatorFeature {
     } else if (readToolActivity.length) {
       status.replaceChildren(this.createToolActivityIndicator(readToolActivity, false));
       status.className = 'bd-navigator-message-status';
-    } else if (message.status === 'pending') {
-      status.replaceChildren(this.createThinkingIndicator());
+    } else if (message.status === 'pending' && message.streamStage === 'connecting') {
+      status.replaceChildren(this.createStageIndicator('Connecting', message));
+      status.className = 'bd-navigator-message-status';
+    } else if (message.status === 'pending' && message.streamStage === 'reasoning') {
+      status.replaceChildren(this.createStageIndicator('Reasoning', message));
+      status.className = 'bd-navigator-message-status bd-navigator-reasoning-active';
+    } else if (message.status === 'streaming' && message.streamStage === 'writing') {
+      status.replaceChildren(this.createStageIndicator('Writing', message));
       status.className = 'bd-navigator-message-status';
     } else if (message.status === 'complete' && completedReadTools.length) {
       status.replaceChildren(this.createToolActivityIndicator(completedReadTools, true));
+      status.className = 'bd-navigator-message-status';
+    } else if (message.status === 'complete') {
+      status.replaceChildren(this.createCompletionFooter(message));
       status.className = 'bd-navigator-message-status';
     } else {
       status.replaceChildren();
@@ -1365,6 +1405,40 @@ class NavigatorFeature {
     }
     wrap.appendChild(dots);
     return wrap;
+  }
+
+  createStageIndicator(stage, message) {
+    const wrap = document.createElement('span');
+    wrap.className = 'bd-navigator-thinking';
+    const elapsed = message.streamStartedAt ? Math.max(0, Math.floor((Date.now() - message.streamStartedAt) / 1000)) : 0;
+    const level = message.meta?.thinkingLevel || this.session?.settings?.thinkingLevel || 'low';
+    const threshold = level === 'high' ? 90 : 30;
+    const label = document.createElement('span');
+    label.className = 'bd-navigator-activity-label';
+    label.textContent = stage === 'Reasoning' && elapsed >= threshold
+      ? 'Still reasoning — you can stop'
+      : `${stage} · ${level} · ${elapsed}s`;
+    wrap.appendChild(label);
+    if (stage === 'Reasoning') {
+      const dots = document.createElement('span');
+      dots.className = 'bd-navigator-thinking-dots';
+      dots.setAttribute('aria-hidden', 'true');
+      for (let i = 0; i < 3; i++) dots.appendChild(document.createElement('i'));
+      wrap.appendChild(dots);
+    }
+    return wrap;
+  }
+
+  createCompletionFooter(message) {
+    const footer = document.createElement('span');
+    footer.className = 'bd-navigator-status-muted';
+    const meta = message.meta || {};
+    const level = meta.thinking?.appliedLevel || meta.thinkingLevel || this.session?.settings?.thinkingLevel || 'low';
+    const duration = Number.isFinite(meta.durationMs) ? `${Math.round(meta.durationMs / 1000)}s` : '—';
+    const reasoningTokens = meta.usage?.completion_tokens_details?.reasoning_tokens;
+    footer.textContent = `Applied ${level} · ${duration}${Number.isFinite(reasoningTokens) ? ` · ${reasoningTokens} reasoning tokens` : ''}`;
+    if (meta.thinking?.applied === false) footer.textContent += ' · provider did not apply it';
+    return footer;
   }
 
   getReadToolNames(names) {

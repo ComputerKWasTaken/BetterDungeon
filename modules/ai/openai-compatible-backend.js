@@ -211,6 +211,14 @@
       function onPortMessage(message) {
         if (settled || !message || message.v !== 1 || message.requestId !== requestId) return;
         if (message.type === 'keepalive') return;
+        if (message.type === 'stage') {
+          if ((message.stage === 'connected' || message.stage === 'streaming') && typeof controls.onStage === 'function') {
+            try { controls.onStage(message.stage); } catch (error) {
+              console.error('[OpenAICompatibleBackend] Chat stage consumer failed:', error);
+            }
+          }
+          return;
+        }
         if (message.type === 'delta') {
           if (typeof message.text === 'string' && message.text && typeof controls.onDelta === 'function') {
             try {
