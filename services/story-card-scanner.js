@@ -69,6 +69,23 @@ class StoryCardScanner {
     return cards instanceof Map ? Array.from(cards.values()) : Array.from(cards);
   }
 
+  async getApolloStoryCards(shortId) {
+    const reader = window.BetterDungeonAdventureRead;
+    if (!reader?.readAdventure) return null;
+    try {
+      const snapshot = await reader.readAdventure({
+        shortId,
+        signal: this.abortController?.signal,
+      });
+      if (snapshot.provenance?.storyCards?.source !== 'apollo') return null;
+      return Array.isArray(snapshot.storyCards) ? snapshot.storyCards : [];
+    } catch (error) {
+      if (error?.name === 'AbortError' || this.abortController?.signal.aborted) throw error;
+      this.log('Apollo Story Card read unavailable; using existing fallback chain.');
+      return null;
+    }
+  }
+
   async fetchStoryCardsViaGraphQL(shortId) {
     const gql = window.BetterDungeonGQL;
     if (!gql?.request) {
@@ -123,10 +140,23 @@ class StoryCardScanner {
         return { success: false, error: 'Adventure shortId is unknown' };
       }
 
+      const apolloCards = await this.getApolloStoryCards(shortId);
       const wsCards = this.getWsStoryCards();
-      const cards = wsCards.length > 0
-        ? wsCards
-        : await this.fetchStoryCardsViaGraphQL(shortId);
+      const cachedCards = this.getSharedCache()?.getCardArray?.() || [];
+      const cards = apolloCards !== null
+        ? apolloCards
+        : wsCards.length > 0
+          ? wsCards
+          : cachedCards.length > 0
+            ? cachedCards
+            : await this.fetchStoryCardsViaGraphQL(shortId);
+      const source = apolloCards !== null
+        ? 'apollo'
+        : wsCards.length > 0
+          ? 'ws'
+          : cachedCards.length > 0
+            ? 'storyCardCache'
+            : 'graphql';
 
       return this.consumeStoryCards(
         cards,
@@ -134,7 +164,7 @@ class StoryCardScanner {
         onTriggerFound,
         onProgress,
         onCardScanned,
-        wsCards.length > 0 ? 'ws' : 'graphql'
+        source
       );
     } catch (error) {
       if (error.name === 'AbortError' || this.abortController?.signal.aborted) {

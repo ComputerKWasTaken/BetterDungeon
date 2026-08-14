@@ -667,6 +667,34 @@
         const ws = getWs();
         return ws?.getActions ? [...ws.getActions().values()] : [];
       },
+      getHistory: async (options = {}) => {
+        const reader = window.BetterDungeonAdventureRead;
+        const shortId = options.shortId || getWs()?.getAdventureShortId?.() || null;
+        if (!reader?.readActions) {
+          return {
+            actions: [],
+            coverage: {
+              authoritativeTotal: null,
+              available: 0,
+              included: 0,
+              omitted: 0,
+              incomplete: true,
+              availabilityGap: false,
+              discrepancyNote: 'The adventure history reader is unavailable.',
+            },
+            provenance: { source: 'unavailable' },
+            historyIncomplete: true,
+            complete: false,
+            fallbacks: [],
+            degradations: [{ section: 'actions', source: 'reader', message: 'Adventure history reader is unavailable.' }],
+          };
+        }
+        const result = await reader.readActions({ shortId, signal: options.signal || null });
+        return {
+          ...result,
+          complete: !result.historyIncomplete && !(result.degradations || []).length,
+        };
+      },
       getCurrentActionId: () => state.tail,
       getTail: () => state.tail,
       getLiveCount: () => state.liveCount,

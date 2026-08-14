@@ -140,6 +140,30 @@
     return Array.from(merged.values()).sort((left, right) => numericId(left.id) - numericId(right.id));
   }
 
+  let latestAction = { id: null, source: 'unavailable', shortId: null };
+
+  function updateLatestAction(actions, source, shortId) {
+    let latestId = null;
+    let latestNumericId = -Infinity;
+    for (const action of actions || []) {
+      const numeric = numericId(action?.id);
+      if (numeric !== null && numeric > latestNumericId) {
+        latestNumericId = numeric;
+        latestId = String(action.id);
+      }
+    }
+    latestAction = {
+      id: latestId,
+      source: latestId === null ? 'unavailable' : (source || 'unavailable'),
+      shortId: shortId || null,
+    };
+    return latestAction;
+  }
+
+  function getLatestActionId() {
+    return { ...latestAction };
+  }
+
   function normalizeApollo(data, shortId) {
     const adventure = data?.adventure || {};
     const state = data?.state || adventure.state || {};
@@ -318,7 +342,6 @@
       fallbacks.push({ section: 'actions', from: 'apollo', to: 'ws', normalNotFound: apolloNotFound });
     }
     const total = base.identity.actionCount;
-    const apolloUnavailable = apolloResult?.error?.code === 'unavailable';
     const apolloHistoryDegraded = !apolloAvailable &&
       apolloResult?.error?.code !== 'not_found';
     const actionGap = Number.isFinite(total) && actions.length !== total;
@@ -370,6 +393,7 @@
         omittedReason: null,
       },
     };
+    updateLatestAction(actions, provenance.actions.source, shortId);
     return {
       identity: base.identity,
       plot: base.plot,
@@ -397,7 +421,31 @@
     };
   }
 
-  window.BetterDungeonAdventureRead = { readAdventure, readActions };
+  async function refreshLatestActionId(options = {}) {
+    const shortId = options.shortId || window.Ultrascripts?.ws?.getAdventureShortId?.() || null;
+    if (!shortId) {
+      latestAction = { id: null, source: 'unavailable', shortId: null };
+      return getLatestActionId();
+    }
+    const result = await readActions({ shortId, signal: options.signal || null });
+    return updateLatestAction(result.actions, result.provenance?.source, shortId);
+  }
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('ultrascripts:adventure:change', (event) => {
+      latestAction = { id: null, source: 'unavailable', shortId: event.detail?.shortId || null };
+      if (event.detail?.shortId) {
+        refreshLatestActionId({ shortId: event.detail.shortId }).catch(() => {});
+      }
+    });
+  }
+
+  window.BetterDungeonAdventureRead = {
+    readAdventure,
+    readActions,
+    getLatestActionId,
+    refreshLatestActionId,
+  };
 
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = window.BetterDungeonAdventureRead;
