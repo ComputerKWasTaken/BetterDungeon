@@ -32,7 +32,10 @@
   "content_scripts": [
     {
       "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"],
-      "js": ["services/ultrascripts/ws-interceptor.js"],
+      "js": [
+        "services/apollo-bridge.js",
+        "services/ultrascripts/ws-interceptor.js"
+      ],
       "run_at": "document_start",
       "world": "MAIN"
     },
@@ -58,6 +61,7 @@
         "utils/storage.js",
         "utils/markdown-config.js",
         "services/graphql-service.js",
+        "services/apollo-cache-service.js",
         "services/ai-dungeon-service.js",
         "services/ultrascripts/write-queue.js",
         "services/ultrascripts/envelope.js",
