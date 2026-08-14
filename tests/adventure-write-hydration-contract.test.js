@@ -84,7 +84,7 @@ async function testConfirmedHydrationAndFailure() {
       return { available: true, data: { changed: true }, error: null };
     },
     async readEntity() {
-      return { available: true, data: { state: {} }, error: null };
+      return { available: true, data: { state: { instructions: { type: 'aiInstructions' } } }, error: null };
     },
   };
   installGraphql(live);
@@ -102,8 +102,31 @@ async function testConfirmedHydrationAndFailure() {
   });
   assert.equal(instruction.ok, true);
   assert.deepEqual(calls[1].fields.state, {
-    instructions: { type: 'custom', custom: 'Confirmed instructions' },
+    instructions: { type: 'aiInstructions', custom: 'Confirmed instructions' },
   });
+  window.BetterDungeonApolloCache.readEntity = async () => ({
+    available: true,
+    data: { state: {} },
+    error: null,
+  });
+  const defaultInstruction = await window.BetterDungeonAdventureWriteHydration.hydrateVerifiedMutation({
+    kind: 'plot_component',
+    proposal: { adventureId: '101', field: 'instructions' },
+    verified: { id: '101', instructions: 'Defaulted instructions' },
+  });
+  assert.equal(defaultInstruction.ok, true);
+  assert.deepEqual(calls[2].fields.state, {
+    instructions: { type: 'custom', custom: 'Defaulted instructions' },
+  });
+
+  const summary = await window.BetterDungeonAdventureWriteHydration.hydrateVerifiedMutation({
+    kind: 'plot_component',
+    proposal: { adventureId: '101', field: 'storySummary' },
+    verified: { id: '101', storySummary: 'Confirmed summary', title: 'Must not copy' },
+  });
+  assert.equal(summary.ok, true);
+  assert.equal(calls[3].fields.title, undefined);
+  assert.equal(calls[3].fields.state.storySummary, 'Confirmed summary');
 
   window.BetterDungeonApolloCache.modifyEntity = async () => {
     throw new Error('cache write failed');
@@ -183,6 +206,25 @@ async function testCardEditAndDeletionDecision() {
   assert.equal(deletion.deferred, true);
   assert.equal(refetches, 1);
   assert.equal(calls.length, 1, 'deletion must not evict or modify a live StoryCard entity');
+
+  const creation = await window.BetterDungeonAdventureWriteHydration.hydrateVerifiedMutation({
+    kind: 'story_card_create',
+    proposal: { adventureId: '101' },
+    verified: { id: 'card-2', title: 'New card' },
+  });
+  assert.equal(creation.ok, true);
+  assert.equal(creation.deferred, true);
+  assert.equal(refetches, 2);
+  assert.equal(calls.length, 1, 'creation must not modify a non-existent StoryCard entity');
+
+  delete window.BetterDungeonApolloCache.refetchActive;
+  const deferredCreation = await window.BetterDungeonAdventureWriteHydration.hydrateVerifiedMutation({
+    kind: 'story_card_create',
+    proposal: { adventureId: '101' },
+    verified: { id: 'card-3', title: 'Deferred card' },
+  });
+  assert.equal(deferredCreation.ok, false);
+  assert.equal(deferredCreation.deferred, true);
 }
 
 async function main() {
