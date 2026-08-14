@@ -59,11 +59,11 @@ async function testScannerApolloFirstAndFallbacks() {
   let readerCalls = 0;
   let graphqlCalls = 0;
   window.BetterDungeonAdventureRead = {
-    readAdventure: async () => {
+    readCards: async () => {
       readerCalls++;
       return {
-        storyCards: [card('apollo-1', 'Apollo Card')],
-        provenance: { storyCards: { source: 'apollo' } },
+        cards: [card('apollo-1', 'Apollo Card')],
+        provenance: { source: 'apollo' },
       };
     },
   };
@@ -80,11 +80,12 @@ async function testScannerApolloFirstAndFallbacks() {
   assert.equal(graphqlCalls, 0);
 
   window.BetterDungeonAdventureRead = {
-    readAdventure: async () => ({
-      storyCards: [],
-      provenance: { storyCards: { source: 'unavailable' } },
+    readCards: async () => ({
+      cards: [],
+      provenance: { source: 'unavailable' },
     }),
   };
+  window.storyCardCache.getCardArray = () => [card('stale', 'Stale cache card')];
   const fallbackResult = await scanner.scanAllCards();
   assert.equal(fallbackResult.source, 'graphql');
   assert.equal(graphqlCalls, 1);
