@@ -356,8 +356,9 @@
       };
     }
 
-    requireGraphqlCards(index) {
-      if (index.source !== 'graphql' || !Array.isArray(index.cards)) {
+    requireAuthoritativeCards(index) {
+      const authoritative = index?.source === 'apollo' || index?.source === 'graphql';
+      if (!authoritative || !Array.isArray(index.cards)) {
         throw { code: 'unavailable', message: 'Authoritative Story Card data is unavailable for this turn.' };
       }
       return index.cards.map(normalizeCard).filter(Boolean);
@@ -369,7 +370,7 @@
       const changes = assertObject(args.changes, 'changes');
       assertOnlyKeys(changes, Object.keys(CARD_FIELDS), 'changes');
       if (!Object.keys(changes).length) throw { code: 'invalid_tool_args', message: 'changes must include at least one Story Card field.' };
-      const before = this.requireGraphqlCards(index).find(card => card.id === id);
+      const before = this.requireAuthoritativeCards(index).find(card => card.id === id);
       if (!before) throw { code: 'not_found', message: 'No current Story Card matched that identifier.' };
       const patch = {};
       const displayChanges = [];
@@ -394,7 +395,7 @@
     createCardDeleteProposal(args, index) {
       assertOnlyKeys(args, ['id', 'reason'], 'Story Card deletion proposal');
       const id = stringArg(args.id, 'id', { nonEmpty: true }).trim();
-      const before = this.requireGraphqlCards(index).find(card => card.id === id);
+      const before = this.requireAuthoritativeCards(index).find(card => card.id === id);
       if (!before) throw { code: 'not_found', message: 'No current Story Card matched that identifier.' };
       return {
         ...this.proposalBase('story_card_delete', before.title || `Story Card ${id}`, reasonArg(args.reason), index),

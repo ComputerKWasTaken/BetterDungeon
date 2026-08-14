@@ -52,68 +52,9 @@
     };
   }
 
-  function timestamp(value) {
-    const parsed = Date.parse(value || '');
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-
   function numericId(value) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : null;
-  }
-
-  function collectionValues(value) {
-    if (Array.isArray(value)) return value.slice();
-    if (value && typeof value.values === 'function') {
-      try { return Array.from(value.values()); } catch { /* noop */ }
-    }
-    return [];
-  }
-
-  function normalizeTriggers(card) {
-    if (Array.isArray(card?.triggers)) {
-      return card.triggers
-        .map(trigger => oneLine(trigger).toLowerCase())
-        .filter(Boolean);
-    }
-    return stringValue(card?.keys)
-      .split(',')
-      .map(trigger => trigger.trim().toLowerCase())
-      .filter(Boolean);
-  }
-
-  function normalizeCard(card) {
-    if (!card || card.deletedAt) return null;
-    const id = card.id == null ? null : String(card.id);
-    const keys = Array.isArray(card.keys) ? card.keys.join(',') : stringValue(card.keys);
-    const hasEntryValue = card.value !== undefined || card.entryText !== undefined;
-    return {
-      id,
-      type: oneLine(card.type, 'other').toLowerCase(),
-      title: oneLine(card.title || card.name || keys, id ? `Story Card ${id}` : 'Untitled Story Card'),
-      description: stringValue(card.description),
-      keys,
-      value: hasEntryValue ? stringValue(card.value ?? card.entryText) : stringValue(card.description),
-      triggers: normalizeTriggers({ ...card, keys }),
-      updatedAt: card.updatedAt || null,
-      useForCharacterCreation: card.useForCharacterCreation === true,
-    };
-  }
-
-  function liveActions(ws) {
-    const actionMap = ws?.getActions?.();
-    const source = collectionValues(actionMap);
-    return source
-      .map((action, order) => ({ action, order }))
-      .filter(({ action }) => action && action.undoneAt == null && stringValue(action.text).trim())
-      .sort((left, right) => {
-        const leftId = numericId(left.action.id);
-        const rightId = numericId(right.action.id);
-        if (leftId !== null && rightId !== null && leftId !== rightId) return leftId - rightId;
-        const timeDifference = timestamp(left.action.createdAt) - timestamp(right.action.createdAt);
-        return timeDifference || left.order - right.order;
-      })
-      .map(({ action }) => action);
   }
 
   function renderAction(action) {
@@ -204,40 +145,29 @@
     };
   }
 
-  function buildPlotComponents(adventure, error) {
-    if (!adventure) {
-      const detail = oneLine(error?.message, 'Plot component data is unavailable.');
-      const clipped = truncate(detail, 360);
-      const text = `Plot component query unavailable: ${clipped.text}`;
-      return {
-        text,
-        meta: {
-          budgetChars: BUDGETS.plotComponents,
-          sourceChars: 0,
-          includedChars: text.length,
-          available: false,
-          populated: 0,
-          fields: {},
-          truncated: clipped.truncated,
-        },
-      };
-    }
-
+  function buildPlotComponents(adventure, provenance = {}) {
     const parts = [];
     const fields = {};
     let populated = 0;
+    let available = 0;
     let sourceChars = 0;
     for (const field of PLOT_FIELDS) {
-      const source = stringValue(adventure[field.key]).trim();
+      const sourceName = provenance[field.key] || (adventure ? 'unknown' : 'unavailable');
+      const source = stringValue(adventure?.[field.key]).trim();
+      const fieldAvailable = sourceName !== 'unavailable';
+      if (fieldAvailable) available += 1;
       sourceChars += source.length;
       if (source) populated += 1;
-      const clipped = truncate(source || '(empty)', field.maxChars);
+      const clipped = truncate(fieldAvailable ? (source || '(empty)') : '(unavailable)', field.maxChars);
       parts.push(`${field.label}:\n${clipped.text}`);
       fields[field.key] = {
         sourceChars: source.length,
         includedChars: clipped.text.length,
         maxChars: field.maxChars,
         empty: !source,
+        unavailable: !fieldAvailable,
+        available: fieldAvailable,
+        source: sourceName,
         truncated: clipped.truncated,
       };
     }
@@ -250,7 +180,7 @@
         budgetChars: BUDGETS.plotComponents,
         sourceChars,
         includedChars: bounded.text.length,
-        available: true,
+        available: available > 0,
         populated,
         fields,
         truncated: bounded.truncated || Object.values(fields).some(field => field.truncated),
@@ -258,88 +188,101 @@
     };
   }
 
-  function getLiveCards(ws) {
-    const cards = ws?.getCards?.();
-    const live = collectionValues(cards).map(normalizeCard).filter(Boolean);
-    if (live.length) return live;
-    const cached = window.storyCardCache?.getCardArray?.();
-    return collectionValues(cached).map(normalizeCard).filter(Boolean);
-  }
-
   class NavigatorContext {
     constructor(shortId) {
       this.shortId = shortId || null;
-    }
-
-    async loadAdventure(signal) {
-      const gql = window.BetterDungeonGQL;
-      if (!gql?.getNavigatorAdventureContext) {
-        throw new Error('The BetterDungeon GraphQL context reader is unavailable.');
-      }
-      return gql.getNavigatorAdventureContext(this.shortId, { signal });
-    }
-
-    async loadCards(signal) {
-      const gql = window.BetterDungeonGQL;
-      if (!gql?.getNavigatorStoryCards) {
-        throw new Error('The BetterDungeon GraphQL Story Card reader is unavailable.');
-      }
-      return gql.getNavigatorStoryCards(this.shortId, { signal });
     }
 
     async build(options = {}) {
       const signal = options.signal || null;
       const ws = window.Ultrascripts?.ws || null;
       const resolvedShortId = this.shortId || ws?.getAdventureShortId?.() || null;
-      const [adventureResult, cardsResult] = await Promise.allSettled([
-        this.loadAdventure(signal),
-        this.loadCards(signal),
-      ]);
-
+      const reader = window.BetterDungeonAdventureRead;
+      if (!reader?.readAdventure) {
+        throw new Error('The BetterDungeon adventure reader is unavailable.');
+      }
+      const adventureSnapshot = await reader.readAdventure({ shortId: resolvedShortId, signal });
       if (signal?.aborted) {
         throw { code: 'aborted', message: 'Navigator context loading was stopped.', retryable: false };
       }
 
-      const adventure = adventureResult.status === 'fulfilled' ? adventureResult.value : null;
-      const plotError = adventureResult.status === 'rejected' ? adventureResult.reason : null;
-      const cardSnapshot = cardsResult.status === 'fulfilled' ? cardsResult.value : null;
-      const cardError = cardsResult.status === 'rejected' ? cardsResult.reason : null;
-      if (plotError?.name === 'AbortError' || cardError?.name === 'AbortError') {
-        throw { code: 'aborted', message: 'Navigator context loading was stopped.', retryable: false };
-      }
-
-      const actions = liveActions(ws);
+      const adventure = {
+        ...adventureSnapshot.identity,
+        ...adventureSnapshot.plot,
+      };
+      const actions = adventureSnapshot.actions;
       const recent = buildRecentActions(actions);
-      const cards = cardSnapshot
-        ? collectionValues(cardSnapshot.cards).map(normalizeCard).filter(Boolean)
-        : getLiveCards(ws);
-      const cardSource = cardSnapshot ? 'graphql' : 'cache';
-      const plot = buildPlotComponents(adventure, plotError);
+      const cards = adventureSnapshot.storyCards;
+      const readerCardSource = adventureSnapshot.provenance.storyCards.source || 'unavailable';
+      const cardSource = readerCardSource === 'storyCardCache' || readerCardSource === 'ws'
+        ? 'cache'
+        : readerCardSource;
+      const plot = buildPlotComponents(adventure, adventureSnapshot.provenance.plot);
       const identityLines = [
         `Title: ${oneLine(adventure?.title, '(title unavailable)')}`,
         `Adventure short ID: ${oneLine(adventure?.shortId || resolvedShortId, '(unavailable)')}`,
         `Adventure ID: ${oneLine(adventure?.id || ws?.getAdventureId?.(), '(unavailable)')}`,
-        `Action count: ${Number.isFinite(adventure?.actionCount) ? adventure.actionCount : (ws?.getLiveCount?.() ?? actions.length)}`,
+        `Action count: ${Number.isFinite(adventure?.actionCount) ? adventure.actionCount : '(unknown)'}`,
         `Third-person mode: ${typeof adventure?.thirdPerson === 'boolean' ? (adventure.thirdPerson ? 'enabled' : 'disabled') : 'unavailable'}`,
       ];
       const identity = truncate(identityLines.join('\n'), BUDGETS.identity);
 
       const warnings = [];
-      if (!ws) warnings.push('Live WebSocket adventure data is unavailable.');
-      if (plotError) warnings.push('Plot components could not be refreshed from AI Dungeon.');
-      if (cardError) warnings.push('Story Cards could not be refreshed from AI Dungeon; the live page cache was used instead.');
+      if (adventureSnapshot.historyIncomplete) {
+        warnings.push('The complete story history is not available to Navigator; only the listed actions can be used.');
+      }
+      for (const degradation of adventureSnapshot.degradations) {
+        if (degradation.userVisible) warnings.push(`${degradation.section} data degraded: ${degradation.message}`);
+      }
       const primer = stringValue(window.NavigatorPrimer?.TEXT);
       if (!primer) throw new Error('Navigator primer is unavailable.');
       const capturedAtIso = new Date().toISOString();
 
+      const memoryBank = Array.isArray(adventureSnapshot.state.memories)
+        ? adventureSnapshot.state.memories
+        : null;
+      const memoryBankChars = memoryBank
+        ? memoryBank.reduce((sum, item) => sum + stringValue(item).length, 0)
+        : null;
+      const latestActionId = actions.length ? numericId(actions[actions.length - 1].id) : null;
+      const summaryLag = {
+        latestActionId,
+        lastSummarizedActionId: adventureSnapshot.state.lastSummarizedActionId,
+        lastMemoryActionId: adventureSnapshot.state.lastMemoryActionId,
+      };
+      const historyCoverage = {
+        ...adventureSnapshot.coverage.actions,
+        included: recent.meta.included,
+        omitted: Math.max(0, adventureSnapshot.coverage.actions.available - recent.meta.included),
+        omittedReason: recent.meta.included < adventureSnapshot.coverage.actions.available
+          ? 'character budget'
+          : null,
+      };
       const assembleSnapshot = (directory) => {
+        const cardsCoverage = {
+          ...adventureSnapshot.coverage.storyCards,
+          included: directory.meta.included,
+          omitted: Math.max(0, cards.length - directory.meta.included),
+          omittedReason: directory.meta.included < cards.length ? 'character budget' : null,
+        };
         const coverage = [
-          `Plot Components: ${plot.meta.available ? `${plot.meta.populated} of 4 populated and included` : 'unavailable'}.`,
-          `Recent story actions: ${recent.meta.included} of ${recent.meta.total} included; ${recent.meta.omitted} older actions omitted.`,
-          `Story Card directory: ${directory.meta.included} of ${directory.meta.total} listed from ${directory.meta.source}; ${directory.meta.omitted} omitted.`,
+          plot.meta.available
+            ? `Plot Components: ${plot.meta.populated} of 4 populated and included; source ${adventureSnapshot.provenance.plot.instructions}.`
+            : 'Plot Components: unavailable; the adventure plot could not be read.',
+          `Recent story actions: authoritative total ${historyCoverage.authoritativeTotal ?? 'unknown'}; ${historyCoverage.available} available; ${historyCoverage.included} included; source ${adventureSnapshot.provenance.actions.source}.`,
+          historyCoverage.incomplete
+            ? 'History is incomplete because Apollo history was unavailable; Navigator is NOT seeing the whole story.'
+            : historyCoverage.availabilityGap
+              ? 'Action-count reference differs from retained normalized actions; undo filtering and retained-entity semantics make these counts informational, not a completeness claim.'
+              : 'Action-count reference and retained normalized actions currently align; this remains an informational comparison.',
+          `Story Card directory: ${cardsCoverage.included} of ${cardsCoverage.authoritativeTotal} included from ${directory.meta.source}; ${cardsCoverage.omitted} omitted${cardsCoverage.omittedReason ? ` for ${cardsCoverage.omittedReason}` : ''}.`,
+          memoryBank
+            ? `Memory Bank: ${memoryBank.length} memories, ${memoryBankChars} characters; summary lag latest=${summaryLag.latestActionId ?? 'unknown'}, lastSummarized=${summaryLag.lastSummarizedActionId ?? 'unknown'}, lastMemory=${summaryLag.lastMemoryActionId ?? 'unknown'}.`
+            : 'Memory Bank and summary lag: unavailable from the GraphQL fallback reader.',
           warnings.length ? `Snapshot warnings: ${warnings.join(' ')}` : 'Snapshot warnings: none.',
         ].join('\n');
-        return [
+        return {
+          text: [
           primer,
           '',
           '=== CURRENT ADVENTURE SNAPSHOT ===',
@@ -362,27 +305,36 @@
           directory.text,
           '',
           '=== END CURRENT ADVENTURE SNAPSHOT ===',
-        ].join('\n');
+          ].join('\n'),
+          cardsCoverage,
+        };
       };
 
       let directoryBudget = BUDGETS.systemInstruction;
       let storyCardDirectory = buildStoryCardDirectory(cards, directoryBudget, cardSource);
-      let snapshot = assembleSnapshot(storyCardDirectory);
+      let assembled = assembleSnapshot(storyCardDirectory);
+      let snapshot = assembled.text;
       for (let attempt = 0; attempt < 3 && snapshot.length > BUDGETS.systemInstruction; attempt++) {
         directoryBudget = Math.max(0, directoryBudget - (snapshot.length - BUDGETS.systemInstruction) - 32);
         storyCardDirectory = buildStoryCardDirectory(cards, directoryBudget, cardSource);
-        snapshot = assembleSnapshot(storyCardDirectory);
+        assembled = assembleSnapshot(storyCardDirectory);
+        snapshot = assembled.text;
       }
+      const cardsCoverage = assembled.cardsCoverage;
 
       return {
         systemInstruction: snapshot,
         capturedAtIso,
-        partial: warnings.length > 0,
+        partial: warnings.length > 0 || adventureSnapshot.sourceDegraded ||
+          adventureSnapshot.historyIncomplete ||
+          plot.meta.truncated || recent.meta.truncated || storyCardDirectory.meta.truncated,
         warnings,
         index: {
-          adventureId: String(cardSnapshot?.id || adventure?.id || ws?.getAdventureId?.() || ''),
-          shortId: cardSnapshot?.shortId || adventure?.shortId || resolvedShortId,
+          adventureId: String(adventure?.id || ws?.getAdventureId?.() || ''),
+          shortId: adventure?.shortId || resolvedShortId,
           source: cardSource,
+          cardSource: readerCardSource,
+          authoritativeSource: readerCardSource === 'apollo' || readerCardSource === 'graphql',
           capturedAtIso,
           adventure: adventure ? {
             id: String(adventure.id || ''),
@@ -395,6 +347,7 @@
             storySummary: stringValue(adventure.storySummary),
           } : null,
           cards,
+          provenance: adventureSnapshot.provenance,
         },
         summary: {
           title: oneLine(adventure?.title),
@@ -403,9 +356,14 @@
           cardsTotal: storyCardDirectory.meta.total,
           cardsIncluded: storyCardDirectory.meta.included,
           cardsOmitted: storyCardDirectory.meta.omitted,
-          actionsTotal: recent.meta.total,
+          actionsTotal: adventureSnapshot.coverage.actions.authoritativeTotal ?? recent.meta.total,
+          actionsAvailable: adventureSnapshot.coverage.actions.available,
           actionsIncluded: recent.meta.included,
           actionsOmitted: recent.meta.omitted,
+          historyIncomplete: adventureSnapshot.historyIncomplete,
+          memoryBankCount: memoryBank ? memoryBank.length : null,
+          memoryBankChars,
+          summaryLag,
         },
         segments: {
           primer: {
@@ -422,8 +380,8 @@
             truncated: identity.truncated,
           },
           plotComponents: plot.meta,
-          recentActions: recent.meta,
-          storyCardDirectory: storyCardDirectory.meta,
+          recentActions: { ...recent.meta, coverage: historyCoverage },
+          storyCardDirectory: { ...storyCardDirectory.meta, coverage: cardsCoverage },
           total: {
             budgetChars: BUDGETS.systemInstruction,
             sourceChars: snapshot.length + Math.max(0, storyCardDirectory.meta.sourceChars - storyCardDirectory.text.length),
