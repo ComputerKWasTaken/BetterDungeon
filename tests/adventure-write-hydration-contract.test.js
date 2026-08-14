@@ -128,6 +128,15 @@ async function testConfirmedHydrationAndFailure() {
   assert.equal(calls[3].fields.title, undefined);
   assert.equal(calls[3].fields.state.storySummary, 'Confirmed summary');
 
+  const missingRoot = await window.BetterDungeonAdventureWriteHydration.hydrateVerifiedMutation({
+    kind: 'plot_component',
+    proposal: { adventureId: '101', field: 'memory' },
+    verified: { id: '101', editedAt: 'server-bumped-only' },
+  });
+  assert.equal(missingRoot.ok, false);
+  assert.match(missingRoot.reason, /confirmed 'memory' unavailable/);
+  assert.equal(calls.length, 4, 'missing root confirmation must not write editedAt alone');
+
   window.BetterDungeonApolloCache.modifyEntity = async () => {
     throw new Error('cache write failed');
   };

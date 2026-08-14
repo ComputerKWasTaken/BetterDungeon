@@ -23,11 +23,10 @@
       return { ok: false, reason: `no safe normalized Adventure placement for '${field || 'unknown'}'` };
     }
     const fields = {};
-    if (has(verified, field)) {
-      if (rootFields.includes(field)) fields[field] = verified[field];
-    } else if (stateFields.includes(field)) {
+    if (!has(verified, field)) {
       return { ok: false, reason: `confirmed '${field}' unavailable` };
     }
+    if (rootFields.includes(field)) fields[field] = verified[field];
     if (has(verified, 'editedAt')) fields.editedAt = verified.editedAt;
     if (stateFields.includes(field)) {
       const current = await apollo.readEntity({ typename: 'Adventure', id: String(id), fields: ['state'] });
