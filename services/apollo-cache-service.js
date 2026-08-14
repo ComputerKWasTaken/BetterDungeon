@@ -14,10 +14,12 @@
   const ORIGIN = window.location?.origin || '';
   const TIMEOUT_MS = Number(window.__BD_APOLLO_CACHE_TIMEOUT_MS) || 2200;
   const NEGATIVE_CACHE_MS = 3000;
+  const NO_BRIDGE = {};
   let requestCounter = 0;
   let unavailableUntil = 0;
   let unavailableHref = window.location?.href || '';
   let unavailableBridge = null;
+  let hasNegativeCache = false;
   const pending = new Map();
 
   function unavailable(message = 'Apollo client unavailable') {
@@ -27,6 +29,7 @@
   function clearNegativeCache() {
     unavailableUntil = 0;
     unavailableBridge = null;
+    hasNegativeCache = false;
   }
 
   function negativeCacheResult() {
@@ -35,15 +38,18 @@
       unavailableHref = href;
       clearNegativeCache();
     }
-    if (unavailableBridge !== null && window.__BD_APOLLO_BRIDGE__ !== unavailableBridge) clearNegativeCache();
+    const currentBridge = window.__BD_APOLLO_BRIDGE__ || NO_BRIDGE;
+    if (hasNegativeCache && currentBridge !== unavailableBridge) clearNegativeCache();
+    if (!hasNegativeCache) return null;
     return Date.now() < unavailableUntil ? unavailable('Apollo client unavailable (cached)') : null;
   }
 
-  function recordResult(result, bridge = null) {
+  function recordResult(result, bridge = NO_BRIDGE) {
     if (result.available) clearNegativeCache();
     else if (result.error?.code === 'unavailable') {
       unavailableUntil = Date.now() + NEGATIVE_CACHE_MS;
-      unavailableBridge = bridge || false;
+      unavailableBridge = bridge;
+      hasNegativeCache = true;
     }
     return result;
   }
@@ -62,6 +68,7 @@
         message.ok
           ? { available: true, data: message.data, error: null }
           : { available: false, data: null, error: message.error || { code: 'unavailable', message: 'Apollo request failed' } },
+        entry.bridge,
       ));
     }, false);
   }
@@ -70,29 +77,34 @@
     const cached = negativeCacheResult();
     if (cached) return Promise.resolve(cached);
     const direct = window.__BD_APOLLO_BRIDGE__;
+    const bridge = direct || NO_BRIDGE;
     if (direct && typeof direct.request === 'function') {
       return Promise.resolve(direct.request(op, payload)).then((result) => {
         if (result?.ok) return recordResult({ available: true, data: result.data, error: null });
-        return recordResult(unavailable(result?.error?.message), direct);
-      }).catch((error) => recordResult(unavailable(error?.message), direct));
+        return recordResult({
+          available: false,
+          data: null,
+          error: result?.error || { code: 'unavailable', message: 'Apollo request failed' },
+        }, bridge);
+      }).catch((error) => recordResult(unavailable(error?.message), bridge));
     }
     if (typeof window.postMessage !== 'function' || typeof window.addEventListener !== 'function') {
-      return Promise.resolve(recordResult(unavailable('Apollo relay unavailable')));
+      return Promise.resolve(recordResult(unavailable('Apollo relay unavailable'), bridge));
     }
     installListener();
     const id = `bd-apollo-${++requestCounter}`;
     return new Promise((resolve) => {
       const timeoutId = setTimeout(() => {
         pending.delete(id);
-        resolve(recordResult(unavailable('Apollo request timed out')));
+        resolve(recordResult(unavailable('Apollo request timed out'), bridge));
       }, TIMEOUT_MS);
-      pending.set(id, { resolve, timeoutId });
+      pending.set(id, { resolve, timeoutId, bridge });
       try {
         window.postMessage({ source: REQUEST_SOURCE, id, op, payload }, ORIGIN);
       } catch (error) {
         clearTimeout(timeoutId);
         pending.delete(id);
-        resolve(recordResult(unavailable(error?.message)));
+        resolve(recordResult(unavailable(error?.message), bridge));
       }
     });
   }

@@ -101,6 +101,9 @@ function load(relativePath) {
 
 load('services/apollo-bridge.js');
 load('services/apollo-cache-service.js');
+const pageBridge = window.__BD_APOLLO_BRIDGE__;
+const pageMessageListener = listeners.get('message')[0];
+let serviceMessageListener;
 
 function assertEnvelope(result) {
   assert.deepEqual(Object.keys(result).sort(), ['available', 'data', 'error']);
@@ -139,6 +142,25 @@ async function testAllowlistingAndUnavailable() {
   assert.equal(unavailable.ok, false);
   assert.equal(unavailable.error.code, 'unavailable');
   root = { __reactContainer$test: { memoizedProps: { value: { client } } } };
+}
+
+async function testDirectErrorCodePassthrough() {
+  let calls = 0;
+  window.__BD_APOLLO_BRIDGE__ = {
+    request: async () => {
+      calls++;
+      return { ok: false, error: { code: 'not_found', message: 'Adventure not cached yet' } };
+    },
+  };
+  const first = await window.BetterDungeonApolloCache.readAdventure({ shortId: 'demo' });
+  assertEnvelope(first);
+  assert.equal(first.available, false);
+  assert.equal(first.error.code, 'not_found');
+  const second = await window.BetterDungeonApolloCache.readEntity({ typename: 'Adventure', id: 42 });
+  assertEnvelope(second);
+  assert.equal(second.error.code, 'not_found');
+  assert.equal(calls, 2);
+  window.__BD_APOLLO_BRIDGE__ = pageBridge;
 }
 
 async function testAdventureDenormalization() {
@@ -193,12 +215,13 @@ async function testRelayPairingAndTimeout() {
   const first = window.BetterDungeonApolloCache.readEntity({ typename: 'Adventure', id: 42 });
   const second = window.BetterDungeonApolloCache.readEntity({ typename: 'Adventure', id: 42, fields: ['title'] });
   const results = await Promise.all([first, second]);
+  serviceMessageListener = listeners.get('message').find((listener) => listener !== pageMessageListener);
   results.forEach(assertEnvelope);
   assert.equal(results[0].data.title, 'Changed');
   assert.equal(results[1].data.title, 'Changed');
   assert.deepEqual(results[1].data, { __typename: 'Adventure', title: 'Changed' });
 
-  listeners.set('message', []);
+  listeners.set('message', [serviceMessageListener]);
   const started = Date.now();
   const timedOut = await window.BetterDungeonApolloCache.status();
   assertEnvelope(timedOut);
@@ -208,6 +231,26 @@ async function testRelayPairingAndTimeout() {
   const shortCircuited = await window.BetterDungeonApolloCache.readAdventure({ shortId: 'demo' });
   assertEnvelope(shortCircuited);
   assert.ok(Date.now() - started < 100);
+
+  window.location.href = 'https://play.aidungeon.com/adventure/next';
+  const navigationResponder = (event) => {
+    if (event.data?.source !== 'BD_APOLLO_REQ') return;
+    window.postMessage({
+      source: 'BD_APOLLO_RES',
+      id: event.data.id,
+      ok: true,
+      data: { available: true, recordCount: 579 },
+    }, event.origin);
+  };
+  listeners.set('message', [serviceMessageListener, navigationResponder]);
+  const afterNavigation = await window.BetterDungeonApolloCache.status();
+  assertEnvelope(afterNavigation);
+  assert.equal(afterNavigation.available, true);
+
+  listeners.set('message', [serviceMessageListener]);
+  const secondTimeout = await window.BetterDungeonApolloCache.status();
+  assertEnvelope(secondTimeout);
+  assert.equal(secondTimeout.available, false);
 
   window.__BD_APOLLO_BRIDGE__ = {
     request: async () => ({ ok: true, data: { available: true, recordCount: 579 } }),
@@ -235,6 +278,7 @@ async function testRelayPairingAndTimeout() {
 async function main() {
   testWiring();
   await testAllowlistingAndUnavailable();
+  await testDirectErrorCodePassthrough();
   await testAdventureDenormalization();
   await testMemoInvalidation();
   await testRelayPairingAndTimeout();
