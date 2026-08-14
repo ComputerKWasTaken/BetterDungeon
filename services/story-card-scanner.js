@@ -151,7 +151,7 @@ class StoryCardScanner {
         ? 'apollo'
         : wsCards.length > 0
           ? 'ws'
-        : 'graphql';
+          : 'graphql';
 
       return this.consumeStoryCards(
         cards,

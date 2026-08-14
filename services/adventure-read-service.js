@@ -404,8 +404,11 @@
         omittedReason: null,
       },
     };
-    if (!internal.cardsOnly && options._latestGeneration === undefined ||
-        !internal.cardsOnly && options._latestGeneration === latestGeneration) {
+    const canUpdateLatestAction = !internal.cardsOnly && (
+      options._latestGeneration === undefined
+      || options._latestGeneration === latestGeneration
+    );
+    if (canUpdateLatestAction) {
       updateLatestAction(actions, provenance.actions.source, shortId);
     }
     return {
