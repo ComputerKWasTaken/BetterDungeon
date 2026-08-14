@@ -3,6 +3,10 @@
 // Page-world Apollo cache bridge. The isolated extension world cannot access
 // React fibers or the page's Apollo client, so this file exposes only bounded,
 // structured-cloneable operations over window.postMessage.
+//
+// readAdventure returns { adventure, state, storyCards, actions }. The
+// adventure and state copies omit their unresolved storyCards ref arrays;
+// resolved cards are provided in the top-level storyCards array.
 
 (function () {
   'use strict';
@@ -13,7 +17,7 @@
   const SOURCE_REQUEST = 'BD_APOLLO_REQ';
   const SOURCE_RESPONSE = 'BD_APOLLO_RES';
   const ORIGIN = window.location?.origin || '';
-  const MAX_FIBERS = 12000;
+  const MAX_FIBERS = 50000;
   const EXTRACT_TTL_MS = 25;
   const ALLOWED_OPS = new Set([
     'status',
@@ -196,11 +200,13 @@
       .sort((left, right) => Number(left.id) - Number(right.id));
 
     const adventureCopy = plain(adventure) || {};
+    const stateCopy = plain(adventure.state) || {};
     delete adventureCopy.storyCards;
+    delete stateCopy.storyCards;
     return {
       data: {
         adventure: adventureCopy,
-        state: plain(adventure.state) || {},
+        state: stateCopy,
         storyCards: cards,
         actions: plain(actions) || [],
       },
@@ -217,7 +223,7 @@
     }
     if (op === 'readEntity') {
       const result = readEntity(payload, getExtract());
-      return result.error ? result : result;
+      return result;
     }
     if (op === 'readAdventure') {
       return readAdventure(payload, getExtract());

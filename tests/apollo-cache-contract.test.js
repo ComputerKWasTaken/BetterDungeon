@@ -102,6 +102,33 @@ function load(relativePath) {
 load('services/apollo-bridge.js');
 load('services/apollo-cache-service.js');
 
+function assertEnvelope(result) {
+  assert.deepEqual(Object.keys(result).sort(), ['available', 'data', 'error']);
+  assert.equal(typeof result.available, 'boolean');
+  assert.ok(Object.prototype.hasOwnProperty.call(result, 'data'));
+  assert.ok(Object.prototype.hasOwnProperty.call(result, 'error'));
+  if (result.available) assert.equal(result.error, null);
+}
+
+function testWiring() {
+  if (ASSETS !== ROOT) {
+    const source = fs.readFileSync(path.join(ROOT, 'app', 'src', 'main', 'java', 'com', 'computerk', 'betterdungeon', 'InjectionEngine.kt'), 'utf8');
+    assert.match(source, /"services\/apollo-bridge\.js"/);
+    assert.match(source, /"services\/apollo-cache-service\.js"/);
+    return;
+  }
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
+  const bridgeEntry = manifest.content_scripts.find((entry) =>
+    entry.world === 'MAIN' && entry.run_at === 'document_start' && entry.js.includes('services/apollo-bridge.js')
+  );
+  assert.ok(bridgeEntry);
+  const isolatedEntry = manifest.content_scripts.find((entry) =>
+    entry.js.includes('services/apollo-cache-service.js')
+  );
+  assert.ok(isolatedEntry);
+  assert.notEqual(bridgeEntry.world, isolatedEntry.world);
+}
+
 async function testAllowlistingAndUnavailable() {
   const unknown = await window.__BD_APOLLO_BRIDGE__.request('unknown', {});
   assert.equal(unknown.ok, false);
@@ -116,11 +143,24 @@ async function testAllowlistingAndUnavailable() {
 
 async function testAdventureDenormalization() {
   const result = await window.BetterDungeonApolloCache.readAdventure({ shortId: 'demo' });
-  assert.equal(result.adventure.title, 'Apollo Quest');
-  assert.equal(result.state.storySummary, 'The hero reached the gate.');
-  assert.deepEqual(result.storyCards.map(card => card.id), [2, 3, 1]);
-  assert.deepEqual(result.actions.map(action => action.id), ['2', '10']);
-  assert.equal(result.actions[0].text, 'Two');
+  assertEnvelope(result);
+  assert.equal(result.data.adventure.title, 'Apollo Quest');
+  assert.equal(result.data.state.storySummary, 'The hero reached the gate.');
+  assert.equal(result.data.state.storyCards, undefined);
+  assert.deepEqual(result.data.storyCards.map(card => card.id), [2, 3, 1]);
+  assert.deepEqual(result.data.actions.map(action => action.id), ['2', '10']);
+  assert.equal(result.data.actions[0].text, 'Two');
+
+  const status = await window.BetterDungeonApolloCache.status();
+  const entity = await window.BetterDungeonApolloCache.readEntity({ typename: 'Adventure', id: 42 });
+  const refetched = await window.BetterDungeonApolloCache.refetchActive();
+  assertEnvelope(status);
+  assertEnvelope(entity);
+  assertEnvelope(refetched);
+  assert.equal(entity.data.title, 'Apollo Quest');
+  assert.equal(refetched.data.refetched, true);
+  const isAvailable = window.BetterDungeonApolloCache.isAvailable;
+  assert.equal(await isAvailable(), true);
 }
 
 async function testMemoInvalidation() {
@@ -132,14 +172,19 @@ async function testMemoInvalidation() {
   await window.__BD_APOLLO_BRIDGE__.request('readEntity', { typename: 'Adventure', id: 42 });
   assert.equal(extractCalls, 1);
 
-  await window.BetterDungeonApolloCache.modifyEntity({
+  const modifiedResult = await window.BetterDungeonApolloCache.modifyEntity({
     typename: 'Adventure', id: 42, fields: { title: 'Changed' },
   });
-  await window.__BD_APOLLO_BRIDGE__.request('readEntity', { typename: 'Adventure', id: 42 });
+  assertEnvelope(modifiedResult);
+  assert.equal(modifiedResult.data.changed, true);
+  const modified = await window.BetterDungeonApolloCache.readEntity({ typename: 'Adventure', id: 42 });
+  assertEnvelope(modified);
   assert.equal(extractCalls, 2);
 
-  await window.BetterDungeonApolloCache.evictEntity({ typename: 'StoryCard', id: 3 });
-  await window.__BD_APOLLO_BRIDGE__.request('readEntity', { typename: 'Adventure', id: 42 });
+  const evicted = await window.BetterDungeonApolloCache.evictEntity({ typename: 'StoryCard', id: 3 });
+  assertEnvelope(evicted);
+  assert.equal(evicted.data.evicted, true);
+  await window.BetterDungeonApolloCache.readEntity({ typename: 'Adventure', id: 42 });
   assert.equal(extractCalls, 3);
 }
 
@@ -148,18 +193,47 @@ async function testRelayPairingAndTimeout() {
   const first = window.BetterDungeonApolloCache.readEntity({ typename: 'Adventure', id: 42 });
   const second = window.BetterDungeonApolloCache.readEntity({ typename: 'Adventure', id: 42, fields: ['title'] });
   const results = await Promise.all([first, second]);
-  assert.equal(results[0].title, 'Changed');
-  assert.equal(results[1].title, 'Changed');
-  assert.deepEqual(results[1], { __typename: 'Adventure', title: 'Changed' });
+  results.forEach(assertEnvelope);
+  assert.equal(results[0].data.title, 'Changed');
+  assert.equal(results[1].data.title, 'Changed');
+  assert.deepEqual(results[1].data, { __typename: 'Adventure', title: 'Changed' });
 
   listeners.set('message', []);
+  const started = Date.now();
   const timedOut = await window.BetterDungeonApolloCache.status();
+  assertEnvelope(timedOut);
   assert.equal(timedOut.available, false);
-  assert.equal(timedOut.error.code, 'unavailable');
+  assert.equal(timedOut.data.available, false);
   assert.match(timedOut.error.message, /timed out/i);
+  const shortCircuited = await window.BetterDungeonApolloCache.readAdventure({ shortId: 'demo' });
+  assertEnvelope(shortCircuited);
+  assert.ok(Date.now() - started < 100);
+
+  window.__BD_APOLLO_BRIDGE__ = {
+    request: async () => ({ ok: true, data: { available: true, recordCount: 579 } }),
+  };
+  const recovered = await window.BetterDungeonApolloCache.status();
+  assertEnvelope(recovered);
+  assert.equal(recovered.available, true);
+  assert.deepEqual(recovered.data, { available: true, recordCount: 579 });
+
+  window.__BD_APOLLO_BRIDGE__ = {
+    request: async () => ({ ok: false, error: { code: 'unavailable', message: 'offline' } }),
+  };
+  const failures = await Promise.all([
+    window.BetterDungeonApolloCache.status(),
+    window.BetterDungeonApolloCache.readEntity({ typename: 'Adventure', id: 42 }),
+    window.BetterDungeonApolloCache.readAdventure({ shortId: 'demo' }),
+    window.BetterDungeonApolloCache.modifyEntity({ typename: 'Adventure', id: 42, fields: { title: 'x' } }),
+    window.BetterDungeonApolloCache.evictEntity({ typename: 'StoryCard', id: 3 }),
+    window.BetterDungeonApolloCache.refetchActive(),
+  ]);
+  failures.forEach(assertEnvelope);
+  assert.equal(await window.BetterDungeonApolloCache.isAvailable(), false);
 }
 
 async function main() {
+  testWiring();
   await testAllowlistingAndUnavailable();
   await testAdventureDenormalization();
   await testMemoInvalidation();

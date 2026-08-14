@@ -1,4 +1,8 @@
 // services/apollo-cache-service.js
+//
+// Public API envelope: every operation except isAvailable() resolves to
+// { available, data, error }. Successful payloads are always in data and
+// have error === null; unavailable operations retain a safe fallback in data.
 
 (function () {
   'use strict';
@@ -9,11 +13,39 @@
   const RESPONSE_SOURCE = 'BD_APOLLO_RES';
   const ORIGIN = window.location?.origin || '';
   const TIMEOUT_MS = Number(window.__BD_APOLLO_CACHE_TIMEOUT_MS) || 2200;
+  const NEGATIVE_CACHE_MS = 3000;
   let requestCounter = 0;
+  let unavailableUntil = 0;
+  let unavailableHref = window.location?.href || '';
+  let unavailableBridge = null;
   const pending = new Map();
 
   function unavailable(message = 'Apollo client unavailable') {
     return { available: false, data: null, error: { code: 'unavailable', message } };
+  }
+
+  function clearNegativeCache() {
+    unavailableUntil = 0;
+    unavailableBridge = null;
+  }
+
+  function negativeCacheResult() {
+    const href = window.location?.href || '';
+    if (href !== unavailableHref) {
+      unavailableHref = href;
+      clearNegativeCache();
+    }
+    if (unavailableBridge !== null && window.__BD_APOLLO_BRIDGE__ !== unavailableBridge) clearNegativeCache();
+    return Date.now() < unavailableUntil ? unavailable('Apollo client unavailable (cached)') : null;
+  }
+
+  function recordResult(result, bridge = null) {
+    if (result.available) clearNegativeCache();
+    else if (result.error?.code === 'unavailable') {
+      unavailableUntil = Date.now() + NEGATIVE_CACHE_MS;
+      unavailableBridge = bridge || false;
+    }
+    return result;
   }
 
   function installListener() {
@@ -26,29 +58,33 @@
       const entry = pending.get(message.id);
       pending.delete(message.id);
       clearTimeout(entry.timeoutId);
-      entry.resolve(message.ok
-        ? { available: true, data: message.data, error: null }
-        : { available: false, data: null, error: message.error || { code: 'unavailable', message: 'Apollo request failed' } });
+      entry.resolve(recordResult(
+        message.ok
+          ? { available: true, data: message.data, error: null }
+          : { available: false, data: null, error: message.error || { code: 'unavailable', message: 'Apollo request failed' } },
+      ));
     }, false);
   }
 
   function request(op, payload) {
+    const cached = negativeCacheResult();
+    if (cached) return Promise.resolve(cached);
     const direct = window.__BD_APOLLO_BRIDGE__;
     if (direct && typeof direct.request === 'function') {
       return Promise.resolve(direct.request(op, payload)).then((result) => {
-        if (result?.ok) return { available: true, data: result.data, error: null };
-        return unavailable(result?.error?.message);
-      }).catch((error) => unavailable(error?.message));
+        if (result?.ok) return recordResult({ available: true, data: result.data, error: null });
+        return recordResult(unavailable(result?.error?.message), direct);
+      }).catch((error) => recordResult(unavailable(error?.message), direct));
     }
     if (typeof window.postMessage !== 'function' || typeof window.addEventListener !== 'function') {
-      return Promise.resolve(unavailable('Apollo relay unavailable'));
+      return Promise.resolve(recordResult(unavailable('Apollo relay unavailable')));
     }
     installListener();
     const id = `bd-apollo-${++requestCounter}`;
     return new Promise((resolve) => {
       const timeoutId = setTimeout(() => {
         pending.delete(id);
-        resolve(unavailable('Apollo request timed out'));
+        resolve(recordResult(unavailable('Apollo request timed out')));
       }, TIMEOUT_MS);
       pending.set(id, { resolve, timeoutId });
       try {
@@ -56,26 +92,28 @@
       } catch (error) {
         clearTimeout(timeoutId);
         pending.delete(id);
-        resolve(unavailable(error?.message));
+        resolve(recordResult(unavailable(error?.message)));
       }
     });
   }
 
   function dataResult(result, fallback = null) {
-    return result.available
-      ? result.data
-      : { available: false, data: fallback, error: result.error };
+    return {
+      available: result.available === true,
+      data: result.available ? result.data : fallback,
+      error: result.available ? null : result.error,
+    };
+  }
+
+  function status() {
+    return request('status').then((result) => dataResult(result, { available: false, recordCount: 0 }));
   }
 
   window.BetterDungeonApolloCache = {
     isAvailable() {
-      return this.status().then((result) => result.available === true);
+      return status().then((result) => result.available === true && result.data?.available === true);
     },
-    status() {
-      return request('status').then((result) => result.available
-        ? { available: result.data?.available === true, recordCount: result.data?.recordCount || 0, error: null }
-        : { available: false, recordCount: 0, error: result.error });
-    },
+    status,
     readEntity(payload) {
       return request('readEntity', payload).then((result) => dataResult(result));
     },
