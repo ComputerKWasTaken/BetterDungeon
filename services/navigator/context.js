@@ -145,40 +145,29 @@
     };
   }
 
-  function buildPlotComponents(adventure, error) {
-    if (!adventure) {
-      const detail = oneLine(error?.message, 'Plot component data is unavailable.');
-      const clipped = truncate(detail, 360);
-      const text = `Plot component query unavailable: ${clipped.text}`;
-      return {
-        text,
-        meta: {
-          budgetChars: BUDGETS.plotComponents,
-          sourceChars: 0,
-          includedChars: text.length,
-          available: false,
-          populated: 0,
-          fields: {},
-          truncated: clipped.truncated,
-        },
-      };
-    }
-
+  function buildPlotComponents(adventure, provenance = {}) {
     const parts = [];
     const fields = {};
     let populated = 0;
+    let available = 0;
     let sourceChars = 0;
     for (const field of PLOT_FIELDS) {
-      const source = stringValue(adventure[field.key]).trim();
+      const sourceName = provenance[field.key] || (adventure ? 'unknown' : 'unavailable');
+      const source = stringValue(adventure?.[field.key]).trim();
+      const fieldAvailable = sourceName !== 'unavailable';
+      if (fieldAvailable) available += 1;
       sourceChars += source.length;
       if (source) populated += 1;
-      const clipped = truncate(source || '(empty)', field.maxChars);
+      const clipped = truncate(fieldAvailable ? (source || '(empty)') : '(unavailable)', field.maxChars);
       parts.push(`${field.label}:\n${clipped.text}`);
       fields[field.key] = {
         sourceChars: source.length,
         includedChars: clipped.text.length,
         maxChars: field.maxChars,
         empty: !source,
+        unavailable: !fieldAvailable,
+        available: fieldAvailable,
+        source: sourceName,
         truncated: clipped.truncated,
       };
     }
@@ -191,7 +180,7 @@
         budgetChars: BUDGETS.plotComponents,
         sourceChars,
         includedChars: bounded.text.length,
-        available: true,
+        available: available > 0,
         populated,
         fields,
         truncated: bounded.truncated || Object.values(fields).some(field => field.truncated),
@@ -228,7 +217,7 @@
       const cardSource = readerCardSource === 'storyCardCache' || readerCardSource === 'ws'
         ? 'cache'
         : readerCardSource;
-      const plot = buildPlotComponents(adventure, null);
+      const plot = buildPlotComponents(adventure, adventureSnapshot.provenance.plot);
       const identityLines = [
         `Title: ${oneLine(adventure?.title, '(title unavailable)')}`,
         `Adventure short ID: ${oneLine(adventure?.shortId || resolvedShortId, '(unavailable)')}`,
@@ -269,32 +258,31 @@
           ? 'character budget'
           : null,
       };
-      const cardsCoverage = {
-        ...adventureSnapshot.coverage.storyCards,
-        included: 0,
-        omitted: 0,
-        omittedReason: null,
-      };
-
       const assembleSnapshot = (directory) => {
-        cardsCoverage.included = directory.meta.included;
-        cardsCoverage.omitted = Math.max(0, cards.length - directory.meta.included);
-        cardsCoverage.omittedReason = cardsCoverage.omitted ? 'character budget' : null;
+        const cardsCoverage = {
+          ...adventureSnapshot.coverage.storyCards,
+          included: directory.meta.included,
+          omitted: Math.max(0, cards.length - directory.meta.included),
+          omittedReason: directory.meta.included < cards.length ? 'character budget' : null,
+        };
         const coverage = [
-          `Plot Components: ${plot.meta.populated} of 4 populated and included; source ${adventureSnapshot.provenance.plot.instructions}.`,
+          plot.meta.available
+            ? `Plot Components: ${plot.meta.populated} of 4 populated and included; source ${adventureSnapshot.provenance.plot.instructions}.`
+            : 'Plot Components: unavailable; the adventure plot could not be read.',
           `Recent story actions: authoritative total ${historyCoverage.authoritativeTotal ?? 'unknown'}; ${historyCoverage.available} available; ${historyCoverage.included} included; source ${adventureSnapshot.provenance.actions.source}.`,
           historyCoverage.incomplete
-            ? 'History is incomplete: fewer actions are available than the authoritative action count, so Navigator is NOT seeing the whole story.'
+            ? 'History is incomplete because Apollo history was unavailable; Navigator is NOT seeing the whole story.'
             : historyCoverage.availabilityGap
-              ? 'Action-count discrepancy is small and may reflect undone or otherwise unavailable entities; the retained history is treated as complete.'
-              : 'History availability matches the authoritative action count.',
+              ? 'Action-count reference differs from retained normalized actions; undo filtering and retained-entity semantics make these counts informational, not a completeness claim.'
+              : 'Action-count reference and retained normalized actions currently align; this remains an informational comparison.',
           `Story Card directory: ${cardsCoverage.included} of ${cardsCoverage.authoritativeTotal} included from ${directory.meta.source}; ${cardsCoverage.omitted} omitted${cardsCoverage.omittedReason ? ` for ${cardsCoverage.omittedReason}` : ''}.`,
           memoryBank
             ? `Memory Bank: ${memoryBank.length} memories, ${memoryBankChars} characters; summary lag latest=${summaryLag.latestActionId ?? 'unknown'}, lastSummarized=${summaryLag.lastSummarizedActionId ?? 'unknown'}, lastMemory=${summaryLag.lastMemoryActionId ?? 'unknown'}.`
             : 'Memory Bank and summary lag: unavailable from the GraphQL fallback reader.',
           warnings.length ? `Snapshot warnings: ${warnings.join(' ')}` : 'Snapshot warnings: none.',
         ].join('\n');
-        return [
+        return {
+          text: [
           primer,
           '',
           '=== CURRENT ADVENTURE SNAPSHOT ===',
@@ -317,17 +305,22 @@
           directory.text,
           '',
           '=== END CURRENT ADVENTURE SNAPSHOT ===',
-        ].join('\n');
+          ].join('\n'),
+          cardsCoverage,
+        };
       };
 
       let directoryBudget = BUDGETS.systemInstruction;
       let storyCardDirectory = buildStoryCardDirectory(cards, directoryBudget, cardSource);
-      let snapshot = assembleSnapshot(storyCardDirectory);
+      let assembled = assembleSnapshot(storyCardDirectory);
+      let snapshot = assembled.text;
       for (let attempt = 0; attempt < 3 && snapshot.length > BUDGETS.systemInstruction; attempt++) {
         directoryBudget = Math.max(0, directoryBudget - (snapshot.length - BUDGETS.systemInstruction) - 32);
         storyCardDirectory = buildStoryCardDirectory(cards, directoryBudget, cardSource);
-        snapshot = assembleSnapshot(storyCardDirectory);
+        assembled = assembleSnapshot(storyCardDirectory);
+        snapshot = assembled.text;
       }
+      const cardsCoverage = assembled.cardsCoverage;
 
       return {
         systemInstruction: snapshot,

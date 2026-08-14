@@ -127,7 +127,16 @@
   function mergeActions(apolloActions, ws) {
     const merged = new Map();
     normalizeActions(apolloActions).forEach(action => merged.set(numericId(action.id), action));
-    normalizeActions(collectionValues(ws?.getActions?.())).forEach(action => merged.set(numericId(action.id), action));
+    for (const rawAction of collectionValues(ws?.getActions?.())) {
+      const id = numericId(rawAction?.id);
+      if (id === null) continue;
+      if (rawAction?.undoneAt != null) {
+        merged.delete(id);
+        continue;
+      }
+      const action = normalizeAction(rawAction);
+      if (action) merged.set(id, action);
+    }
     return Array.from(merged.values()).sort((left, right) => numericId(left.id) - numericId(right.id));
   }
 
@@ -195,7 +204,7 @@
     };
   }
 
-  async function readAdventure(options = {}) {
+  async function readAdventure(options = {}, internal = {}) {
     const signal = options.signal || null;
     const ws = window.Ultrascripts?.ws || null;
     const shortId = requireShortId(options.shortId, ws);
@@ -245,13 +254,14 @@
       }
     }
     const base = apolloSnapshot || graphqlAdventure || normalizeGraphql(null, shortId) || {
-      identity: { id: null, shortId, title: '', actionCount: null, thirdPerson: null, editedAt: null },
+      identity: { id: null, shortId, title: '', actionCount: null, storyCardCount: null, thirdPerson: null, editedAt: null },
       plot: { instructions: '', instructionsSource: 'none', memory: '', authorsNote: '', storySummary: '' },
       state: { memories: null, lastSummarizedActionId: null, lastMemoryActionId: null, available: false },
       storyCards: [], actions: [],
     };
-    for (const key of Object.keys(base.identity)) provenance.identity[key] = apolloSnapshot ? 'apollo' : 'graphql';
-    for (const key of Object.keys(base.plot)) provenance.plot[key] = apolloSnapshot ? 'apollo' : 'graphql';
+    const baseSource = apolloSnapshot ? 'apollo' : (graphqlAdventure ? 'graphql' : 'unavailable');
+    for (const key of Object.keys(base.identity)) provenance.identity[key] = baseSource;
+    for (const key of Object.keys(base.plot)) provenance.plot[key] = baseSource;
     for (const key of Object.keys(base.state)) {
       provenance.state[key] = apolloSnapshot ? 'apollo' : (base.state.available ? 'graphql' : 'unavailable');
     }
@@ -259,36 +269,45 @@
       provenance.state.fallback = 'GraphQL does not select Memory Bank or summary-lag fields.';
     }
 
-    let cards = apolloSnapshot?.storyCards || null;
-    if (cards) {
-      provenance.storyCards.source = 'apollo';
-    } else if (gql?.getNavigatorStoryCards) {
-      try {
-        const result = await gql.getNavigatorStoryCards(shortId, { signal });
-        cards = normalizeCards(result?.cards);
-        provenance.storyCards.source = 'graphql';
+    let cards = null;
+    if (!internal.actionsOnly) {
+      cards = apolloSnapshot?.storyCards || null;
+      if (cards) {
+        provenance.storyCards.source = 'apollo';
+      } else if (gql?.getNavigatorStoryCards) {
+        try {
+          const result = await gql.getNavigatorStoryCards(shortId, { signal });
+          cards = normalizeCards(result?.cards);
+          provenance.storyCards.source = 'graphql';
+          fallbacks.push({
+            section: 'storyCards',
+            from: apolloSnapshot ? 'apollo' : 'unavailable',
+            to: 'graphql',
+            normalNotFound: apolloNotFound,
+          });
+        } catch (error) {
+          if (error?.name === 'AbortError') throw abortError();
+          if (!isNotFound(error)) degradations.push(issue('storyCards', 'graphql', error));
+        }
+      }
+      if (!cards) {
+        const live = liveCards(ws);
+        cards = live.cards;
+        provenance.storyCards.source = live.source;
+        provenance.storyCards.fallback = [
+          apolloSnapshot ? 'apollo' : 'unavailable',
+          gql?.getNavigatorStoryCards ? 'graphql' : null,
+        ].filter(Boolean);
         fallbacks.push({
           section: 'storyCards',
-          from: 'apollo',
-          to: 'graphql',
+          from: gql?.getNavigatorStoryCards ? 'graphql' : (apolloSnapshot ? 'apollo' : 'unavailable'),
+          to: live.source,
           normalNotFound: apolloNotFound,
         });
-      } catch (error) {
-        if (error?.name === 'AbortError') throw abortError();
-        if (!isNotFound(error)) degradations.push(issue('storyCards', 'graphql', error));
       }
-    }
-    if (!cards) {
-      const live = liveCards(ws);
-      cards = live.cards;
-      provenance.storyCards.source = live.source;
-      provenance.storyCards.fallback = ['apollo', 'graphql'];
-      fallbacks.push({
-        section: 'storyCards',
-        from: 'graphql',
-        to: live.source,
-        normalNotFound: apolloNotFound,
-      });
+    } else {
+      cards = [];
+      provenance.storyCards.source = 'not_read';
     }
 
     const apolloAvailable = Boolean(apolloSnapshot && apolloResult?.available);
@@ -299,12 +318,11 @@
       fallbacks.push({ section: 'actions', from: 'apollo', to: 'ws', normalNotFound: apolloNotFound });
     }
     const total = base.identity.actionCount;
-    const actionGap = Number.isFinite(total) && actions.length < total;
     const apolloUnavailable = apolloResult?.error?.code === 'unavailable';
-    const expectedActionDiscrepancy = Boolean(
-      apolloAvailable && actionGap && total - actions.length <= 2
-    );
-    const historyIncomplete = apolloUnavailable || (actionGap && !expectedActionDiscrepancy);
+    const apolloHistoryDegraded = !apolloAvailable &&
+      apolloResult?.error?.code !== 'not_found';
+    const actionGap = Number.isFinite(total) && actions.length !== total;
+    const historyIncomplete = apolloHistoryDegraded;
     const plotAvailable = ['instructions', 'memory', 'authorsNote', 'storySummary']
       .filter(key => stringValue(base.plot[key]).trim()).length;
     const stateAvailable = base.state.available ? 3 : 0;
@@ -337,9 +355,8 @@
         omitted: 0,
         incomplete: historyIncomplete,
         availabilityGap: actionGap,
-        expectedDiscrepancy: expectedActionDiscrepancy,
         discrepancyNote: actionGap
-          ? 'The cache exposes fewer retained non-undone actions than actionCount; actionCount may include undone or otherwise unavailable entities.'
+          ? `Advertised actionCount ${total} differs from ${actions.length} retained normalized actions; actionCount and retained entities are not directly comparable after undo filtering.`
           : null,
       },
       storyCards: {
@@ -369,7 +386,7 @@
   }
 
   async function readActions(options = {}) {
-    const snapshot = await readAdventure(options);
+    const snapshot = await readAdventure(options, { actionsOnly: true });
     return {
       actions: snapshot.actions,
       coverage: snapshot.coverage.actions,

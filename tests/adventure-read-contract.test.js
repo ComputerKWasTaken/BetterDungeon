@@ -15,6 +15,7 @@ const servicePath = path.join(ASSETS, 'services', 'adventure-read-service.js');
 global.window = global;
 global.location = { href: 'https://play.aidungeon.com/adventure/demo', origin: 'https://play.aidungeon.com' };
 global.storyCardCache = { getCardArray: () => [] };
+let storyCardReads = 0;
 
 function load(relativePath) {
   const filename = path.join(ASSETS, relativePath);
@@ -37,7 +38,10 @@ function configure({ apollo, adventure, cards, actions, wsCards, cachedCards } =
   };
   window.BetterDungeonGQL = {
     getNavigatorAdventureContext: async () => adventure,
-    getNavigatorStoryCards: async () => ({ id: adventure?.id, shortId: 'demo', storyCardCount: (cards || []).length, cards: cards || [] }),
+    getNavigatorStoryCards: async () => {
+      storyCardReads++;
+      return { id: adventure?.id, shortId: 'demo', storyCardCount: (cards || []).length, cards: cards || [] };
+    },
   };
   window.Ultrascripts = {
     ws: {
@@ -51,7 +55,7 @@ function configure({ apollo, adventure, cards, actions, wsCards, cachedCards } =
 
 async function testApolloFirstAndMerge() {
   const adventure = {
-    id: '42', shortId: 'demo', title: 'Apollo Quest', actionCount: 3,
+    id: '42', shortId: 'demo', title: 'Apollo Quest', actionCount: 291,
     memory: 'A key.', authorsNote: 'Stay tense.', instructions: 'Flat text.',
     thirdPerson: false, editedAt: '2026-01-01',
     state: {
@@ -65,7 +69,7 @@ async function testApolloFirstAndMerge() {
   configure({
     adventure,
     cards: [card(1, 'Apollo Card')],
-    actions: [action(10, 'old text'), action(2, 'Apollo two'), action(3, '   ', { undoneAt: null })],
+    actions: [action(10, 'old text'), action(2, 'Apollo two'), action(5, 'stale undone'), action(7, 'Apollo seven')],
     wsCards: [],
     cachedCards: [],
   });
@@ -73,21 +77,26 @@ async function testApolloFirstAndMerge() {
     ['2', action(2, 'fresh WS text')],
     ['4', action(4, 'extra WS action')],
     ['5', action(5, 'undone', { undoneAt: '2026-01-05' })],
+    ['7', action(7, '   ')],
     ['6', action(6, '   ')],
   ]);
   const snapshot = await window.BetterDungeonAdventureRead.readAdventure({ shortId: 'demo' });
   assert.equal(snapshot.provenance.actions.source, 'apollo+ws');
-  assert.deepEqual(snapshot.actions.map(item => item.id), ['2', '4', '10']);
+  assert.deepEqual(snapshot.actions.map(item => item.id), ['2', '4', '7', '10']);
   assert.equal(snapshot.actions[0].text, 'fresh WS text');
+  assert.equal(snapshot.actions.find(item => item.id === '7').text, 'Apollo seven');
   assert.equal(snapshot.plot.instructions, 'State instructions.');
   assert.equal(snapshot.plot.instructionsSource, 'state');
   assert.deepEqual(snapshot.state.memories, ['Memory one', 'Memory two']);
-  assert.equal(snapshot.coverage.actions.authoritativeTotal, 3);
-  assert.equal(snapshot.coverage.actions.available, 3);
+  assert.equal(snapshot.coverage.actions.authoritativeTotal, 291);
+  assert.equal(snapshot.coverage.actions.available, 4);
+  assert.equal(snapshot.coverage.actions.availabilityGap, true);
   assert.equal(snapshot.historyIncomplete, false);
+  storyCardReads = 0;
   const actionsOnly = await window.BetterDungeonAdventureRead.readActions({ shortId: 'demo' });
   assert.deepEqual(actionsOnly.actions, snapshot.actions);
   assert.deepEqual(actionsOnly.coverage, snapshot.coverage.actions);
+  assert.equal(storyCardReads, 0);
 }
 
 async function testUnavailableAndNotFoundFallbacks() {
@@ -129,6 +138,25 @@ async function testUnavailableAndNotFoundFallbacks() {
   assert.equal(notFound.sourceDegraded, false);
   assert.equal(notFound.historyIncomplete, false);
   assert.equal(notFound.provenance.storyCards.source, 'graphql');
+}
+
+async function testUnavailableProvenance() {
+  const adventure = { id: '42', shortId: 'demo', title: 'Unavailable', actionCount: 0, state: {} };
+  configure({
+    apollo: { available: false, data: null, error: { code: 'unavailable', message: 'No client' } },
+    adventure,
+    cards: [],
+    actions: [],
+    wsCards: [card(9, 'Page Card')],
+    cachedCards: [],
+  });
+  delete window.BetterDungeonGQL.getNavigatorAdventureContext;
+  delete window.BetterDungeonGQL.getNavigatorStoryCards;
+  const snapshot = await window.BetterDungeonAdventureRead.readAdventure({ shortId: 'demo' });
+  assert.equal(snapshot.provenance.identity.title, 'unavailable');
+  assert.equal(snapshot.provenance.plot.instructions, 'unavailable');
+  assert.equal(snapshot.provenance.storyCards.source, 'ws');
+  assert.equal(snapshot.fallbacks.find(item => item.section === 'storyCards').from, 'unavailable');
 }
 
 async function testStoryCardFallbackChain() {
@@ -177,6 +205,7 @@ async function main() {
   testWiringAndMirror();
   await testApolloFirstAndMerge();
   await testUnavailableAndNotFoundFallbacks();
+  await testUnavailableProvenance();
   await testStoryCardFallbackChain();
   console.log('Adventure read contract tests passed');
 }

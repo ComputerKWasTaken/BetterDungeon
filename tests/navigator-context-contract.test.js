@@ -78,7 +78,7 @@ async function testIncompleteHistory() {
 
 async function testApolloCompleteHistoryAndDiagnostics() {
   const actions = Array.from({ length: 3 }, (_, index) => action(index + 1, `Action ${index + 1}`));
-  const current = adventure(3);
+  const current = adventure(291);
   configure({
     available: true,
     data: {
@@ -93,6 +93,7 @@ async function testApolloCompleteHistoryAndDiagnostics() {
   assert.equal(snapshot.partial, false);
   assert.match(snapshot.systemInstruction, /Memory Bank: 1 memories, \d+ characters/);
   assert.match(snapshot.systemInstruction, /summary lag latest=3, lastSummarized=8, lastMemory=9/);
+  assert.match(snapshot.systemInstruction, /Action-count reference differs from retained normalized actions/);
   assert.equal(snapshot.summary.memoryBankCount, 1);
   assert.equal(snapshot.summary.historyIncomplete, false);
 }
@@ -133,11 +134,50 @@ async function testAuthoritativeCardGate() {
   );
 }
 
+async function testPlotUnavailableAndEmpty() {
+  configure(
+    { available: false, data: null, error: { code: 'unavailable', message: 'Apollo unavailable' } },
+    null,
+    []
+  );
+  window.BetterDungeonGQL.getNavigatorAdventureContext = async () => {
+    throw { code: 'unavailable', message: 'GraphQL unavailable' };
+  };
+  window.BetterDungeonGQL.getNavigatorStoryCards = async () => {
+    throw { code: 'unavailable', message: 'GraphQL unavailable' };
+  };
+  const unavailable = await new window.NavigatorContext('demo').build();
+  assert.equal(unavailable.summary.plotAvailable, false);
+  assert.equal(unavailable.summary.plotPopulated, 0);
+  assert.match(unavailable.systemInstruction, /AI Instructions:\n\(unavailable\)/);
+  assert.equal(unavailable.segments.plotComponents.fields.instructions.unavailable, true);
+
+  const empty = adventure(0);
+  empty.instructions = '';
+  empty.memory = '';
+  empty.authorsNote = '';
+  empty.storySummary = '';
+  empty.state.instructions = '';
+  empty.state.storySummary = '';
+  configure({
+    available: true,
+    data: { adventure: empty, state: empty.state, storyCards: [], actions: [] },
+    error: null,
+  }, null, []);
+  const emptySnapshot = await new window.NavigatorContext('demo').build();
+  assert.equal(emptySnapshot.summary.plotAvailable, true);
+  assert.equal(emptySnapshot.summary.plotPopulated, 0);
+  assert.match(emptySnapshot.systemInstruction, /AI Instructions:\n\(empty\)/);
+  assert.equal(emptySnapshot.segments.plotComponents.fields.instructions.empty, true);
+  assert.equal(emptySnapshot.segments.plotComponents.fields.instructions.unavailable, false);
+}
+
 async function main() {
   await testIncompleteHistory();
   await testApolloCompleteHistoryAndDiagnostics();
   await testGraphqlFallbackDiagnosticsUnavailable();
   await testAuthoritativeCardGate();
+  await testPlotUnavailableAndEmpty();
   console.log('Desktop Navigator context contract tests passed');
 }
 
