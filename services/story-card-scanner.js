@@ -69,6 +69,23 @@ class StoryCardScanner {
     return cards instanceof Map ? Array.from(cards.values()) : Array.from(cards);
   }
 
+  async getApolloStoryCards(shortId) {
+    const reader = window.BetterDungeonAdventureRead;
+    if (!reader?.readCards) return null;
+    try {
+      const snapshot = await reader.readCards({
+        shortId,
+        signal: this.abortController?.signal,
+      });
+      if (snapshot.provenance?.source !== 'apollo') return null;
+      return Array.isArray(snapshot.cards) ? snapshot.cards : [];
+    } catch (error) {
+      if (error?.name === 'AbortError' || this.abortController?.signal.aborted) throw error;
+      this.log('Apollo Story Card read unavailable; using existing fallback chain.');
+      return null;
+    }
+  }
+
   async fetchStoryCardsViaGraphQL(shortId) {
     const gql = window.BetterDungeonGQL;
     if (!gql?.request) {
@@ -123,10 +140,18 @@ class StoryCardScanner {
         return { success: false, error: 'Adventure shortId is unknown' };
       }
 
+      const apolloCards = await this.getApolloStoryCards(shortId);
       const wsCards = this.getWsStoryCards();
-      const cards = wsCards.length > 0
-        ? wsCards
-        : await this.fetchStoryCardsViaGraphQL(shortId);
+      const cards = apolloCards !== null
+        ? apolloCards
+        : wsCards.length > 0
+          ? wsCards
+          : await this.fetchStoryCardsViaGraphQL(shortId);
+      const source = apolloCards !== null
+        ? 'apollo'
+        : wsCards.length > 0
+          ? 'ws'
+          : 'graphql';
 
       return this.consumeStoryCards(
         cards,
@@ -134,7 +159,7 @@ class StoryCardScanner {
         onTriggerFound,
         onProgress,
         onCardScanned,
-        wsCards.length > 0 ? 'ws' : 'graphql'
+        source
       );
     } catch (error) {
       if (error.name === 'AbortError' || this.abortController?.signal.aborted) {

@@ -14,8 +14,13 @@ const servicePath = path.join(ASSETS, 'services', 'adventure-read-service.js');
 
 global.window = global;
 global.location = { href: 'https://play.aidungeon.com/adventure/demo', origin: 'https://play.aidungeon.com' };
+const documentListeners = new Map();
+global.document = {
+  addEventListener(name, handler) { documentListeners.set(name, handler); },
+};
 global.storyCardCache = { getCardArray: () => [] };
 let storyCardReads = 0;
+let adventureContextReads = 0;
 
 function load(relativePath) {
   const filename = path.join(ASSETS, relativePath);
@@ -33,11 +38,15 @@ function card(id, title) {
 }
 
 function configure({ apollo, adventure, cards, actions, wsCards, cachedCards } = {}) {
+  adventureContextReads = 0;
   window.BetterDungeonApolloCache = {
     readAdventure: async () => apollo || { available: true, data: { adventure, state: adventure?.state, storyCards: cards || [], actions: actions || [] }, error: null },
   };
   window.BetterDungeonGQL = {
-    getNavigatorAdventureContext: async () => adventure,
+    getNavigatorAdventureContext: async () => {
+      adventureContextReads++;
+      return adventure;
+    },
     getNavigatorStoryCards: async () => {
       storyCardReads++;
       return { id: adventure?.id, shortId: 'demo', storyCardCount: (cards || []).length, cards: cards || [] };
@@ -97,6 +106,15 @@ async function testApolloFirstAndMerge() {
   assert.deepEqual(actionsOnly.actions, snapshot.actions);
   assert.deepEqual(actionsOnly.coverage, snapshot.coverage.actions);
   assert.equal(storyCardReads, 0);
+  window.Ultrascripts.ws.getActions = () => {
+    throw new Error('cards-only read must not inspect WS history');
+  };
+  const contextReadsBeforeCards = adventureContextReads;
+  const cardsOnly = await window.BetterDungeonAdventureRead.readCards({ shortId: 'demo' });
+  assert.equal(cardsOnly.cards[0].id, '1');
+  assert.equal(cardsOnly.cards[0].title, 'Apollo Card');
+  assert.equal(cardsOnly.provenance.source, 'apollo');
+  assert.equal(adventureContextReads, contextReadsBeforeCards);
 }
 
 async function testUnavailableAndNotFoundFallbacks() {
@@ -182,6 +200,52 @@ async function testStoryCardFallbackChain() {
   assert.equal(cacheSnapshot.storyCards[0].id, '3');
 }
 
+async function testLatestActionRefreshCoordination() {
+  let activeShortId = 'demo';
+  const adventure = { id: '42', shortId: 'demo', title: 'Refresh', actionCount: 1, state: {} };
+  configure({
+    apollo: { available: false, data: null, error: { code: 'unavailable', message: 'No client' } },
+    adventure,
+    cards: [],
+    actions: [],
+    wsCards: [],
+    cachedCards: [],
+  });
+  window.Ultrascripts.ws.getAdventureShortId = () => activeShortId;
+  window.Ultrascripts.ws.getActions = () => new Map([
+    ['1', action(activeShortId === 'new' ? 22 : 11, activeShortId)],
+  ]);
+  const resolvers = [];
+  window.BetterDungeonGQL.getNavigatorAdventureContext = () => new Promise(resolve => {
+    resolvers.push(resolve);
+  });
+
+  const first = window.BetterDungeonAdventureRead.refreshLatestActionId({ shortId: 'demo' });
+  const second = window.BetterDungeonAdventureRead.refreshLatestActionId({ shortId: 'demo' });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(resolvers.length, 1);
+  resolvers[0](adventure);
+  await Promise.all([first, second]);
+  const throttled = window.BetterDungeonAdventureRead.refreshLatestActionId({ shortId: 'demo' });
+  await throttled;
+  assert.equal(resolvers.length, 1);
+
+  activeShortId = 'old';
+  documentListeners.get('ultrascripts:adventure:change')({ detail: { shortId: 'old' } });
+  await new Promise(resolve => setImmediate(resolve));
+  activeShortId = 'new';
+  documentListeners.get('ultrascripts:adventure:change')({ detail: { shortId: 'new' } });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(resolvers.length, 3);
+  resolvers[2]({ ...adventure, shortId: 'new' });
+  await new Promise(resolve => setImmediate(resolve));
+  resolvers[1]({ ...adventure, shortId: 'old' });
+  await new Promise(resolve => setImmediate(resolve));
+  const latest = window.BetterDungeonAdventureRead.getLatestActionId();
+  assert.equal(latest.id, '22');
+  assert.equal(latest.shortId, 'new');
+}
+
 function testWiringAndMirror() {
   const relative = 'services/adventure-read-service.js';
   const desktop = path.basename(REPO_ROOT) === 'BetterDungeon'
@@ -207,6 +271,7 @@ async function main() {
   await testUnavailableAndNotFoundFallbacks();
   await testUnavailableProvenance();
   await testStoryCardFallbackChain();
+  await testLatestActionRefreshCoordination();
   console.log('Adventure read contract tests passed');
 }
 

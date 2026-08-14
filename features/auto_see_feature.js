@@ -613,7 +613,19 @@ class AutoSeeFeature {
     const ws = window.Ultrascripts?.ws;
     const actions = ws?.getActions ? Array.from(ws.getActions().values()) : [];
     const liveActions = actions.filter(action => this.isLiveAction(action));
-    const tail = ws?.getTail?.() || liveActions[liveActions.length - 1]?.id || null;
+    let tail = ws?.getTail?.() || liveActions[liveActions.length - 1]?.id || null;
+    let warmTailUsed = false;
+    if (actions.length === 0) {
+      const reader = window.BetterDungeonAdventureRead;
+      const shortId = ws?.getAdventureShortId?.() || null;
+      const warmTail = reader?.getLatestActionId?.();
+      if (warmTail?.id != null && (!shortId || !warmTail.shortId || warmTail.shortId === shortId)) {
+        tail = warmTail.id;
+        warmTailUsed = true;
+      } else {
+        reader?.refreshLatestActionId?.({ shortId }).catch?.(() => {});
+      }
+    }
     const liveCount = Number.isFinite(ws?.getLiveCount?.())
       ? ws.getLiveCount()
       : liveActions.length;
@@ -622,6 +634,9 @@ class AutoSeeFeature {
     for (const action of liveActions) {
       const idNum = Number(action.id);
       if (Number.isFinite(idNum) && idNum > tailNum) tailNum = idNum;
+    }
+    if (warmTailUsed && !Number.isFinite(tailNum) && Number.isFinite(Number(tail))) {
+      tailNum = Number(tail);
     }
 
     return {
