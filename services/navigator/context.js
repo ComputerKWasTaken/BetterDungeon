@@ -537,7 +537,7 @@
         } else {
           const degradedNotice = 'Context budget is too small for all sections; history was prioritized.';
           const degradedCoverage = [
-            `Plot Components: dropped for total budget; Memory Bank: dropped for total budget; Story Card directory: dropped for total budget.`,
+            'Plot Components: dropped for total budget; Memory Bank: dropped for total budget; Story Card directory: dropped for total budget.',
             'Recent story actions: history floor served first.',
             `Snapshot warnings: ${degradedNotice}`,
           ].join('\n');
@@ -551,6 +551,9 @@
             '',
             'COVERAGE',
             degradedCoverage,
+            '',
+            'IDENTITY',
+            identity.text,
             '',
             'RECENT STORY ACTIONS',
           ].join('\n');
