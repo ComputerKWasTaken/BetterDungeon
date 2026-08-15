@@ -457,6 +457,24 @@
       return snapshot.cards.map(normalizeCard).filter(Boolean);
     }
 
+    async hydrateVerifiedMutation(proposal, verified, signal) {
+      const hydrator = window.BetterDungeonAdventureWriteHydration;
+      if (!hydrator?.hydrateVerifiedMutation) {
+        return { attempted: false, ok: false, reason: 'Apollo hydration service unavailable' };
+      }
+      try {
+        return await hydrator.hydrateVerifiedMutation({
+          kind: proposal.kind,
+          proposal,
+          verified,
+          signal,
+        });
+      } catch (error) {
+        console.warn('[Navigator] Apollo hydration diagnostic failed:', error);
+        return { attempted: true, ok: false, reason: error?.message || String(error) };
+      }
+    }
+
     async applyPlotComponent(proposal, signal) {
       const current = await this.readAdventure(signal);
       if (text(current[proposal.field]) !== proposal.before) {
@@ -474,7 +492,10 @@
       if (text(verified[proposal.field]) !== proposal.after) {
         throw { code: 'verification_failed', message: `${proposal.targetLabel} did not match the accepted value after AI Dungeon responded.` };
       }
-      return { appliedAtIso: new Date().toISOString() };
+      return {
+        appliedAtIso: new Date().toISOString(),
+        hydration: await this.hydrateVerifiedMutation(proposal, verified, signal),
+      };
     }
 
     async applyThirdPerson(proposal, signal) {
@@ -487,7 +508,10 @@
       if ((verified.thirdPerson === true) !== proposal.after) {
         throw { code: 'verification_failed', message: 'Third Person did not match the accepted setting after AI Dungeon responded.' };
       }
-      return { appliedAtIso: new Date().toISOString() };
+      return {
+        appliedAtIso: new Date().toISOString(),
+        hydration: await this.hydrateVerifiedMutation(proposal, verified, signal),
+      };
     }
 
     generateCardId(existingIds) {
@@ -512,7 +536,12 @@
       if (!cardContentMatches(verified, desired)) {
         throw { code: 'verification_failed', message: 'The new Story Card did not match the accepted values after AI Dungeon responded.' };
       }
-      return { appliedAtIso: new Date().toISOString(), cardId: id, targetLabel: verified.title || proposal.targetLabel };
+      return {
+        appliedAtIso: new Date().toISOString(),
+        cardId: id,
+        targetLabel: verified.title || proposal.targetLabel,
+        hydration: await this.hydrateVerifiedMutation(proposal, verified, signal),
+      };
     }
 
     async applyCardUpdate(proposal, signal) {
@@ -526,7 +555,10 @@
       if (!cardContentMatches(verified, desired)) {
         throw { code: 'verification_failed', message: 'The Story Card did not match the accepted values after AI Dungeon responded.' };
       }
-      return { appliedAtIso: new Date().toISOString() };
+      return {
+        appliedAtIso: new Date().toISOString(),
+        hydration: await this.hydrateVerifiedMutation(proposal, verified, signal),
+      };
     }
 
     async applyCardDelete(proposal, signal) {
@@ -539,7 +571,10 @@
       if (verified) {
         throw { code: 'verification_failed', message: 'The Story Card was still present after AI Dungeon responded.' };
       }
-      return { appliedAtIso: new Date().toISOString() };
+      return {
+        appliedAtIso: new Date().toISOString(),
+        hydration: await this.hydrateVerifiedMutation(proposal, verified, signal),
+      };
     }
   }
 
