@@ -243,6 +243,18 @@ async function testDynamicAllocator() {
   assert.match(floor.systemInstruction, /IDENTITY\nTitle: Navigator Quest/);
   assert.match(floor.systemInstruction, /RECENT STORY ACTIONS/);
   assert.ok(floor.segments.recentActions.floorIncluded > 0);
+  for (const section of [floor.segments.plotComponents, floor.segments.memoryBank, floor.segments.storyCardDirectory]) {
+    assert.equal(section.included, 0);
+    assert.equal(section.includedChars, 0);
+  }
+  assert.doesNotMatch(floor.systemInstruction, /MEMORY BANK\n[\s\S]*\[Memory \d+\]/);
+  for (const budget of [8000, 9000, 500]) {
+    const hostile = await new window.NavigatorContext('demo').build({ maxChars: budget });
+    assert.ok(hostile.systemInstruction.length <= budget);
+    assert.equal(hostile.systemInstruction.endsWith('=== END CURRENT ADVENTURE SNAPSHOT ==='), true);
+    assert.match(hostile.systemInstruction, /IDENTITY/);
+    assert.match(hostile.systemInstruction, /SNAPSHOT DEGRADED:/);
+  }
 }
 
 async function testScaledDynamicCeilings() {
