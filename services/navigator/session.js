@@ -23,6 +23,8 @@
   const MAX_TOOL_RESULT_CHARS_PER_TURN = 16000;
   const TOOL_ERROR_RESERVE_CHARS = 256;
   const READ_ONLY_STORAGE_KEY = 'betterDungeon_navigator_read_only';
+  const THINKING_LEVEL_STORAGE_KEY = 'betterDungeon_navigator_thinking_level';
+  const THINKING_LEVELS = ['minimal', 'low', 'medium', 'high'];
   const TOOL_GUIDANCE = [
     '',
     '=== NAVIGATOR STORY CARD TOOLS ===',
@@ -91,8 +93,9 @@
       this.applyController = null;
       this.mutationQueue = Promise.resolve();
       this.readOnly = false;
+      this.thinkingLevel = 'low';
       this.boundStorageChange = (changes, areaName) => this.onStorageChange(changes, areaName);
-      this.settingsReady = this.loadReadOnlyMode();
+      this.settingsReady = Promise.all([this.loadReadOnlyMode(), this.loadThinkingLevel()]);
       this.destroyed = false;
       this.debug = false;
 
@@ -252,10 +255,35 @@
       this.emit('permissions', { readOnly: this.readOnly });
     }
 
+    async loadThinkingLevel() {
+      if (!isExtensionContextValid()) {
+        this.thinkingLevel = 'low';
+        return;
+      }
+      this.thinkingLevel = await new Promise(resolve => {
+        let settled = false;
+        const finish = value => { if (!settled) { settled = true; clearTimeout(timer); resolve(value); } };
+        const timer = setTimeout(() => finish('low'), 2000);
+        try {
+          chrome.storage.sync.get(THINKING_LEVEL_STORAGE_KEY, result => {
+            if (chrome.runtime?.lastError) return finish('low');
+            const value = (result || {})[THINKING_LEVEL_STORAGE_KEY];
+            finish(THINKING_LEVELS.includes(value) ? value : 'low');
+          });
+        } catch { finish('low'); }
+      });
+    }
+
     onStorageChange(changes, areaName) {
-      if (areaName !== 'sync' || !changes?.[READ_ONLY_STORAGE_KEY]) return;
-      this.readOnly = changes[READ_ONLY_STORAGE_KEY].newValue === true;
-      this.emit('permissions', { readOnly: this.readOnly });
+      if (areaName !== 'sync') return;
+      if (changes?.[READ_ONLY_STORAGE_KEY]) {
+        this.readOnly = changes[READ_ONLY_STORAGE_KEY].newValue === true;
+        this.emit('permissions', { readOnly: this.readOnly });
+      }
+      if (changes?.[THINKING_LEVEL_STORAGE_KEY]) {
+        const value = changes[THINKING_LEVEL_STORAGE_KEY].newValue;
+        this.thinkingLevel = THINKING_LEVELS.includes(value) ? value : 'low';
+      }
     }
 
     getPermissionState() {
@@ -324,7 +352,7 @@
       this.emit('context', this.getContextSummary());
 
       try {
-        const snapshot = await this.contextReader.build({ signal });
+        const snapshot = await this.contextReader.build({ signal, maxChars: options.maxChars });
         if (revision === this.contextRevision) {
           this.contextSnapshot = snapshot;
           this.contextState = snapshot.partial ? 'partial' : 'ready';
@@ -370,14 +398,30 @@
 
     // ==================== REQUEST ASSEMBLY ====================
 
-    async buildSystemInstruction(signal) {
-      const snapshot = await this.refreshContext({ signal });
+    async buildSystemInstruction(signal, maxChars = 46000) {
+      const snapshot = await this.refreshContext({ signal, maxChars });
       let instruction = this.tools
         ? `${snapshot.systemInstruction}${TOOL_GUIDANCE}`
         : snapshot.systemInstruction;
       if (this.readOnly || !this.mutations) instruction += READ_ONLY_GUIDANCE;
       else instruction += MUTATION_GUIDANCE;
       return instruction;
+    }
+
+    async buildTurnContext(signal, maxChars) {
+      const snapshot = await this.refreshContext({ signal, maxChars });
+      let instruction = this.tools ? `${snapshot.systemInstruction}${TOOL_GUIDANCE}` : snapshot.systemInstruction;
+      if (this.readOnly || !this.mutations) instruction += READ_ONLY_GUIDANCE;
+      else instruction += MUTATION_GUIDANCE;
+      return { instruction, snapshot };
+    }
+
+    resolveThinkingLevel(status) {
+      const supported = Array.isArray(status?.config?.thinkingLevels) && status.config.thinkingLevels.length
+        ? status.config.thinkingLevels
+        : (Array.isArray(status?.thinkingLevels) ? status.thinkingLevels : []);
+      if (!supported.length) return this.thinkingLevel;
+      return supported.includes(this.thinkingLevel) ? this.thinkingLevel : (supported.includes('low') ? 'low' : supported[0]);
     }
 
     getToolDefinitions() {
@@ -399,7 +443,7 @@
       this.schedulePersist();
     }
 
-    async executeToolCalls(calls, signal, remainingChars, messageId) {
+    async executeToolCalls(calls, signal, remainingChars, messageId, snapshot = this.contextSnapshot) {
       if (!this.tools) {
         throw {
           code: 'unavailable',
@@ -435,7 +479,7 @@
             if (this.readOnly) throw { code: 'read_only', message: 'Navigator Read-only mode is enabled.' };
             if (!this.mutations) throw { code: 'unavailable', message: 'Navigator mutation proposals are not loaded.' };
             const proposal = this.mutations.createProposal(call.name, call.arguments, {
-              index: this.contextSnapshot?.index || null,
+              index: snapshot?.index || null,
             });
             this.registerProposal(messageId, proposal);
             envelope = {
@@ -451,7 +495,7 @@
           } else {
             const result = await this.tools.execute(call.name, call.arguments, {
               signal,
-              index: this.contextSnapshot?.index || null,
+              index: snapshot?.index || null,
             });
             envelope = { callId: call.id, name: call.name, result, isError: false };
           }
@@ -481,10 +525,11 @@
           serializedChars = JSON.stringify(envelope).length;
         }
         if (!isMutation && serializedChars > available) {
-          throw {
-            code: 'context_budget_exhausted',
-            message: 'Navigator reached this turn\'s Story Card tool budget.',
-            retryable: false,
+          return {
+            results,
+            charsUsed,
+            exhausted: true,
+            note: 'Navigator reached this turn\'s Story Card tool budget; remaining tool calls were skipped.',
           };
         }
 
@@ -497,7 +542,7 @@
 
     // Select the newest history that fits the input budget. The final user
     // message is mandatory; older turns are dropped oldest-first to make room.
-    buildRequestMessages(systemInstruction) {
+    buildRequestMessages(systemInstruction, maxInputChars = MAX_INPUT_CHARS, toolChars = 0) {
       const usable = this.messages.filter(message => (
         (message.role === 'user' || message.role === 'assistant') &&
         message.status !== 'error' &&
@@ -510,7 +555,10 @@
         throw new Error('Navigator has no pending question to send.');
       }
 
-      const budget = Math.min(MAX_HISTORY_CHARS, MAX_INPUT_CHARS - systemInstruction.length);
+      const budget = Math.max(0, Math.min(
+        MAX_HISTORY_CHARS,
+        maxInputChars - systemInstruction.length - toolChars - MAX_TOOL_RESULT_CHARS_PER_TURN
+      ));
       const selected = [];
       let used = 0;
 
@@ -536,6 +584,18 @@
         historyChars: selected.reduce((sum, message) => sum + message.content.length, 0),
         omittedMessages: Math.max(0, usable.length - selected.length),
       };
+    }
+
+    trimToolResults(results, maxChars) {
+      if (!Array.isArray(results) || JSON.stringify(results).length <= maxChars) return results;
+      const trimmed = results.map(item => ({ ...item }));
+      for (let index = trimmed.length - 1; index >= 0 && JSON.stringify(trimmed).length > maxChars; index--) {
+        const current = trimmed[index];
+        const text = typeof current.result === 'string' ? current.result : JSON.stringify(current.result);
+        const overhead = JSON.stringify({ ...current, result: '' }).length;
+        trimmed[index].result = text.slice(0, Math.max(0, maxChars - JSON.stringify(trimmed).length + text.length - overhead));
+      }
+      return trimmed;
     }
 
     // ==================== SEND ====================
@@ -592,10 +652,22 @@
       let request;
       try {
         await this.settingsReady;
-        const systemInstruction = await this.buildSystemInstruction(turnController.signal);
-        const built = this.buildRequestMessages(systemInstruction);
+        const limits = ready.status?.limits || ready.status?.config?.limits || {
+          maxInputChars: MAX_INPUT_CHARS,
+          maxOutputTokens: MAX_OUTPUT_TOKENS,
+        };
+        const turnLimits = {
+          maxInputChars: Number.isSafeInteger(limits.maxInputChars) ? limits.maxInputChars : MAX_INPUT_CHARS,
+          maxOutputTokens: Number.isSafeInteger(limits.maxOutputTokens) ? limits.maxOutputTokens : MAX_OUTPUT_TOKENS,
+        };
+        const turnTools = this.getToolDefinitions();
+        const toolChars = JSON.stringify(turnTools).length;
+        const builtContext = await this.buildTurnContext(turnController.signal, 46000);
+        const built = this.buildRequestMessages(builtContext.instruction, turnLimits.maxInputChars, toolChars);
         request = {
-          systemInstruction,
+          systemInstruction: builtContext.instruction,
+          snapshot: builtContext.snapshot,
+          limits: turnLimits,
           messages: built.messages,
           truncated: built.truncated,
           historyChars: built.historyChars,
@@ -614,7 +686,7 @@
       }
 
       try {
-        const tools = this.getToolDefinitions();
+        let tools = this.getToolDefinitions();
         const toolNames = [];
         const completedReadToolNames = [];
         let continuation = null;
@@ -624,13 +696,38 @@
         let finalMeta = null;
 
         while (true) {
+          const fixedRoundChars = request.systemInstruction.length
+            + request.messages.reduce((sum, item) => sum + item.content.length, 0)
+            + JSON.stringify(tools).length
+            + JSON.stringify(continuation || '').length;
+          const resultHeadroom = Math.max(0, request.limits.maxInputChars - fixedRoundChars - JSON.stringify([]).length);
+          const resultAllowance = Math.min(
+            MAX_TOOL_RESULT_CHARS_PER_TURN - toolResultChars,
+            resultHeadroom
+          );
+          toolResults = this.trimToolResults(toolResults, resultAllowance);
           const roundStartLength = this.findMessage(assistant.id)?.content.length || 0;
           let roundReceivedDelta = false;
+          const projected = request.systemInstruction.length
+            + request.messages.reduce((sum, item) => sum + item.content.length, 0)
+            + JSON.stringify(tools).length
+            + JSON.stringify(toolResults).length
+            + JSON.stringify(continuation || '').length;
+          if (projected > request.limits.maxInputChars) {
+            tools = [];
+            const noToolsProjected = request.systemInstruction.length
+              + request.messages.reduce((sum, item) => sum + item.content.length, 0)
+              + JSON.stringify(toolResults).length
+              + JSON.stringify(continuation || '').length;
+            if (noToolsProjected > request.limits.maxInputChars) {
+              throw { code: 'invalid_args', message: 'Navigator could not fit this turn within the provider input limit.', retryable: false };
+            }
+          }
           const result = await window.UltrascriptsAIExecutor.chat({
             systemInstruction: request.systemInstruction,
             messages: request.messages,
-            budget: { maxInputChars: MAX_INPUT_CHARS, maxOutputTokens: MAX_OUTPUT_TOKENS },
-            thinking: { level: 'low' },
+            budget: request.limits,
+            thinking: { level: this.resolveThinkingLevel(ready.status) },
             tools,
             ...(continuation ? { continuation, toolResults } : {}),
           }, {
@@ -688,8 +785,9 @@
           const executed = await this.executeToolCalls(
             calls,
             turnController.signal,
-            MAX_TOOL_RESULT_CHARS_PER_TURN - toolResultChars,
-            assistant.id
+            resultAllowance,
+              assistant.id,
+              request.snapshot
           );
           toolResults = executed.results;
           completedReadToolNames.push(...executed.results
@@ -697,6 +795,14 @@
             .map(item => item.name));
           toolResultChars += executed.charsUsed;
           continuation = result.continuation;
+          if (executed.exhausted) {
+            if (!(this.findMessage(assistant.id)?.content || '').trim()) {
+              throw { code: 'context_budget_exhausted', message: executed.note, retryable: false };
+            }
+            const note = `\n\n[${executed.note}]`;
+            this.updateMessage(assistant.id, { content: `${this.findMessage(assistant.id)?.content || ''}${note}` });
+            break;
+          }
         }
 
         if (this.streamingMessageId !== assistant.id) return;
@@ -735,10 +841,9 @@
         this.updateMessage(messageId, {
           status: partial ? 'aborted' : 'error',
           error: partial ? null : this.describeError(error),
-          excluded: true,
+          excluded: false,
           toolActivity: null,
         });
-        this.excludePrecedingUserMessage(messageId);
       } else {
         this.updateMessage(messageId, {
           status: 'error',
@@ -802,6 +907,10 @@
           return { code, message: error?.message || 'Navigator reached this turn\'s Story Card tool budget. Start a new turn or narrow the request.' };
         case 'aborted':
           return { code, message: 'Stopped.' };
+        case 'invalid_args':
+          return { code, message: 'Navigator could not send this turn because it exceeded the provider limits. Try shortening the request.' };
+        case 'extension_context_invalid':
+          return { code, message: 'Navigator lost access to the extension page. Reload the adventure and try again.' };
         default:
           return {
             code: code || 'unknown',

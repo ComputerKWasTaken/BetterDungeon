@@ -195,6 +195,9 @@
 
     async build(options = {}) {
       const signal = options.signal || null;
+      const maxChars = Number.isFinite(options.maxChars)
+        ? Math.max(0, Math.min(BUDGETS.systemInstruction, options.maxChars))
+        : BUDGETS.systemInstruction;
       const ws = window.Ultrascripts?.ws || null;
       const resolvedShortId = this.shortId || ws?.getAdventureShortId?.() || null;
       const reader = window.BetterDungeonAdventureRead;
@@ -310,12 +313,12 @@
         };
       };
 
-      let directoryBudget = BUDGETS.systemInstruction;
+      let directoryBudget = maxChars;
       let storyCardDirectory = buildStoryCardDirectory(cards, directoryBudget, cardSource);
       let assembled = assembleSnapshot(storyCardDirectory);
       let snapshot = assembled.text;
-      for (let attempt = 0; attempt < 3 && snapshot.length > BUDGETS.systemInstruction; attempt++) {
-        directoryBudget = Math.max(0, directoryBudget - (snapshot.length - BUDGETS.systemInstruction) - 32);
+      for (let attempt = 0; attempt < 3 && snapshot.length > maxChars; attempt++) {
+        directoryBudget = Math.max(0, directoryBudget - (snapshot.length - maxChars) - 32);
         storyCardDirectory = buildStoryCardDirectory(cards, directoryBudget, cardSource);
         assembled = assembleSnapshot(storyCardDirectory);
         snapshot = assembled.text;
@@ -383,7 +386,7 @@
           recentActions: { ...recent.meta, coverage: historyCoverage },
           storyCardDirectory: { ...storyCardDirectory.meta, coverage: cardsCoverage },
           total: {
-            budgetChars: BUDGETS.systemInstruction,
+            budgetChars: maxChars,
             sourceChars: snapshot.length + Math.max(0, storyCardDirectory.meta.sourceChars - storyCardDirectory.text.length),
             includedChars: snapshot.length,
             truncated: storyCardDirectory.meta.truncated || plot.meta.truncated || recent.meta.truncated,

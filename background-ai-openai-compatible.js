@@ -23,6 +23,13 @@
     'gemma-4-31b-it',
     'gemma-4-26b-a4b-it',
   ]);
+  const DEFAULT_LIMITS = Object.freeze({ maxInputChars: 100000, maxOutputTokens: 2048 });
+  const MODEL_LIMITS = Object.freeze({
+    'gemini-3.5-flash-lite': Object.freeze({ maxInputChars: 1000000, maxOutputTokens: 8192 }),
+    'gemini-3.1-flash-lite': Object.freeze({ maxInputChars: 1000000, maxOutputTokens: 8192 }),
+    'gemma-4-31b-it': Object.freeze({ maxInputChars: 131072, maxOutputTokens: 8192 }),
+    'gemma-4-26b-a4b-it': Object.freeze({ maxInputChars: 131072, maxOutputTokens: 8192 }),
+  });
   const LEGACY_LOCAL_KEYS = Object.freeze([
     'ultrascripts_ai_gemini_api_key',
     'ultrascripts_ai_gemini_model',
@@ -244,6 +251,22 @@
       : [settings.model];
   }
 
+  function resolveModelLimits(model) {
+    const name = String(model || '').toLowerCase();
+    const key = Object.keys(MODEL_LIMITS).find(candidate => name === candidate || name.startsWith(`${candidate}-`));
+    return key ? { ...MODEL_LIMITS[key], model: key, source: 'model' } : { ...DEFAULT_LIMITS, model: model || null, source: 'default' };
+  }
+
+  function resolveLimits(models) {
+    const resolved = models.map(resolveModelLimits);
+    return {
+      maxInputChars: Math.min(...resolved.map(item => item.maxInputChars)),
+      maxOutputTokens: Math.min(...resolved.map(item => item.maxOutputTokens)),
+      model: models.length === 1 ? (resolved[0].model || models[0]) : models[0],
+      source: resolved.every(item => item.source === 'model') ? 'model' : 'default',
+    };
+  }
+
   function resetRuntimeState() {
     runtimeState.service = null;
     runtimeState.lastModel = null;
@@ -264,6 +287,7 @@
 
   function publicConfig(config, settings) {
     const profile = config.profiles[settings.service];
+    const fallbackChain = settings.service === 'gemini' && settings.modelMode === 'auto' ? [...FALLBACK_MODELS] : [settings.model];
     return {
       provider: PROVIDER_ID,
       backend: PROVIDER_ID,
@@ -282,7 +306,8 @@
       lastResolvedModel: runtimeState.service === settings.service ? runtimeState.lastModel : null,
       lastProviderModel: runtimeState.service === settings.service ? runtimeState.lastProviderModel : null,
       lastResolvedAtIso: runtimeState.service === settings.service ? runtimeState.lastResolvedAtIso : null,
-      fallbackChain: settings.service === 'gemini' && settings.modelMode === 'auto' ? [...FALLBACK_MODELS] : [settings.model],
+      fallbackChain,
+      limits: resolveLimits(fallbackChain),
       lastAttemptedModels: runtimeState.service === settings.service ? [...runtimeState.lastAttemptedModels] : [],
       profiles: {
         gemini: {
@@ -321,6 +346,7 @@
       available: ready,
       reason,
       supports: { text: true, json: true, thinking: settings.service === 'gemini' },
+      limits: resolveLimits(modelsFor(settings)),
       config: publicConfig(config, settings),
       message: ready
         ? `${settings.service} is configured through the OpenAI-compatible endpoint.`
