@@ -182,7 +182,11 @@ async function testDynamicAllocator() {
   current.storySummary = 'Summary sentence. '.repeat(180);
   current.state.instructions = current.instructions;
   current.state.storySummary = current.storySummary;
-  current.state.memories = Array.from({ length: 15 }, (_, index) => `Memory ${index + 1}: ${'detail '.repeat(18)}`);
+  current.state.memories = Array.from({ length: 15 }, (_, index) => ({
+    __typename: 'Memory',
+    actionIds: ['1', '2'],
+    text: `Memory ${index + 1}: ${'detail '.repeat(18)}`,
+  }));
   const actions = Array.from({ length: 20 }, (_, index) => action(index + 1, `Action ${index + 1}: ${'story '.repeat(20)}`));
   const cards = Array.from({ length: 12 }, (_, index) => ({ id: `card-${index}`, type: 'lore', title: `Card ${index}` }));
   configure({
@@ -194,6 +198,8 @@ async function testDynamicAllocator() {
   assert.ok(small.systemInstruction.length <= 20000);
   assert.match(small.systemInstruction, /MEMORY BANK/);
   assert.match(small.systemInstruction, /returned \d+ of 15 entries/);
+  assert.match(small.systemInstruction, /Memory 1:/);
+  assert.doesNotMatch(small.systemInstruction, /__typename|actionIds/);
   assert.equal(small.partial, true);
   assert.match(small.systemInstruction, /Action 20/);
   assert.ok(small.segments.memoryBank.truncated || small.segments.recentActions.truncated || small.segments.storyCardDirectory.truncated);
@@ -202,6 +208,16 @@ async function testDynamicAllocator() {
   assert.ok(small.segments.storyCardDirectory.coverage);
   assert.equal(small.segments.allocation.shrinkOrder[0], 'memory');
   assert.equal(small.segments.allocation.reasons[small.segments.allocation.shrinkOrder[0]], 'total budget');
+  if (small.segments.memoryBank.truncated) {
+    assert.equal(
+      small.segments.memoryBank.truncatedReason,
+      small.segments.allocation.reasons.memory
+    );
+    assert.match(
+      small.systemInstruction,
+      new RegExp(`Memory Bank:.*${small.segments.memoryBank.truncatedReason}`)
+    );
+  }
   const generous = await new window.NavigatorContext('demo').build({ maxChars: 100000 });
   assert.ok(generous.systemInstruction.length <= 100000);
   assert.match(generous.systemInstruction, /Rule one\. Rule two\.\n\nRule three/);
@@ -220,6 +236,13 @@ async function testDynamicAllocator() {
     assert.ok(bounded.systemInstruction.length <= budget);
     assert.equal(bounded.systemInstruction.endsWith('=== END CURRENT ADVENTURE SNAPSHOT ==='), true);
   }
+  const floor = await new window.NavigatorContext('demo').build({ maxChars: 9000 });
+  assert.ok(floor.systemInstruction.length <= 9000);
+  assert.equal(floor.systemInstruction.endsWith('=== END CURRENT ADVENTURE SNAPSHOT ==='), true);
+  assert.match(floor.systemInstruction, /SNAPSHOT DEGRADED:/);
+  assert.match(floor.systemInstruction, /RECENT STORY ACTIONS/);
+  assert.match(floor.systemInstruction, /Action 20/);
+  assert.ok(floor.segments.recentActions.floorIncluded > 0);
 }
 
 function testStructuredToolResultBudgeting() {

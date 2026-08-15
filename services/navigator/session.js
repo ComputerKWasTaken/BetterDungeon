@@ -325,11 +325,14 @@
     // ==================== GROUNDING ====================
 
     getContextSummary() {
+      const summary = this.contextSnapshot?.summary || {};
       return {
         state: this.contextState,
         partial: this.contextSnapshot?.partial === true,
         capturedAtIso: this.contextSnapshot?.capturedAtIso || null,
-        ...(this.contextSnapshot?.summary || {}),
+        ...summary,
+        actionsIncluded: this.contextSnapshot?.segments?.recentActions?.included ??
+          summary.actionsIncluded,
       };
     }
 
