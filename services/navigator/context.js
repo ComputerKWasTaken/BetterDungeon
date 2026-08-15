@@ -520,10 +520,11 @@
     }
     if (rendered.snapshot.length > maxChars) {
       const minimalWarning = 'Context budget is too small for full framing.';
+      const minimalCoverage = `Recent story actions: 0 included; newest-${floorActions.length} floor not served.`;
       const minimalPrefix = [
         `SNAPSHOT DEGRADED: ${minimalWarning}`,
         'COVERAGE',
-        'Recent story actions: 0 included; newest-10 floor not served.',
+        minimalCoverage,
         'IDENTITY',
       ].join('\n');
       const minimalSuffix = `\n${marker}`;
@@ -531,7 +532,7 @@
       const minimal = `${minimalPrefix}\n${truncate(primer, primerBudget).text}${minimalSuffix}`;
       rendered = {
         snapshot: minimal,
-        coverage: 'Recent story actions: 0 included; newest-10 floor not served.',
+        coverage: minimalCoverage,
         history: emptyHistory,
       };
     }
