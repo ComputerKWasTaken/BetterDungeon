@@ -483,7 +483,7 @@
     runtimeState.lastAttemptedModels = [...(result.fallback?.attemptedModels || [result.model])];
   }
 
-  function publicConfig(config, settings) {
+  function publicConfig(config, settings, unresolved = false) {
     const profile = config.profiles[settings.service];
     const fallbackChain = settings.service === 'gemini' && settings.modelMode === 'auto' ? [...FALLBACK_MODELS] : [settings.model];
     return {
@@ -505,7 +505,11 @@
       lastProviderModel: runtimeState.service === settings.service ? runtimeState.lastProviderModel : null,
       lastResolvedAtIso: runtimeState.service === settings.service ? runtimeState.lastResolvedAtIso : null,
       fallbackChain,
-      limits: { ...resolveLimits(fallbackChain, settings), resolved: true, resolution: 'settled' },
+      limits: {
+        ...resolveLimits(fallbackChain, settings),
+        resolved: !unresolved,
+        resolution: unresolved ? 'pending' : 'settled',
+      },
       lastAttemptedModels: runtimeState.service === settings.service ? [...runtimeState.lastAttemptedModels] : [],
       profiles: {
         gemini: {
@@ -546,10 +550,10 @@
       reason,
       supports: { text: true, json: true, thinking: thinkingLevelsFor(settings).length > 0 },
       limits: { ...resolveLimits(modelsFor(settings), settings), resolved: !unresolved, resolution: unresolved ? 'pending' : 'settled' },
-      config: publicConfig(config, settings),
+      config: publicConfig(config, settings, unresolved),
       message: ready
         ? `${settings.service} is configured through the OpenAI-compatible endpoint.`
-      : `Configure the ${settings.service} profile to enable AI queries.`,
+        : `Configure the ${settings.service} profile to enable AI queries.`,
     };
   }
 
