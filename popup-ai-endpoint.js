@@ -149,6 +149,8 @@ function renderEndpointProfile(service, options = {}) {
   const key = document.getElementById('ai-endpoint-api-key');
   const modelMode = document.getElementById('ai-endpoint-model-mode');
   const model = document.getElementById('ai-endpoint-model');
+  const maxInput = document.getElementById('ai-endpoint-max-input-tokens');
+  const maxOutput = document.getElementById('ai-endpoint-max-output-tokens');
   const modeGroup = document.getElementById('ai-endpoint-model-mode-group');
   const modelGroup = document.getElementById('ai-endpoint-model-group');
   const optional = document.getElementById('ai-endpoint-key-optional');
@@ -170,6 +172,8 @@ function renderEndpointProfile(service, options = {}) {
     model.placeholder = normalized === 'gemini' ? AI_ENDPOINT_DEFAULT_MODEL : normalized === 'openrouter' ? 'openai/gpt-5-mini' : 'model-id';
   }
   if (modelGroup) modelGroup.style.display = normalized === 'gemini' && mode === 'auto' ? 'none' : '';
+  if (maxInput) maxInput.value = profile.maxInputTokens || '';
+  if (maxOutput) maxOutput.value = profile.maxOutputTokens || '';
   if (optional) optional.textContent = normalized === 'custom' ? 'optional' : 'required';
   if (geminiHelp) geminiHelp.style.display = normalized === 'gemini' ? '' : 'none';
   setEndpointValidation();
@@ -194,13 +198,19 @@ function collectEndpointConfig({ clearKey = false } = {}) {
   const service = document.getElementById('ai-endpoint-service')?.value || 'gemini';
   const keyInput = document.getElementById('ai-endpoint-api-key');
   const modelInput = document.getElementById('ai-endpoint-model');
+  const maxInputInput = document.getElementById('ai-endpoint-max-input-tokens');
+  const maxOutputInput = document.getElementById('ai-endpoint-max-output-tokens');
   const modelMode = document.getElementById('ai-endpoint-model-mode')?.value === 'manual' ? 'manual' : 'auto';
   const saved = profileSnapshot(service);
   const enteredKey = String(keyInput?.value || '').trim();
   const model = String(modelInput?.value || '').trim();
+  const maxInputTokens = Math.max(0, Math.floor(Number(maxInputInput?.value || 0)));
+  const maxOutputTokens = Math.max(0, Math.floor(Number(maxOutputInput?.value || 0)));
   const errors = [];
   const fields = [];
   const profile = {};
+  if (maxInputTokens) profile.maxInputTokens = maxInputTokens;
+  if (maxOutputTokens) profile.maxOutputTokens = maxOutputTokens;
   if (clearKey) profile.apiKey = '';
   else if (enteredKey) profile.apiKey = enteredKey;
   const keyConfigured = clearKey ? false : !!(enteredKey || saved.keyConfigured);

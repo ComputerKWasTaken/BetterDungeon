@@ -1116,6 +1116,15 @@
                     <input type="text" class="form-input" id="ai-endpoint-model" placeholder="gemini-3.5-flash-lite" aria-describedby="ai-endpoint-model-help ai-endpoint-validation" spellcheck="false">
                     <p class="form-help" id="ai-endpoint-model-help">Use the exact model identifier accepted by the selected service.</p>
                   </div>
+                  <div class="form-group">
+                    <label class="form-label" for="ai-endpoint-max-input-tokens">Maximum input tokens <span class="form-label-optional">optional</span></label>
+                    <input type="number" class="form-input" id="ai-endpoint-max-input-tokens" min="0" step="1" placeholder="Auto">
+                    <p class="form-help">Optional user cap; it can only reduce the discovered model capacity.</p>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="ai-endpoint-max-output-tokens">Maximum output tokens <span class="form-label-optional">optional</span></label>
+                    <input type="number" class="form-input" id="ai-endpoint-max-output-tokens" min="0" step="1" placeholder="Auto">
+                  </div>
                   <p class="feature-hint" id="ai-endpoint-gemini-help"><span class="icon-key-round"></span> Get a Gemini key from <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer">Google AI Studio</a>.</p>
                   <div class="ai-provider-validation" id="ai-endpoint-validation" role="status" aria-live="polite"></div>
                   <div class="ai-provider-status-card" id="ai-endpoint-status-card" data-state="pending">
