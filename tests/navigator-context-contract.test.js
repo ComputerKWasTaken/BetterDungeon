@@ -242,6 +242,7 @@ async function testDynamicAllocator() {
   assert.match(floor.systemInstruction, /SNAPSHOT DEGRADED:/);
   assert.match(floor.systemInstruction, /IDENTITY\nTitle: Navigator Quest/);
   assert.match(floor.systemInstruction, /RECENT STORY ACTIONS/);
+  assert.match(floor.systemInstruction, /You are Navigator, BetterDungeon/);
   assert.ok(floor.segments.recentActions.floorIncluded > 0);
   for (const section of [floor.segments.plotComponents, floor.segments.memoryBank, floor.segments.storyCardDirectory]) {
     assert.equal(section.included, 0);
@@ -255,6 +256,21 @@ async function testDynamicAllocator() {
     assert.match(hostile.systemInstruction, /IDENTITY/);
     assert.match(hostile.systemInstruction, /SNAPSHOT DEGRADED:/);
   }
+  let partialFloor = null;
+  for (const budget of [500, 700, 900, 1100, 1300, 1500, 1800, 2200, 2600, 3000]) {
+    const candidate = await new window.NavigatorContext('demo').build({ maxChars: budget });
+    if (candidate.segments.recentActions.floorIncluded > 0 &&
+      candidate.segments.recentActions.floorIncluded < 10) {
+      partialFloor = candidate;
+      break;
+    }
+  }
+  assert.ok(partialFloor);
+  assert.match(partialFloor.systemInstruction, /newest-10 floor served partially/);
+  assert.equal(
+    partialFloor.segments.recentActions.floorIncluded,
+    [...partialFloor.systemInstruction.matchAll(/\[Action (?:1[1-9]|20)\b/g)].length
+  );
 }
 
 async function testScaledDynamicCeilings() {
