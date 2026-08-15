@@ -22,7 +22,6 @@
   const MAX_TOOL_ROUNDS = 6;
   const MAX_TOOL_RESULT_CHARS_PER_TURN = 16000;
   const SNAPSHOT_MIN_CHARS = 8000;
-  const SNAPSHOT_MAX_CHARS = 46000;
   const TOOL_ERROR_RESERVE_CHARS = 256;
   const READ_ONLY_STORAGE_KEY = 'betterDungeon_navigator_read_only';
   const THINKING_LEVEL_STORAGE_KEY = 'betterDungeon_navigator_thinking_level';
@@ -677,10 +676,7 @@
         const toolChars = JSON.stringify(turnTools).length;
         const snapshotMaxChars = Math.max(
           SNAPSHOT_MIN_CHARS,
-          Math.min(
-            SNAPSHOT_MAX_CHARS,
-            turnLimits.maxInputChars - toolChars - MAX_HISTORY_CHARS - MAX_TOOL_RESULT_CHARS_PER_TURN
-          )
+          turnLimits.maxInputChars - toolChars - MAX_HISTORY_CHARS - MAX_TOOL_RESULT_CHARS_PER_TURN
         );
         const builtContext = await this.buildTurnContext(turnController.signal, snapshotMaxChars);
         const built = this.buildRequestMessages(builtContext.instruction, turnLimits.maxInputChars, toolChars);

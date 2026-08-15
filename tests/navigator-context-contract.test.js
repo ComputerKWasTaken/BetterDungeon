@@ -173,6 +173,37 @@ async function testPlotUnavailableAndEmpty() {
   assert.equal(emptySnapshot.segments.plotComponents.fields.instructions.unavailable, false);
 }
 
+async function testDynamicAllocator() {
+  const current = adventure(20);
+  current.instructions = 'Rule one. Rule two.\n\nRule three continues with a long paragraph.';
+  current.memory = 'Persistent fact '.repeat(120);
+  current.authorsNote = 'Scene note '.repeat(60);
+  current.storySummary = 'Summary sentence. '.repeat(180);
+  current.state.instructions = current.instructions;
+  current.state.storySummary = current.storySummary;
+  current.state.memories = Array.from({ length: 15 }, (_, index) => `Memory ${index + 1}: ${'detail '.repeat(18)}`);
+  const actions = Array.from({ length: 20 }, (_, index) => action(index + 1, `Action ${index + 1}: ${'story '.repeat(20)}`));
+  const cards = Array.from({ length: 12 }, (_, index) => ({ id: `card-${index}`, type: 'lore', title: `Card ${index}` }));
+  configure({
+    available: true,
+    data: { adventure: current, state: current.state, storyCards: cards, actions },
+    error: null,
+  }, null, []);
+  const small = await new window.NavigatorContext('demo').build({ maxChars: 20000 });
+  assert.ok(small.systemInstruction.length <= 20000);
+  assert.match(small.systemInstruction, /MEMORY BANK/);
+  assert.match(small.systemInstruction, /returned \d+ of 15 entries/);
+  assert.equal(small.partial, true);
+  assert.match(small.systemInstruction, /Action 20/);
+  assert.ok(small.segments.memoryBank.truncated || small.segments.recentActions.truncated || small.segments.storyCardDirectory.truncated);
+  const generous = await new window.NavigatorContext('demo').build({ maxChars: 100000 });
+  assert.ok(generous.systemInstruction.length <= 100000);
+  assert.match(generous.systemInstruction, /Rule one\. Rule two\.\n\nRule three/);
+  assert.equal(generous.segments.plotComponents.fields.instructions.truncated, false);
+  assert.equal(generous.segments.plotComponents.fields.storySummary.truncated, false);
+  assert.equal(generous.segments.memoryBank.truncated, false);
+}
+
 function testStructuredToolResultBudgeting() {
   const trim = window.NavigatorSession.prototype.trimToolResults;
   const results = trim.call({}, [
@@ -189,6 +220,7 @@ async function main() {
   await testGraphqlFallbackDiagnosticsUnavailable();
   await testAuthoritativeCardGate();
   await testPlotUnavailableAndEmpty();
+  await testDynamicAllocator();
   testStructuredToolResultBudgeting();
   console.log('Desktop Navigator context contract tests passed');
 }
