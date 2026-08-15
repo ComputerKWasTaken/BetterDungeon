@@ -109,6 +109,7 @@ async function testGraphqlFallbackDiagnosticsUnavailable() {
   const snapshot = await new window.NavigatorContext('demo').build();
   assert.equal(snapshot.partial, false);
   assert.match(snapshot.systemInstruction, /Memory Bank and summary lag: unavailable/i);
+  assert.match(snapshot.systemInstruction, /MEMORY BANK\n\(Memory Bank is unavailable/i);
   assert.doesNotMatch(snapshot.systemInstruction, /Snapshot warnings:.*Apollo/i);
 }
 
@@ -196,12 +197,25 @@ async function testDynamicAllocator() {
   assert.equal(small.partial, true);
   assert.match(small.systemInstruction, /Action 20/);
   assert.ok(small.segments.memoryBank.truncated || small.segments.recentActions.truncated || small.segments.storyCardDirectory.truncated);
+  assert.equal(small.segments.recentActions.floorIncluded, 10);
+  assert.equal(small.segments.allocation.shrinkOrder[0], 'memory');
+  assert.equal(small.segments.allocation.reasons[small.segments.allocation.shrinkOrder[0]], 'total budget');
   const generous = await new window.NavigatorContext('demo').build({ maxChars: 100000 });
   assert.ok(generous.systemInstruction.length <= 100000);
   assert.match(generous.systemInstruction, /Rule one\. Rule two\.\n\nRule three/);
   assert.equal(generous.segments.plotComponents.fields.instructions.truncated, false);
   assert.equal(generous.segments.plotComponents.fields.storySummary.truncated, false);
   assert.equal(generous.segments.memoryBank.truncated, false);
+  assert.equal(generous.systemInstruction.endsWith('=== END CURRENT ADVENTURE SNAPSHOT ==='), true);
+  const boundary = await new window.NavigatorContext('demo').build({ maxChars: 22000 });
+  assert.ok(boundary.systemInstruction.length <= 22000);
+  assert.equal(boundary.systemInstruction.endsWith('=== END CURRENT ADVENTURE SNAPSHOT ==='), true);
+  assert.notEqual(boundary.segments.plotComponents.fields.storySummary.boundary, 'hard');
+  for (const budget of [10000, 12000, 16000, 20000, 30000]) {
+    const bounded = await new window.NavigatorContext('demo').build({ maxChars: budget });
+    assert.ok(bounded.systemInstruction.length <= budget);
+    assert.equal(bounded.systemInstruction.endsWith('=== END CURRENT ADVENTURE SNAPSHOT ==='), true);
+  }
 }
 
 function testStructuredToolResultBudgeting() {
