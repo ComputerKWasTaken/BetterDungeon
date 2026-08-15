@@ -23,6 +23,15 @@
     'gemma-4-31b-it',
     'gemma-4-26b-a4b-it',
   ]);
+  const DEFAULT_LIMITS = Object.freeze({ maxInputChars: 100000, maxOutputTokens: 2048 });
+  // Deliberately conservative token-to-character conversion for prompt budgeting:
+  // both values under-estimate usable capacity to leave room under provider quotas.
+  const CHARS_PER_TOKEN = 3;
+  const TOKEN_SAFETY_FACTOR = 0.75;
+  const MAX_DISCOVERED_OUTPUT_TOKENS = 16384;
+  const CAPABILITY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+  const CAPABILITY_FAILURE_TTL_MS = 5 * 60 * 1000;
+  const CAPABILITY_CACHE_KEY = 'ultrascripts_ai_capability_cache_v1';
   const LEGACY_LOCAL_KEYS = Object.freeze([
     'ultrascripts_ai_gemini_api_key',
     'ultrascripts_ai_gemini_model',
@@ -49,6 +58,8 @@
     lastFallbackMode: null,
     lastAttemptedModels: [],
   };
+  const capabilityCache = new Map();
+  let capabilityHydrationPromise = null;
 
   function isObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -131,15 +142,20 @@
       version: 1,
       activeService: 'gemini',
       profiles: {
-        gemini: { apiKey: '', modelMode: 'auto', model: DEFAULT_MODEL },
-        openrouter: { apiKey: '', model: '' },
-        custom: { baseUrl: '', apiKey: '', model: '' },
+        gemini: { apiKey: '', modelMode: 'auto', model: DEFAULT_MODEL, maxInputTokens: 0, maxOutputTokens: 0 },
+        openrouter: { apiKey: '', model: '', maxInputTokens: 0, maxOutputTokens: 0 },
+        custom: { baseUrl: '', apiKey: '', model: '', maxInputTokens: 0, maxOutputTokens: 0 },
       },
     };
   }
 
   function trim(value) {
     return typeof value === 'string' ? value.trim() : '';
+  }
+
+  function normalizeCap(value) {
+    const number = Number(value);
+    return Number.isFinite(number) && number > 0 ? Math.floor(number) : 0;
   }
 
   function normalizeBaseUrl(value) {
@@ -163,12 +179,21 @@
           modelMode: gemini.modelMode === 'manual' ? 'manual' : 'auto',
           model: trim(gemini.model).replace(/^models\//, '') ||
             (gemini.modelMode === 'manual' ? '' : defaults.profiles.gemini.model),
+          maxInputTokens: normalizeCap(gemini.maxInputTokens),
+          maxOutputTokens: normalizeCap(gemini.maxOutputTokens),
         },
-        openrouter: { apiKey: trim(openrouter.apiKey), model: trim(openrouter.model) },
+        openrouter: {
+          apiKey: trim(openrouter.apiKey),
+          model: trim(openrouter.model),
+          maxInputTokens: normalizeCap(openrouter.maxInputTokens),
+          maxOutputTokens: normalizeCap(openrouter.maxOutputTokens),
+        },
         custom: {
           baseUrl: normalizeBaseUrl(custom.baseUrl),
           apiKey: trim(custom.apiKey),
           model: trim(custom.model),
+          maxInputTokens: normalizeCap(custom.maxInputTokens),
+          maxOutputTokens: normalizeCap(custom.maxOutputTokens),
         },
       },
     };
@@ -207,6 +232,7 @@
       const modelMode = profile.modelMode;
       return {
         service,
+        profile,
         baseUrl: GEMINI_BASE_URL,
         apiKey: profile.apiKey,
         model: modelMode === 'auto' ? DEFAULT_MODEL : profile.model,
@@ -218,6 +244,7 @@
     if (service === 'openrouter') {
       return {
         service,
+        profile,
         baseUrl: OPENROUTER_BASE_URL,
         apiKey: profile.apiKey,
         model: profile.model,
@@ -229,6 +256,7 @@
     const https = /^https:\/\/[^\s/$.?#].*/i.test(profile.baseUrl);
     return {
       service,
+      profile,
       baseUrl: profile.baseUrl,
       apiKey: profile.apiKey,
       model: profile.model,
@@ -244,7 +272,156 @@
       : [settings.model];
   }
 
+  function capabilityEntry(model, cache) {
+    const name = String(model || '').replace(/^models\//, '').toLowerCase();
+    const key = Object.keys(cache?.entries || {}).find(candidate =>
+      name === candidate || name.startsWith(`${candidate}-`)
+    );
+    return key ? { ...cache.entries[key], model: key } : null;
+  }
+
+  function limitsFromCapability(entry, profile) {
+    if (!entry) return { ...DEFAULT_LIMITS, model: null, source: 'default', discoveryTimestamp: null };
+    const maxInputTokens = entry.inputDiscovered ? Math.max(1, entry.inputTokens) : 0;
+    const maxOutputTokens = entry.outputDiscovered
+      ? Math.min(MAX_DISCOVERED_OUTPUT_TOKENS, Math.max(1, entry.outputTokens))
+      : DEFAULT_LIMITS.maxOutputTokens;
+    const inputTokens = entry.inputDiscovered
+      ? (entry.totalWindow ? Math.max(1, maxInputTokens - maxOutputTokens) : maxInputTokens)
+      : 0;
+    const discovered = {
+      maxInputTokens: inputTokens,
+      maxOutputTokens,
+      maxInputChars: entry.inputDiscovered
+        ? Math.floor(inputTokens * CHARS_PER_TOKEN * TOKEN_SAFETY_FACTOR)
+        : DEFAULT_LIMITS.maxInputChars,
+      model: entry.model,
+      source: entry.inputDiscovered && entry.outputDiscovered ? 'discovered' : 'partial',
+    };
+    const inputCap = normalizeCap(profile?.maxInputTokens);
+    const outputCap = normalizeCap(profile?.maxOutputTokens);
+    if (inputCap) {
+      discovered.maxInputTokens = Math.min(discovered.maxInputTokens, inputCap);
+      discovered.maxInputChars = Math.min(
+        discovered.maxInputChars,
+        Math.floor(inputCap * CHARS_PER_TOKEN * TOKEN_SAFETY_FACTOR)
+      );
+    }
+    if (outputCap) discovered.maxOutputTokens = Math.min(discovered.maxOutputTokens, outputCap);
+    if (inputCap || outputCap) discovered.source = 'user-capped';
+    return discovered;
+  }
+
+  function resolveLimits(models, settings) {
+    const cache = capabilityCache.get(settings?.service);
+    const resolved = models.map(model => limitsFromCapability(capabilityEntry(model, cache), settings?.profile));
+    const maxInputChars = Math.min(...resolved.map(item => item.maxInputChars));
+    const maxInputTokens = Math.min(...resolved.map(item => item.maxInputTokens || 0));
+    const maxOutputTokens = Math.min(...resolved.map(item => item.maxOutputTokens));
+    const bindingIndexes = resolved
+      .map((item, index) => item.maxInputChars === maxInputChars && item.maxOutputTokens === maxOutputTokens ? index : -1)
+      .filter(index => index >= 0);
+    const source = resolved.some(item => item.source === 'user-capped')
+      ? 'user-capped'
+      : resolved.every(item => item.source === 'discovered') ? 'discovered'
+        : resolved.some(item => item.source === 'partial') ? 'partial' : 'default';
+    return {
+      maxInputTokens,
+      maxInputChars,
+      maxOutputTokens,
+      model: models.length === 1 ? (resolved[0].model || models[0]) : (bindingIndexes.length ? resolved[bindingIndexes[0]].model : null),
+      source,
+      discoveryTimestamp: cache?.fetchedAtIso || null,
+    };
+  }
+
+  function parseCapabilities(service, payload) {
+    const rows = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : (Array.isArray(payload?.models) ? payload.models : []));
+    const entries = {};
+    for (const row of rows) {
+      const model = trim(row?.id || row?.name).replace(/^models\//, '');
+      if (!model) continue;
+      const inputTokens = Number(row.inputTokenLimit || row.context_length || row.max_model_len || 0);
+      const outputTokens = Number(row.outputTokenLimit || row.top_provider?.max_completion_tokens || row.max_completion_tokens || 0);
+      const totalWindow = service === 'openrouter' || !!row.context_length || !!row.max_model_len;
+      if (!inputTokens && !outputTokens) continue;
+      entries[model.toLowerCase()] = {
+        inputTokens,
+        outputTokens,
+        inputDiscovered: inputTokens > 0,
+        outputDiscovered: outputTokens > 0,
+        totalWindow,
+        thinking: service === 'gemini' ? row.thinking === true :
+          service === 'openrouter' ? Array.isArray(row.supported_parameters) && row.supported_parameters.includes('reasoning') : undefined,
+      };
+    }
+    return entries;
+  }
+
+  function refreshCapabilities(settings) {
+    if (!settings.configured) return;
+    const now = Date.now();
+    const existing = capabilityCache.get(settings.service);
+    if (!capabilityHydrationPromise) {
+      capabilityHydrationPromise = storageGet('local', CAPABILITY_CACHE_KEY).then(stored => {
+        for (const [service, value] of Object.entries(stored?.[CAPABILITY_CACHE_KEY] || {})) {
+          if (value?.entries && Number.isFinite(value.fetchedAtMs)) capabilityCache.set(service, value);
+        }
+      }).catch(() => {}).then(() => undefined);
+      return;
+    }
+    const ttl = existing?.failed ? CAPABILITY_FAILURE_TTL_MS : CAPABILITY_CACHE_TTL_MS;
+    if (existing?.refreshing || (existing && now - existing.fetchedAtMs < ttl)) return;
+    const cache = existing || { entries: {}, fetchedAtMs: 0, fetchedAtIso: null };
+    cache.refreshing = true;
+    capabilityCache.set(settings.service, cache);
+    let url = '';
+    if (settings.service === 'gemini') {
+      url = `${GEMINI_BASE_URL.replace(/\/openai$/, '')}/models`;
+    } else if (settings.service === 'openrouter') {
+      url = `${OPENROUTER_BASE_URL}/models`;
+    } else {
+      url = `${settings.baseUrl}/models`;
+    }
+    fetchWithTimeout(url, {
+      method: 'GET',
+      headers: settings.service === 'gemini'
+        ? { 'x-goog-api-key': settings.apiKey }
+        : settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {},
+      credentials: 'omit',
+      cache: 'no-store',
+    }).then(async response => {
+      if (!response?.ok) throw new Error(`Capability discovery returned ${response?.status || 0}.`);
+      const payload = await response.json();
+      const fetchedAtIso = new Date().toISOString();
+      capabilityCache.set(settings.service, {
+        entries: parseCapabilities(settings.service, payload),
+        fetchedAtMs: Date.now(),
+        fetchedAtIso,
+      });
+      persistCapabilityCache();
+    }).catch(() => {
+      capabilityCache.set(settings.service, { entries: {}, fetchedAtMs: Date.now(), fetchedAtIso: null, failed: true });
+      persistCapabilityCache();
+    });
+  }
+
+  function persistCapabilityCache() {
+    const value = {};
+    for (const [service, entry] of capabilityCache) value[service] = entry;
+    storageSet('local', { [CAPABILITY_CACHE_KEY]: value }).catch(() => {});
+  }
+
+  function thinkingLevelsFor(settings) {
+    const cache = capabilityCache.get(settings.service);
+    const entries = modelsFor(settings).map(model => capabilityEntry(model, cache)).filter(Boolean);
+    if (!entries.length) return settings.service === 'gemini' ? [...THINKING_LEVELS] : [];
+    return entries.some(entry => entry.thinking) ? [...THINKING_LEVELS] : [];
+  }
+
   function resetRuntimeState() {
+    capabilityCache.clear();
+    capabilityHydrationPromise = null;
     runtimeState.service = null;
     runtimeState.lastModel = null;
     runtimeState.lastProviderModel = null;
@@ -264,6 +441,7 @@
 
   function publicConfig(config, settings) {
     const profile = config.profiles[settings.service];
+    const fallbackChain = settings.service === 'gemini' && settings.modelMode === 'auto' ? [...FALLBACK_MODELS] : [settings.model];
     return {
       provider: PROVIDER_ID,
       backend: PROVIDER_ID,
@@ -277,12 +455,13 @@
       model: settings.model,
       selectedModel: settings.model,
       thinkingDefault: AI_DEFAULT_THINKING_LEVEL,
-      thinkingLevels: settings.service === 'gemini' ? [...THINKING_LEVELS] : [],
+      thinkingLevels: thinkingLevelsFor(settings),
       activeModel: runtimeState.service === settings.service ? runtimeState.lastModel : null,
       lastResolvedModel: runtimeState.service === settings.service ? runtimeState.lastModel : null,
       lastProviderModel: runtimeState.service === settings.service ? runtimeState.lastProviderModel : null,
       lastResolvedAtIso: runtimeState.service === settings.service ? runtimeState.lastResolvedAtIso : null,
-      fallbackChain: settings.service === 'gemini' && settings.modelMode === 'auto' ? [...FALLBACK_MODELS] : [settings.model],
+      fallbackChain,
+      limits: resolveLimits(fallbackChain, settings),
       lastAttemptedModels: runtimeState.service === settings.service ? [...runtimeState.lastAttemptedModels] : [],
       profiles: {
         gemini: {
@@ -311,6 +490,7 @@
   }
 
   function status(config, settings = settingsFor(config)) {
+    refreshCapabilities(settings);
     const ready = settings.configured;
     const reason = ready ? null : 'ai_backend_not_configured';
     return {
@@ -320,7 +500,8 @@
       ready,
       available: ready,
       reason,
-      supports: { text: true, json: true, thinking: settings.service === 'gemini' },
+      supports: { text: true, json: true, thinking: thinkingLevelsFor(settings).length > 0 },
+      limits: resolveLimits(modelsFor(settings), settings),
       config: publicConfig(config, settings),
       message: ready
         ? `${settings.service} is configured through the OpenAI-compatible endpoint.`

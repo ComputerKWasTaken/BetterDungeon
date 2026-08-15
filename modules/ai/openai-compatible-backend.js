@@ -92,6 +92,7 @@
     return {
       ready: raw.ready === true,
       available: raw.available === true,
+      limits: raw.limits && typeof raw.limits === 'object' ? raw.limits : null,
       reason: typeof raw.reason === 'string' ? raw.reason : null,
       config: raw.config && typeof raw.config === 'object' ? raw.config : null,
       message: typeof raw.message === 'string' ? raw.message : '',

@@ -18,6 +18,7 @@ load('services/navigator/primer.js');
 load('services/adventure-read-service.js');
 load('services/navigator/context.js');
 load('services/navigator/mutations.js');
+load('services/navigator/session.js');
 
 function action(id, text) {
   return { id: String(id), text, type: 'do', undoneAt: null, createdAt: `2026-01-${id}` };
@@ -172,12 +173,23 @@ async function testPlotUnavailableAndEmpty() {
   assert.equal(emptySnapshot.segments.plotComponents.fields.instructions.unavailable, false);
 }
 
+function testStructuredToolResultBudgeting() {
+  const trim = window.NavigatorSession.prototype.trimToolResults;
+  const results = trim.call({}, [
+    { id: 'a', name: 'get_story_card', result: { data: 'a'.repeat(500) } },
+    { id: 'b', name: 'get_story_card', result: { data: 'b'.repeat(500) } },
+  ], 300);
+  assert.equal(results.length, 2);
+  assert.ok(results.every(item => item.result?.error?.code === 'context_budget_omitted'));
+}
+
 async function main() {
   await testIncompleteHistory();
   await testApolloCompleteHistoryAndDiagnostics();
   await testGraphqlFallbackDiagnosticsUnavailable();
   await testAuthoritativeCardGate();
   await testPlotUnavailableAndEmpty();
+  testStructuredToolResultBudgeting();
   console.log('Desktop Navigator context contract tests passed');
 }
 

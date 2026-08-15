@@ -441,6 +441,7 @@
       phase: ready ? 'live' : 'executor',
       reason,
       supports,
+      limits: cloneJson(provider?.status?.limits || provider?.status?.config?.limits || null),
       config: provider?.status?.config || null,
       contract: {
         ops: ['status', 'query'],
