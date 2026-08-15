@@ -336,6 +336,43 @@
     return allocation[key] >= ceiling ? 'section ceiling' : 'total budget';
   }
 
+  function dynamicSectionCeilings(pool, sources) {
+    const keys = ['history', 'memory', 'cards'];
+    const floors = {
+      history: BUDGETS.historyCeiling,
+      memory: BUDGETS.memoryBankCeiling,
+      cards: BUDGETS.cardDirectoryCeiling,
+    };
+    const ratios = { history: 0.5, memory: 0.25, cards: 0.25 };
+    const ceilings = {};
+    for (const key of keys) ceilings[key] = Math.min(sources[key], floors[key]);
+    let remaining = Math.max(0, pool - keys.reduce((sum, key) => sum + ceilings[key], 0));
+    while (remaining > 0) {
+      const available = keys.filter(key => ceilings[key] < sources[key]);
+      if (!available.length) break;
+      const weight = available.reduce((sum, key) => sum + ratios[key], 0);
+      let distributed = 0;
+      for (const key of available) {
+        const share = Math.min(
+          sources[key] - ceilings[key],
+          Math.floor(remaining * ratios[key] / weight)
+        );
+        if (share > 0) {
+          ceilings[key] += share;
+          distributed += share;
+        }
+      }
+      if (!distributed) {
+        const key = available[0];
+        const share = Math.min(sources[key] - ceilings[key], remaining);
+        ceilings[key] += share;
+        distributed = share;
+      }
+      remaining -= distributed;
+    }
+    return ceilings;
+  }
+
   function droppedMeta(sourceMeta, budget, reason = 'total budget') {
     return {
       ...sourceMeta,
@@ -394,17 +431,23 @@
       }
 
       const rawPlot = buildPlotComponents(adventure, provenance.plot || {}, BUDGETS.plotComponentsCeiling);
-      const rawCards = buildStoryCardDirectory(cards, BUDGETS.cardDirectoryCeiling, cardSource);
-      const rawHistory = buildRecentActions(actions, BUDGETS.historyCeiling);
-      const rawMemory = buildMemoryBank(memoryBank || [], BUDGETS.memoryBankCeiling, memoryBank !== null);
+      const rawCards = buildStoryCardDirectory(cards, Number.MAX_SAFE_INTEGER, cardSource);
+      const rawHistory = buildRecentActions(actions, Number.MAX_SAFE_INTEGER);
+      const rawMemory = buildMemoryBank(memoryBank || [], Number.MAX_SAFE_INTEGER, memoryBank !== null);
       const historyFloor = buildRecentActions(actions.slice(-BUDGETS.historyFloorActions), BUDGETS.historyCeiling).text.length;
       const capturedAtIso = new Date().toISOString();
-      const pool = maxChars;
+      const fixedReserve = primer.length + identity.text.length + rawPlot.text.length + 1000;
+      const pool = Math.max(0, maxChars - fixedReserve);
+      const sectionCeilings = dynamicSectionCeilings(pool, {
+        history: rawHistory.text.length,
+        memory: rawMemory.text.length,
+        cards: rawCards.text.length,
+      });
       const allocation = {
         plot: Math.min(rawPlot.text.length, BUDGETS.plotComponentsCeiling),
-        cards: Math.min(rawCards.text.length, BUDGETS.cardDirectoryCeiling),
-        history: Math.min(rawHistory.text.length, Math.max(historyFloor, Math.floor(pool * 0.5))),
-        memory: Math.min(rawMemory.text.length, Math.floor(pool * 0.25)),
+        cards: sectionCeilings.cards,
+        history: Math.min(rawHistory.text.length, Math.max(historyFloor, sectionCeilings.history)),
+        memory: sectionCeilings.memory,
       };
       const reasons = {};
       let finalPlot;
@@ -434,21 +477,21 @@
             'history',
             finalHistory.meta,
             allocation,
-            BUDGETS.historyCeiling,
+            sectionCeilings.history,
             reasons
           ),
           memory: sectionReason(
             'memory',
             finalMemory.meta,
             allocation,
-            BUDGETS.memoryBankCeiling,
+            sectionCeilings.memory,
             reasons
           ),
           cards: sectionReason(
             'cards',
             finalCards.meta,
             allocation,
-            BUDGETS.cardDirectoryCeiling,
+            sectionCeilings.cards,
             reasons
           ),
         };

@@ -245,6 +245,42 @@ async function testDynamicAllocator() {
   assert.ok(floor.segments.recentActions.floorIncluded > 0);
 }
 
+async function testScaledDynamicCeilings() {
+  const current = adventure(292);
+  current.instructions = 'Instruction '.repeat(300);
+  current.memory = 'Fact '.repeat(300);
+  current.authorsNote = 'Note '.repeat(200);
+  current.storySummary = 'Summary '.repeat(500);
+  current.state.instructions = current.instructions;
+  current.state.storySummary = current.storySummary;
+  current.state.memories = Array.from({ length: 48 }, (_, index) => ({
+    text: `Memory ${index + 1}: ${'detail '.repeat(600)}`,
+  }));
+  const actions = Array.from({ length: 292 }, (_, index) => action(index + 1, `Action ${index + 1}: ${'story '.repeat(30)}`));
+  configure({
+    available: true,
+    data: {
+      adventure: current,
+      state: current.state,
+      storyCards: [],
+      actions,
+    },
+    error: null,
+  }, null, []);
+
+  const large = await new window.NavigatorContext('demo').build({ maxChars: 554119 });
+  assert.ok(large.systemInstruction.length <= 554119);
+  assert.equal(large.segments.memoryBank.included, 48);
+  assert.ok(large.segments.recentActions.included > 31);
+  assert.equal(large.segments.recentActions.coverage.included, large.segments.recentActions.included);
+  assert.equal(large.segments.total.includedChars, large.systemInstruction.length);
+
+  const sectionBound = await new window.NavigatorContext('demo').build({ maxChars: 200000 });
+  assert.equal(sectionBound.segments.memoryBank.truncatedReason, 'section ceiling');
+  assert.match(sectionBound.systemInstruction, /Memory Bank:.*reduced for section ceiling/);
+  assert.ok(sectionBound.segments.total.includedChars < 200000);
+}
+
 function testStructuredToolResultBudgeting() {
   const trim = window.NavigatorSession.prototype.trimToolResults;
   const results = trim.call({}, [
@@ -262,6 +298,7 @@ async function main() {
   await testAuthoritativeCardGate();
   await testPlotUnavailableAndEmpty();
   await testDynamicAllocator();
+  await testScaledDynamicCeilings();
   testStructuredToolResultBudgeting();
   console.log('Desktop Navigator context contract tests passed');
 }
