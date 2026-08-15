@@ -252,6 +252,14 @@ async function configure(service, profile) {
   assert.deepEqual(inspected.supports, { text: true, json: true, thinking: true });
 
   await configure('gemini', { apiKey: 'test-gemini', modelMode: 'auto', model: 'gemini-3.5-flash-lite' });
+  const autoStatus = window.UltrascriptsAIExecutor.status();
+  assert.deepEqual(autoStatus.limits, {
+    maxInputChars: 131072,
+    maxOutputTokens: 8192,
+    model: 'gemma-4-31b-it',
+    source: 'model',
+  });
+  assert.deepEqual(autoStatus.config.limits, autoStatus.limits);
   const text = await window.UltrascriptsAIExecutor.query({ prompt: 'plain query', thinking: { level: 'high' } });
   assert.equal(text.meta.provider, 'openai-compatible');
   assert.equal(text.meta.backend, 'openai-compatible');

@@ -259,10 +259,15 @@
 
   function resolveLimits(models) {
     const resolved = models.map(resolveModelLimits);
+    const maxInputChars = Math.min(...resolved.map(item => item.maxInputChars));
+    const maxOutputTokens = Math.min(...resolved.map(item => item.maxOutputTokens));
+    const bindingIndexes = resolved
+      .map((item, index) => item.maxInputChars === maxInputChars && item.maxOutputTokens === maxOutputTokens ? index : -1)
+      .filter(index => index >= 0);
     return {
-      maxInputChars: Math.min(...resolved.map(item => item.maxInputChars)),
-      maxOutputTokens: Math.min(...resolved.map(item => item.maxOutputTokens)),
-      model: models.length === 1 ? (resolved[0].model || models[0]) : models[0],
+      maxInputChars,
+      maxOutputTokens,
+      model: models.length === 1 ? (resolved[0].model || models[0]) : (bindingIndexes.length ? resolved[bindingIndexes[0]].model : null),
       source: resolved.every(item => item.source === 'model') ? 'model' : 'default',
     };
   }

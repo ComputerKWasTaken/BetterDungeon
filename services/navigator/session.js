@@ -398,14 +398,9 @@
 
     // ==================== REQUEST ASSEMBLY ====================
 
-    async buildSystemInstruction(signal, maxChars = 46000) {
-      const snapshot = await this.refreshContext({ signal, maxChars });
-      let instruction = this.tools
-        ? `${snapshot.systemInstruction}${TOOL_GUIDANCE}`
-        : snapshot.systemInstruction;
-      if (this.readOnly || !this.mutations) instruction += READ_ONLY_GUIDANCE;
-      else instruction += MUTATION_GUIDANCE;
-      return instruction;
+    async buildSystemInstruction(signal, maxChars) {
+      const built = await this.buildTurnContext(signal, maxChars);
+      return built.instruction;
     }
 
     async buildTurnContext(signal, maxChars) {
@@ -588,12 +583,25 @@
 
     trimToolResults(results, maxChars) {
       if (!Array.isArray(results) || JSON.stringify(results).length <= maxChars) return results;
+      const omitted = item => ({
+        ...item,
+        isError: true,
+        result: {
+          ok: false,
+          error: {
+            code: 'context_budget_omitted',
+            message: 'This tool result was omitted because the remaining turn budget was exhausted.',
+          },
+        },
+      });
       const trimmed = results.map(item => ({ ...item }));
-      for (let index = trimmed.length - 1; index >= 0 && JSON.stringify(trimmed).length > maxChars; index--) {
-        const current = trimmed[index];
-        const text = typeof current.result === 'string' ? current.result : JSON.stringify(current.result);
-        const overhead = JSON.stringify({ ...current, result: '' }).length;
-        trimmed[index].result = text.slice(0, Math.max(0, maxChars - JSON.stringify(trimmed).length + text.length - overhead));
+      while (trimmed.length && JSON.stringify(trimmed).length > Math.max(0, maxChars)) {
+        let largestIndex = 0;
+        for (let index = 1; index < trimmed.length; index++) {
+          if (JSON.stringify(trimmed[index]).length > JSON.stringify(trimmed[largestIndex]).length) largestIndex = index;
+        }
+        trimmed[largestIndex] = omitted(trimmed[largestIndex]);
+        break;
       }
       return trimmed;
     }
@@ -662,7 +670,14 @@
         };
         const turnTools = this.getToolDefinitions();
         const toolChars = JSON.stringify(turnTools).length;
-        const builtContext = await this.buildTurnContext(turnController.signal, 46000);
+        const snapshotMaxChars = Math.max(
+          8000,
+          Math.min(
+            46000,
+            turnLimits.maxInputChars - toolChars - MAX_HISTORY_CHARS - MAX_TOOL_RESULT_CHARS_PER_TURN
+          )
+        );
+        const builtContext = await this.buildTurnContext(turnController.signal, snapshotMaxChars);
         const built = this.buildRequestMessages(builtContext.instruction, turnLimits.maxInputChars, toolChars);
         request = {
           systemInstruction: builtContext.instruction,
@@ -694,6 +709,9 @@
         let toolRounds = 0;
         let toolResultChars = 0;
         let finalMeta = null;
+        let toolsDropped = false;
+        let inputLimitReached = false;
+        let toolResultsOmitted = 0;
 
         while (true) {
           const fixedRoundChars = request.systemInstruction.length
@@ -701,11 +719,13 @@
             + JSON.stringify(tools).length
             + JSON.stringify(continuation || '').length;
           const resultHeadroom = Math.max(0, request.limits.maxInputChars - fixedRoundChars - JSON.stringify([]).length);
-          const resultAllowance = Math.min(
+          const resultAllowance = Math.max(0, Math.min(
             MAX_TOOL_RESULT_CHARS_PER_TURN - toolResultChars,
             resultHeadroom
-          );
+          ));
           toolResults = this.trimToolResults(toolResults, resultAllowance);
+          toolResultsOmitted = toolResults.filter(item => item.result?.error?.code === 'context_budget_omitted').length;
+          toolResultChars = Math.min(MAX_TOOL_RESULT_CHARS_PER_TURN, JSON.stringify(toolResults).length);
           const roundStartLength = this.findMessage(assistant.id)?.content.length || 0;
           let roundReceivedDelta = false;
           const projected = request.systemInstruction.length
@@ -715,12 +735,20 @@
             + JSON.stringify(continuation || '').length;
           if (projected > request.limits.maxInputChars) {
             tools = [];
+            toolsDropped = true;
             const noToolsProjected = request.systemInstruction.length
               + request.messages.reduce((sum, item) => sum + item.content.length, 0)
               + JSON.stringify(toolResults).length
               + JSON.stringify(continuation || '').length;
             if (noToolsProjected > request.limits.maxInputChars) {
-              throw { code: 'invalid_args', message: 'Navigator could not fit this turn within the provider input limit.', retryable: false };
+              if (!(this.findMessage(assistant.id)?.content || '').trim()) {
+                throw { code: 'invalid_args', message: 'Navigator could not fit this turn within the provider input limit.', retryable: false };
+              }
+              inputLimitReached = true;
+              this.updateMessage(assistant.id, {
+                content: `${this.findMessage(assistant.id)?.content || ''}\n\n[Navigator reached the provider input limit before the final response.]`,
+              });
+              break;
             }
           }
           const result = await window.UltrascriptsAIExecutor.chat({
@@ -786,14 +814,14 @@
             calls,
             turnController.signal,
             resultAllowance,
-              assistant.id,
-              request.snapshot
+            assistant.id,
+            request.snapshot
           );
           toolResults = executed.results;
           completedReadToolNames.push(...executed.results
             .filter(item => !item.isError && !this.isMutationTool(item.name))
             .map(item => item.name));
-          toolResultChars += executed.charsUsed;
+          toolResultChars = Math.min(MAX_TOOL_RESULT_CHARS_PER_TURN, JSON.stringify(executed.results).length);
           continuation = result.continuation;
           if (executed.exhausted) {
             if (!(this.findMessage(assistant.id)?.content || '').trim()) {
@@ -816,6 +844,9 @@
             ...(finalMeta || {}),
             toolRounds,
             toolResultChars,
+            toolsDropped,
+            inputLimitReached,
+            toolResultsOmitted,
             toolsUsed: Array.from(new Set(toolNames)),
             readToolsCompleted: Array.from(new Set(completedReadToolNames)),
           },
