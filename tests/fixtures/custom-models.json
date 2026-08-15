@@ -1,1 +1,1 @@
-{"data":[{"id":"local-model","max_model_len":32768,"max_completion_tokens":4096},{"id":"unknown-model","object":"model"}]}
+{"data":[{"id":"custom-model","context_length":32768},{"id":"unknown-model","object":"model"}]}

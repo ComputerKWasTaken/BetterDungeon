@@ -16,6 +16,7 @@ const connectListeners = [];
 const pageListeners = new Map();
 const requests = [];
 let holdStream = false;
+let discoveryRequests = 0;
 
 global.window = global;
 const realSetTimeout = global.setTimeout;
@@ -151,6 +152,8 @@ const SIGNATURE_TWO = 'sig-two+/=byte-for-byte';
 
 global.fetch = async (url, init) => {
   if (init?.method === 'GET') {
+    discoveryRequests += 1;
+    requests.push({ url, payload: null, headers: init.headers });
     if (String(url).includes('/models')) {
       const fixture = String(url).includes('openrouter')
         ? 'openrouter-models.json'
@@ -252,6 +255,7 @@ async function configure(service, profile) {
   const initial = await raw({ op: 'status' });
   assert.equal(initial.service, 'gemini');
   assert.equal(initial.ready, false);
+  assert.equal(discoveryRequests, 0);
   assert.equal((await configure('gemini', { apiKey: 'test-gemini', modelMode: 'manual', model: '' })).ready, false);
   assert.equal((await configure('openrouter', { apiKey: '', model: 'router-model' })).ready, false);
   await configure('gemini', { apiKey: '', modelMode: 'auto', model: 'gemini-3.5-flash-lite' });
@@ -265,6 +269,11 @@ async function configure(service, profile) {
   const autoStatus = window.UltrascriptsAIExecutor.status();
   await new Promise(resolve => setTimeout(resolve, 0));
   const discoveredStatus = await raw({ op: 'status' });
+  assert.ok(discoveryRequests > 0);
+  const discoveryRequest = requests.find(request => String(request.url).includes('/models'));
+  assert.ok(discoveryRequest);
+  assert.equal(String(discoveryRequest.url).includes('key='), false);
+  assert.equal(discoveryRequest.headers['x-goog-api-key'], 'test-gemini');
   assert.equal(discoveredStatus.limits.maxInputChars, Math.floor(131072 * 3 * 0.75));
   assert.equal(discoveredStatus.limits.maxOutputTokens, 8192);
   assert.equal(discoveredStatus.limits.model, 'gemma-4-31b-it');
@@ -344,7 +353,7 @@ async function configure(service, profile) {
   assert.equal(customGood.ready, true);
   await new Promise(resolve => setTimeout(resolve, 0));
   const customStatus = await raw({ op: 'status' });
-  assert.equal(customStatus.limits.source, 'default');
+  assert.equal(customStatus.limits.source, 'partial');
 
   await configure('gemini', { modelMode: 'manual', model: 'gemini-tool-model' });
   const deltas = [];
