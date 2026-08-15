@@ -13,14 +13,19 @@
     directoryTitle: 240,
     historyCeiling: 20000,
     memoryBankCeiling: 12000,
-  cardDirectoryCeiling: 16000,
-  unmeasuredFramingReserve: 1000,
-  plotComponentsCeiling: 24000,
+    cardDirectoryCeiling: 16000,
+    unmeasuredFramingReserve: 1000,
+    plotComponentsCeiling: 24000,
     plotFieldFloor: 160,
     historyFloorActions: 10,
   });
   const TRUNCATION_MARKER = '\n[truncated to Navigator context budget]';
   const CLOSING_MARKER = '=== END CURRENT ADVENTURE SNAPSHOT ===';
+  const SECTION_SEPARATORS = Object.freeze({
+    history: '\n\n',
+    memory: '\n\n',
+    cards: '\n',
+  });
 
   function stringValue(value) {
     if (typeof value === 'string') return value;
@@ -79,7 +84,7 @@
     const selected = [];
     let used = 0;
     const add = item => {
-      const separator = selected.length ? 2 : 0;
+      const separator = selected.length ? SECTION_SEPARATORS.history.length : 0;
       const remaining = budget - used - separator;
       if (remaining <= 0) return true;
       const clipped = item.text.length > remaining ? truncate(item.text, remaining) : item;
@@ -89,12 +94,15 @@
     };
     for (let index = floor.length - 1; index >= 0 && !add(floor[index]); index -= 1) {}
     for (let index = older.length - 1; index >= 0 && used < budget && !add(older[index]); index -= 1) {}
-    const output = selected.length ? selected.map(item => item.text).join('\n\n') : '(No live story actions are available in the current page cache.)';
+    const output = selected.length
+      ? selected.map(item => item.text).join(SECTION_SEPARATORS.history)
+      : '(No live story actions are available in the current page cache.)';
     return {
       text: output,
       meta: {
         budgetChars: budget,
-        sourceChars: rendered.reduce((sum, item) => sum + item.text.length, 0),
+        sourceChars: rendered.reduce((sum, item) => sum + item.text.length, 0) +
+          Math.max(0, rendered.length - 1) * SECTION_SEPARATORS.history.length,
         includedChars: output.length,
         total: rendered.length,
         included: selected.length,
@@ -120,7 +128,7 @@
     const selected = [];
     let used = 0;
     for (const row of rows) {
-      const separator = selected.length ? 1 : 0;
+      const separator = selected.length ? SECTION_SEPARATORS.cards.length : 0;
       if (used + separator + row.length > budget) break;
       selected.push(row);
       used += separator + row.length;
@@ -131,7 +139,8 @@
       text: output,
       meta: {
         budgetChars: budget,
-        sourceChars: rows.reduce((sum, row) => sum + row.length, Math.max(0, rows.length - 1)),
+        sourceChars: rows.reduce((sum, row) => sum + row.length, 0) +
+          Math.max(0, rows.length - 1) * SECTION_SEPARATORS.cards.length,
         includedChars: output.length,
         total: rows.length,
         included: selected.length,
@@ -294,7 +303,7 @@
     const selected = [];
     let used = 0;
     for (const row of rows) {
-      const separator = selected.length ? 2 : 0;
+      const separator = selected.length ? SECTION_SEPARATORS.memory.length : 0;
       if (used + separator + row.length <= budget) {
         selected.push(row);
         used += separator + row.length;
@@ -305,12 +314,15 @@
         break;
       }
     }
-    const output = selected.length ? selected.join('\n\n') : '(No Memory Bank entries are available.)';
+    const output = selected.length
+      ? selected.join(SECTION_SEPARATORS.memory)
+      : '(No Memory Bank entries are available.)';
     return {
       text: output,
       meta: {
         budgetChars: budget,
-        sourceChars: rows.reduce((sum, row) => sum + row.length, 0),
+        sourceChars: rows.reduce((sum, row) => sum + row.length, 0) +
+          Math.max(0, rows.length - 1) * SECTION_SEPARATORS.memory.length,
         includedChars: output.length,
         total: rows.length,
         included: selected.length,
@@ -438,22 +450,18 @@
       const rawMemory = buildMemoryBank(memoryBank || [], rawSourceBudget, memoryBank !== null);
       const historyFloor = buildRecentActions(actions.slice(-BUDGETS.historyFloorActions), BUDGETS.historyCeiling).text.length;
       const capturedAtIso = new Date().toISOString();
-      const historySourceChars = rawHistory.meta.sourceChars +
-        Math.max(0, rawHistory.meta.total - 1) * 2;
-      const memorySourceChars = rawMemory.meta.sourceChars +
-        (rawMemory.meta.total === null ? 0 : Math.max(0, rawMemory.meta.total - 1) * 2);
       const fixedReserve = primer.length + identity.text.length + rawPlot.text.length + BUDGETS.unmeasuredFramingReserve;
       const pool = Math.max(0, maxChars - fixedReserve);
       const sectionCeilings = dynamicSectionCeilings(pool, {
-        history: historySourceChars,
-        memory: memorySourceChars,
+        history: rawHistory.meta.sourceChars,
+        memory: rawMemory.meta.sourceChars,
         cards: rawCards.meta.sourceChars,
       });
       const allocation = {
         plot: Math.min(rawPlot.text.length, BUDGETS.plotComponentsCeiling),
         cards: Math.min(rawCards.meta.sourceChars, sectionCeilings.cards),
-        history: Math.min(historySourceChars, Math.max(historyFloor, sectionCeilings.history)),
-        memory: Math.min(memorySourceChars, sectionCeilings.memory),
+        history: Math.min(rawHistory.meta.sourceChars, Math.max(historyFloor, sectionCeilings.history)),
+        memory: Math.min(rawMemory.meta.sourceChars, sectionCeilings.memory),
       };
       const reasons = {};
       let finalPlot;
