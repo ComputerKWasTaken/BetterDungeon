@@ -99,6 +99,12 @@
     };
   }
 
+  function commitStatus(status) {
+    const normalized = normalizeStatus(status);
+    if (normalized.limits?.resolution === 'pending' || normalized.limits?.resolved === false) return;
+    state.status = normalized;
+  }
+
   function resultEnvelope(result) {
     const raw = result && typeof result === 'object' ? result : {};
     return {
@@ -120,7 +126,7 @@
 
   async function refreshStatus() {
     try {
-      state.status = normalizeStatus(await sendMessage({ op: 'status' }));
+      commitStatus(await sendMessage({ op: 'status' }));
     } catch (error) {
       state.status = {
         ready: false,
@@ -227,7 +233,7 @@
         }
         if (message.type === 'complete') {
           const result = message.result && typeof message.result === 'object' ? message.result : {};
-          if (result.status) state.status = normalizeStatus(result.status);
+          if (result.status) commitStatus(result.status);
           settle('resolve', resultEnvelope(result));
           return;
         }
@@ -279,7 +285,7 @@
     status: () => state.status,
     query: async (task) => {
       const result = await sendMessage({ op: 'query', task });
-      if (result?.status) state.status = normalizeStatus(result.status);
+      if (result?.status) commitStatus(result.status);
       return resultEnvelope(result);
     },
     streamChat,

@@ -31,6 +31,7 @@
   const MAX_DISCOVERED_OUTPUT_TOKENS = 16384;
   const CAPABILITY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
   const CAPABILITY_FAILURE_TTL_MS = 5 * 60 * 1000;
+  const CAPABILITY_STATUS_WAIT_MS = 1000;
   const CAPABILITY_CACHE_KEY = 'ultrascripts_ai_capability_cache_v1';
   const LEGACY_LOCAL_KEYS = Object.freeze([
     'ultrascripts_ai_gemini_api_key',
@@ -60,6 +61,8 @@
   };
   const capabilityCache = new Map();
   let capabilityHydrationPromise = null;
+  const capabilityRefreshPromises = new Map();
+  let capabilityGeneration = 0;
 
   function isObject(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -358,52 +361,91 @@
     return entries;
   }
 
-  function refreshCapabilities(settings) {
-    if (!settings.configured) return;
-    const now = Date.now();
-    const existing = capabilityCache.get(settings.service);
+  function hydrateCapabilities() {
     if (!capabilityHydrationPromise) {
       capabilityHydrationPromise = storageGet('local', CAPABILITY_CACHE_KEY).then(stored => {
         for (const [service, value] of Object.entries(stored?.[CAPABILITY_CACHE_KEY] || {})) {
           if (value?.entries && Number.isFinite(value.fetchedAtMs)) capabilityCache.set(service, value);
         }
       }).catch(() => {}).then(() => undefined);
-      return;
     }
-    const ttl = existing?.failed ? CAPABILITY_FAILURE_TTL_MS : CAPABILITY_CACHE_TTL_MS;
-    if (existing?.refreshing || (existing && now - existing.fetchedAtMs < ttl)) return;
-    const cache = existing || { entries: {}, fetchedAtMs: 0, fetchedAtIso: null };
-    cache.refreshing = true;
-    capabilityCache.set(settings.service, cache);
-    let url = '';
-    if (settings.service === 'gemini') {
-      url = `${GEMINI_BASE_URL.replace(/\/openai$/, '')}/models`;
-    } else if (settings.service === 'openrouter') {
-      url = `${OPENROUTER_BASE_URL}/models`;
-    } else {
-      url = `${settings.baseUrl}/models`;
-    }
-    fetchWithTimeout(url, {
-      method: 'GET',
-      headers: settings.service === 'gemini'
-        ? { 'x-goog-api-key': settings.apiKey }
-        : settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {},
-      credentials: 'omit',
-      cache: 'no-store',
-    }).then(async response => {
-      if (!response?.ok) throw new Error(`Capability discovery returned ${response?.status || 0}.`);
-      const payload = await response.json();
-      const fetchedAtIso = new Date().toISOString();
-      capabilityCache.set(settings.service, {
-        entries: parseCapabilities(settings.service, payload),
-        fetchedAtMs: Date.now(),
-        fetchedAtIso,
+    return capabilityHydrationPromise;
+  }
+
+  function refreshCapabilities(settings) {
+    if (!settings.configured) return Promise.resolve(null);
+    return hydrateCapabilities().then(() => {
+      const now = Date.now();
+      const existing = capabilityCache.get(settings.service);
+      if (existing?.refreshing) return capabilityRefreshPromises.get(settings.service) || null;
+      const ttl = existing?.failed ? CAPABILITY_FAILURE_TTL_MS : CAPABILITY_CACHE_TTL_MS;
+      if (existing && now - existing.fetchedAtMs < ttl) return null;
+      const cache = existing || { entries: {}, fetchedAtMs: 0, fetchedAtIso: null };
+      cache.refreshing = true;
+      capabilityCache.set(settings.service, cache);
+      const generation = capabilityGeneration;
+      let url = '';
+      if (settings.service === 'gemini') {
+        url = `${GEMINI_BASE_URL.replace(/\/openai$/, '')}/models`;
+      } else if (settings.service === 'openrouter') {
+        url = `${OPENROUTER_BASE_URL}/models`;
+      } else {
+        url = `${settings.baseUrl}/models`;
+      }
+      const request = fetchWithTimeout(url, {
+        method: 'GET',
+        headers: settings.service === 'gemini'
+          ? { 'x-goog-api-key': settings.apiKey }
+          : settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {},
+        credentials: 'omit',
+        cache: 'no-store',
+      }).then(async response => {
+        if (!response?.ok) throw new Error(`Capability discovery returned ${response?.status || 0}.`);
+        const payload = await response.json();
+        if (generation !== capabilityGeneration) return;
+        const fetchedAtIso = new Date().toISOString();
+        capabilityCache.set(settings.service, {
+          entries: parseCapabilities(settings.service, payload),
+          fetchedAtMs: Date.now(),
+          fetchedAtIso,
+        });
+        persistCapabilityCache();
+      }).catch(() => {
+        if (generation !== capabilityGeneration) return;
+        capabilityCache.set(settings.service, { entries: {}, fetchedAtMs: Date.now(), fetchedAtIso: null, failed: true });
+        persistCapabilityCache();
+      }).finally(() => {
+        if (capabilityRefreshPromises.get(settings.service) === request) {
+          capabilityRefreshPromises.delete(settings.service);
+        }
       });
-      persistCapabilityCache();
-    }).catch(() => {
-      capabilityCache.set(settings.service, { entries: {}, fetchedAtMs: Date.now(), fetchedAtIso: null, failed: true });
-      persistCapabilityCache();
+      capabilityRefreshPromises.set(settings.service, request);
+      return request;
     });
+  }
+
+  function waitForCapability(promise) {
+    if (!promise) return Promise.resolve(false);
+    return Promise.race([
+      promise.then(() => true),
+      new Promise(resolve => setTimeout(() => resolve(false), CAPABILITY_STATUS_WAIT_MS)),
+    ]);
+  }
+
+  async function ensureCapabilities(settings) {
+    await hydrateCapabilities();
+    const refreshPromise = refreshCapabilities(settings);
+    const cache = capabilityCache.get(settings.service);
+    const hasEntry = modelsFor(settings).some(model => capabilityEntry(model, cache));
+    if (hasEntry || !refreshPromise) return false;
+    return !(await waitForCapability(refreshPromise)) &&
+      !modelsFor(settings).some(model => capabilityEntry(model, capabilityCache.get(settings.service)));
+  }
+
+  function capabilityPending(settings) {
+    const cache = capabilityCache.get(settings.service);
+    return settings.configured && cache?.refreshing === true &&
+      !modelsFor(settings).some(model => capabilityEntry(model, cache));
   }
 
   function persistCapabilityCache() {
@@ -422,6 +464,8 @@
   function resetRuntimeState() {
     capabilityCache.clear();
     capabilityHydrationPromise = null;
+    capabilityRefreshPromises.clear();
+    capabilityGeneration += 1;
     runtimeState.service = null;
     runtimeState.lastModel = null;
     runtimeState.lastProviderModel = null;
@@ -461,7 +505,7 @@
       lastProviderModel: runtimeState.service === settings.service ? runtimeState.lastProviderModel : null,
       lastResolvedAtIso: runtimeState.service === settings.service ? runtimeState.lastResolvedAtIso : null,
       fallbackChain,
-      limits: resolveLimits(fallbackChain, settings),
+      limits: { ...resolveLimits(fallbackChain, settings), resolved: true, resolution: 'settled' },
       lastAttemptedModels: runtimeState.service === settings.service ? [...runtimeState.lastAttemptedModels] : [],
       profiles: {
         gemini: {
@@ -489,8 +533,8 @@
     };
   }
 
-  function status(config, settings = settingsFor(config)) {
-    refreshCapabilities(settings);
+  function statusSnapshot(config, settings = settingsFor(config), unresolved = false) {
+    unresolved ||= capabilityPending(settings);
     const ready = settings.configured;
     const reason = ready ? null : 'ai_backend_not_configured';
     return {
@@ -501,12 +545,17 @@
       available: ready,
       reason,
       supports: { text: true, json: true, thinking: thinkingLevelsFor(settings).length > 0 },
-      limits: resolveLimits(modelsFor(settings), settings),
+      limits: { ...resolveLimits(modelsFor(settings), settings), resolved: !unresolved, resolution: unresolved ? 'pending' : 'settled' },
       config: publicConfig(config, settings),
       message: ready
         ? `${settings.service} is configured through the OpenAI-compatible endpoint.`
-        : `Configure the ${settings.service} profile to enable AI queries.`,
+      : `Configure the ${settings.service} profile to enable AI queries.`,
     };
+  }
+
+  async function status(config, settings = settingsFor(config)) {
+    const unresolved = settings.configured ? await ensureCapabilities(settings) : false;
+    return statusSnapshot(config, settings, unresolved);
   }
 
   function normalizeThinking(value) {
@@ -864,7 +913,7 @@
       attempted.push(model);
       try {
         const result = await queryAttempt(settings, task, model, attempted);
-        result.status = status(config, settings);
+        result.status = statusSnapshot(config, settings);
         return result;
       } catch (error) {
         if (!(error?.code === 'rate_limit' && settings.service === 'gemini' && settings.modelMode === 'auto' && index < models.length - 1)) throw error;
@@ -1061,7 +1110,7 @@
       } : null,
     };
     rememberSuccess(settings, result);
-    result.status = status(config, settings);
+    result.status = statusSnapshot(config, settings);
     return result;
   }
 
@@ -1086,10 +1135,10 @@
     const op = trim(request.op);
     if (op === 'settings:set') {
       const config = await saveConfig(request.config);
-      return status(config);
+      return await status(config);
     }
     const config = await getConfig();
-    if (op === 'settings:get' || op === 'status') return status(config);
+    if (op === 'settings:get' || op === 'status') return await status(config);
     if (op === 'test') {
       return callQuery(config, normalizeTask({
         id: 'popup-test',
