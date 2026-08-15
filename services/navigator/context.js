@@ -13,8 +13,9 @@
     directoryTitle: 240,
     historyCeiling: 20000,
     memoryBankCeiling: 12000,
-    cardDirectoryCeiling: 16000,
-    plotComponentsCeiling: 24000,
+  cardDirectoryCeiling: 16000,
+  unmeasuredFramingReserve: 1000,
+  plotComponentsCeiling: 24000,
     plotFieldFloor: 160,
     historyFloorActions: 10,
   });
@@ -431,23 +432,28 @@
       }
 
       const rawPlot = buildPlotComponents(adventure, provenance.plot || {}, BUDGETS.plotComponentsCeiling);
-      const rawCards = buildStoryCardDirectory(cards, Number.MAX_SAFE_INTEGER, cardSource);
-      const rawHistory = buildRecentActions(actions, Number.MAX_SAFE_INTEGER);
-      const rawMemory = buildMemoryBank(memoryBank || [], Number.MAX_SAFE_INTEGER, memoryBank !== null);
+      const rawSourceBudget = Math.max(0, maxChars);
+      const rawCards = buildStoryCardDirectory(cards, rawSourceBudget, cardSource);
+      const rawHistory = buildRecentActions(actions, rawSourceBudget);
+      const rawMemory = buildMemoryBank(memoryBank || [], rawSourceBudget, memoryBank !== null);
       const historyFloor = buildRecentActions(actions.slice(-BUDGETS.historyFloorActions), BUDGETS.historyCeiling).text.length;
       const capturedAtIso = new Date().toISOString();
-      const fixedReserve = primer.length + identity.text.length + rawPlot.text.length + 1000;
+      const historySourceChars = rawHistory.meta.sourceChars +
+        Math.max(0, rawHistory.meta.total - 1) * 2;
+      const memorySourceChars = rawMemory.meta.sourceChars +
+        (rawMemory.meta.total === null ? 0 : Math.max(0, rawMemory.meta.total - 1) * 2);
+      const fixedReserve = primer.length + identity.text.length + rawPlot.text.length + BUDGETS.unmeasuredFramingReserve;
       const pool = Math.max(0, maxChars - fixedReserve);
       const sectionCeilings = dynamicSectionCeilings(pool, {
-        history: rawHistory.text.length,
-        memory: rawMemory.text.length,
-        cards: rawCards.text.length,
+        history: historySourceChars,
+        memory: memorySourceChars,
+        cards: rawCards.meta.sourceChars,
       });
       const allocation = {
         plot: Math.min(rawPlot.text.length, BUDGETS.plotComponentsCeiling),
-        cards: sectionCeilings.cards,
-        history: Math.min(rawHistory.text.length, Math.max(historyFloor, sectionCeilings.history)),
-        memory: sectionCeilings.memory,
+        cards: Math.min(rawCards.meta.sourceChars, sectionCeilings.cards),
+        history: Math.min(historySourceChars, Math.max(historyFloor, sectionCeilings.history)),
+        memory: Math.min(memorySourceChars, sectionCeilings.memory),
       };
       const reasons = {};
       let finalPlot;
