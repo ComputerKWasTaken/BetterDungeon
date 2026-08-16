@@ -429,6 +429,7 @@
     const marker = CLOSING_MARKER;
     const emptyHistory = buildRecentActions(actions, 0);
     emptyHistory.text = '';
+    emptyHistory.meta.includedChars = 0;
     const render = (primerText, identityText, history, snapshotWarning = warning) => {
       const historyText = history.text;
       const floorIncluded = floorActions.filter(action => (
