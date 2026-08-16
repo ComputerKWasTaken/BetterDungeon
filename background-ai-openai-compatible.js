@@ -970,7 +970,19 @@
       delete functionOpaque.arguments;
       mergeOpaque(target.function, functionOpaque);
       if (typeof part.function.name === 'string') target.function.name = `${target.function.name || ''}${part.function.name}`;
-      if (typeof part.function.arguments === 'string') target.function.arguments = `${target.function.arguments || ''}${part.function.arguments}`;
+      if (typeof part.function.arguments === 'string') {
+        const existing = target.function.arguments || '';
+        const incoming = part.function.arguments;
+        const parsedExisting = (() => {
+          try { return JSON.parse(existing); } catch { return undefined; }
+        })();
+        const parsedIncoming = (() => {
+          try { return JSON.parse(incoming); } catch { return undefined; }
+        })();
+        target.function.arguments = parsedIncoming !== undefined
+          ? incoming
+          : (parsedExisting !== undefined ? existing : `${existing}${incoming}`);
+      }
     }
     return target;
   }
@@ -988,6 +1000,8 @@
     let sawDone = false;
     const assistantMessage = { role: 'assistant', content: null, tool_calls: [] };
     const toolCalls = new Map();
+    const toolCallAliases = new Map();
+    let toolCallOrder = 0;
 
     const handle = (event) => {
       if (!isObject(event)) return;
@@ -1017,8 +1031,22 @@
       }
       const parts = Array.isArray(delta.tool_calls) ? delta.tool_calls : [];
       parts.forEach((part, order) => {
-        const index = Number.isSafeInteger(part?.index) ? part.index : order;
-        toolCalls.set(index, mergeToolCall(toolCalls.get(index) || {}, part));
+        const id = trim(part?.id);
+        const index = Number.isSafeInteger(part?.index) ? part.index : null;
+        const candidates = [
+          id ? `id:${id}` : null,
+          index === null ? null : `index:${index}`,
+        ].filter(Boolean);
+        const known = candidates.find(candidate => toolCallAliases.has(candidate));
+        const key = (known ? toolCallAliases.get(known) : null)
+          || candidates[0]
+          || `position:${order}`;
+        if (!toolCalls.has(key)) {
+          toolCalls.set(key, { order: toolCallOrder++, call: {} });
+        }
+        for (const candidate of candidates) toolCallAliases.set(candidate, key);
+        const entry = toolCalls.get(key);
+        entry.call = mergeToolCall(entry.call, part);
       });
     };
 
@@ -1051,13 +1079,15 @@
       try { reader.releaseLock(); } catch { /* noop */ }
     }
     if (finishReason === 'content_filter') throw blockedError(finishReason, model, settings.service);
-    const fullCalls = Array.from(toolCalls.entries()).sort((a, b) => a[0] - b[0]).map(([, call]) => call);
+    const fullCalls = Array.from(toolCalls.values())
+      .sort((a, b) => a.order - b.order)
+      .map(entry => entry.call);
     assistantMessage.tool_calls = fullCalls;
     if (!fullCalls.length) delete assistantMessage.tool_calls;
     const publicCalls = fullCalls.map((call, index) => {
       let args;
       try { args = JSON.parse(call?.function?.arguments || '{}'); }
-      catch (error) { throw { code: 'invalid_response', message: `OpenAI-compatible provider returned invalid arguments for tool call ${index + 1}.`, retryable: false, backend: PROVIDER_ID, service: settings.service, detail: error?.message, model }; }
+      catch (error) { throw { code: 'invalid_response', message: `OpenAI-compatible provider returned invalid arguments for tool call ${index + 1}.`, retryable: true, backend: PROVIDER_ID, service: settings.service, detail: error?.message, model }; }
       if (!trim(call.id) || !trim(call?.function?.name) || !isObject(args)) {
         throw { code: 'invalid_response', message: 'OpenAI-compatible provider returned a malformed tool call.', retryable: false, backend: PROVIDER_ID, service: settings.service, model };
       }
