@@ -896,6 +896,7 @@
           actionsOmitted: finalHistory.meta.omitted,
           historyIncomplete: adventureSnapshot.historyIncomplete,
           preview: adventureSnapshot.provenance?.actions?.source === 'ws',
+          apolloRetryable: adventureSnapshot.apolloRetryable === true,
           memoryBankCount: memoryBank ? memoryBank.length : null,
           memoryBankChars,
           memoryBankIncluded: finalMemory.meta.included,

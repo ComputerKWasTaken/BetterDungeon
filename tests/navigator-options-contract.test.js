@@ -199,6 +199,40 @@ async function run() {
   assert.match(contextSource, /preview: adventureSnapshot\.provenance\?\.actions\?\.source === 'ws'/);
   const sessionSource = fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8');
   assert.match(sessionSource, /preview: this\.contextSnapshot\?\..*summary\?\..*preview/);
+  const readSource = fs.readFileSync(path.join(ROOT, 'services/adventure-read-service.js'), 'utf8');
+  let apolloReads = 0;
+  const readSandbox = {
+    window: {
+      BetterDungeonApolloCache: {
+        readAdventure: async () => {
+          apolloReads += 1;
+          return apolloReads === 1
+            ? { available: false, error: { code: 'not_found' } }
+            : {
+                available: true,
+                data: {
+                  adventure: { id: '42', shortId: 'demo', actionCount: 1 },
+                  actions: [{ id: '1', text: 'Authoritative action' }],
+                  storyCards: [],
+                  state: { memories: [] },
+                },
+              };
+        },
+      },
+      Ultrascripts: { ws: { getAdventureShortId: () => 'demo', getActions: () => [] } },
+    },
+  };
+  vm.runInNewContext(readSource, readSandbox);
+  const previewRead = await readSandbox.window.BetterDungeonAdventureRead.readAdventure({ shortId: 'demo' });
+  const authoritativeRead = await readSandbox.window.BetterDungeonAdventureRead.readAdventure({ shortId: 'demo' });
+  assert.equal(previewRead.apolloRetryable, true, 'cold Apollo not-found is retryable preview state');
+  assert.equal(authoritativeRead.apolloRetryable, false, 'reachable Apollo ends preview state');
+  assert.equal(authoritativeRead.provenance.actions.source, 'apollo+ws');
+  assert.match(readSource, /apolloRetryable = !internal\.cardsOnly[\s\S]*apolloNotFound[\s\S]*apollo\?\.readAdventure/);
+  const featureSource = fs.readFileSync(path.join(ROOT, 'features/navigator_feature.js'), 'utf8');
+  assert.match(featureSource, /for \(const delay of \[250, 500, 1000\]\)/);
+  assert.match(featureSource, /snapshot\?\.apolloRetryable/);
+  assert.match(featureSource, /this\.session !== session \|\| session\.isBusy/);
   console.log('Navigator options contract tests passed');
 }
 

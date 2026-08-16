@@ -213,17 +213,20 @@ class NavigatorFeature {
     }
 
     this.session = new NavigatorSession(adventureId);
+    const session = this.session;
     this.unsubscribe = this.session.subscribe((event, payload) => this.onSessionEvent(event, payload));
     // Clear any previous adventure's transcript immediately rather than
     // leaving it on screen until storage resolves.
     this.renderTranscript();
     this.session.settingsReady?.then(() => this.renderNavigatorSettings());
     this.session.load().then(() => this.renderTranscript());
-    this.session.refreshContext().then(async snapshot => {
-      if (snapshot?.provenance?.actions?.source !== 'ws') return;
-      const ready = await this.session.checkReady?.();
-      if (ready?.ready && this.session.getContextSummary?.().preview) {
-        await this.session.refreshContext();
+    session.refreshContext().then(async snapshot => {
+      if (!snapshot?.apolloRetryable) return;
+      for (const delay of [250, 500, 1000]) {
+        await new Promise(resolve => setTimeout(resolve, delay));
+        if (this.session !== session || session.isBusy || session.contextState === 'loading') return;
+        const retry = await session.refreshContext();
+        if (!retry?.apolloRetryable) return;
       }
     }).catch(error => {
       this.log('[Navigator] Initial context refresh failed:', error);
