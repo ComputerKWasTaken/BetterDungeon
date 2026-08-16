@@ -331,6 +331,76 @@ function testStructuredToolResultBudgeting() {
   assert.ok(results.every(item => item.result?.error?.code === 'context_budget_omitted'));
 }
 
+function testNavigatorToolGuidanceAndAllowances() {
+  const session = {
+    isMutationTool: window.NavigatorSession.prototype.isMutationTool,
+    buildToolGuidance: window.NavigatorSession.prototype.buildToolGuidance,
+    getTurnAllowances: window.NavigatorSession.prototype.getTurnAllowances,
+  };
+  const read = [{ name: 'get_story_card' }];
+  const proposal = [{ name: 'propose_story_card_create' }];
+  const readGuidance = session.buildToolGuidance.call(session, read);
+  const proposalGuidance = session.buildToolGuidance.call(session, proposal);
+  const droppedGuidance = session.buildToolGuidance.call(session, [], { dropped: true });
+  assert.match(readGuidance, /Every available tool is read-only/);
+  assert.doesNotMatch(readGuidance, /CHANGE PROPOSALS/);
+  assert.match(proposalGuidance, /CHANGE PROPOSALS/);
+  assert.doesNotMatch(proposalGuidance, /every available tool is read-only/);
+  assert.match(proposalGuidance, /Never claim a proposal was applied/);
+  assert.match(droppedGuidance, /lookups.*not represented by the tools below/);
+  assert.equal(session.getTurnAllowances.call({}, 40000, false).toolResultAllowance, 0);
+  assert.ok(session.getTurnAllowances.call({}, 300000, true).historyAllowance > 16000);
+  assert.ok(session.getTurnAllowances.call({}, 300000, true).toolResultAllowance > 16000);
+}
+
+function testToolDropUsesInstructionOnly() {
+  const source = fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8');
+  const session = {
+    isMutationTool: window.NavigatorSession.prototype.isMutationTool,
+  };
+  const guidance = window.NavigatorSession.prototype.buildToolGuidance.call(session, [], { dropped: true });
+  assert.match(guidance, /lookups.*not represented by the tools below/);
+  assert.doesNotMatch(source, /TOOL_DROP_NOTE/);
+  assert.doesNotMatch(source, /context_budget_tools_dropped/);
+}
+
+async function testProposalResultFloor() {
+  const proto = window.NavigatorSession.prototype;
+  const owner = { proposals: [] };
+  const runner = {
+    tools: {
+      execute: async () => ({ ok: true, data: 'read'.repeat(5000) }),
+    },
+    mutations: {
+      createProposal: () => ({ id: 'proposal-1' }),
+    },
+    readOnly: false,
+    isMutationTool: proto.isMutationTool,
+    registerProposal: (_messageId, proposal) => owner.proposals.push(proposal),
+    findMessage: () => owner,
+    emit: () => {},
+    schedulePersist: () => {},
+  };
+  const executed = await proto.executeToolCalls.call(runner, [
+    { id: 'read-1', name: 'get_story_card', arguments: {} },
+    { id: 'proposal-1', name: 'propose_story_card_create', arguments: {} },
+  ], new AbortController().signal, 16000, 'message-1', {});
+  assert.equal(executed.results.length, 2);
+  assert.equal(executed.results[1].result.ok, true);
+  assert.equal(executed.results[1].result.data.proposalId, 'proposal-1');
+  assert.equal(owner.proposals.length, 1);
+  assert.ok(executed.charsUsed > 0);
+  const exhaustedOwner = { proposals: [] };
+  const exhausted = await proto.executeToolCalls.call({
+    ...runner,
+    registerProposal: (_messageId, proposal) => exhaustedOwner.proposals.push(proposal),
+  }, [
+    { id: 'proposal-2', name: 'propose_story_card_create', arguments: {} },
+  ], new AbortController().signal, 0, 'message-1', {});
+  assert.equal(exhausted.results.length, 0);
+  assert.equal(exhaustedOwner.proposals.length, 0);
+}
+
 async function main() {
   await testIncompleteHistory();
   await testApolloCompleteHistoryAndDiagnostics();
@@ -340,6 +410,9 @@ async function main() {
   await testDynamicAllocator();
   await testScaledDynamicCeilings();
   testStructuredToolResultBudgeting();
+  testNavigatorToolGuidanceAndAllowances();
+  testToolDropUsesInstructionOnly();
+  await testProposalResultFloor();
   console.log('Desktop Navigator context contract tests passed');
 }
 
