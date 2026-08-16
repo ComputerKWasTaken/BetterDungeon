@@ -296,8 +296,10 @@
 
     normalizeSettings(value) {
       const result = {};
-      if (Number.isSafeInteger(value?.contextCap)) {
-        result.contextCap = Math.max(MIN_CONTEXT_CAP, value.contextCap);
+      if (Object.prototype.hasOwnProperty.call(value || {}, 'contextCap')) {
+        result.contextCap = Number.isSafeInteger(value.contextCap) && value.contextCap > 0
+          ? Math.max(MIN_CONTEXT_CAP, value.contextCap)
+          : null;
       }
       if (typeof value?.includeMemoryBank === 'boolean') result.includeMemoryBank = value.includeMemoryBank;
       if (value?.historyMode === 'full' || value?.historyMode === 'floor') result.historyMode = value.historyMode;
@@ -565,7 +567,7 @@
         const status = executor.refreshStatus
           ? await executor.refreshStatus({ consumer: CONSUMER })
           : executor.status?.({ consumer: CONSUMER });
-      this.providerStatus = status || null;
+        this.providerStatus = status || null;
         if (status?.ready) return { ready: true, status };
         return {
           ready: false,
@@ -1038,7 +1040,7 @@
         let inputLimitReached = false;
         let toolResultsOmitted = 0;
         let toolLimitReached = false;
-      const toolMemo = new Map();
+        const toolMemo = new Map();
         let peakInputChars = 0;
 
         const rebuildToolInstruction = () => {

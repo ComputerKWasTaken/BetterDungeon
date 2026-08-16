@@ -120,6 +120,11 @@ async function run() {
   failReads = false;
   assert.equal(session.getSettings().contextCap, 90000, 'failed settings read retains last-known-good cap');
   assert.equal(session.getSettings().readOnly, true, 'failed settings read keeps read-only fail-safe');
+  session.providerStatus = { limits: { maxInputChars: 50000 } };
+  await session.saveSettings({ contextCap: null }, { global: true });
+  assert.equal(session.getSettings().contextCap, null, 'blank/unset cap means no user cap');
+  assert.equal(session.getSettings().effectiveInputChars, 50000, 'unset cap leaves the full provider ledger');
+  assert.equal(session.normalizeSettings({ contextCap: 0 }).contextCap, null, 'zero cap means no user cap');
   assert.match(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'), /Math\.min\(providerMaxInputChars, userCap/);
   assert.match(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'), /roundLimit = this\.effectiveSettings\.toolRounds/);
   console.log('Navigator options contract tests passed');

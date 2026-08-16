@@ -316,14 +316,15 @@ function initToggles() {
   const saveNavigatorDefaults = () => {
     const thinking = document.getElementById('navigator-thinking-level')?.value || 'low';
     const capInput = document.getElementById('navigator-context-cap');
-    const capValue = Number(capInput?.value);
-    if (capInput && Number.isSafeInteger(capValue) && capValue < 8000) capInput.value = '8000';
+    const capRaw = (capInput?.value || '').trim();
+    const capValue = capRaw ? Number(capRaw) : null;
+    if (capInput && Number.isSafeInteger(capValue) && capValue > 0 && capValue < 8000) capInput.value = '8000';
     const roundsValue = Number(document.getElementById('navigator-tool-rounds')?.value);
     const includeMemoryBank = document.getElementById('navigator-memory-bank')?.checked !== false;
     const historyMode = document.getElementById('navigator-history-mode')?.value === 'floor' ? 'floor' : 'full';
     const defaults = {
       thinkingLevel: thinking,
-      contextCap: Number.isSafeInteger(capValue) ? Math.max(8000, capValue) : null,
+      contextCap: Number.isSafeInteger(capValue) && capValue > 0 ? Math.max(8000, capValue) : null,
       toolRounds: Number.isSafeInteger(roundsValue) ? Math.max(1, Math.min(12, roundsValue)) : 6,
       includeMemoryBank,
       historyMode,
