@@ -16,6 +16,7 @@ const connectListeners = [];
 const pageListeners = new Map();
 const requests = [];
 let holdStream = false;
+let holdDiscovery = false;
 let discoveryRequests = 0;
 
 global.window = global;
@@ -154,6 +155,7 @@ global.fetch = async (url, init) => {
   if (init?.method === 'GET') {
     discoveryRequests += 1;
     requests.push({ url, payload: null, headers: init.headers });
+    if (holdDiscovery) return new Promise(resolve => setTimeout(() => resolve(jsonResponse(200, [])), 1500));
     if (String(url).includes('/models')) {
       const fixture = String(url).includes('openrouter')
         ? 'openrouter-models.json'
@@ -256,6 +258,28 @@ async function configure(service, profile) {
   assert.equal(initial.service, 'gemini');
   assert.equal(initial.ready, false);
   assert.equal(discoveryRequests, 0);
+  local.set('ultrascripts_ai_capability_cache_v1', JSON.stringify({
+    gemini: {
+      entries: {
+        'gemini-3.5-flash-lite': {
+          inputTokens: 131072,
+          outputTokens: 8192,
+          inputDiscovered: true,
+          outputDiscovered: true,
+          thinking: true,
+        },
+      },
+      fetchedAtMs: Date.now(),
+      fetchedAtIso: new Date().toISOString(),
+    },
+  }));
+  const persistedFirstStatus = await configure('gemini', {
+    apiKey: 'test-gemini', modelMode: 'manual', model: 'gemini-3.5-flash-lite',
+  });
+  assert.equal(persistedFirstStatus.limits.source, 'discovered', JSON.stringify(persistedFirstStatus.limits));
+  assert.equal(persistedFirstStatus.limits.resolution, 'settled');
+  assert.equal(discoveryRequests, 0);
+  local.delete('ultrascripts_ai_capability_cache_v1');
   assert.equal((await configure('gemini', { apiKey: 'test-gemini', modelMode: 'manual', model: '' })).ready, false);
   assert.equal((await configure('openrouter', { apiKey: '', model: 'router-model' })).ready, false);
   await configure('gemini', { apiKey: '', modelMode: 'auto', model: 'gemini-3.5-flash-lite' });
@@ -295,6 +319,17 @@ async function configure(service, profile) {
   const uncappedStatus = await raw({ op: 'status' });
   assert.equal(uncappedStatus.limits.maxInputTokens, 131072);
   assert.equal(uncappedStatus.limits.maxOutputTokens, 8192);
+  local.delete('ultrascripts_ai_capability_cache_v1');
+  holdDiscovery = true;
+  const pendingStatus = await configure('custom', {
+    apiKey: 'test-custom', baseUrl: 'https://provider.example/v1', model: 'custom-model',
+  });
+  assert.equal(pendingStatus.limits.source, 'default');
+  assert.equal(pendingStatus.limits.resolution, 'pending');
+  assert.equal(pendingStatus.limits.resolved, false);
+  holdDiscovery = false;
+  await new Promise(resolve => setTimeout(resolve, 600));
+  await configure('gemini', { apiKey: 'test-gemini', modelMode: 'auto', model: 'gemini-3.5-flash-lite' });
   assert.deepEqual(autoStatus.config.limits, autoStatus.limits);
   const text = await window.UltrascriptsAIExecutor.query({ prompt: 'plain query', thinking: { level: 'high' } });
   assert.equal(text.meta.provider, 'openai-compatible');
@@ -349,6 +384,7 @@ async function configure(service, profile) {
 
   const customBad = await configure('custom', { baseUrl: 'http://localhost:1234/v1', model: 'local' });
   assert.equal(customBad.ready, false);
+  local.delete('ultrascripts_ai_capability_cache_v1');
   const customGood = await configure('custom', { baseUrl: 'https://provider.example/v1', model: 'custom-model' });
   assert.equal(customGood.ready, true);
   await new Promise(resolve => setTimeout(resolve, 0));
