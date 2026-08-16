@@ -508,6 +508,8 @@
     if (result?.thinking) meta.thinking = cloneJson(result.thinking);
     if (result?.fallback) meta.fallback = cloneJson(result.fallback);
     if (result?.usage) meta.usage = cloneJson(result.usage);
+    if (typeof result?.finishReason === 'string') meta.finishReason = result.finishReason;
+    if (result?.outputTruncated === true) meta.outputTruncated = true;
     return meta;
   }
 
@@ -540,6 +542,8 @@
     if (result?.thinking) meta.thinking = cloneJson(result.thinking);
     if (result?.fallback) meta.fallback = cloneJson(result.fallback);
     if (result?.usage) meta.usage = cloneJson(result.usage);
+    if (typeof result?.finishReason === 'string') meta.finishReason = result.finishReason;
+    if (result?.outputTruncated === true) meta.outputTruncated = true;
     return meta;
   }
 
