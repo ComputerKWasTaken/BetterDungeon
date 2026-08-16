@@ -895,6 +895,7 @@
           actionsIncluded: finalHistory.meta.included,
           actionsOmitted: finalHistory.meta.omitted,
           historyIncomplete: adventureSnapshot.historyIncomplete,
+          preview: adventureSnapshot.provenance?.actions?.source === 'ws',
           memoryBankCount: memoryBank ? memoryBank.length : null,
           memoryBankChars,
           memoryBankIncluded: finalMemory.meta.included,

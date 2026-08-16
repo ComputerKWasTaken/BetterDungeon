@@ -513,6 +513,7 @@
       return {
         state: this.contextState,
         partial: this.contextSnapshot?.partial === true,
+        preview: this.contextSnapshot?.summary?.preview === true,
         capturedAtIso: this.contextSnapshot?.capturedAtIso || null,
         ...summary,
         actionsIncluded: this.contextSnapshot?.segments?.recentActions?.included ??

@@ -150,6 +150,55 @@ async function run() {
   assert.equal(session.normalizeSettings({ contextCap: 0 }).contextCap, null, 'zero cap means no user cap');
   assert.match(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'), /Math\.min\(providerMaxInputChars, userCap/);
   assert.match(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'), /roundLimit = this\.effectiveSettings\.toolRounds/);
+  session.adventureSettings = { readOnly: false, toolRounds: 2 };
+  session.effectiveSettings = { ...session.effectiveSettings, readOnly: false, toolRounds: 2 };
+  session.readOnly = false;
+  session.mutations = { definitions: () => [{ name: 'propose_edit' }] };
+  assert.equal(session.getPermissionState().readOnly, false, 'explicit read-only force-off clears the effective badge');
+  assert.ok(session.getToolDefinitions().some(tool => tool.name === 'propose_edit'), 'force-off keeps mutation proposals available');
+  assert.deepEqual(
+    [session.normalizeSettings({ toolRounds: 0 }).toolRounds,
+      session.normalizeSettings({ toolRounds: 99 }).toolRounds],
+    [1, 12],
+    'tool rounds clamp to 1 through 12'
+  );
+  let chatCalls = 0;
+  window.UltrascriptsAIExecutor = {
+    refreshStatus: async () => ({ ready: true, limits: { maxInputChars: 50000 } }),
+    chat: async () => {
+      chatCalls += 1;
+      return {
+        text: chatCalls === 1 ? 'Answer preserved.' : '',
+        continuation: `continuation-${chatCalls}`,
+        toolCalls: [{ name: 'propose_edit', arguments: { text: 'draft' } }],
+      };
+    },
+  };
+  session.contextReader = {
+    build: async () => ({
+      systemInstruction: 'Context',
+      snapshot: {},
+      index: {},
+      partial: false,
+      summary: {},
+      segments: {},
+    }),
+  };
+  session.tools = { definitions: () => [] };
+  session.mutations = {
+    definitions: () => [{ name: 'propose_edit', description: 'draft', parameters: {} }],
+    createProposal: () => ({ id: 'proposal-1', kind: 'edit', targetLabel: 'draft' }),
+  };
+  await session.runTurn('exercise round cap');
+  const limitedMessage = session.messages[session.messages.length - 1];
+  assert.equal(chatCalls, 3, 'configured two-round cap stops before a third tool execution');
+  assert.match(limitedMessage.content, /Answer preserved\./);
+  assert.match(limitedMessage.content, /2-round tool limit/);
+  assert.equal(limitedMessage.status, 'complete');
+  const contextSource = fs.readFileSync(path.join(ROOT, 'services/navigator/context.js'), 'utf8');
+  assert.match(contextSource, /preview: adventureSnapshot\.provenance\?\.actions\?\.source === 'ws'/);
+  const sessionSource = fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8');
+  assert.match(sessionSource, /preview: this\.contextSnapshot\?\..*summary\?\..*preview/);
   console.log('Navigator options contract tests passed');
 }
 

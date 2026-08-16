@@ -219,7 +219,13 @@ class NavigatorFeature {
     this.renderTranscript();
     this.session.settingsReady?.then(() => this.renderNavigatorSettings());
     this.session.load().then(() => this.renderTranscript());
-    this.session.refreshContext().catch(error => {
+    this.session.refreshContext().then(async snapshot => {
+      if (snapshot?.provenance?.actions?.source !== 'ws') return;
+      const ready = await this.session.checkReady?.();
+      if (ready?.ready && this.session.getContextSummary?.().preview) {
+        await this.session.refreshContext();
+      }
+    }).catch(error => {
       this.log('[Navigator] Initial context refresh failed:', error);
     });
   }
@@ -779,7 +785,10 @@ class NavigatorFeature {
 
     const title = context.title ? `${context.title} · ` : '';
     const coverage = `${context.plotPopulated || 0}/4 plot · ${context.cardsIncluded || 0}/${context.cardsTotal || 0} card directory · ${context.actionsIncluded || 0} actions`;
-    subtitle.textContent = `${title}${coverage}${context.partial ? ' · partial' : ''}`;
+    const state = context.preview
+      ? ' · preview'
+      : (context.partial ? ' · partial' : '');
+    subtitle.textContent = `${title}${coverage}${state}`;
   }
 
   // ==================== TRANSCRIPT RENDERING ====================
