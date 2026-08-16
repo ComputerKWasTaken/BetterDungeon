@@ -20,6 +20,7 @@ const local = new Map([
   }],
 ]);
 let failReads = false;
+const storageListeners = [];
 let adventureData = {
   identity: { id: '42', shortId: 'demo', title: 'Options', actionCount: 40, thirdPerson: false },
   plot: { instructions: 'Use prose.' },
@@ -56,7 +57,10 @@ global.chrome = {
   storage: {
     sync: area(sync),
     local: area(local),
-    onChanged: { addListener() {}, removeListener() {} },
+    onChanged: {
+      addListener(listener) { storageListeners.push(listener); },
+      removeListener() {},
+    },
   },
 };
 vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'));
@@ -77,6 +81,25 @@ async function run() {
   assert.equal(session.getSettings().readOnly, true, 'clearing override inherits global read-only');
   await session.saveSettings({ contextCap: null });
   assert.equal(session.getSettings().contextCap, 90000, 'clearing cap restores inherited default');
+  session.providerStatus = { limits: { maxInputChars: 150000 } };
+  sync.set('betterDungeon_navigator_defaults', { contextCap: 120000, toolRounds: 8 });
+  let reloadedSettings = null;
+  const unsubscribeSettings = session.subscribe((event, payload) => {
+    if (event === 'settings') reloadedSettings = payload;
+  });
+  for (const listener of storageListeners) {
+    listener({
+      betterDungeon_navigator_defaults: {
+        oldValue: { contextCap: 90000, toolRounds: 8 },
+        newValue: { contextCap: 120000, toolRounds: 8 },
+      },
+    }, 'sync');
+  }
+  await new Promise(resolve => setTimeout(resolve, 0));
+  unsubscribeSettings();
+  assert.equal(reloadedSettings.contextCap, 120000, 'storage reload reports inherited global cap');
+  assert.equal(reloadedSettings.overrides.contextCap, undefined, 'cleared adventure cap remains inherited');
+  assert.equal(reloadedSettings.effectiveInputChars, 120000, 'settings event reports the effective ledger after reload');
   assert.equal(window.NavigatorSession.CHARS_PER_TOKEN, 3);
   assert.match(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'), /estimatedTokens: Math\.ceil\(peakInputChars \/ CHARS_PER_TOKEN\)/);
   assert.match(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'), /peakInputChars = Math\.max\(peakInputChars, projected\)/);
@@ -118,7 +141,7 @@ async function run() {
   failReads = true;
   await session.loadSettings();
   failReads = false;
-  assert.equal(session.getSettings().contextCap, 90000, 'failed settings read retains last-known-good cap');
+  assert.equal(session.getSettings().contextCap, 120000, 'failed settings read retains last-known-good cap');
   assert.equal(session.getSettings().readOnly, true, 'failed settings read keeps read-only fail-safe');
   session.providerStatus = { limits: { maxInputChars: 50000 } };
   await session.saveSettings({ contextCap: null }, { global: true });

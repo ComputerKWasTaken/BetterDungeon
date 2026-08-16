@@ -217,6 +217,7 @@ class NavigatorFeature {
     // Clear any previous adventure's transcript immediately rather than
     // leaving it on screen until storage resolves.
     this.renderTranscript();
+    this.session.settingsReady?.then(() => this.renderNavigatorSettings());
     this.session.load().then(() => this.renderTranscript());
     this.session.refreshContext().catch(error => {
       this.log('[Navigator] Initial context refresh failed:', error);

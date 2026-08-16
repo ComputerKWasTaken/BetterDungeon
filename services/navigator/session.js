@@ -356,6 +356,12 @@
       return effective;
     }
 
+    async reloadSettingsAndNotify() {
+      await this.loadSettings();
+      this.emit('settings', this.getSettings());
+      return this.getSettings();
+    }
+
     getSettings() {
       const providerMaxInputChars = this.getProviderMaxInputChars();
       const effectiveInputChars = providerMaxInputChars === null
@@ -446,21 +452,23 @@
     }
 
     onStorageChange(changes, areaName) {
+      let shouldReload = false;
       if (areaName === 'sync' && changes?.[THINKING_LEVEL_STORAGE_KEY]) {
-        this.loadSettings();
+        shouldReload = true;
       }
       if (areaName === 'sync' && changes?.[READ_ONLY_STORAGE_KEY]) {
         if (!Object.prototype.hasOwnProperty.call(this.adventureSettings, 'readOnly')) {
           this.setReadOnlyMode(changes[READ_ONLY_STORAGE_KEY].newValue);
         }
-        this.loadSettings();
+        shouldReload = true;
       }
       if (areaName === 'sync' && changes?.[NAVIGATOR_DEFAULTS_STORAGE_KEY]) {
-        this.loadSettings();
+        shouldReload = true;
       }
       if (areaName === 'local' && changes?.[this.adventureSettingsKey()]) {
-        this.loadSettings();
+        shouldReload = true;
       }
+      if (shouldReload) this.reloadSettingsAndNotify();
     }
 
     getPermissionState() {
