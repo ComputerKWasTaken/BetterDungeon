@@ -56,6 +56,41 @@
   // Persistence bounds. Transcripts are convenience state, not archives.
   const MAX_PERSISTED_MESSAGES = 80;
   const MAX_PERSISTED_CHARS = 120000;
+  const MAX_PERSISTED_PROPOSAL_VALUE_CHARS = 1000;
+  const PERSISTED_PROPOSAL_TRUNCATION_MARKER = ' …[truncated for reload]';
+
+  function truncatePersistedProposalValue(value) {
+    const text = value === null || value === undefined ? '' : String(value);
+    if (text.length <= MAX_PERSISTED_PROPOSAL_VALUE_CHARS) return text;
+    const keep = Math.max(0, MAX_PERSISTED_PROPOSAL_VALUE_CHARS - PERSISTED_PROPOSAL_TRUNCATION_MARKER.length);
+    return `${text.slice(0, keep)}${PERSISTED_PROPOSAL_TRUNCATION_MARKER}`;
+  }
+
+  function projectProposalForPersistence(proposal) {
+    const persisted = {
+      id: proposal.id,
+      kind: proposal.kind,
+      status: proposal.status,
+      targetLabel: proposal.targetLabel,
+      reason: proposal.reason,
+      changes: Array.isArray(proposal.changes)
+        ? proposal.changes.map(change => ({
+          label: change.label,
+          before: truncatePersistedProposalValue(change.before),
+          after: truncatePersistedProposalValue(change.after),
+        }))
+        : [],
+      irreversible: proposal.irreversible === true,
+      error: proposal.error || null,
+      restored: true,
+    };
+    if (proposal.updatedAtDrift) persisted.updatedAtDrift = proposal.updatedAtDrift;
+    return persisted;
+  }
+
+  function persistedMessageSize(message) {
+    return (message.content?.length || 0) + JSON.stringify(message.proposals || []).length;
+  }
 
   function createId(prefix) {
     return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -227,11 +262,16 @@
             ? { ...message, status: message.content ? 'aborted' : 'error', toolActivity: null }
             : { ...message };
           if (Array.isArray(restored.proposals)) {
-            restored.proposals = restored.proposals.map(proposal => (
-              proposal.status === 'pending' || proposal.status === 'queued' || proposal.status === 'applying'
-                ? { ...proposal, status: 'expired', error: null }
-                : proposal
-            ));
+            restored.proposals = restored.proposals.map(proposal => {
+              const inFlight = proposal.status === 'pending'
+                || proposal.status === 'queued'
+                || proposal.status === 'applying';
+              return {
+                ...projectProposalForPersistence(proposal),
+                status: inFlight ? 'expired' : proposal.status,
+                error: inFlight ? null : proposal.error || null,
+              };
+            });
           }
           return restored;
         })
@@ -488,19 +528,20 @@
       const key = this.storageKey;
       if (!key || !isExtensionContextValid()) return;
 
-      let kept = this.messages.slice(-MAX_PERSISTED_MESSAGES);
-      let total = kept.reduce((sum, message) => sum + (message.content?.length || 0), 0);
+      let kept = this.messages.slice(-MAX_PERSISTED_MESSAGES).map(message => ({
+        ...message,
+        proposals: Array.isArray(message.proposals)
+          ? message.proposals.map(projectProposalForPersistence)
+          : undefined,
+      }));
+      let total = kept.reduce((sum, message) => sum + persistedMessageSize(message), 0);
       while (kept.length > 1 && total > MAX_PERSISTED_CHARS) {
-        total -= kept[0].content?.length || 0;
+        total -= persistedMessageSize(kept[0]);
         kept = kept.slice(1);
       }
-      const persistedMessages = kept.map(message => {
-        const { proposals, ...transcriptMessage } = message;
-        return transcriptMessage;
-      });
 
       try {
-        chrome.storage.local.set({ [key]: { v: 1, messages: persistedMessages, updatedAt: Date.now() } });
+        chrome.storage.local.set({ [key]: { v: 1, messages: kept, updatedAt: Date.now() } });
       } catch (error) {
         this.log('[Navigator] Failed to persist transcript:', error);
       }
@@ -1374,14 +1415,14 @@
 
     rejectProposal(messageId, proposalId) {
       const { proposal } = this.findProposal(messageId, proposalId);
-      if (!proposal || proposal.status !== 'pending') return false;
+      if (!proposal || proposal.restored || proposal.status !== 'pending') return false;
       this.updateProposal(messageId, proposalId, { status: 'rejected', error: null });
       return true;
     }
 
     applyProposal(messageId, proposalId) {
       const { proposal } = this.findProposal(messageId, proposalId);
-      if (!proposal || proposal.status !== 'pending') return Promise.resolve(false);
+      if (!proposal || proposal.restored || proposal.status !== 'pending') return Promise.resolve(false);
       this.updateProposal(messageId, proposalId, { status: 'queued', error: null });
 
       const task = this.mutationQueue.then(() => this.runProposalApplication(messageId, proposalId));
@@ -1412,6 +1453,7 @@
           appliedAtIso: result.appliedAtIso,
           cardId: result.cardId || proposal.cardId || null,
           targetLabel: result.targetLabel || proposal.targetLabel,
+          updatedAtDrift: result.updatedAtDrift || null,
         });
         console.log('[Navigator] Verified mutation applied:', proposal.kind, proposal.targetLabel);
         try {

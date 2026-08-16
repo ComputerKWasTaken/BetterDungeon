@@ -951,6 +951,12 @@ class NavigatorFeature {
       error.textContent = proposal.error.message;
       card.appendChild(error);
     }
+    if (proposal.updatedAtDrift) {
+      const drift = document.createElement('p');
+      drift.className = 'bd-navigator-proposal-note';
+      drift.textContent = 'The card had an unrelated timestamp update while Navigator applied this change.';
+      card.appendChild(drift);
+    }
 
     const actions = document.createElement('div');
     actions.className = 'bd-navigator-proposal-buttons';

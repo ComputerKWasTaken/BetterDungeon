@@ -182,7 +182,6 @@
       keys: card.keys,
       value: card.value,
       useForCharacterCreation: card.useForCharacterCreation,
-      updatedAt: card.updatedAt,
     });
   }
 
@@ -388,6 +387,7 @@
         cardId: id,
         patch,
         beforeFingerprint: fingerprintCard(before),
+        beforeUpdatedAt: before.updatedAt,
         changes: displayChanges,
       };
     }
@@ -403,6 +403,7 @@
         cardId: id,
         after: null,
         beforeFingerprint: fingerprintCard(before),
+        beforeUpdatedAt: before.updatedAt,
         irreversible: true,
         changes: Object.entries(CARD_FIELDS).map(([, config]) => ({
           label: config.label,
@@ -413,6 +414,9 @@
     }
 
     async apply(proposal, options = {}) {
+      if (proposal?.restored) {
+        throw { code: 'invalid_proposal', message: 'This restored proposal is display-only and cannot be applied.' };
+      }
       if (!proposal || proposal.status !== 'applying') {
         throw { code: 'invalid_proposal', message: 'This proposal is not ready to apply.' };
       }
@@ -549,6 +553,9 @@
       if (!current || fingerprintCard(current) !== proposal.beforeFingerprint) {
         throw { code: 'conflict', message: 'The Story Card changed after Navigator prepared this proposal.' };
       }
+      const updatedAtDrift = current.updatedAt !== proposal.beforeUpdatedAt
+        ? { before: proposal.beforeUpdatedAt || null, current: current.updatedAt || null }
+        : null;
       const desired = { ...current, ...proposal.patch };
       await this.gql().updateNavigatorStoryCard(this.shortId, desired, { signal });
       const verified = (await this.readCards(signal)).find(card => card.id === proposal.cardId);
@@ -557,6 +564,7 @@
       }
       return {
         appliedAtIso: new Date().toISOString(),
+        updatedAtDrift,
         hydration: await this.hydrateVerifiedMutation(proposal, verified, signal),
       };
     }
@@ -566,6 +574,9 @@
       if (!current || fingerprintCard(current) !== proposal.beforeFingerprint) {
         throw { code: 'conflict', message: 'The Story Card changed after Navigator prepared this deletion.' };
       }
+      const updatedAtDrift = current.updatedAt !== proposal.beforeUpdatedAt
+        ? { before: proposal.beforeUpdatedAt || null, current: current.updatedAt || null }
+        : null;
       await this.gql().deleteNavigatorStoryCard(this.shortId, proposal.cardId, { signal });
       const verified = (await this.readCards(signal)).find(card => card.id === proposal.cardId);
       if (verified) {
@@ -573,6 +584,7 @@
       }
       return {
         appliedAtIso: new Date().toISOString(),
+        updatedAtDrift,
         hydration: await this.hydrateVerifiedMutation(proposal, verified, signal),
       };
     }
