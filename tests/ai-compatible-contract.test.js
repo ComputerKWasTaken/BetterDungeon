@@ -208,6 +208,14 @@ global.fetch = async (url, init) => {
       '[DONE]',
     ]));
   }
+  if (prompt.includes('tool-incremental-number')) {
+    return streamResponse(sse([
+      { choices: [{ delta: { tool_calls: [{ id: 'call_limit', index: 0, function: { name: 'lookup', arguments: '{"limit": ' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '1' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '}' } }] }, finish_reason: 'tool_calls' }] },
+      '[DONE]',
+    ]));
+  }
   if (prompt.includes('tool-invalid-args')) {
     return streamResponse(sse([
       { choices: [{ delta: { tool_calls: [{ id: 'call_bad', type: 'function', function: { name: 'lookup', arguments: '{"name":' } }] }, finish_reason: 'tool_calls' }] },
@@ -449,6 +457,8 @@ async function configure(service, profile) {
   );
   const repeatedComplete = await window.UltrascriptsAIExecutor.chat(chatArgs('tool-repeated-complete', { tools }));
   assert.deepEqual(repeatedComplete.toolCalls.map(call => call.arguments), [{ name: 'alpha' }]);
+  const incrementalNumber = await window.UltrascriptsAIExecutor.chat(chatArgs('tool-incremental-number', { tools }));
+  assert.deepEqual(incrementalNumber.toolCalls.map(call => call.arguments), [{ limit: 1 }]);
   await assert.rejects(
     () => window.UltrascriptsAIExecutor.chat(chatArgs('tool-invalid-args', { tools })),
     error => error.code === 'invalid_response' && error.retryable === true,

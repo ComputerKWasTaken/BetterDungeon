@@ -979,9 +979,16 @@
         const parsedIncoming = (() => {
           try { return JSON.parse(incoming); } catch { return undefined; }
         })();
-        target.function.arguments = parsedIncoming !== undefined
-          ? incoming
-          : (parsedExisting !== undefined ? existing : `${existing}${incoming}`);
+        if (isObject(parsedIncoming)) {
+          target.function.arguments = isObject(parsedExisting)
+            && JSON.stringify(parsedExisting) === JSON.stringify(parsedIncoming)
+            ? existing
+            : incoming;
+        } else if (isObject(parsedExisting)) {
+          target.function.arguments = existing;
+        } else {
+          target.function.arguments = `${existing}${incoming}`;
+        }
       }
     }
     return target;
