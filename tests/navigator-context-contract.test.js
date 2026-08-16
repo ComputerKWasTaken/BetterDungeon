@@ -97,6 +97,9 @@ async function testApolloCompleteHistoryAndDiagnostics() {
   assert.match(snapshot.systemInstruction, /Action-count reference differs from retained normalized actions/);
   assert.equal(snapshot.summary.memoryBankCount, 1);
   assert.equal(snapshot.summary.historyIncomplete, false);
+  assert.deepEqual(snapshot.index.actions.map(item => item.id), ['1', '2', '3']);
+  assert.deepEqual(snapshot.index.actions[0], { id: '1', type: 'do', text: 'Action 1' });
+  assert.deepEqual(snapshot.index.memories, [{ index: 0, text: 'A memory entry.' }]);
 }
 
 async function testGraphqlFallbackDiagnosticsUnavailable() {
@@ -242,7 +245,13 @@ async function testDynamicAllocator() {
   assert.match(floor.systemInstruction, /SNAPSHOT DEGRADED:/);
   assert.match(floor.systemInstruction, /IDENTITY\nTitle: Navigator Quest/);
   assert.match(floor.systemInstruction, /RECENT STORY ACTIONS/);
+  assert.match(floor.systemInstruction, /search_story_history/);
+  assert.match(floor.systemInstruction, /search_memory_bank/);
+  assert.match(floor.systemInstruction, /search_story_cards/);
   assert.match(floor.systemInstruction, /You are Navigator, BetterDungeon/);
+  assert.equal(floor.index.cards.length, 12);
+  assert.equal(floor.index.actions.length, 20);
+  assert.equal(floor.index.memories.length, 15);
   assert.ok(floor.segments.recentActions.floorIncluded > 0);
   for (const section of [floor.segments.plotComponents, floor.segments.memoryBank, floor.segments.storyCardDirectory]) {
     assert.equal(section.included, 0);
