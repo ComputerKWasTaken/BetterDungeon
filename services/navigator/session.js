@@ -23,6 +23,7 @@
   const MAX_TOOL_RESULT_CHARS_PER_TURN = 16000;
   const HISTORY_LEDGER_SHARE = 0.08;
   const TOOL_RESULT_LEDGER_SHARE = 0.15;
+  const MAX_RESERVE_LEDGER_SHARE = 0.4;
   const PROPOSAL_RESULT_FLOOR_CHARS = 16000;
   const SNAPSHOT_MIN_CHARS = 8000;
   const TOOL_ERROR_RESERVE_CHARS = 256;
@@ -460,7 +461,7 @@
       const toolDemand = toolsOffered
         ? Math.max(MAX_TOOL_RESULT_CHARS_PER_TURN, Math.floor(ledger * TOOL_RESULT_LEDGER_SHARE))
         : 0;
-      const reserveCeiling = Math.floor(ledger * 0.4);
+      const reserveCeiling = Math.floor(ledger * MAX_RESERVE_LEDGER_SHARE);
       const demand = historyDemand + toolDemand;
       const scale = demand > reserveCeiling && demand > 0 ? reserveCeiling / demand : 1;
       return {
