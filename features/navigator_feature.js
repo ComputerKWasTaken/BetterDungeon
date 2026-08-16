@@ -221,12 +221,12 @@ class NavigatorFeature {
     this.session.settingsReady?.then(() => this.renderNavigatorSettings());
     this.session.load().then(() => this.renderTranscript());
     session.refreshContext().then(async snapshot => {
-      if (!snapshot?.apolloRetryable) return;
+      if (!session.isApolloPreviewRetryable?.()) return;
       for (const delay of [250, 500, 1000]) {
         await new Promise(resolve => setTimeout(resolve, delay));
         if (this.session !== session || session.isBusy || session.contextState === 'loading') return;
-        const retry = await session.refreshContext();
-        if (!retry?.apolloRetryable) return;
+        await session.refreshContext();
+        if (!session.isApolloPreviewRetryable?.()) return;
       }
     }).catch(error => {
       this.log('[Navigator] Initial context refresh failed:', error);

@@ -198,7 +198,12 @@ async function run() {
   const contextSource = fs.readFileSync(path.join(ROOT, 'services/navigator/context.js'), 'utf8');
   assert.match(contextSource, /preview: adventureSnapshot\.provenance\?\.actions\?\.source === 'ws'/);
   const sessionSource = fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8');
-  assert.match(sessionSource, /preview: this\.contextSnapshot\?\..*summary\?\..*preview/);
+  assert.match(sessionSource, /preview: summary\.preview === true/);
+  session.contextSnapshot = { summary: { preview: true, apolloRetryable: true } };
+  assert.equal(session.getContextSummary().apolloRetryable, true, 'retry flag is surfaced through the session summary');
+  assert.equal(session.isApolloPreviewRetryable(), true, 'retry decision reads the session summary value');
+  session.contextSnapshot = { summary: { preview: true, apolloRetryable: false } };
+  assert.equal(session.isApolloPreviewRetryable(), false, 'authoritative summary stops preview retries');
   const readSource = fs.readFileSync(path.join(ROOT, 'services/adventure-read-service.js'), 'utf8');
   let apolloReads = 0;
   const readSandbox = {
@@ -231,7 +236,7 @@ async function run() {
   assert.match(readSource, /apolloRetryable = !internal\.cardsOnly[\s\S]*apolloNotFound[\s\S]*apollo\?\.readAdventure/);
   const featureSource = fs.readFileSync(path.join(ROOT, 'features/navigator_feature.js'), 'utf8');
   assert.match(featureSource, /for \(const delay of \[250, 500, 1000\]\)/);
-  assert.match(featureSource, /snapshot\?\.apolloRetryable/);
+  assert.match(featureSource, /isApolloPreviewRetryable/);
   assert.match(featureSource, /this\.session !== session \|\| session\.isBusy/);
   console.log('Navigator options contract tests passed');
 }
