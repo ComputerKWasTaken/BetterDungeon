@@ -422,6 +422,7 @@
     warning,
     historyCoverageBase,
     historySource,
+    historyMode,
   }) {
     const floorActions = actions.slice(-BUDGETS.historyFloorActions);
     const floorText = buildRecentActions(floorActions, Number.MAX_SAFE_INTEGER).text;
@@ -548,6 +549,8 @@
     async build(options = {}) {
       const signal = options.signal || null;
       const maxChars = Number.isFinite(options.maxChars) ? Math.max(0, options.maxChars) : BUDGETS.systemInstruction;
+      const includeMemoryBank = options.includeMemoryBank !== false;
+      const historyMode = options.historyMode === 'floor' ? 'floor' : 'full';
       const ws = window.Ultrascripts?.ws || null;
       const resolvedShortId = this.shortId || ws?.getAdventureShortId?.() || null;
       const reader = window.BetterDungeonAdventureRead;
@@ -572,6 +575,8 @@
         `Third-person mode: ${typeof adventure?.thirdPerson === 'boolean' ? (adventure.thirdPerson ? 'enabled' : 'disabled') : 'unavailable'}`,
       ].join('\n'), BUDGETS.identity);
       const memoryBank = Array.isArray(adventureSnapshot.state?.memories) ? adventureSnapshot.state.memories : null;
+      const displayMemoryBank = includeMemoryBank ? memoryBank : (memoryBank === null ? null : []);
+      const displayActions = historyMode === 'floor' ? actions.slice(-BUDGETS.historyFloorActions) : actions;
       const memoryBankChars = memoryBank
         ? memoryBank.reduce((sum, item) => sum + memoryText(item).length, 0)
         : null;
@@ -589,9 +594,9 @@
       const rawPlot = buildPlotComponents(adventure, provenance.plot || {}, BUDGETS.plotComponentsCeiling);
       const rawSourceBudget = Math.max(0, maxChars);
       const rawCards = buildStoryCardDirectory(cards, rawSourceBudget, cardSource);
-      const rawHistory = buildRecentActions(actions, rawSourceBudget);
-      const rawMemory = buildMemoryBank(memoryBank || [], rawSourceBudget, memoryBank !== null);
-      const historyFloor = buildRecentActions(actions.slice(-BUDGETS.historyFloorActions), BUDGETS.historyCeiling).text.length;
+      const rawHistory = buildRecentActions(displayActions, rawSourceBudget);
+      const rawMemory = buildMemoryBank(displayMemoryBank || [], rawSourceBudget, displayMemoryBank !== null);
+      const historyFloor = buildRecentActions(displayActions.slice(-BUDGETS.historyFloorActions), BUDGETS.historyCeiling).text.length;
       const capturedAtIso = new Date().toISOString();
       const fixedReserve = primer.length + identity.text.length + rawPlot.text.length + BUDGETS.unmeasuredFramingReserve;
       const pool = Math.max(0, maxChars - fixedReserve);
@@ -619,8 +624,8 @@
 
       for (let attempt = 0; attempt < 5; attempt += 1) {
         finalPlot = buildPlotComponents(adventure, provenance.plot || {}, allocation.plot);
-        finalHistory = buildRecentActions(actions, allocation.history);
-        finalMemory = buildMemoryBank(memoryBank || [], allocation.memory, memoryBank !== null);
+        finalHistory = buildRecentActions(displayActions, allocation.history);
+        finalMemory = buildMemoryBank(displayMemoryBank || [], allocation.memory, displayMemoryBank !== null);
         finalCards = buildStoryCardDirectory(cards, allocation.cards, cardSource);
         const sectionReasons = {
           plot: sectionReason(
@@ -653,8 +658,12 @@
           ),
         };
         finalPlot.meta.truncatedReason = sectionReasons.plot;
-        finalHistory.meta.truncatedReason = sectionReasons.history;
-        finalMemory.meta.truncatedReason = sectionReasons.memory;
+        finalHistory.meta.truncatedReason = historyMode === 'floor'
+          ? 'user setting'
+          : sectionReasons.history;
+        finalMemory.meta.truncatedReason = !includeMemoryBank
+          ? 'user setting'
+          : sectionReasons.memory;
         finalCards.meta.truncatedReason = sectionReasons.cards;
         const historyAvailable = adventureSnapshot.coverage?.actions?.available || 0;
         const historyIncluded = finalHistory.meta.included;
@@ -663,7 +672,7 @@
           included: historyIncluded,
           omitted: Math.max(0, historyAvailable - historyIncluded),
           omittedReason: historyIncluded < historyAvailable
-            ? reasons.history || 'section ceiling'
+            ? (historyMode === 'floor' ? 'user setting' : reasons.history || 'section ceiling')
             : null,
         };
         const cardCoverage = {
@@ -689,14 +698,16 @@
           finalPlot.meta.available
             ? `Plot Components: ${finalPlot.meta.populated} of 4 populated; source ${provenance.plot.instructions}.${plotReason ? ` Space reduced for ${plotReason}.` : ''}`
             : 'Plot Components: unavailable; the adventure plot could not be read.',
-          `Recent story actions: authoritative total ${historyCoverage.authoritativeTotal ?? 'unknown'}; ${historyAvailable} available; ${historyIncluded} included; source ${provenance.actions.source}.${historyReason ? ` Space reduced for ${historyReason}.` : ''}${historyIncluded < historyAvailable ? ' Use search_story_history and get_story_actions to retrieve omitted history.' : ''}`,
+          `Recent story actions: authoritative total ${historyCoverage.authoritativeTotal ?? 'unknown'}; ${historyAvailable} available; ${historyIncluded} included; source ${provenance.actions.source}.${historyMode === 'floor' ? ' Full history omitted by user setting; recency floor retained.' : ''}${historyReason ? ` Space reduced for ${historyReason}.` : ''}${historyIncluded < historyAvailable ? ' Use search_story_history and get_story_actions to retrieve omitted history.' : ''}`,
           adventureSnapshot.historyIncomplete
             ? 'History is incomplete because Apollo history was unavailable; Navigator is NOT seeing the whole story.'
             : adventureSnapshot.coverage?.actions?.availabilityGap
               ? 'Action-count reference differs from retained normalized actions; these counts are informational, not a completeness claim.'
               : 'Action-count reference and retained normalized actions currently align; this remains an informational comparison.',
-          memoryBank
-            ? `Memory Bank: ${finalMemory.meta.included} memories, ${finalMemory.meta.includedChars} characters; returned ${finalMemory.meta.included} of ${finalMemory.meta.total} entries${memoryReason ? `; reduced for ${memoryReason}` : ''}. summary lag latest=${summaryLag.latestActionId ?? 'unknown'}, lastSummarized=${summaryLag.lastSummarizedActionId ?? 'unknown'}, lastMemory=${summaryLag.lastMemoryActionId ?? 'unknown'}.${finalMemory.meta.included < finalMemory.meta.total ? ' Use search_memory_bank and get_memory to retrieve omitted entries.' : ''}`
+          displayMemoryBank
+            ? `${includeMemoryBank
+              ? `Memory Bank: ${finalMemory.meta.included} memories, ${finalMemory.meta.includedChars} characters; returned ${finalMemory.meta.included} of ${finalMemory.meta.total} entries${memoryReason ? `; reduced for ${memoryReason}` : ''}.`
+              : 'Memory Bank: omitted by user setting; use search_memory_bank and get_memory to retrieve entries.'} summary lag latest=${summaryLag.latestActionId ?? 'unknown'}, lastSummarized=${summaryLag.lastSummarizedActionId ?? 'unknown'}, lastMemory=${summaryLag.lastMemoryActionId ?? 'unknown'}.${includeMemoryBank && finalMemory.meta.included < finalMemory.meta.total ? ' Use search_memory_bank and get_memory to retrieve omitted entries.' : ''}`
             : 'Memory Bank and summary lag: unavailable from the GraphQL fallback reader.',
           `Story Card directory: ${cardCoverage.included} of ${adventureSnapshot.coverage?.storyCards?.authoritativeTotal ?? cards.length} included from ${finalCards.meta.source}; ${cardCoverage.omitted} omitted${cardReason ? ` for ${cardReason}` : ''}.${cardCoverage.omitted ? ' Use search_story_cards to retrieve omitted cards.' : ''}`,
           warnings.length ? `Snapshot warnings: ${warnings.join(' ')}` : 'Snapshot warnings: none.',
@@ -735,11 +746,13 @@
             warning,
             historyCoverageBase: adventureSnapshot.coverage?.actions || {},
             historySource: provenance.actions.source,
+            historyMode,
           });
           snapshot = degraded.snapshot;
           finalHistory = degraded.history;
           finalPlot = { text: '', meta: droppedMeta(rawPlot.meta, 0) };
           finalMemory = { text: '', meta: droppedMeta(rawMemory.meta, 0) };
+          finalMemory.meta.truncatedReason = !includeMemoryBank ? 'user setting' : 'total budget';
           finalCards = { text: '', meta: droppedMeta(rawCards.meta, 0) };
           coverage = degraded.coverage;
           finalHistoryCoverage = {
@@ -752,7 +765,7 @@
             ),
             omittedReason: finalHistory.meta.included <
               (adventureSnapshot.coverage?.actions?.available || 0)
-              ? 'total budget'
+              ? (historyMode === 'floor' ? 'user setting' : 'total budget')
               : null,
           };
         } else {
@@ -766,14 +779,18 @@
             warning: degradedNotice,
             historyCoverageBase: adventureSnapshot.coverage?.actions || {},
             historySource: provenance.actions.source,
+            historyMode,
           });
           snapshot = degraded.snapshot;
           finalHistory = degraded.history;
           finalPlot = { text: '', meta: droppedMeta(rawPlot.meta, 0) };
           finalMemory = { text: '', meta: droppedMeta(rawMemory.meta, 0) };
+          finalMemory.meta.truncatedReason = !includeMemoryBank ? 'user setting' : 'total budget';
           finalCards = { text: '', meta: droppedMeta(rawCards.meta, 0) };
           coverage = degraded.coverage;
-          finalHistory.meta.truncatedReason = finalHistory.meta.truncated ? 'total budget' : null;
+          finalHistory.meta.truncatedReason = finalHistory.meta.truncated
+            ? (historyMode === 'floor' ? 'user setting' : 'total budget')
+            : null;
           finalHistoryCoverage = {
             ...(adventureSnapshot.coverage?.actions || {}),
             included: finalHistory.meta.included,
@@ -784,7 +801,7 @@
             ),
             omittedReason: finalHistory.meta.included <
               (adventureSnapshot.coverage?.actions?.available || 0)
-              ? 'total budget'
+              ? (historyMode === 'floor' ? 'user setting' : 'total budget')
               : null,
           };
           finalCardCoverage = {
@@ -861,6 +878,10 @@
           memoryBankChars,
           memoryBankIncluded: finalMemory.meta.included,
           summaryLag,
+          settings: {
+            includeMemoryBank,
+            historyMode,
+          },
         },
         segments: {
           primer: { budgetChars: primer.length, sourceChars: primer.length, includedChars: primer.length, truncated: false, version: window.NavigatorPrimer.VERSION },

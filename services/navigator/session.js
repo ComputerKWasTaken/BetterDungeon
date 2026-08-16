@@ -29,7 +29,18 @@
   const TOOL_ERROR_RESERVE_CHARS = 256;
   const READ_ONLY_STORAGE_KEY = 'betterDungeon_navigator_read_only';
   const THINKING_LEVEL_STORAGE_KEY = 'betterDungeon_navigator_thinking_level';
+  const NAVIGATOR_DEFAULTS_STORAGE_KEY = 'betterDungeon_navigator_defaults';
+  const NAVIGATOR_ADVENTURE_SETTINGS_PREFIX = 'betterDungeon_navigator_adventure_';
   const THINKING_LEVELS = ['minimal', 'low', 'medium', 'high'];
+  const DEFAULT_NAVIGATOR_SETTINGS = Object.freeze({
+    contextCap: null,
+    includeMemoryBank: true,
+    historyMode: 'full',
+    toolRounds: MAX_TOOL_ROUNDS,
+  });
+  const MIN_TOOL_ROUNDS = 1;
+  const MAX_CONFIGURED_TOOL_ROUNDS = 12;
+  const MIN_CONTEXT_CAP = 8000;
   const TOOL_DROP_GUIDANCE = 'Tool access was reduced for this turn because the provider input budget was nearly exhausted. Do not attempt lookups that are not represented by the tools below.';
   const READ_ONLY_GUIDANCE = [
     '',
@@ -95,8 +106,12 @@
       this.mutationQueue = Promise.resolve();
       this.readOnly = false;
       this.thinkingLevel = 'low';
+      this.providerStatus = null;
+      this.globalSettings = { ...DEFAULT_NAVIGATOR_SETTINGS };
+      this.adventureSettings = {};
+      this.effectiveSettings = { ...DEFAULT_NAVIGATOR_SETTINGS, readOnly: true, thinkingLevel: 'low' };
       this.boundStorageChange = (changes, areaName) => this.onStorageChange(changes, areaName);
-      this.settingsReady = Promise.all([this.loadReadOnlyMode(), this.loadThinkingLevel()]);
+      this.settingsReady = this.loadSettings();
       this.destroyed = false;
       this.debug = false;
 
@@ -255,6 +270,135 @@
       return this.setReadOnlyMode(readOnly);
     }
 
+    storageGet(area, keys) {
+      return new Promise(resolve => {
+        let settled = false;
+        const finish = value => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve(value || {});
+        };
+        const timer = setTimeout(() => finish({ __failed: true }), 2000);
+        try {
+          area.get(keys, result => finish(chrome.runtime?.lastError ? { __failed: true } : result));
+        } catch {
+          finish({ __failed: true });
+        }
+      });
+    }
+
+    adventureSettingsKey() {
+      return `${NAVIGATOR_ADVENTURE_SETTINGS_PREFIX}${encodeURIComponent(String(this.adventureId || 'unknown'))}`;
+    }
+
+    normalizeSettings(value) {
+      const result = {};
+      if (Number.isSafeInteger(value?.contextCap) && value.contextCap >= MIN_CONTEXT_CAP) {
+        result.contextCap = value.contextCap;
+      }
+      if (typeof value?.includeMemoryBank === 'boolean') result.includeMemoryBank = value.includeMemoryBank;
+      if (value?.historyMode === 'full' || value?.historyMode === 'floor') result.historyMode = value.historyMode;
+      if (Number.isSafeInteger(value?.toolRounds)) {
+        result.toolRounds = Math.max(MIN_TOOL_ROUNDS, Math.min(MAX_CONFIGURED_TOOL_ROUNDS, value.toolRounds));
+      }
+      if (THINKING_LEVELS.includes(value?.thinkingLevel)) result.thinkingLevel = value.thinkingLevel;
+      if (typeof value?.readOnly === 'boolean') result.readOnly = value.readOnly;
+      return result;
+    }
+
+    async loadSettings() {
+      if (!isExtensionContextValid()) {
+        this.setReadOnlyMode(true);
+        this.effectiveSettings = { ...DEFAULT_NAVIGATOR_SETTINGS, readOnly: true, thinkingLevel: 'low' };
+        return this.effectiveSettings;
+      }
+      const [syncResult, localResult] = await Promise.all([
+        this.storageGet(chrome.storage.sync, [READ_ONLY_STORAGE_KEY, THINKING_LEVEL_STORAGE_KEY, NAVIGATOR_DEFAULTS_STORAGE_KEY]),
+        this.storageGet(chrome.storage.local, this.adventureSettingsKey()),
+      ]);
+      if (syncResult.__failed || localResult.__failed) {
+        this.globalSettings = { ...DEFAULT_NAVIGATOR_SETTINGS };
+        this.adventureSettings = {};
+        this.effectiveSettings = { ...DEFAULT_NAVIGATOR_SETTINGS, readOnly: true, thinkingLevel: 'low' };
+        this.thinkingLevel = 'low';
+        this.setReadOnlyMode(true);
+        return this.effectiveSettings;
+      }
+      const defaults = this.normalizeSettings(syncResult[NAVIGATOR_DEFAULTS_STORAGE_KEY]);
+      const legacyThinking = syncResult[THINKING_LEVEL_STORAGE_KEY];
+      const globalReadOnly = syncResult[READ_ONLY_STORAGE_KEY] === true;
+      this.globalSettings = { ...DEFAULT_NAVIGATOR_SETTINGS, ...defaults };
+      this.globalSettings.thinkingLevel = THINKING_LEVELS.includes(legacyThinking)
+        ? legacyThinking
+        : (defaults.thinkingLevel || 'low');
+      this.adventureSettings = this.normalizeSettings(localResult[this.adventureSettingsKey()]);
+      const effective = {
+        ...this.globalSettings,
+        ...this.adventureSettings,
+        readOnly: Object.prototype.hasOwnProperty.call(this.adventureSettings, 'readOnly')
+          ? this.adventureSettings.readOnly
+          : globalReadOnly,
+        thinkingLevel: this.adventureSettings.thinkingLevel || this.globalSettings.thinkingLevel || 'low',
+      };
+      this.effectiveSettings = effective;
+      this.thinkingLevel = effective.thinkingLevel;
+      this.setReadOnlyMode(effective.readOnly);
+      return effective;
+    }
+
+    getSettings() {
+      return {
+        ...this.effectiveSettings,
+        global: { ...this.globalSettings, readOnly: this.globalSettings.readOnly === true },
+        overrides: { ...this.adventureSettings },
+        adventureId: this.adventureId,
+        providerThinkingLevels: this.getProviderThinkingLevels(),
+      };
+    }
+
+    getProviderThinkingLevels() {
+      const status = this.providerStatus;
+      return Array.isArray(status?.config?.thinkingLevels) && status.config.thinkingLevels.length
+        ? status.config.thinkingLevels
+        : (Array.isArray(status?.thinkingLevels) ? status.thinkingLevels : []);
+    }
+
+    async saveSettings(fields, options = {}) {
+      if (!isExtensionContextValid()) return this.getSettings();
+      const normalized = this.normalizeSettings(fields);
+      const nextOverrides = options.global
+        ? null
+        : { ...this.adventureSettings, ...normalized };
+      if (!options.global) {
+        for (const key of Object.keys(fields || {})) {
+          if (fields[key] === null || fields[key] === undefined) delete nextOverrides[key];
+        }
+      }
+      if (options.global) {
+        this.globalSettings = { ...this.globalSettings, ...normalized };
+        await new Promise(resolve => chrome.storage.sync.set({ [NAVIGATOR_DEFAULTS_STORAGE_KEY]: this.globalSettings }, resolve));
+      } else {
+        this.adventureSettings = nextOverrides;
+        await new Promise(resolve => chrome.storage.local.set({ [this.adventureSettingsKey()]: nextOverrides }, resolve));
+      }
+      await this.loadSettings();
+      this.emit('settings', this.getSettings());
+      return this.getSettings();
+    }
+
+    async clearAdventureSetting(field) {
+      const next = { ...this.adventureSettings };
+      delete next[field];
+      this.adventureSettings = next;
+      if (isExtensionContextValid()) {
+        await new Promise(resolve => chrome.storage.local.set({ [this.adventureSettingsKey()]: next }, resolve));
+      }
+      await this.loadSettings();
+      this.emit('settings', this.getSettings());
+      return this.getSettings();
+    }
+
     async loadThinkingLevel() {
       if (!isExtensionContextValid()) {
         this.thinkingLevel = 'low';
@@ -283,11 +427,17 @@
 
     onStorageChange(changes, areaName) {
       if (areaName === 'sync' && changes?.[THINKING_LEVEL_STORAGE_KEY]) {
-        const value = changes[THINKING_LEVEL_STORAGE_KEY].newValue;
-        this.thinkingLevel = THINKING_LEVELS.includes(value) ? value : 'low';
+        this.loadSettings();
       }
       if (areaName === 'sync' && changes?.[READ_ONLY_STORAGE_KEY]) {
         this.setReadOnlyMode(changes[READ_ONLY_STORAGE_KEY].newValue);
+        this.loadSettings();
+      }
+      if (areaName === 'sync' && changes?.[NAVIGATOR_DEFAULTS_STORAGE_KEY]) {
+        this.loadSettings();
+      }
+      if (areaName === 'local' && changes?.[this.adventureSettingsKey()]) {
+        this.loadSettings();
       }
     }
 
@@ -360,7 +510,12 @@
       this.emit('context', this.getContextSummary());
 
       try {
-        const snapshot = await this.contextReader.build({ signal, maxChars: options.maxChars });
+        const snapshot = await this.contextReader.build({
+          signal,
+          maxChars: options.maxChars,
+          includeMemoryBank: this.effectiveSettings.includeMemoryBank,
+          historyMode: this.effectiveSettings.historyMode,
+        });
         if (revision === this.contextRevision) {
           this.contextSnapshot = snapshot;
           this.contextState = snapshot.partial ? 'partial' : 'ready';
@@ -390,6 +545,7 @@
         const status = executor.refreshStatus
           ? await executor.refreshStatus({ consumer: CONSUMER })
           : executor.status?.({ consumer: CONSUMER });
+        this.providerStatus = status || null;
         if (status?.ready) return { ready: true, status };
         return {
           ready: false,
@@ -797,8 +953,12 @@
           maxInputChars: MAX_INPUT_CHARS,
           maxOutputTokens: MAX_OUTPUT_TOKENS,
         };
+        const providerMaxInputChars = Number.isSafeInteger(limits.maxInputChars) ? limits.maxInputChars : MAX_INPUT_CHARS;
+        const userCap = Number.isSafeInteger(this.effectiveSettings.contextCap)
+          ? this.effectiveSettings.contextCap
+          : null;
         const turnLimits = {
-          maxInputChars: Number.isSafeInteger(limits.maxInputChars) ? limits.maxInputChars : MAX_INPUT_CHARS,
+          maxInputChars: Math.min(providerMaxInputChars, userCap || providerMaxInputChars),
           maxOutputTokens: Number.isSafeInteger(limits.maxOutputTokens) ? limits.maxOutputTokens : MAX_OUTPUT_TOKENS,
         };
         const turnTools = this.getToolDefinitions();
@@ -964,10 +1124,11 @@
 
           const calls = Array.isArray(result?.toolCalls) ? result.toolCalls : [];
           if (!calls.length) break;
-          if (toolRounds >= MAX_TOOL_ROUNDS) {
+          const roundLimit = this.effectiveSettings.toolRounds || MAX_TOOL_ROUNDS;
+          if (toolRounds >= roundLimit) {
             toolLimitReached = true;
             this.updateMessage(assistant.id, {
-              content: `${this.findMessage(assistant.id)?.content || ''}\n\n[Navigator reached its ${MAX_TOOL_ROUNDS}-round tool limit before the final response.]`,
+              content: `${this.findMessage(assistant.id)?.content || ''}\n\n[Navigator reached its ${roundLimit}-round tool limit before the final response.]`,
             });
             break;
           }
@@ -1017,6 +1178,23 @@
             ...(finalMeta || {}),
             toolRounds,
             toolResultChars,
+            inputChars: request.systemInstruction.length
+              + request.messages.reduce((sum, item) => sum + item.content.length, 0)
+              + JSON.stringify(tools).length
+              + toolResultChars,
+            inputCost: {
+              systemInstructionChars: request.systemInstruction.length,
+              selectedMessageChars: request.messages.reduce((sum, item) => sum + item.content.length, 0),
+              toolSchemaChars: JSON.stringify(tools).length,
+              toolResultChars,
+              estimatedTokens: Math.ceil((
+                request.systemInstruction.length
+                + request.messages.reduce((sum, item) => sum + item.content.length, 0)
+                + JSON.stringify(tools).length
+                + toolResultChars
+              ) / 4),
+              tokenEstimate: true,
+            },
             toolsDropped,
             inputLimitReached,
             toolResultsOmitted,
