@@ -194,6 +194,40 @@ global.fetch = async (url, init) => {
       '[DONE]',
     ]));
   }
+  if (prompt.includes('tool-complete-no-index')) {
+    return streamResponse(sse([
+      { choices: [{ delta: { tool_calls: [{ id: 'call_alpha', type: 'function', function: { name: 'lookup', arguments: '{"name":"alpha"}' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ id: 'call_paris', type: 'function', function: { name: 'weather', arguments: '{"city":"Paris"}' } }] }, finish_reason: 'tool_calls' }] },
+      '[DONE]',
+    ]));
+  }
+  if (prompt.includes('tool-repeated-complete')) {
+    return streamResponse(sse([
+      { choices: [{ delta: { tool_calls: [{ id: 'call_repeat', type: 'function', function: { name: 'lookup', arguments: '{"name":"alpha"}' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ id: 'call_repeat', function: { arguments: '{"name":"alpha"}' } }] }, finish_reason: 'tool_calls' }] },
+      '[DONE]',
+    ]));
+  }
+  if (prompt.includes('tool-incremental-number')) {
+    return streamResponse(sse([
+      { choices: [{ delta: { tool_calls: [{ id: 'call_limit', index: 0, function: { name: 'lookup', arguments: '{"limit": ' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '1' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '}' } }] }, finish_reason: 'tool_calls' }] },
+      '[DONE]',
+    ]));
+  }
+  if (prompt.includes('tool-invalid-args')) {
+    return streamResponse(sse([
+      { choices: [{ delta: { tool_calls: [{ id: 'call_bad', type: 'function', function: { name: 'lookup', arguments: '{"name":' } }] }, finish_reason: 'tool_calls' }] },
+      '[DONE]',
+    ]));
+  }
+  if (prompt.includes('tool-nonobject-args')) {
+    return streamResponse(sse([
+      { choices: [{ delta: { tool_calls: [{ id: 'call_array', type: 'function', function: { name: 'lookup', arguments: '["alpha"]' } }] }, finish_reason: 'tool_calls' }] },
+      '[DONE]',
+    ]));
+  }
   if (prompt.includes('tool-round-two')) {
     const replay = payload.messages.find(message => message.role === 'assistant' && message.tool_calls?.[0]?.id === 'call_read');
     assert.equal(replay.tool_calls[0].extra_content.google.thought_signature, SIGNATURE_ONE);
@@ -416,6 +450,25 @@ async function configure(service, profile) {
     continuation: roundTwo.continuation,
     toolResults: roundTwo.toolCalls.map(call => ({ callId: call.id, name: call.name, result: { ok: true } })),
   }));
+  const completeNoIndex = await window.UltrascriptsAIExecutor.chat(chatArgs('tool-complete-no-index', { tools }));
+  assert.deepEqual(
+    completeNoIndex.toolCalls.map(call => call.arguments),
+    [{ name: 'alpha' }, { city: 'Paris' }],
+  );
+  const repeatedComplete = await window.UltrascriptsAIExecutor.chat(chatArgs('tool-repeated-complete', { tools }));
+  assert.deepEqual(repeatedComplete.toolCalls.map(call => call.arguments), [{ name: 'alpha' }]);
+  const incrementalNumber = await window.UltrascriptsAIExecutor.chat(chatArgs('tool-incremental-number', { tools }));
+  assert.deepEqual(incrementalNumber.toolCalls.map(call => call.arguments), [{ limit: 1 }]);
+  await assert.rejects(
+    () => window.UltrascriptsAIExecutor.chat(chatArgs('tool-invalid-args', { tools })),
+    error => error.code === 'invalid_response' && error.retryable === true,
+  );
+  await assert.rejects(
+    () => window.UltrascriptsAIExecutor.chat(chatArgs('tool-nonobject-args', { tools })),
+    error => error.code === 'invalid_response'
+      && error.retryable === false
+      && /malformed tool call/.test(error.message),
+  );
 
   await configure('openrouter', { model: 'router-model' });
   await assert.rejects(() => window.UltrascriptsAIExecutor.chat(chatArgs('wrong service', {
