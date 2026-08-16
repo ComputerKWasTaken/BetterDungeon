@@ -442,8 +442,8 @@
           ? 'served partially'
           : 'not served';
       const coverage = [
-        'Plot Components: dropped for total budget; Memory Bank: dropped for total budget; Story Card directory: dropped for total budget.',
-        `Recent story actions: ${historyCoverageBase.authoritativeTotal ?? 'unknown'} total; ${historyCoverageBase.available ?? 0} available; ${history.meta.included} included; source ${historySource}; newest-${floorActions.length} floor ${floorStatus}.`,
+        'Plot Components: dropped for total budget; Memory Bank: dropped for total budget; Story Card directory: dropped for total budget. Use search_memory_bank or search_story_cards to retrieve omitted entries.',
+        `Recent story actions: ${historyCoverageBase.authoritativeTotal ?? 'unknown'} total; ${historyCoverageBase.available ?? 0} available; ${history.meta.included} included; source ${historySource}; newest-${floorActions.length} floor ${floorStatus}. Use search_story_history and get_story_actions to retrieve omitted history.`,
         `Snapshot warnings: ${snapshotWarning}`,
       ].join('\n');
       return {
@@ -689,16 +689,16 @@
           finalPlot.meta.available
             ? `Plot Components: ${finalPlot.meta.populated} of 4 populated; source ${provenance.plot.instructions}.${plotReason ? ` Space reduced for ${plotReason}.` : ''}`
             : 'Plot Components: unavailable; the adventure plot could not be read.',
-          `Recent story actions: authoritative total ${historyCoverage.authoritativeTotal ?? 'unknown'}; ${historyAvailable} available; ${historyIncluded} included; source ${provenance.actions.source}.${historyReason ? ` Space reduced for ${historyReason}.` : ''}`,
+          `Recent story actions: authoritative total ${historyCoverage.authoritativeTotal ?? 'unknown'}; ${historyAvailable} available; ${historyIncluded} included; source ${provenance.actions.source}.${historyReason ? ` Space reduced for ${historyReason}.` : ''}${historyIncluded < historyAvailable ? ' Use search_story_history and get_story_actions to retrieve omitted history.' : ''}`,
           adventureSnapshot.historyIncomplete
             ? 'History is incomplete because Apollo history was unavailable; Navigator is NOT seeing the whole story.'
             : adventureSnapshot.coverage?.actions?.availabilityGap
               ? 'Action-count reference differs from retained normalized actions; these counts are informational, not a completeness claim.'
               : 'Action-count reference and retained normalized actions currently align; this remains an informational comparison.',
           memoryBank
-            ? `Memory Bank: ${finalMemory.meta.included} memories, ${finalMemory.meta.includedChars} characters; returned ${finalMemory.meta.included} of ${finalMemory.meta.total} entries${memoryReason ? `; reduced for ${memoryReason}` : ''}. summary lag latest=${summaryLag.latestActionId ?? 'unknown'}, lastSummarized=${summaryLag.lastSummarizedActionId ?? 'unknown'}, lastMemory=${summaryLag.lastMemoryActionId ?? 'unknown'}.`
+            ? `Memory Bank: ${finalMemory.meta.included} memories, ${finalMemory.meta.includedChars} characters; returned ${finalMemory.meta.included} of ${finalMemory.meta.total} entries${memoryReason ? `; reduced for ${memoryReason}` : ''}. summary lag latest=${summaryLag.latestActionId ?? 'unknown'}, lastSummarized=${summaryLag.lastSummarizedActionId ?? 'unknown'}, lastMemory=${summaryLag.lastMemoryActionId ?? 'unknown'}.${finalMemory.meta.included < finalMemory.meta.total ? ' Use search_memory_bank and get_memory to retrieve omitted entries.' : ''}`
             : 'Memory Bank and summary lag: unavailable from the GraphQL fallback reader.',
-          `Story Card directory: ${cardCoverage.included} of ${adventureSnapshot.coverage?.storyCards?.authoritativeTotal ?? cards.length} included from ${finalCards.meta.source}; ${cardCoverage.omitted} omitted${cardReason ? ` for ${cardReason}` : ''}.`,
+          `Story Card directory: ${cardCoverage.included} of ${adventureSnapshot.coverage?.storyCards?.authoritativeTotal ?? cards.length} included from ${finalCards.meta.source}; ${cardCoverage.omitted} omitted${cardReason ? ` for ${cardReason}` : ''}.${cardCoverage.omitted ? ' Use search_story_cards to retrieve omitted cards.' : ''}`,
           warnings.length ? `Snapshot warnings: ${warnings.join(' ')}` : 'Snapshot warnings: none.',
         ].join('\n');
         snapshot = [
@@ -832,6 +832,17 @@
             storySummary: stringValue(adventure.storySummary),
           } : null,
           cards,
+          actions: actions.map(action => ({
+            id: String(action.id),
+            type: action.type || null,
+            text: stringValue(action.text),
+          })),
+          memories: memoryBank === null
+            ? null
+            : memoryBank.map((entry, index) => ({
+              index,
+              text: memoryText(entry),
+            })),
           provenance,
         },
         summary: {
