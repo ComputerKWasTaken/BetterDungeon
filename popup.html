@@ -279,6 +279,37 @@
                   <span class="toggle-slider"></span>
                 </label>
               </div>
+              <div class="feature-option">
+                <label class="option-label" for="navigator-thinking-level">Thinking level</label>
+                <select id="navigator-thinking-level" class="bd-navigator-option-select">
+                  <option value="minimal">Minimal</option>
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </div>
+              <div class="feature-option">
+                <label class="option-label" for="navigator-context-cap">Default context cap (characters)</label>
+                <input id="navigator-context-cap" class="bd-navigator-option-input" type="number" min="8000" step="1000" placeholder="Provider limit">
+              </div>
+              <div class="feature-option">
+                <label class="option-label" for="navigator-tool-rounds">Default tool rounds</label>
+                <input id="navigator-tool-rounds" class="bd-navigator-option-input" type="number" min="1" max="12" step="1">
+              </div>
+              <div class="feature-option">
+                <label class="option-label" for="navigator-memory-bank">Include Memory Bank by default</label>
+                <label class="toggle sm">
+                  <input type="checkbox" id="navigator-memory-bank">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-option">
+                <label class="option-label" for="navigator-history-mode">Default history</label>
+                <select id="navigator-history-mode" class="bd-navigator-option-select">
+                  <option value="full">Full history</option>
+                  <option value="floor">Recency floor only</option>
+                </select>
+              </div>
             </div>
           </article>
 

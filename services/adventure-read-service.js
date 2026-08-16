@@ -346,6 +346,10 @@
     }
 
     const apolloAvailable = Boolean(apolloSnapshot && apolloResult?.available);
+    const apolloRetryable = !internal.cardsOnly
+      && !apolloAvailable
+      && apolloNotFound
+      && Boolean(apollo?.readAdventure);
     const actions = internal.cardsOnly ? [] : mergeActions(apolloAvailable ? apolloSnapshot.actions : [], ws);
     provenance.actions.source = internal.cardsOnly ? 'not_read' : (apolloAvailable ? 'apollo+ws' : 'ws');
     if (!internal.cardsOnly && !apolloAvailable) {
@@ -422,6 +426,7 @@
       fallbacks,
       degradations,
       historyIncomplete,
+      apolloRetryable,
       sourceDegraded: degradations.length > 0,
     };
   }

@@ -3397,6 +3397,45 @@ body.bd-navigator-resizing {
   text-overflow: ellipsis;
 }
 
+.bd-navigator-settings-panel {
+  padding: var(--bd-space-3);
+  border-bottom: 1px solid var(--bd-border-subtle);
+  background: var(--bd-surface-raised);
+}
+
+.bd-navigator-settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--bd-space-2);
+}
+
+.bd-navigator-settings-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--bd-text-muted);
+  font-size: var(--bd-font-size-xs);
+}
+
+.bd-navigator-settings-grid input,
+.bd-navigator-settings-grid select,
+.bd-navigator-option-input,
+.bd-navigator-option-select {
+  min-width: 0;
+  padding: 4px 6px;
+  color: var(--bd-text);
+  background: var(--bd-surface);
+  border: 1px solid var(--bd-border);
+  border-radius: 4px;
+}
+
+.bd-navigator-settings-note,
+.bd-navigator-cost {
+  margin: var(--bd-space-2) 0 0;
+  color: var(--bd-text-muted);
+  font-size: var(--bd-font-size-xs);
+}
+
 .bd-navigator-header-actions {
   display: flex;
   align-items: center;

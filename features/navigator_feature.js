@@ -35,6 +35,7 @@ class NavigatorFeature {
     this.stopBtn = null;
     this.emptyEl = null;
     this.readOnlyBadge = null;
+    this.settingsPanel = null;
     this.messageNodes = new Map();
 
     this.isOpen = false;
@@ -212,12 +213,22 @@ class NavigatorFeature {
     }
 
     this.session = new NavigatorSession(adventureId);
+    const session = this.session;
     this.unsubscribe = this.session.subscribe((event, payload) => this.onSessionEvent(event, payload));
     // Clear any previous adventure's transcript immediately rather than
     // leaving it on screen until storage resolves.
     this.renderTranscript();
+    this.session.settingsReady?.then(() => this.renderNavigatorSettings());
     this.session.load().then(() => this.renderTranscript());
-    this.session.refreshContext().catch(error => {
+    session.refreshContext().then(async snapshot => {
+      if (!session.isApolloPreviewRetryable?.()) return;
+      for (const delay of [250, 500, 1000]) {
+        await new Promise(resolve => setTimeout(resolve, delay));
+        if (this.session !== session || session.isBusy || session.contextState === 'loading') return;
+        await session.refreshContext();
+        if (!session.isApolloPreviewRetryable?.()) return;
+      }
+    }).catch(error => {
       this.log('[Navigator] Initial context refresh failed:', error);
     });
   }
@@ -251,6 +262,9 @@ class NavigatorFeature {
     } else if (event === 'permissions' || event === 'idle') {
       this.updatePermissionUI();
       this.renderAllProposalStates();
+    } else if (event === 'settings') {
+      this.renderNavigatorSettings();
+      this.updatePermissionUI();
     }
 
     this.updateComposerState();
@@ -395,6 +409,9 @@ class NavigatorFeature {
       </div>
       <div class="bd-navigator-header-actions">
         <span class="bd-navigator-read-only" hidden>Read-only</span>
+        <button type="button" class="bd-navigator-icon-btn bd-navigator-settings" aria-label="Navigator settings" title="Navigator settings">
+          <span class="icon-sliders-horizontal" aria-hidden="true"></span>
+        </button>
         <button type="button" class="bd-navigator-icon-btn bd-navigator-clear" aria-label="Clear conversation" title="Clear conversation">
           <span class="icon-eraser" aria-hidden="true"></span>
         </button>
@@ -402,6 +419,24 @@ class NavigatorFeature {
           <span class="icon-x" aria-hidden="true"></span>
         </button>
       </div>
+    `;
+    const settings = document.createElement('section');
+    settings.className = 'bd-navigator-settings-panel';
+    settings.hidden = true;
+    settings.setAttribute('aria-label', 'Navigator adventure settings');
+    settings.innerHTML = `
+      <div class="bd-navigator-settings-grid">
+        <label>Context cap (characters)<input type="number" min="8000" step="1000" data-nav-setting="contextCap"></label>
+        <label>Thinking level<select data-nav-setting="thinkingLevel">
+          <option value="minimal">Minimal</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>
+        </select></label>
+        <label>Tool rounds<input type="number" min="1" max="12" step="1" data-nav-setting="toolRounds"></label>
+        <label>Memory Bank<select data-nav-setting="includeMemoryBank"><option value="true">Include inline</option><option value="false">Omit inline</option></select></label>
+        <label>History<select data-nav-setting="historyMode"><option value="full">Full history</option><option value="floor">Recency floor only</option></select></label>
+        <label>Read-only<select data-nav-setting="readOnly"><option value="">Inherit global default</option><option value="true">Force on</option><option value="false">Force off</option></select></label>
+      </div>
+      <p class="bd-navigator-settings-note"></p>
+      <p class="bd-navigator-cost"></p>
     `;
 
     const transcript = document.createElement('div');
@@ -439,7 +474,7 @@ class NavigatorFeature {
       </div>
     `;
 
-    drawer.append(resize, header, transcript, composer);
+    drawer.append(resize, header, settings, transcript, composer);
     document.body.appendChild(drawer);
 
     this.drawer = drawer;
@@ -449,9 +484,20 @@ class NavigatorFeature {
     this.sendBtn = composer.querySelector('.bd-navigator-send');
     this.stopBtn = composer.querySelector('.bd-navigator-stop');
     this.readOnlyBadge = header.querySelector('.bd-navigator-read-only');
+    this.settingsPanel = settings;
 
     header.querySelector('.bd-navigator-close').addEventListener('click', () => this.closeDrawer());
     header.querySelector('.bd-navigator-clear').addEventListener('click', () => this.handleClear());
+    header.querySelector('.bd-navigator-settings').addEventListener('click', () => {
+      settings.hidden = !settings.hidden;
+      if (!settings.hidden) {
+        this.renderNavigatorSettings();
+        this.session?.checkReady?.().then(() => this.renderNavigatorSettings());
+      }
+    });
+    settings.querySelectorAll('[data-nav-setting]').forEach(control => {
+      control.addEventListener('change', () => this.saveNavigatorSetting(control.dataset.navSetting, control.value));
+    });
     this.stopBtn.addEventListener('click', () => this.session?.abort());
 
     this.sendBtn.addEventListener('click', () => this.handleSend());
@@ -478,6 +524,55 @@ class NavigatorFeature {
     this.updatePermissionUI();
     this.updateComposerState();
     this.renderTranscript();
+  }
+
+  renderNavigatorSettings() {
+    if (!this.settingsPanel || !this.session) return;
+    const settings = this.session.getSettings?.();
+    if (!settings) return;
+    for (const control of this.settingsPanel.querySelectorAll('[data-nav-setting]')) {
+      const key = control.dataset.navSetting;
+      let value = settings[key];
+      if (key === 'readOnly') value = Object.prototype.hasOwnProperty.call(settings.overrides || {}, 'readOnly') ? String(value) : '';
+      if (key === 'includeMemoryBank') value = String(value !== false);
+      if (key === 'contextCap') value = value || '';
+      if (control.value !== String(value ?? '')) control.value = String(value ?? '');
+    }
+    const supported = settings.providerThinkingLevels || [];
+    const thinking = this.settingsPanel.querySelector('[data-nav-setting="thinkingLevel"]');
+    if (thinking) {
+      thinking.disabled = supported.length === 0;
+      thinking.title = supported.length ? '' : 'The configured provider advertises no thinking-level support.';
+      for (const option of thinking.options) option.hidden = supported.length > 0 && !supported.includes(option.value);
+    }
+    const note = this.settingsPanel.querySelector('.bd-navigator-settings-note');
+    if (note) {
+      const inherited = ['contextCap', 'thinkingLevel', 'includeMemoryBank', 'historyMode', 'toolRounds']
+        .filter(key => !Object.prototype.hasOwnProperty.call(settings.overrides || {}, key));
+      const effectiveLedger = Number.isSafeInteger(settings.effectiveInputChars)
+        ? `Effective ledger for this adventure: ${settings.effectiveInputChars.toLocaleString()} characters${Number.isSafeInteger(settings.providerMaxInputChars) ? ` (provider limit ${settings.providerMaxInputChars.toLocaleString()})` : ''}.`
+        : 'Effective ledger: provider limit unavailable until the AI provider is ready.';
+      note.textContent = `${inherited.length ? `Inherited from global default: ${inherited.join(', ')}. ` : ''}${effectiveLedger} Adventure settings override global defaults only when explicitly changed. Context caps are characters and can only tighten the provider ledger.`;
+    }
+  }
+
+  async saveNavigatorSetting(key, rawValue) {
+    if (!this.session) return;
+    if (key === 'readOnly' && rawValue === '') {
+      await this.session.clearAdventureSetting('readOnly');
+      return;
+    }
+    const value = key === 'contextCap'
+      ? (rawValue && Number(rawValue) > 0 ? Math.max(8000, Number(rawValue)) : null)
+      : key === 'toolRounds'
+        ? Number(rawValue)
+        : key === 'includeMemoryBank'
+          ? rawValue === 'true'
+          : key === 'readOnly'
+            ? rawValue === 'true'
+            : rawValue;
+    await this.session.saveSettings({ [key]: value });
+    this.renderNavigatorSettings();
   }
 
   // ==================== OPEN / CLOSE ====================
@@ -693,7 +788,10 @@ class NavigatorFeature {
 
     const title = context.title ? `${context.title} · ` : '';
     const coverage = `${context.plotPopulated || 0}/4 plot · ${context.cardsIncluded || 0}/${context.cardsTotal || 0} card directory · ${context.actionsIncluded || 0} actions`;
-    subtitle.textContent = `${title}${coverage}${context.partial ? ' · partial' : ''}`;
+    const state = context.preview
+      ? ' · preview'
+      : (context.partial ? ' · partial' : '');
+    subtitle.textContent = `${title}${coverage}${state}`;
   }
 
   // ==================== TRANSCRIPT RENDERING ====================
@@ -776,6 +874,12 @@ class NavigatorFeature {
     } else {
       status.replaceChildren();
       status.className = 'bd-navigator-message-status';
+    }
+    if (message.status === 'complete' && message.meta?.inputCost) {
+      const cost = document.createElement('span');
+      cost.className = 'bd-navigator-cost';
+      cost.textContent = `${message.meta.inputCost.peakInputChars || 0} peak input characters across rounds (≈${message.meta.inputCost.estimatedTokens} tokens, estimate)`;
+      status.appendChild(cost);
     }
   }
 
