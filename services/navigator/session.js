@@ -824,8 +824,9 @@
             }
             if (this.readOnly) throw { code: 'read_only', message: 'Navigator Read-only mode is enabled.' };
             if (!this.mutations) throw { code: 'unavailable', message: 'Navigator mutation proposals are not loaded.' };
-            const proposal = this.mutations.createProposal(call.name, call.arguments, {
+            const proposal = await this.mutations.createProposal(call.name, call.arguments, {
               index: snapshot?.index || null,
+              signal,
             });
             proposalToRegister = proposal;
             envelope = {

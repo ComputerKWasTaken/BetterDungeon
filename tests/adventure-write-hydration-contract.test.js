@@ -58,7 +58,7 @@ function installGraphql(live, { verifyNoop = false } = {}) {
 async function applyPlot(mutations, content) {
   const snapshot = index();
   snapshot.adventure.memory = (await mutations.readAdventure()).memory;
-  const proposal = mutations.createProposal('propose_plot_component_change', {
+  const proposal = await mutations.createProposal('propose_plot_component_change', {
     component: 'plot_essentials',
     content,
   }, { index: snapshot });

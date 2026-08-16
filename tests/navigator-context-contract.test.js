@@ -119,13 +119,16 @@ async function testGraphqlFallbackDiagnosticsUnavailable() {
 async function testAuthoritativeCardGate() {
   const mutations = new window.NavigatorMutations('demo');
   const card = { id: 'card-1', type: 'lore', title: 'Card', keys: 'card', value: 'Entry' };
+  window.BetterDungeonGQL = {
+    getNavigatorStoryCards: async () => ({ cards: [card] }),
+  };
   const base = {
     shortId: 'demo',
     adventureId: '42',
     adventure: { id: '42', shortId: 'demo', memory: '', authorsNote: '', thirdPerson: false, instructions: '', storySummary: '' },
     cards: [card],
   };
-  const proposal = mutations.createProposal('propose_story_card_update', {
+  const proposal = await mutations.createProposal('propose_story_card_update', {
     id: 'card-1',
     changes: { title: 'Apollo Card' },
   }, { index: { ...base, source: 'apollo', authoritativeSource: true } });

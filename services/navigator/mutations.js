@@ -252,7 +252,7 @@
       });
     }
 
-    createProposal(name, rawArgs, options = {}) {
+    async createProposal(name, rawArgs, options = {}) {
       const args = assertObject(rawArgs, 'Tool arguments');
       const index = options.index;
       if (!index || !index.shortId || String(index.shortId) !== String(this.shortId)) {
@@ -271,10 +271,10 @@
           proposal = this.createCardCreateProposal(args, index);
           break;
         case 'propose_story_card_update':
-          proposal = this.createCardUpdateProposal(args, index);
+          proposal = await this.createCardUpdateProposal(args, index, options.signal);
           break;
         case 'propose_story_card_delete':
-          proposal = this.createCardDeleteProposal(args, index);
+          proposal = await this.createCardDeleteProposal(args, index, options.signal);
           break;
         default:
           throw { code: 'unknown_tool', message: `Navigator mutation proposal '${name}' is not available.` };
@@ -363,13 +363,20 @@
       return index.cards.map(normalizeCard).filter(Boolean);
     }
 
-    createCardUpdateProposal(args, index) {
+    async createCardUpdateProposal(args, index, signal) {
       assertOnlyKeys(args, ['id', 'changes', 'reason'], 'Story Card update proposal');
       const id = stringArg(args.id, 'id', { nonEmpty: true }).trim();
       const changes = assertObject(args.changes, 'changes');
       assertOnlyKeys(changes, Object.keys(CARD_FIELDS), 'changes');
       if (!Object.keys(changes).length) throw { code: 'invalid_tool_args', message: 'changes must include at least one Story Card field.' };
-      const before = this.requireAuthoritativeCards(index).find(card => card.id === id);
+      const indexedBefore = this.requireAuthoritativeCards(index).find(card => card.id === id);
+      if (!indexedBefore) throw { code: 'not_found', message: 'No current Story Card matched that identifier.' };
+      let before;
+      try {
+        before = (await this.readCards(signal)).find(card => card.id === id);
+      } catch {
+        throw { code: 'unavailable', message: 'Could not read the current Story Card while preparing this proposal.' };
+      }
       if (!before) throw { code: 'not_found', message: 'No current Story Card matched that identifier.' };
       const patch = {};
       const displayChanges = [];
@@ -392,10 +399,17 @@
       };
     }
 
-    createCardDeleteProposal(args, index) {
+    async createCardDeleteProposal(args, index, signal) {
       assertOnlyKeys(args, ['id', 'reason'], 'Story Card deletion proposal');
       const id = stringArg(args.id, 'id', { nonEmpty: true }).trim();
-      const before = this.requireAuthoritativeCards(index).find(card => card.id === id);
+      const indexedBefore = this.requireAuthoritativeCards(index).find(card => card.id === id);
+      if (!indexedBefore) throw { code: 'not_found', message: 'No current Story Card matched that identifier.' };
+      let before;
+      try {
+        before = (await this.readCards(signal)).find(card => card.id === id);
+      } catch {
+        throw { code: 'unavailable', message: 'Could not read the current Story Card while preparing this proposal.' };
+      }
       if (!before) throw { code: 'not_found', message: 'No current Story Card matched that identifier.' };
       return {
         ...this.proposalBase('story_card_delete', before.title || `Story Card ${id}`, reasonArg(args.reason), index),

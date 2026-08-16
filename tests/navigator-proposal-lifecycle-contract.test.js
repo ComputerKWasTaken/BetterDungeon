@@ -94,6 +94,20 @@ function card(updatedAt, title = 'Card') {
   return { id: 'card-1', type: 'lore', title, description: '', keys: 'card', value: 'Entry', useForCharacterCreation: false, updatedAt };
 }
 
+function wireCard(updatedAt, title = '', value = '') {
+  return {
+    id: 'card-1',
+    type: 'Ultrascripts',
+    title,
+    name: '',
+    description: '',
+    keys: ['card'],
+    value,
+    useForCharacterCreation: false,
+    updatedAt,
+  };
+}
+
 function mutationIndex() {
   return {
     shortId: 'demo',
@@ -107,44 +121,69 @@ function mutationIndex() {
 
 async function testContentOnlyConflictAndDrift() {
   const mutations = new window.NavigatorMutations('demo');
-  const proposal = mutations.createProposal('propose_story_card_update', {
-    id: 'card-1',
-    changes: { entry: 'Changed' },
-  }, { index: mutationIndex() });
-  proposal.status = 'applying';
-  let current = card('2026-02-01');
+  let current = wireCard('2026-01-01');
   window.Ultrascripts = { ws: { getAdventureShortId: () => 'demo' } };
   window.BetterDungeonGQL = {
     getNavigatorStoryCards: async () => ({ cards: [current] }),
     updateNavigatorStoryCard: async (_shortId, desired) => { current = desired; },
   };
+  const proposal = await mutations.createProposal('propose_story_card_update', {
+    id: 'card-1',
+    changes: { entry: 'Changed' },
+  }, { index: mutationIndex() });
+  assert.equal(proposal.changes.find(change => change.label === 'Entry').before, '');
+  proposal.status = 'applying';
+  current = wireCard('2026-02-02');
   const result = await mutations.apply(proposal);
   assert.ok(result.updatedAtDrift);
   assert.equal(result.updatedAtDrift.before, '2026-01-01');
-  assert.equal(result.updatedAtDrift.current, '2026-02-01');
+  assert.equal(result.updatedAtDrift.current, '2026-02-02');
 
-  const conflict = mutations.createProposal('propose_story_card_update', {
+  const conflict = await mutations.createProposal('propose_story_card_update', {
     id: 'card-1',
     changes: { entry: 'Changed again' },
   }, { index: mutationIndex() });
   conflict.status = 'applying';
-  current = card('2026-03-01', 'Changed title');
+  current = wireCard('2026-03-01', 'Changed title');
   await assert.rejects(mutations.apply(conflict), error => error?.code === 'conflict');
 }
 
 async function testDeleteDrift() {
   const mutations = new window.NavigatorMutations('demo');
-  const proposal = mutations.createProposal('propose_story_card_delete', {
+  let deleted = false;
+  let current = wireCard('2026-01-01');
+  window.Ultrascripts = { ws: { getAdventureShortId: () => 'demo' } };
+  window.BetterDungeonGQL = {
+    getNavigatorStoryCards: async () => ({ cards: deleted ? [] : [current] }),
+    deleteNavigatorStoryCard: async () => { deleted = true; },
+  };
+  const proposal = await mutations.createProposal('propose_story_card_delete', {
     id: 'card-1',
   }, { index: mutationIndex() });
   proposal.status = 'applying';
-  let deleted = false;
-  window.BetterDungeonGQL = {
-    getNavigatorStoryCards: async () => ({ cards: deleted ? [] : [card('2026-02-01')] }),
-    deleteNavigatorStoryCard: async () => { deleted = true; },
-  };
+  current = wireCard('2026-02-02');
   const result = await mutations.apply(proposal);
   assert.ok(result.updatedAtDrift);
+}
+
+async function testCreateProposalDoesNotReadCards() {
+  const mutations = new window.NavigatorMutations('demo');
+  let reads = 0;
+  window.BetterDungeonGQL = {
+    getNavigatorStoryCards: async () => {
+      reads += 1;
+      throw new Error('create proposals must not read cards');
+    },
+  };
+  const result = await mutations.createProposal('propose_story_card_create', {
+    type: 'lore',
+    title: 'New Card',
+    triggers: 'new',
+    entry: 'Created entry',
+    notes: '',
+  }, { index: mutationIndex() });
+  assert.equal(result.action, 'create');
+  assert.equal(reads, 0);
 }
 
 async function main() {
@@ -152,6 +191,7 @@ async function main() {
   await testMutationRejectsRestoredProposal();
   await testContentOnlyConflictAndDrift();
   await testDeleteDrift();
+  await testCreateProposalDoesNotReadCards();
   console.log('Navigator proposal lifecycle contract tests passed');
 }
 
