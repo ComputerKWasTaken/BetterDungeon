@@ -984,7 +984,7 @@
             turnController.signal,
             calls.some(call => this.isMutationTool(call.name))
               ? Math.max(resultAllowance, PROPOSAL_RESULT_FLOOR_CHARS)
-            : resultAllowance,
+              : resultAllowance,
             assistant.id,
             request.snapshot,
             toolMemo,
