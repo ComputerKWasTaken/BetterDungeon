@@ -237,10 +237,9 @@
 
     async loadReadOnlyMode() {
       if (!isExtensionContextValid()) {
-        this.readOnly = true;
-        return;
+        return this.setReadOnlyMode(true);
       }
-      this.readOnly = await new Promise(resolve => {
+      const readOnly = await new Promise(resolve => {
         let settled = false;
         const finish = value => {
           if (settled) return;
@@ -265,7 +264,7 @@
           finish(true);
         }
       });
-      this.emit('permissions', { readOnly: this.readOnly });
+      return this.setReadOnlyMode(readOnly);
     }
 
     async loadThinkingLevel() {
@@ -287,15 +286,20 @@
       });
     }
 
+    setReadOnlyMode(enabled) {
+      this.readOnly = enabled === true;
+      const state = this.getPermissionState();
+      this.emit('permissions', state);
+      return state;
+    }
+
     onStorageChange(changes, areaName) {
-      if (areaName !== 'sync') return;
-      if (changes?.[READ_ONLY_STORAGE_KEY]) {
-        this.readOnly = changes[READ_ONLY_STORAGE_KEY].newValue === true;
-        this.emit('permissions', { readOnly: this.readOnly });
-      }
-      if (changes?.[THINKING_LEVEL_STORAGE_KEY]) {
+      if (areaName === 'sync' && changes?.[THINKING_LEVEL_STORAGE_KEY]) {
         const value = changes[THINKING_LEVEL_STORAGE_KEY].newValue;
         this.thinkingLevel = THINKING_LEVELS.includes(value) ? value : 'low';
+      }
+      if (areaName === 'sync' && changes?.[READ_ONLY_STORAGE_KEY]) {
+        this.setReadOnlyMode(changes[READ_ONLY_STORAGE_KEY].newValue);
       }
     }
 
