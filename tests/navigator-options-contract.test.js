@@ -19,8 +19,24 @@ const local = new Map([
     historyMode: 'floor',
   }],
 ]);
+let failReads = false;
+let adventureData = {
+  identity: { id: '42', shortId: 'demo', title: 'Options', actionCount: 40, thirdPerson: false },
+  plot: { instructions: 'Use prose.' },
+  actions: Array.from({ length: 20 }, (_, index) => ({ id: String(index + 1), type: 'do', text: `Action ${index + 1}` })),
+  storyCards: [],
+  state: { memories: ['Hidden memory'] },
+  coverage: { actions: { authoritativeTotal: 20, available: 20 }, storyCards: { authoritativeTotal: 0 } },
+  provenance: { plot: { instructions: 'apollo' }, actions: { source: 'apollo' }, storyCards: { source: 'apollo' } },
+};
 const area = store => ({
   get(keys, callback) {
+    if (failReads) {
+      chrome.runtime.lastError = { message: 'simulated settings read failure' };
+      callback({});
+      chrome.runtime.lastError = null;
+      return;
+    }
     const requested = Array.isArray(keys) ? keys : [keys];
     callback(Object.fromEntries(requested.filter(key => store.has(key)).map(key => [key, store.get(key)])));
   },
@@ -33,15 +49,7 @@ const area = store => ({
 global.window = global;
 window.NavigatorPrimer = { TEXT: 'You are Navigator.' };
 window.BetterDungeonAdventureRead = {
-  readAdventure: async () => ({
-    identity: { id: '42', shortId: 'demo', title: 'Options', actionCount: 40, thirdPerson: false },
-    plot: { instructions: 'Use prose.' },
-    actions: Array.from({ length: 20 }, (_, index) => ({ id: String(index + 1), type: 'do', text: `Action ${index + 1}` })),
-    storyCards: [],
-    state: { memories: ['Hidden memory'] },
-    coverage: { actions: { authoritativeTotal: 20, available: 20 }, storyCards: { authoritativeTotal: 0 } },
-    provenance: { plot: { instructions: 'apollo' }, actions: { source: 'apollo' }, storyCards: { source: 'apollo' } },
-  }),
+  readAdventure: async () => adventureData,
 };
 global.chrome = {
   runtime: { id: 'options-test', lastError: null },
@@ -64,10 +72,14 @@ async function run() {
   assert.equal(settings.includeMemoryBank, false);
   assert.equal(settings.historyMode, 'floor');
   assert.equal(settings.toolRounds, 8);
+  assert.equal(settings.global.readOnly, true, 'global read-only is reported in global defaults');
   await session.clearAdventureSetting('readOnly');
   assert.equal(session.getSettings().readOnly, true, 'clearing override inherits global read-only');
   await session.saveSettings({ contextCap: null });
   assert.equal(session.getSettings().contextCap, 90000, 'clearing cap restores inherited default');
+  assert.equal(window.NavigatorSession.CHARS_PER_TOKEN, 3);
+  assert.match(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'), /estimatedTokens: Math\.ceil\(peakInputChars \/ CHARS_PER_TOKEN\)/);
+  assert.match(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'), /peakInputChars = Math\.max\(peakInputChars, projected\)/);
   const snapshot = await new window.NavigatorContext('demo').build({
     maxChars: 100000,
     includeMemoryBank: false,
@@ -76,6 +88,38 @@ async function run() {
   assert.match(snapshot.systemInstruction, /Full history omitted by user setting/);
   assert.match(snapshot.systemInstruction, /Memory Bank: omitted by user setting/);
   assert.doesNotMatch(snapshot.systemInstruction, /reduced for total budget/);
+  assert.equal(snapshot.segments.memoryBank.truncatedReason, 'user setting');
+  assert.equal(snapshot.segments.recentActions.truncatedReason, null);
+  assert.equal(snapshot.segments.recentActions.coverage.omittedReason, 'user setting');
+
+  adventureData = { ...adventureData, state: { memories: null } };
+  const unavailable = await new window.NavigatorContext('demo').build({
+    maxChars: 100000,
+    includeMemoryBank: false,
+    historyMode: 'full',
+  });
+  assert.match(unavailable.systemInstruction, /Memory Bank and summary lag: unavailable/);
+  assert.doesNotMatch(unavailable.systemInstruction, /search_memory_bank/);
+  assert.equal(unavailable.segments.memoryBank.truncatedReason, null);
+
+  adventureData = {
+    ...adventureData,
+    state: { memories: ['Memory '.repeat(3000)] },
+    actions: adventureData.actions.map(action => ({ ...action, text: 'Action '.repeat(500) })),
+  };
+  const clippedFloor = await new window.NavigatorContext('demo').build({
+    maxChars: 9000,
+    includeMemoryBank: true,
+    historyMode: 'floor',
+  });
+  assert.equal(clippedFloor.segments.recentActions.truncatedReason, 'total budget');
+  assert.equal(clippedFloor.segments.recentActions.coverage.omittedReason, 'total budget');
+
+  failReads = true;
+  await session.loadSettings();
+  failReads = false;
+  assert.equal(session.getSettings().contextCap, 90000, 'failed settings read retains last-known-good cap');
+  assert.equal(session.getSettings().readOnly, true, 'failed settings read keeps read-only fail-safe');
   assert.match(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'), /Math\.min\(providerMaxInputChars, userCap/);
   assert.match(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'), /roundLimit = this\.effectiveSettings\.toolRounds/);
   console.log('Navigator options contract tests passed');

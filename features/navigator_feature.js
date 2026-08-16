@@ -539,7 +539,10 @@ class NavigatorFeature {
     if (note) {
       const inherited = ['contextCap', 'thinkingLevel', 'includeMemoryBank', 'historyMode', 'toolRounds']
         .filter(key => !Object.prototype.hasOwnProperty.call(settings.overrides || {}, key));
-      note.textContent = `${inherited.length ? `Inherited from global default: ${inherited.join(', ')}. ` : ''}Adventure settings override global defaults only when explicitly changed. Context caps are characters and can only tighten the provider ledger.`;
+      const effectiveLedger = Number.isSafeInteger(settings.effectiveInputChars)
+        ? `Effective ledger for this adventure: ${settings.effectiveInputChars.toLocaleString()} characters${Number.isSafeInteger(settings.providerMaxInputChars) ? ` (provider limit ${settings.providerMaxInputChars.toLocaleString()})` : ''}.`
+        : 'Effective ledger: provider limit unavailable until the AI provider is ready.';
+      note.textContent = `${inherited.length ? `Inherited from global default: ${inherited.join(', ')}. ` : ''}${effectiveLedger} Adventure settings override global defaults only when explicitly changed. Context caps are characters and can only tighten the provider ledger.`;
     }
   }
 
@@ -550,7 +553,7 @@ class NavigatorFeature {
       return;
     }
     const value = key === 'contextCap'
-      ? (rawValue ? Number(rawValue) : null)
+      ? (rawValue ? Math.max(8000, Number(rawValue)) : null)
       : key === 'toolRounds'
         ? Number(rawValue)
         : key === 'includeMemoryBank'
@@ -559,6 +562,7 @@ class NavigatorFeature {
             ? rawValue === 'true'
             : rawValue;
     await this.session.saveSettings({ [key]: value });
+    this.renderNavigatorSettings();
   }
 
   // ==================== OPEN / CLOSE ====================
@@ -861,7 +865,7 @@ class NavigatorFeature {
     if (message.status === 'complete' && message.meta?.inputCost) {
       const cost = document.createElement('span');
       cost.className = 'bd-navigator-cost';
-      cost.textContent = `${message.meta.inputCost.inputChars || message.meta.inputChars || 0} input characters (≈${message.meta.inputCost.estimatedTokens} tokens, estimate)`;
+      cost.textContent = `${message.meta.inputCost.peakInputChars || 0} peak input characters across rounds (≈${message.meta.inputCost.estimatedTokens} tokens, estimate)`;
       status.appendChild(cost);
     }
   }

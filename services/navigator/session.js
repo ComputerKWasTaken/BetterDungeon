@@ -17,6 +17,7 @@
   // Budget for the first-party chat surface. Independent of the frozen
   // script-facing ai.query cap, which stays at 12k characters.
   const MAX_INPUT_CHARS = 100000;
+  const CHARS_PER_TOKEN = 3;
   const MAX_OUTPUT_TOKENS = 2048;
   const MAX_HISTORY_CHARS = 16000;
   const MAX_TOOL_ROUNDS = 6;
@@ -107,6 +108,7 @@
       this.readOnly = false;
       this.thinkingLevel = 'low';
       this.providerStatus = null;
+      this.hasLoadedSettings = false;
       this.globalSettings = { ...DEFAULT_NAVIGATOR_SETTINGS };
       this.adventureSettings = {};
       this.effectiveSettings = { ...DEFAULT_NAVIGATOR_SETTINGS, readOnly: true, thinkingLevel: 'low' };
@@ -294,8 +296,8 @@
 
     normalizeSettings(value) {
       const result = {};
-      if (Number.isSafeInteger(value?.contextCap) && value.contextCap >= MIN_CONTEXT_CAP) {
-        result.contextCap = value.contextCap;
+      if (Number.isSafeInteger(value?.contextCap)) {
+        result.contextCap = Math.max(MIN_CONTEXT_CAP, value.contextCap);
       }
       if (typeof value?.includeMemoryBank === 'boolean') result.includeMemoryBank = value.includeMemoryBank;
       if (value?.historyMode === 'full' || value?.historyMode === 'floor') result.historyMode = value.historyMode;
@@ -318,9 +320,13 @@
         this.storageGet(chrome.storage.local, this.adventureSettingsKey()),
       ]);
       if (syncResult.__failed || localResult.__failed) {
-        this.globalSettings = { ...DEFAULT_NAVIGATOR_SETTINGS };
-        this.adventureSettings = {};
-        this.effectiveSettings = { ...DEFAULT_NAVIGATOR_SETTINGS, readOnly: true, thinkingLevel: 'low' };
+        if (!this.hasLoadedSettings) {
+          this.globalSettings = { ...DEFAULT_NAVIGATOR_SETTINGS };
+          this.adventureSettings = {};
+          this.effectiveSettings = { ...DEFAULT_NAVIGATOR_SETTINGS, readOnly: true, thinkingLevel: 'low' };
+        } else {
+          this.effectiveSettings = { ...this.effectiveSettings, readOnly: true, thinkingLevel: 'low' };
+        }
         this.thinkingLevel = 'low';
         this.setReadOnlyMode(true);
         return this.effectiveSettings;
@@ -328,7 +334,7 @@
       const defaults = this.normalizeSettings(syncResult[NAVIGATOR_DEFAULTS_STORAGE_KEY]);
       const legacyThinking = syncResult[THINKING_LEVEL_STORAGE_KEY];
       const globalReadOnly = syncResult[READ_ONLY_STORAGE_KEY] === true;
-      this.globalSettings = { ...DEFAULT_NAVIGATOR_SETTINGS, ...defaults };
+      this.globalSettings = { ...DEFAULT_NAVIGATOR_SETTINGS, ...defaults, readOnly: globalReadOnly };
       this.globalSettings.thinkingLevel = THINKING_LEVELS.includes(legacyThinking)
         ? legacyThinking
         : (defaults.thinkingLevel || 'low');
@@ -342,17 +348,24 @@
         thinkingLevel: this.adventureSettings.thinkingLevel || this.globalSettings.thinkingLevel || 'low',
       };
       this.effectiveSettings = effective;
+      this.hasLoadedSettings = true;
       this.thinkingLevel = effective.thinkingLevel;
       this.setReadOnlyMode(effective.readOnly);
       return effective;
     }
 
     getSettings() {
+      const providerMaxInputChars = this.getProviderMaxInputChars();
+      const effectiveInputChars = providerMaxInputChars === null
+        ? null
+        : Math.min(providerMaxInputChars, this.effectiveSettings.contextCap || providerMaxInputChars);
       return {
         ...this.effectiveSettings,
         global: { ...this.globalSettings, readOnly: this.globalSettings.readOnly === true },
         overrides: { ...this.adventureSettings },
         adventureId: this.adventureId,
+        providerMaxInputChars,
+        effectiveInputChars,
         providerThinkingLevels: this.getProviderThinkingLevels(),
       };
     }
@@ -362,6 +375,11 @@
       return Array.isArray(status?.config?.thinkingLevels) && status.config.thinkingLevels.length
         ? status.config.thinkingLevels
         : (Array.isArray(status?.thinkingLevels) ? status.thinkingLevels : []);
+    }
+
+    getProviderMaxInputChars() {
+      const limits = this.providerStatus?.limits || this.providerStatus?.config?.limits;
+      return Number.isSafeInteger(limits?.maxInputChars) ? limits.maxInputChars : null;
     }
 
     async saveSettings(fields, options = {}) {
@@ -430,7 +448,9 @@
         this.loadSettings();
       }
       if (areaName === 'sync' && changes?.[READ_ONLY_STORAGE_KEY]) {
-        this.setReadOnlyMode(changes[READ_ONLY_STORAGE_KEY].newValue);
+        if (!Object.prototype.hasOwnProperty.call(this.adventureSettings, 'readOnly')) {
+          this.setReadOnlyMode(changes[READ_ONLY_STORAGE_KEY].newValue);
+        }
         this.loadSettings();
       }
       if (areaName === 'sync' && changes?.[NAVIGATOR_DEFAULTS_STORAGE_KEY]) {
@@ -545,7 +565,7 @@
         const status = executor.refreshStatus
           ? await executor.refreshStatus({ consumer: CONSUMER })
           : executor.status?.({ consumer: CONSUMER });
-        this.providerStatus = status || null;
+      this.providerStatus = status || null;
         if (status?.ready) return { ready: true, status };
         return {
           ready: false,
@@ -1018,7 +1038,8 @@
         let inputLimitReached = false;
         let toolResultsOmitted = 0;
         let toolLimitReached = false;
-        const toolMemo = new Map();
+      const toolMemo = new Map();
+        let peakInputChars = 0;
 
         const rebuildToolInstruction = () => {
           let instruction = `${request.snapshotInstruction}${this.buildToolGuidance(tools, { dropped: toolsDropped })}`;
@@ -1062,6 +1083,7 @@
           toolResults = this.trimToolResults(toolResults, resultAllowance);
           toolResultsOmitted = toolResults.filter(item => item.result?.error?.code === 'context_budget_omitted').length;
           projected = fixedRoundChars + JSON.stringify(toolResults).length;
+          peakInputChars = Math.max(peakInputChars, projected);
           const roundStartLength = this.findMessage(assistant.id)?.content.length || 0;
           let roundReceivedDelta = false;
           if (projected > request.limits.maxInputChars) {
@@ -1178,21 +1200,15 @@
             ...(finalMeta || {}),
             toolRounds,
             toolResultChars,
-            inputChars: request.systemInstruction.length
-              + request.messages.reduce((sum, item) => sum + item.content.length, 0)
-              + JSON.stringify(tools).length
-              + toolResultChars,
+            inputChars: peakInputChars,
             inputCost: {
               systemInstructionChars: request.systemInstruction.length,
               selectedMessageChars: request.messages.reduce((sum, item) => sum + item.content.length, 0),
               toolSchemaChars: JSON.stringify(tools).length,
               toolResultChars,
-              estimatedTokens: Math.ceil((
-                request.systemInstruction.length
-                + request.messages.reduce((sum, item) => sum + item.content.length, 0)
-                + JSON.stringify(tools).length
-                + toolResultChars
-              ) / 4),
+              peakInputChars,
+              estimatedTokens: Math.ceil(peakInputChars / CHARS_PER_TOKEN),
+              charsPerToken: CHARS_PER_TOKEN,
               tokenEstimate: true,
             },
             toolsDropped,
@@ -1431,6 +1447,7 @@
 
   NavigatorSession.CONSUMER = CONSUMER;
   NavigatorSession.MAX_INPUT_CHARS = MAX_INPUT_CHARS;
+  NavigatorSession.CHARS_PER_TOKEN = CHARS_PER_TOKEN;
   NavigatorSession.MAX_OUTPUT_TOKENS = MAX_OUTPUT_TOKENS;
   NavigatorSession.MAX_HISTORY_CHARS = MAX_HISTORY_CHARS;
   NavigatorSession.MAX_USER_MESSAGE_CHARS = MAX_USER_MESSAGE_CHARS;
