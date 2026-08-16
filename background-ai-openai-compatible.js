@@ -896,13 +896,14 @@
     if (choice?.finish_reason === 'content_filter') throw blockedError('content_filter', model, settings.service);
     const text = typeof choice?.message?.content === 'string' ? choice.message.content : '';
     if (!text) throw { code: 'invalid_response', message: 'OpenAI-compatible provider returned no message content.', retryable: false, backend: PROVIDER_ID, service: settings.service, model };
+    const finishReason = trim(choice?.finish_reason) || null;
     const base = resultBase(settings, model, data?.model, data?.usage, info.thinking, attemptedModels);
     const result = task.output.type === 'json'
       ? (() => {
-          try { return { ...base, json: JSON.parse(text), text }; }
+          try { return { ...base, json: JSON.parse(text), text, finishReason, outputTruncated: finishReason === 'length' }; }
           catch (error) { throw { code: 'invalid_response', message: 'OpenAI-compatible provider returned invalid JSON text.', retryable: false, backend: PROVIDER_ID, service: settings.service, detail: error?.message, model }; }
         })()
-      : { ...base, text };
+      : { ...base, text, finishReason, outputTruncated: finishReason === 'length' };
     rememberSuccess(settings, result);
     return result;
   }
@@ -1103,7 +1104,15 @@
     if (!text && !publicCalls.length) {
       throw { code: 'invalid_response', message: sawDone ? 'OpenAI-compatible provider returned no streamed output.' : 'OpenAI-compatible stream closed before completion.', retryable: !sawDone, backend: PROVIDER_ID, service: settings.service, model };
     }
-    return { text, toolCalls: publicCalls, assistantMessage, providerModel, usage };
+    return {
+      text,
+      toolCalls: publicCalls,
+      assistantMessage,
+      providerModel,
+      usage,
+      finishReason,
+      outputTruncated: finishReason === 'length',
+    };
   }
 
   async function chatAttempt(config, settings, task, session, model, attempted, onDelta) {
@@ -1144,6 +1153,8 @@
       ...base,
       text: streamed.text,
       toolCalls: streamed.toolCalls,
+      finishReason: streamed.finishReason,
+      outputTruncated: streamed.outputTruncated,
       continuation: streamed.toolCalls.length ? {
         provider: PROVIDER_ID,
         service: settings.service,
