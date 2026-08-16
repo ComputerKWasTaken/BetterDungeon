@@ -172,6 +172,13 @@ global.fetch = async (url, init) => {
   if (prompt.includes('auth-error')) return jsonResponse(401, { error: { message: 'bad key' } });
   if (prompt.includes('safety-error')) return jsonResponse(400, { error: { status: 'PROHIBITED_CONTENT', message: 'blocked' } });
   if (prompt.includes('malformed-response')) return new Response('{nope', { status: 200 });
+  if (prompt.includes('output-length')) {
+    return jsonResponse(200, {
+      model: `${payload.model}-provider`,
+      choices: [{ message: { content: 'partial answer' }, finish_reason: 'length' }],
+      usage: { total_tokens: 7 },
+    });
+  }
   if (prompt.includes('fallback-test') && payload.model === 'gemini-3.5-flash-lite') {
     return jsonResponse(429, { error: { message: 'quota' } }, { 'retry-after': '1' });
   }
@@ -219,6 +226,12 @@ global.fetch = async (url, init) => {
   if (prompt.includes('tool-invalid-args')) {
     return streamResponse(sse([
       { choices: [{ delta: { tool_calls: [{ id: 'call_bad', type: 'function', function: { name: 'lookup', arguments: '{"name":' } }] }, finish_reason: 'tool_calls' }] },
+      '[DONE]',
+    ]));
+  }
+  if (prompt.includes('tool-output-truncated')) {
+    return streamResponse(sse([
+      { choices: [{ delta: { tool_calls: [{ id: 'call_truncated', type: 'function', function: { name: 'propose_story_card_create', arguments: '{"name":"partial"}' } }] }, finish_reason: 'length' }] },
       '[DONE]',
     ]));
   }
@@ -430,6 +443,9 @@ async function configure(service, profile) {
   const streamed = await window.UltrascriptsAIExecutor.chat(chatArgs('stream text'), { onDelta: delta => deltas.push(delta.text) });
   assert.equal(streamed.text, 'Hello world');
   assert.deepEqual(deltas, ['Hello ', 'world']);
+  const outputLength = await window.UltrascriptsAIExecutor.query({ prompt: 'output-length' });
+  assert.equal(outputLength.meta.finishReason, 'length');
+  assert.equal(outputLength.meta.outputTruncated, true);
 
   const tools = [
     { name: 'read_card', description: 'Read one card.', parameters: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
@@ -469,6 +485,10 @@ async function configure(service, profile) {
       && error.retryable === false
       && /malformed tool call/.test(error.message),
   );
+  const truncated = await window.UltrascriptsAIExecutor.chat(chatArgs('tool-output-truncated', { tools }));
+  assert.equal(truncated.meta.finishReason, 'length');
+  assert.equal(truncated.meta.outputTruncated, true);
+  assert.equal(truncated.toolCalls[0].name, 'propose_story_card_create');
 
   await configure('openrouter', { model: 'router-model' });
   await assert.rejects(() => window.UltrascriptsAIExecutor.chat(chatArgs('wrong service', {

@@ -197,9 +197,10 @@ async function testDynamicAllocator() {
     data: { adventure: current, state: current.state, storyCards: cards, actions },
     error: null,
   }, null, []);
-  const small = await new window.NavigatorContext('demo').build({ maxChars: 20000 });
-  assert.ok(small.systemInstruction.length <= 20000);
-  assert.match(small.systemInstruction, /MEMORY BANK/);
+  // Primer VERSION 5 adds enough ledger text to require this headroom.
+  const small = await new window.NavigatorContext('demo').build({ maxChars: 22000 });
+  assert.ok(small.systemInstruction.length <= 22000);
+  assert.match(small.systemInstruction, /MEMORY BANK\n/);
   assert.match(small.systemInstruction, /returned \d+ of 15 entries/);
   assert.match(small.systemInstruction, /Memory 1:/);
   assert.doesNotMatch(small.systemInstruction, /__typename|actionIds/);
@@ -390,6 +391,19 @@ async function testProposalResultFloor() {
   assert.equal(executed.results[1].result.data.proposalId, 'proposal-1');
   assert.equal(owner.proposals.length, 1);
   assert.ok(executed.charsUsed > 0);
+  const truncatedOwner = { proposals: [] };
+  const truncated = await proto.executeToolCalls.call({
+    ...runner,
+    tools: { execute: async () => ({ ok: true, data: 'read' }) },
+    registerProposal: (_messageId, proposal) => truncatedOwner.proposals.push(proposal),
+  }, [
+    { id: 'read-truncated', name: 'get_story_card', arguments: {} },
+    { id: 'proposal-truncated', name: 'propose_story_card_create', arguments: {} },
+  ], new AbortController().signal, 40000, 'message-1', {}, null, 1, { rejectMutations: true });
+  assert.equal(truncated.results[0].result.ok, true);
+  assert.equal(truncated.results[1].isError, true);
+  assert.equal(truncated.results[1].result.error.code, 'output_truncated');
+  assert.equal(truncatedOwner.proposals.length, 0);
   const exhaustedOwner = { proposals: [] };
   const exhausted = await proto.executeToolCalls.call({
     ...runner,

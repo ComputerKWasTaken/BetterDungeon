@@ -722,7 +722,8 @@
       messageId,
       snapshot = this.contextSnapshot,
       memo = null,
-      round = 0
+      round = 0,
+      options = {}
     ) {
       if (!this.tools) {
         throw {
@@ -774,6 +775,12 @@
           };
         } else try {
           if (isMutation) {
+            if (options.rejectMutations) {
+              throw {
+                code: 'output_truncated',
+                message: 'The provider cut off its output at the token limit; this change was not staged.',
+              };
+            }
             if (this.readOnly) throw { code: 'read_only', message: 'Navigator Read-only mode is enabled.' };
             if (!this.mutations) throw { code: 'unavailable', message: 'Navigator mutation proposals are not loaded.' };
             const proposal = this.mutations.createProposal(call.name, call.arguments, {
@@ -1158,10 +1165,23 @@
             message.toolActivity = null;
             this.emit('update', message);
           }
-          finalMeta = result?.meta || finalMeta;
+          finalMeta = { ...(finalMeta || {}), ...(result?.meta || {}) };
+          const outputTruncated = result?.meta?.outputTruncated === true;
 
           const calls = Array.isArray(result?.toolCalls) ? result.toolCalls : [];
-          if (!calls.length) break;
+          if (!calls.length) {
+            if (outputTruncated) {
+              this.updateMessage(assistant.id, {
+                content: `${this.findMessage(assistant.id)?.content || ''}\n\n[Navigator reached the provider output token limit before completing its response.]`,
+              });
+            }
+            break;
+          }
+          if (outputTruncated && calls.some(call => this.isMutationTool(call.name))) {
+            this.updateMessage(assistant.id, {
+              content: `${this.findMessage(assistant.id)?.content || ''}\n\n[Navigator did not stage a change because the provider reached its output token limit.]`,
+            });
+          }
           const roundLimit = this.effectiveSettings.toolRounds || MAX_TOOL_ROUNDS;
           if (toolRounds >= roundLimit) {
             toolLimitReached = true;
@@ -1187,7 +1207,8 @@
             assistant.id,
             request.snapshot,
             toolMemo,
-            toolRounds
+            toolRounds,
+            { rejectMutations: outputTruncated }
           );
           toolResults = executed.results;
           completedReadToolNames.push(...executed.results
@@ -1324,6 +1345,8 @@
           return { code, message: 'Stopped.' };
         case 'invalid_args':
           return { code, message: 'Navigator could not send this turn because it exceeded the provider limits. Try shortening the request.' };
+        case 'output_truncated':
+          return { code, message: error?.message || 'The provider cut off its output at the token limit; this change was not staged.' };
         case 'extension_context_invalid':
           return { code, message: 'Navigator lost access to the extension page. Reload the adventure and try again.' };
         default:

@@ -117,6 +117,8 @@
       thinking: raw.thinking,
       usage: raw.usage,
       fallback: raw.fallback,
+      finishReason: raw.finishReason,
+      outputTruncated: raw.outputTruncated,
       text: raw.text,
       json: raw.json,
       toolCalls: raw.toolCalls,
