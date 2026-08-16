@@ -30,18 +30,6 @@
   const THINKING_LEVEL_STORAGE_KEY = 'betterDungeon_navigator_thinking_level';
   const THINKING_LEVELS = ['minimal', 'low', 'medium', 'high'];
   const TOOL_DROP_GUIDANCE = 'Tool access was reduced for this turn because the provider input budget was nearly exhausted. Do not attempt lookups that are not represented by the tools below.';
-  const TOOL_DROP_NOTE = {
-    callId: 'navigator-tools-dropped',
-    name: 'navigator_context',
-    isError: true,
-    result: {
-      ok: false,
-      error: {
-        code: 'context_budget_tools_dropped',
-        message: TOOL_DROP_GUIDANCE,
-      },
-    },
-  };
   const READ_ONLY_GUIDANCE = [
     '',
     '=== NAVIGATOR READ-ONLY MODE ===',
@@ -463,21 +451,21 @@
       return definitions;
     }
 
-    getTurnAllowances(maxInputChars, toolsOffered, proposalsOffered = false) {
+    getTurnAllowances(maxInputChars, toolsOffered) {
       const ledger = Math.max(0, Number.isFinite(maxInputChars) ? maxInputChars : MAX_INPUT_CHARS);
-      const historyAllowance = Math.max(
+      const historyDemand = Math.max(
         MAX_HISTORY_CHARS,
         Math.floor(ledger * HISTORY_LEDGER_SHARE)
       );
-      const toolResultAllowance = toolsOffered
+      const toolDemand = toolsOffered
         ? Math.max(MAX_TOOL_RESULT_CHARS_PER_TURN, Math.floor(ledger * TOOL_RESULT_LEDGER_SHARE))
         : 0;
+      const reserveCeiling = Math.floor(ledger * 0.4);
+      const demand = historyDemand + toolDemand;
+      const scale = demand > reserveCeiling && demand > 0 ? reserveCeiling / demand : 1;
       return {
-        historyAllowance: Math.min(ledger, historyAllowance),
-        toolResultAllowance: Math.min(
-          ledger,
-          toolResultAllowance + (proposalsOffered ? PROPOSAL_RESULT_FLOOR_CHARS : 0)
-        ),
+        historyAllowance: Math.max(0, Math.floor(historyDemand * scale)),
+        toolResultAllowance: Math.max(0, Math.floor(toolDemand * scale)),
       };
     }
 
@@ -538,6 +526,7 @@
       for (let index = 0; index < calls.length; index++) {
         const call = calls[index];
         const isMutation = this.isMutationTool(call.name);
+        let proposalToRegister = null;
         if (signal.aborted) {
           throw { code: 'aborted', message: 'Navigator tool execution was stopped.', retryable: false };
         }
@@ -549,7 +538,7 @@
             const proposal = this.mutations.createProposal(call.name, call.arguments, {
               index: snapshot?.index || null,
             });
-            this.registerProposal(messageId, proposal);
+            proposalToRegister = proposal;
             envelope = {
               callId: call.id,
               name: call.name,
@@ -592,13 +581,14 @@
         const available = Math.max(0, remainingChars - charsUsed - (isMutation ? 0 : proposalReserve));
         const reserve = TOOL_ERROR_RESERVE_CHARS * (calls.length - index);
         let serializedChars = JSON.stringify(envelope).length;
-        if (serializedChars > Math.max(0, available - reserve)) {
+        if (!isMutation && serializedChars > Math.max(0, available - reserve)) {
           envelope = budgetError(call);
           serializedChars = JSON.stringify(envelope).length;
         }
         if (serializedChars > available) {
           if (pendingProposal && !isMutation) {
             results.push(envelope);
+            charsUsed += serializedChars;
             continue;
           }
           return {
@@ -609,6 +599,7 @@
           };
         }
 
+        if (proposalToRegister) this.registerProposal(messageId, proposalToRegister);
         results.push(envelope);
         charsUsed += serializedChars;
         if (!envelope.isError) console.log(`[Navigator] ${isMutation ? 'Proposal' : 'Read tool'} executed:`, call.name);
@@ -762,8 +753,7 @@
         const toolChars = JSON.stringify(turnTools).length;
         const turnAllowances = this.getTurnAllowances(
           turnLimits.maxInputChars,
-          turnTools.length > 0,
-          turnTools.some(tool => this.isMutationTool(tool.name))
+          turnTools.length > 0
         );
         const snapshotMaxChars = Math.max(
           SNAPSHOT_MIN_CHARS,
@@ -834,8 +824,6 @@
             if (reduced.length !== tools.length) {
               tools = reduced;
               toolsDropped = true;
-              toolResults = toolResults.filter(item => item.callId !== TOOL_DROP_NOTE.callId);
-              toolResults.push({ ...TOOL_DROP_NOTE });
               rebuildToolInstruction();
               projected = request.systemInstruction.length
                 + request.messages.reduce((sum, item) => sum + item.content.length, 0)
@@ -846,8 +834,6 @@
             if (projected > request.limits.maxInputChars && tools.length) {
               tools = [];
               toolsDropped = true;
-              toolResults = toolResults.filter(item => item.callId !== TOOL_DROP_NOTE.callId);
-              toolResults.push({ ...TOOL_DROP_NOTE });
               rebuildToolInstruction();
             }
           }
