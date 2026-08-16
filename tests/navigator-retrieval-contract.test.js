@@ -69,6 +69,8 @@ async function testHistoryAndMemoryRetrieval() {
   };
   const clipped = await tools.execute('get_story_actions', { fromIndex: 10, count: 20, direction: 'around' }, { index: longIndex });
   assert.equal(clipped.data.clippedByChars, true);
+  assert.ok(clipped.data.actions.every(action => action.text.length < 1300));
+  assert.ok(clipped.data.actions.some(action => action.textTruncated));
   await expectCode(tools.execute('get_story_actions', { count: 2 }, { index }), 'invalid_tool_args');
   await expectCode(tools.execute('get_story_actions', { actionId: '1', fromIndex: 1 }, { index }), 'invalid_tool_args');
 
@@ -91,6 +93,19 @@ async function testCardRankingAndTruncation() {
   const memory = await tools.execute('get_memory', { index: 0 }, { index: longIndex });
   assert.equal(memory.data.truncated, true);
   assert.ok(memory.data.text.length <= 4000);
+  const oversizedCards = {
+    ...index,
+    cards: Array.from({ length: 10 }, (_, cardIndex) => ({
+      id: `large-${cardIndex}`,
+      type: 'lore',
+      title: `${'large title '.repeat(500)} ${cardIndex}`,
+      value: 'entry',
+    })),
+  };
+  const oversizedSearch = await tools.execute('search_story_cards', { query: 'large', limit: 10 }, { index: oversizedCards });
+  assert.equal(oversizedSearch.truncated, true);
+  assert.ok(oversizedSearch.data.cards.length > 0);
+  assert.ok(oversizedSearch.data.omittedRecords > 0 || oversizedSearch.data.cards[0].title.length < oversizedCards.cards[0].title.length);
   await expectCode(tools.execute('get_memory', { index: 0, bad: true }, { index }), 'invalid_tool_args');
 }
 
@@ -113,6 +128,37 @@ async function testPerTurnDeduplication() {
   assert.equal(first.results[0].result.ok, true);
   assert.equal(second.results[0].result.error.code, 'tool_already_read');
   assert.match(second.results[0].result.error.message, /round 1/);
+
+  session.mutations = {
+    createProposal: () => ({ id: 'proposal-1', status: 'pending' }),
+  };
+  session.readOnly = false;
+  session.registerProposal = () => {};
+  const proposalCalls = [{ id: 'proposal-call', name: 'propose_story_card_create', arguments: { title: 'New card' } }];
+  const proposalFirst = await session.executeToolCalls(proposalCalls, new AbortController().signal, 4000, 'message', snapshot, memo, 3);
+  const proposalSecond = await session.executeToolCalls(proposalCalls, new AbortController().signal, 4000, 'message', snapshot, memo, 4);
+  assert.equal(proposalFirst.results[0].result.ok, true);
+  assert.equal(proposalSecond.results[0].result.ok, true);
+  const failedFirst = await session.executeToolCalls(
+    [{ id: 'failed-1', name: 'missing_tool', arguments: {} }],
+    new AbortController().signal,
+    4000,
+    'message',
+    snapshot,
+    memo,
+    5
+  );
+  const failedSecond = await session.executeToolCalls(
+    [{ id: 'failed-2', name: 'missing_tool', arguments: {} }],
+    new AbortController().signal,
+    4000,
+    'message',
+    snapshot,
+    memo,
+    6
+  );
+  assert.equal(failedFirst.results[0].result.error.code, 'unknown_tool');
+  assert.equal(failedSecond.results[0].result.error.code, 'unknown_tool');
 }
 
 async function run() {

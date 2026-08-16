@@ -237,9 +237,10 @@
 
     async loadReadOnlyMode() {
       if (!isExtensionContextValid()) {
-        return this.setReadOnlyMode(true);
+        this.readOnly = true;
+        return;
       }
-      const readOnly = await new Promise(resolve => {
+      this.readOnly = await new Promise(resolve => {
         let settled = false;
         const finish = value => {
           if (settled) return;
@@ -264,7 +265,7 @@
           finish(true);
         }
       });
-      return this.setReadOnlyMode(readOnly);
+      this.emit('permissions', { readOnly: this.readOnly });
     }
 
     async loadThinkingLevel() {
@@ -286,20 +287,15 @@
       });
     }
 
-    setReadOnlyMode(enabled) {
-      this.readOnly = enabled === true;
-      const state = this.getPermissionState();
-      this.emit('permissions', state);
-      return state;
-    }
-
     onStorageChange(changes, areaName) {
-      if (areaName === 'sync' && changes?.[THINKING_LEVEL_STORAGE_KEY]) {
+      if (areaName !== 'sync') return;
+      if (changes?.[READ_ONLY_STORAGE_KEY]) {
+        this.readOnly = changes[READ_ONLY_STORAGE_KEY].newValue === true;
+        this.emit('permissions', { readOnly: this.readOnly });
+      }
+      if (changes?.[THINKING_LEVEL_STORAGE_KEY]) {
         const value = changes[THINKING_LEVEL_STORAGE_KEY].newValue;
         this.thinkingLevel = THINKING_LEVELS.includes(value) ? value : 'low';
-      }
-      if (areaName === 'sync' && changes?.[READ_ONLY_STORAGE_KEY]) {
-        this.setReadOnlyMode(changes[READ_ONLY_STORAGE_KEY].newValue);
       }
     }
 
@@ -497,7 +493,8 @@
           throw { code: 'aborted', message: 'Navigator tool execution was stopped.', retryable: false };
         }
         const memoKey = `${call.name}:${JSON.stringify(canonicalize(call.arguments || {}))}`;
-        const previous = memo?.get(memoKey);
+        const memoize = !!memo && !isMutation;
+        const previous = memoize ? memo.get(memoKey) : null;
         let envelope;
         if (previous) {
           envelope = {
@@ -555,7 +552,9 @@
           };
           console.warn('[Navigator] Tool failed:', call.name, error?.code || error?.message || error);
         }
-        if (!previous && memo) memo.set(memoKey, { round });
+        if (!previous && memoize && !envelope.isError && envelope.result?.ok !== false) {
+          memo.set(memoKey, { round });
+        }
 
         const available = isMutation ? Number.MAX_SAFE_INTEGER : Math.max(0, remainingChars - charsUsed);
         const reserve = isMutation ? 0 : TOOL_ERROR_RESERVE_CHARS * (calls.length - index);

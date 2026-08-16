@@ -225,18 +225,53 @@
   }
 
   function boundedResult(value, maxChars) {
-    if (JSON.stringify(value).length <= maxChars) return value;
-    return {
-      ok: true,
-      tool: value.tool,
-      capturedAtIso: value.capturedAtIso,
-      truncated: true,
-      data: {
-        truncated: true,
-        sourceChars: JSON.stringify(value).length,
-        message: 'Navigator shortened this result to fit the per-result budget.',
-      },
+    const sourceChars = JSON.stringify(value).length;
+    if (sourceChars <= maxChars) return value;
+    const result = cloneJson(value);
+    const data = result.data || {};
+    const listKeys = ['actions', 'cards', 'memories'];
+    let omittedRecords = 0;
+    for (const key of listKeys) {
+      if (!Array.isArray(data[key])) continue;
+      while (data[key].length > 1 && JSON.stringify(result).length > maxChars) {
+        data[key].pop();
+        omittedRecords += 1;
+      }
+      if (omittedRecords) {
+        data.omittedRecords = omittedRecords;
+        if (typeof data.returned === 'number') data.returned = data[key].length;
+        if (typeof data.omitted === 'number') data.omitted += omittedRecords;
+      }
+    }
+    const clipLargestString = () => {
+      let largest = null;
+      const visit = (node, parent, key) => {
+        if (typeof node === 'string' && (!largest || node.length > largest.value.length)) {
+          largest = { parent, key, value: node };
+          return;
+        }
+        if (Array.isArray(node)) node.forEach((item, index) => visit(item, node, index));
+        else if (node && typeof node === 'object') {
+          Object.entries(node).forEach(([childKey, child]) => visit(child, node, childKey));
+        }
+      };
+      visit(result);
+      if (!largest || largest.value.length < 16) return false;
+      const nextLength = Math.max(8, Math.floor(largest.value.length * 0.7));
+      largest.parent[largest.key] = `${largest.value.slice(0, nextLength - 12)}\n[truncated]`;
+      return true;
     };
+    while (JSON.stringify(result).length > maxChars && clipLargestString()) {}
+    result.truncated = true;
+    result.sourceChars = sourceChars;
+    result.data = {
+      ...data,
+      truncated: true,
+      omittedRecords,
+      message: 'Navigator returned a clipped result; use narrower retrieval arguments for omitted content.',
+    };
+    while (JSON.stringify(result).length > maxChars && clipLargestString()) {}
+    return result;
   }
 
   function normalizeTriggers(card) {
@@ -291,7 +326,7 @@
       card: {
         id: card.id,
         type: card.type,
-          title: card.title,
+        title: card.title,
         description: boundedText(card.notes, 800).text,
         keys: boundedText(card.keys, 800).text,
         triggers: card.triggers.slice(0, 20),
@@ -327,7 +362,10 @@
     const records = [];
     let used = 0;
     for (const match of ranked.slice(0, limit)) {
-      const field = match.hits[0];
+      const field = match.hits.slice().sort((left, right) => (
+        (left === 'title' || left === 'triggers' ? 4 : left === 'type' ? 3 : left === 'entry' ? 2 : 1) -
+        (right === 'title' || right === 'triggers' ? 4 : right === 'type' ? 3 : right === 'entry' ? 2 : 1)
+      ))[0];
       const preview = matchPreview(cardField(match.card, field), query, MAX_SEARCH_PREVIEW_CHARS);
       const record = {
         id: match.card.id,
@@ -434,12 +472,23 @@
     const actionBudget = MAX_ACTION_WINDOW_CHARS - 700;
     for (const actionIndex of valid) {
       const action = actions[actionIndex];
-      const serialized = JSON.stringify(action).length;
+      const remaining = Math.max(80, actionBudget - used - 180);
+      const clippedText = boundedText(action.text, remaining);
+      const selectedAction = {
+        index: actionIndex,
+        id: String(action.id),
+        type: action.type || null,
+        text: clippedText.text,
+        textSourceChars: clippedText.sourceChars,
+        textTruncated: clippedText.truncated,
+      };
+      const serialized = JSON.stringify(selectedAction).length;
       if (selected.length && used + serialized > actionBudget) {
         clippedByChars = true;
         break;
       }
-      selected.push({ index: actionIndex, id: String(action.id), type: action.type || null, text: action.text });
+      if (clippedText.truncated) clippedByChars = true;
+      selected.push(selectedAction);
       used += serialized;
     }
     return {
@@ -462,9 +511,9 @@
     if (!query) throw { code: 'invalid_tool_args', message: 'query must be a non-empty string. Accepted keys: query, limit.' };
     const limit = integerArg(args.limit, 5, 1, MAX_SEARCH_LIMIT, 'limit');
     const memories = currentMemories(index);
-    const matches = memories.map((memory, index) => {
+    const matches = memories.map((memory, memoryIndex) => {
       const count = text(memory.text).toLowerCase().split(query).length - 1;
-      return count ? { memory, index, count } : null;
+      return count ? { memory, index: memoryIndex, count } : null;
     }).filter(Boolean);
     return {
       source: index.source || 'unknown',
@@ -479,8 +528,9 @@
   }
 
   function getMemory(shortId, args, index) {
-    const memoryIndex = integerArg(args.index, 0, 0, Math.max(0, currentMemories(index).length - 1), 'index');
-    const memory = currentMemories(index)[memoryIndex];
+    const memories = currentMemories(index);
+    const memoryIndex = integerArg(args.index, 0, 0, Math.max(0, memories.length - 1), 'index');
+    const memory = memories[memoryIndex];
     if (!memory) throw { code: 'not_found', message: 'No Memory Bank entry matched that index.' };
     const result = boundedText(memory.text, MAX_MEMORY_CHARS);
     return {
