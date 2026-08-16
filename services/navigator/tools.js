@@ -256,9 +256,13 @@
         }
       };
       visit(result);
-      if (!largest || largest.value.length < 16) return false;
-      const nextLength = Math.max(8, Math.floor(largest.value.length * 0.7));
-      largest.parent[largest.key] = `${largest.value.slice(0, nextLength - 12)}\n[truncated]`;
+      const suffix = '\n[truncated]';
+      if (!largest || largest.value.length <= suffix.length + 8) return false;
+      const nextLength = Math.max(
+        suffix.length + 8,
+        Math.min(largest.value.length - 1, Math.floor(largest.value.length * 0.7))
+      );
+      largest.parent[largest.key] = `${largest.value.slice(0, nextLength - suffix.length)}${suffix}`;
       return true;
     };
     while (JSON.stringify(result).length > maxChars && clipLargestString()) {}
