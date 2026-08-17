@@ -287,7 +287,7 @@ function initToggles() {
     const thinkingSelect = document.getElementById('navigator-thinking-level');
     if (thinkingSelect) thinkingSelect.value = thinking;
     const cap = document.getElementById('navigator-context-cap');
-    if (cap) cap.value = Number.isSafeInteger(defaults.contextCap) ? defaults.contextCap : 128000;
+    if (cap) cap.value = Number.isSafeInteger(defaults.contextCap) ? defaults.contextCap : Number(cap.placeholder);
     const memory = document.getElementById('navigator-memory-bank');
     if (memory) memory.checked = defaults.includeMemoryBank !== false;
     const history = document.getElementById('navigator-history-mode');
@@ -316,12 +316,14 @@ function initToggles() {
     const capInput = document.getElementById('navigator-context-cap');
     const capRaw = (capInput?.value || '').trim();
     const capValue = capRaw ? Number(capRaw) : null;
-    if (capInput && Number.isSafeInteger(capValue) && capValue > 0 && capValue < 4000) capInput.value = '4000';
+    const contextCapFloor = Number(capInput?.min);
+    const contextCapDefault = Number(capInput?.placeholder);
+    if (capInput && Number.isSafeInteger(capValue) && capValue > 0 && capValue < contextCapFloor) capInput.value = String(contextCapFloor);
     const includeMemoryBank = document.getElementById('navigator-memory-bank')?.checked !== false;
     const historyMode = document.getElementById('navigator-history-mode')?.value === 'floor' ? 'floor' : 'full';
     const defaults = {
       thinkingLevel: thinking,
-      contextCap: Number.isSafeInteger(capValue) && capValue > 0 ? Math.max(4000, capValue) : 128000,
+      contextCap: Number.isSafeInteger(capValue) && capValue > 0 ? Math.max(contextCapFloor, capValue) : contextCapDefault,
       includeMemoryBank,
       historyMode,
     };

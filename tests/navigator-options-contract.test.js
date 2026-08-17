@@ -102,6 +102,7 @@ async function run() {
   assert.equal(reloadedSettings.effectiveInputChars, undefined, 'settings no longer reports a provider-derived ledger');
   assert.equal(window.NavigatorSession.CHARS_PER_TOKEN, 3);
   assert.equal(window.NavigatorSession.DEFAULT_CONTEXT_CAP_TOKENS, 128000);
+  assert.equal(window.NavigatorSession.MIN_CONTEXT_CAP_TOKENS, 4000);
   assert.equal(session.normalizeSettings({ contextCap: null }).contextCap, 128000, 'default context cap is 128000 input tokens');
   assert.equal(session.normalizeSettings({ contextCap: 50000 }).contextCap * window.NavigatorSession.CHARS_PER_TOKEN, 150000, 'input ledger derives solely from cap tokens');
   assert.match(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'), /maxInputChars: \(/);
@@ -240,7 +241,11 @@ async function run() {
   assert.match(featureSource, /isApolloPreviewRetryable/);
   assert.match(featureSource, /this\.session !== session \|\| session\.isBusy/);
   assert.doesNotMatch(featureSource, /bd-navigator-settings-note|bd-navigator-cost|toolRounds|peak input characters|tokens, estimate/);
+  assert.match(featureSource, /clearAdventureSetting\('contextCap'\)/);
+  assert.match(featureSource, /clearAdventureSetting\('contextCap'\)[\s\S]*renderNavigatorSettings\(\)/);
+  assert.doesNotMatch(featureSource, /\b4000\b|\b128000\b/);
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'popup.js'), 'utf8'), /navigator-tool-rounds|toolRounds/);
+  assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'popup.js'), 'utf8'), /\b4000\b|\b128000\b/);
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'popup.html'), 'utf8'), /navigator-tool-rounds|characters\)/);
   console.log('Navigator options contract tests passed');
 }
