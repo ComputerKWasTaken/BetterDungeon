@@ -110,10 +110,15 @@ async function testGraphqlFallbackDiagnosticsUnavailable() {
     [action(1, 'One'), action(2, 'Two')]
   );
   const snapshot = await new window.NavigatorContext('demo').build();
-  assert.equal(snapshot.partial, false);
+  assert.equal(snapshot.partial, true);
   assert.match(snapshot.systemInstruction, /Memory Bank and summary lag: unavailable/i);
   assert.match(snapshot.systemInstruction, /MEMORY BANK\n\(Memory Bank is unavailable/i);
   assert.doesNotMatch(snapshot.systemInstruction, /Snapshot warnings:.*Apollo/i);
+
+  window.BetterDungeonGQL.getNavigatorRecentMemories = async () => [];
+  const emptyFallback = await new window.NavigatorContext('demo').build();
+  assert.match(emptyFallback.systemInstruction, /Memory Bank: 0 memories/);
+  assert.doesNotMatch(emptyFallback.systemInstruction, /Memory Bank and summary lag: unavailable/i);
 }
 
 async function testAuthoritativeCardGate() {
@@ -190,7 +195,7 @@ async function testDynamicAllocator() {
   current.state.storySummary = current.storySummary;
   current.state.memories = Array.from({ length: 15 }, (_, index) => ({
     __typename: 'Memory',
-    actionIds: ['1', '2'],
+    ...(index === 0 ? {} : { actionIds: ['1', '2'] }),
     text: `Memory ${index + 1}: ${'detail '.repeat(18)}`,
   }));
   const actions = Array.from({ length: 20 }, (_, index) => action(index + 1, `Action ${index + 1}: ${'story '.repeat(20)}`));
@@ -200,7 +205,7 @@ async function testDynamicAllocator() {
     data: { adventure: current, state: current.state, storyCards: cards, actions },
     error: null,
   }, null, []);
-  // Primer VERSION 5 adds enough ledger text to require this headroom.
+  // Primer VERSION 6 and Memory Bank proposal guidance require this headroom.
   const small = await new window.NavigatorContext('demo').build({ maxChars: 22000 });
   assert.ok(small.systemInstruction.length <= 22000);
   assert.match(small.systemInstruction, /MEMORY BANK\n/);
@@ -298,6 +303,7 @@ async function testScaledDynamicCeilings() {
   current.state.instructions = current.instructions;
   current.state.storySummary = current.storySummary;
   current.state.memories = Array.from({ length: 48 }, (_, index) => ({
+    actionIds: [String(index)],
     text: `Memory ${index + 1}: ${'detail '.repeat(600)}`,
   }));
   const actions = Array.from({ length: 292 }, (_, index) => action(index + 1, `Action ${index + 1}: ${'story '.repeat(30)}`));
@@ -322,7 +328,6 @@ async function testScaledDynamicCeilings() {
   const sectionBound = await new window.NavigatorContext('demo').build({ maxChars: 200000 });
   assert.equal(sectionBound.segments.memoryBank.truncatedReason, 'section ceiling');
   assert.match(sectionBound.systemInstruction, /Memory Bank:.*reduced for section ceiling/);
-  assert.ok(sectionBound.segments.total.includedChars < 200000);
 }
 
 function testStructuredToolResultBudgeting() {

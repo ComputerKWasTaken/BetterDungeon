@@ -568,7 +568,11 @@
       const adventure = { ...adventureSnapshot.identity, ...adventureSnapshot.plot };
       const actions = adventureSnapshot.actions || [];
       const cards = adventureSnapshot.storyCards || [];
+      const memoryRead = reader.readMemories
+        ? await reader.readMemories({ shortId: resolvedShortId, signal })
+        : { memories: adventureSnapshot.state?.memories ?? null, provenance: { source: adventureSnapshot.provenance?.state?.memories || 'unavailable' }, degradations: [] };
       const provenance = adventureSnapshot.provenance || { plot: {}, actions: { source: 'unknown' }, storyCards: { source: 'unknown' } };
+      if (memoryRead.provenance) provenance.memoryBank = memoryRead.provenance;
       const readerCardSource = provenance.storyCards.source || 'unavailable';
       const cardSource = readerCardSource === 'storyCardCache' || readerCardSource === 'ws' ? 'cache' : readerCardSource;
       const primer = stringValue(window.NavigatorPrimer?.TEXT);
@@ -581,7 +585,7 @@
         `Action count: ${Number.isFinite(adventure?.actionCount) ? adventure.actionCount : '(unknown)'}`,
         `Third-person mode: ${typeof adventure?.thirdPerson === 'boolean' ? (adventure.thirdPerson ? 'enabled' : 'disabled') : 'unavailable'}`,
       ].join('\n'), BUDGETS.identity);
-      const memoryBank = Array.isArray(adventureSnapshot.state?.memories) ? adventureSnapshot.state.memories : null;
+      const memoryBank = Array.isArray(memoryRead.memories) ? memoryRead.memories : null;
       const displayMemoryBank = includeMemoryBank ? memoryBank : (memoryBank === null ? null : []);
       const displayActions = historyMode === 'floor' ? actions.slice(-BUDGETS.historyFloorActions) : actions;
       const memoryBankChars = memoryBank
@@ -595,6 +599,9 @@
       const warnings = [];
       if (adventureSnapshot.historyIncomplete) warnings.push('The complete story history is not available to Navigator; only the listed actions can be used.');
       for (const degradation of adventureSnapshot.degradations || []) {
+        if (degradation.userVisible) warnings.push(`${degradation.section} data degraded: ${degradation.message}`);
+      }
+      for (const degradation of memoryRead.degradations || []) {
         if (degradation.userVisible) warnings.push(`${degradation.section} data degraded: ${degradation.message}`);
       }
 
@@ -879,6 +886,7 @@
             ? null
             : memoryBank.map((entry, index) => ({
               index,
+              ...(entry.id ? { id: entry.id } : {}),
               text: memoryText(entry),
             })),
           provenance,

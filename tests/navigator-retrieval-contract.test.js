@@ -37,8 +37,8 @@ function indexFixture() {
       { id: '3', type: 'story', text: 'The gate opened.' },
     ],
     memories: [
-      { index: 0, text: 'The party seeks the silver key.' },
-      { index: 1, text: 'The dragon guards the sealed gate.' },
+      { index: 0, id: 'memory-0', text: 'The party seeks the silver key.' },
+      { index: 1, id: 'memory-1', text: 'The dragon guards the sealed gate.' },
     ],
   };
 }
@@ -76,9 +76,13 @@ async function testHistoryAndMemoryRetrieval() {
 
   const memories = await tools.execute('search_memory_bank', { query: 'gate', limit: 1 }, { index });
   assert.equal(memories.data.totalMatches, 1);
+  assert.equal(memories.data.memories[0].id, 'memory-1');
   assert.equal(memories.data.memories[0].index, 1);
   const memory = await tools.execute('get_memory', { index: 1 }, { index });
   assert.equal(memory.data.truncated, false);
+  const byId = await tools.execute('get_memory', { id: 'memory-1' }, { index });
+  assert.equal(byId.data.index, 1);
+  await expectCode(tools.execute('get_memory', {}, { index }), 'invalid_tool_args');
   await expectCode(tools.execute('search_memory_bank', { query: 'gate', extra: true }, { index }), 'invalid_tool_args');
 }
 
@@ -89,7 +93,7 @@ async function testCardRankingAndTruncation() {
   assert.deepEqual(ranked.data.cards.map(card => card.id), ['title-card', 'type-card', 'entry-card']);
   const filtered = await tools.execute('search_story_cards', { query: 'dragon', fields: ['notes'] }, { index });
   assert.deepEqual(filtered.data.cards.map(card => card.id), ['title-card', 'type-card']);
-  const longIndex = { ...index, memories: [{ index: 0, text: 'x'.repeat(5000) }] };
+  const longIndex = { ...index, memories: [{ index: 0, id: 'long-memory', text: 'x'.repeat(5000) }] };
   const memory = await tools.execute('get_memory', { index: 0 }, { index: longIndex });
   assert.equal(memory.data.truncated, true);
   assert.ok(memory.data.text.length <= 4000);

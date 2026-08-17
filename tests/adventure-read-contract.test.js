@@ -37,7 +37,7 @@ function card(id, title) {
   return { id: String(id), type: 'lore', title, keys: title.toLowerCase(), value: `${title} entry.` };
 }
 
-function configure({ apollo, adventure, cards, actions, wsCards, cachedCards } = {}) {
+function configure({ apollo, adventure, cards, actions, wsCards, cachedCards, recentMemories } = {}) {
   adventureContextReads = 0;
   window.BetterDungeonApolloCache = {
     readAdventure: async () => apollo || { available: true, data: { adventure, state: adventure?.state, storyCards: cards || [], actions: actions || [] }, error: null },
@@ -51,6 +51,7 @@ function configure({ apollo, adventure, cards, actions, wsCards, cachedCards } =
       storyCardReads++;
       return { id: adventure?.id, shortId: 'demo', storyCardCount: (cards || []).length, cards: cards || [] };
     },
+    getNavigatorRecentMemories: async () => recentMemories || [],
   };
   window.Ultrascripts = {
     ws: {
@@ -60,6 +61,32 @@ function configure({ apollo, adventure, cards, actions, wsCards, cachedCards } =
     },
   };
   window.storyCardCache = { getCardArray: () => cachedCards || [] };
+}
+
+async function testMemoryPostWriteBypass() {
+  const adventure = {
+    id: '42', shortId: 'demo', title: 'Memory writes', actionCount: 0,
+    state: { available: true, memories: [{ actionIds: ['49'], text: 'Before edit', lastRelevantActionId: '49' }] },
+  };
+  const recent = { value: [{ actionIds: ['49'], text: 'Before edit', lastRelevantActionId: '49' }] };
+  configure({ adventure, recentMemories: recent.value });
+  window.BetterDungeonGQL.getNavigatorRecentMemories = async () => recent.value;
+  const first = await window.BetterDungeonAdventureRead.readMemories({ shortId: 'demo' });
+  assert.equal(first.provenance.source, 'apollo');
+  assert.equal(first.memories[0].text, 'Before edit');
+
+  recent.value = [{ actionIds: ['49'], text: 'After edit', lastRelevantActionId: '49' }];
+  window.BetterDungeonAdventureRead.markMemoryWrite({ shortId: 'demo', operation: 'edit' });
+  const edited = await window.BetterDungeonAdventureRead.readMemories({ shortId: 'demo' });
+  assert.equal(edited.provenance.source, 'graphql');
+  assert.match(edited.provenance.fallback, /bypassed after verified Navigator memory write/);
+  assert.equal(edited.memories[0].text, 'After edit');
+
+  recent.value = [];
+  window.BetterDungeonAdventureRead.markMemoryWrite({ shortId: 'demo', operation: 'delete' });
+  const deleted = await window.BetterDungeonAdventureRead.readMemories({ shortId: 'demo' });
+  assert.equal(deleted.provenance.source, 'graphql');
+  assert.deepEqual(deleted.memories, []);
 }
 
 async function testApolloFirstAndMerge() {
@@ -272,6 +299,7 @@ async function main() {
   await testUnavailableProvenance();
   await testStoryCardFallbackChain();
   await testLatestActionRefreshCoordination();
+  await testMemoryPostWriteBypass();
   console.log('Adventure read contract tests passed');
 }
 

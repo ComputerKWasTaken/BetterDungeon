@@ -74,6 +74,10 @@
         }
       }`,
 
+      navigatorRecentMemories: `query NavigatorRecentMemories($shortId: String) {
+  recentMemories(shortId: $shortId)
+}`,
+
       scenarioStart: `query BetterDungeonScenarioStartViewGetScenario($shortId: String, $viewPublished: Boolean) {
         scenario(shortId: $shortId, viewPublished: $viewPublished) {
           id
@@ -233,6 +237,23 @@
           __typename
         }
       }`,
+
+      navigatorEditMemory: `mutation NavigatorEditMemory($input: EditMemoryInput!) {
+  editMemory(input: $input) {
+    code
+    success
+    message
+    memory
+  }
+}`,
+
+      navigatorDeleteMemory: `mutation NavigatorDeleteMemory($input: DeleteMemoryInput!) {
+  deleteMemory(input: $input) {
+    code
+    success
+    message
+  }
+}`,
     };
 
     log(...args) {
@@ -526,6 +547,22 @@
       };
     }
 
+    async getNavigatorRecentMemories(shortId = null, options = {}) {
+      const ws = this.getWs();
+      const resolvedShortId = shortId || ws?.getAdventureShortId?.() || this.getShortIdFromUrl();
+      if (!resolvedShortId) throw new Error('Adventure shortId is unknown. Open an adventure first.');
+      const result = await this.request(
+        'NavigatorRecentMemories',
+        { shortId: resolvedShortId },
+        BetterDungeonGQLService.QUERIES.navigatorRecentMemories,
+        options
+      );
+      if (result?.errors?.length) throw new Error(result.errors.map(error => error.message).join('; '));
+      const memories = result?.data?.recentMemories;
+      if (!Array.isArray(memories)) throw new Error(`Recent Memory Bank lookup returned no list for ${resolvedShortId}.`);
+      return memories;
+    }
+
     async updateNavigatorAdventurePlot(shortId, changes, options = {}) {
       const resolvedShortId = String(shortId || '').trim();
       if (!resolvedShortId) throw new Error('Navigator plot update requires an adventure shortId.');
@@ -622,6 +659,38 @@
       if (!response?.success || String(response.storyCard?.id || '') !== resolvedId) {
         throw new Error(response?.message || 'AI Dungeon rejected the Story Card deletion.');
       }
+      return response;
+    }
+
+    async editNavigatorMemory(shortId, actionId, text, options = {}) {
+      const resolvedShortId = String(shortId || '').trim();
+      const resolvedActionId = String(actionId || '').trim();
+      if (!resolvedShortId || !resolvedActionId) throw new Error('Navigator Memory Bank edit requires an adventure short ID and memory ID.');
+      const result = await this.request(
+        'NavigatorEditMemory',
+        { input: { adventureId: resolvedShortId, actionId: resolvedActionId, text: String(text ?? '') } },
+        BetterDungeonGQLService.MUTATIONS.navigatorEditMemory,
+        options
+      );
+      if (result?.errors?.length) throw new Error(result.errors.map(error => error.message).join('; '));
+      const response = result?.data?.editMemory;
+      if (!response?.success) throw new Error(response?.message || 'AI Dungeon rejected the Memory Bank edit.');
+      return response;
+    }
+
+    async deleteNavigatorMemory(shortId, actionId, options = {}) {
+      const resolvedShortId = String(shortId || '').trim();
+      const resolvedActionId = String(actionId || '').trim();
+      if (!resolvedShortId || !resolvedActionId) throw new Error('Navigator Memory Bank deletion requires an adventure short ID and memory ID.');
+      const result = await this.request(
+        'NavigatorDeleteMemory',
+        { input: { adventureId: resolvedShortId, actionId: resolvedActionId } },
+        BetterDungeonGQLService.MUTATIONS.navigatorDeleteMemory,
+        options
+      );
+      if (result?.errors?.length) throw new Error(result.errors.map(error => error.message).join('; '));
+      const response = result?.data?.deleteMemory;
+      if (!response?.success) throw new Error(response?.message || 'AI Dungeon rejected the Memory Bank deletion.');
       return response;
     }
 

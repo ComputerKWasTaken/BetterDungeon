@@ -1452,6 +1452,7 @@
           status: 'applied',
           error: null,
           appliedAtIso: result.appliedAtIso,
+          hydration: result.hydration || null,
           cardId: result.cardId || proposal.cardId || null,
           targetLabel: result.targetLabel || proposal.targetLabel,
           updatedAtDrift: result.updatedAtDrift || null,

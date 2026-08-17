@@ -37,7 +37,7 @@ function load(relativePath) {
 load('services/navigator/mutations.js');
 load('services/navigator/session.js');
 
-function proposal(status = 'pending') {
+function proposal(status = 'pending', overrides = {}) {
   return {
     id: 'proposal-1',
     kind: 'story_card_update',
@@ -51,6 +51,7 @@ function proposal(status = 'pending') {
     changes: [{ label: 'Value', before: 'x'.repeat(5000), after: 'y'.repeat(5000) }],
     irreversible: false,
     error: null,
+    ...overrides,
   };
 }
 
@@ -60,6 +61,14 @@ async function testPersistedProjectionAndRestore() {
   session.messages = [
     { id: 'message-1', role: 'assistant', status: 'complete', content: 'Proposal ready.', proposals: [proposal('pending')] },
     { id: 'message-2', role: 'assistant', status: 'complete', content: 'Already applied.', proposals: [proposal('applied')] },
+    { id: 'message-3', role: 'assistant', status: 'complete', content: 'Memory deletion ready.', proposals: [proposal('pending', {
+      id: 'memory-proposal',
+      kind: 'memory_delete',
+      targetLabel: 'Memory memory-1',
+      action: 'delete',
+      memoryId: 'memory-1',
+      irreversible: true,
+    })] },
   ];
   session.persist();
   const persisted = lastStored.betterDungeon_navigator_session_demo.messages;
@@ -77,9 +86,13 @@ async function testPersistedProjectionAndRestore() {
   await restored.load();
   assert.equal(restored.messages[0].proposals[0].status, 'expired');
   assert.equal(restored.messages[1].proposals[0].status, 'applied');
+  assert.equal(restored.messages[2].proposals[0].kind, 'memory_delete');
+  assert.equal(restored.messages[2].proposals[0].irreversible, true);
+  assert.equal(restored.messages[2].proposals[0].status, 'expired');
   assert.equal(restored.messages[0].proposals[0].restored, true);
   assert.equal(restored.rejectProposal('message-1', 'proposal-1'), false);
   assert.equal(await restored.applyProposal('message-1', 'proposal-1'), false);
+  assert.equal(await restored.applyProposal('message-3', 'memory-proposal'), false);
 }
 
 async function testMutationRejectsRestoredProposal() {
@@ -88,6 +101,32 @@ async function testMutationRejectsRestoredProposal() {
     mutations.apply({ ...proposal('applying'), restored: true }),
     error => error?.code === 'invalid_proposal'
   );
+}
+
+async function testAppliedHydrationIsRecorded() {
+  const session = new window.NavigatorSession('demo');
+  await session.settingsReady;
+  session.mutations = {
+    async apply() {
+      return {
+        appliedAtIso: '2026-08-10T12:00:00.000Z',
+        hydration: { attempted: false, ok: false, reason: 'Apollo cache does not hold Memory Bank state' },
+      };
+    },
+  };
+  session.messages = [{
+    id: 'message-hydration',
+    role: 'assistant',
+    status: 'complete',
+    content: 'Memory proposal.',
+    proposals: [proposal('pending', { id: 'hydration-proposal', kind: 'memory_update', action: 'modify' })],
+  }];
+  assert.equal(await session.applyProposal('message-hydration', 'hydration-proposal'), true);
+  assert.deepEqual(session.messages[0].proposals[0].hydration, {
+    attempted: false,
+    ok: false,
+    reason: 'Apollo cache does not hold Memory Bank state',
+  });
 }
 
 function card(updatedAt, title = 'Card') {
@@ -189,6 +228,7 @@ async function testCreateProposalDoesNotReadCards() {
 async function main() {
   await testPersistedProjectionAndRestore();
   await testMutationRejectsRestoredProposal();
+  await testAppliedHydrationIsRecorded();
   await testContentOnlyConflictAndDrift();
   await testDeleteDrift();
   await testCreateProposalDoesNotReadCards();
