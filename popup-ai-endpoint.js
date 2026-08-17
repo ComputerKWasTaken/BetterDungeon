@@ -6,6 +6,9 @@ const AI_ENDPOINT_URLS = Object.freeze({
   openrouter: 'https://openrouter.ai/api/v1',
 });
 const AI_ENDPOINT_DEFAULT_MODEL = 'gemini-3.5-flash-lite';
+const AI_INPUT_CAP_DEFAULT = 128000;
+const AI_INPUT_CAP_FLOOR = 4000;
+const AI_INPUT_CAP_PRESETS = Object.freeze([32000, 64000, 128000, 256000, 1000000]);
 
 let aiEndpointStatus = null;
 let aiEndpointLoaded = false;
@@ -141,6 +144,28 @@ function profileSnapshot(service) {
   return aiEndpointStatus?.config?.profiles?.[service] || {};
 }
 
+function renderInputCap(profile) {
+  const select = document.getElementById('ai-endpoint-max-input-tokens');
+  const custom = document.getElementById('ai-endpoint-max-input-custom');
+  if (!select || !custom) return;
+  const cap = Number(profile.maxInputTokens) > 0 ? Math.floor(Number(profile.maxInputTokens)) : AI_INPUT_CAP_DEFAULT;
+  const preset = AI_INPUT_CAP_PRESETS.includes(cap);
+  select.value = preset ? String(cap) : 'custom';
+  custom.hidden = preset;
+  if (!preset) custom.value = String(cap);
+}
+
+function commitCustomInputCap() {
+  const custom = document.getElementById('ai-endpoint-max-input-custom');
+  if (!custom || custom.hidden) return;
+  const value = Number(custom.value);
+  if (Number.isSafeInteger(value) && value >= AI_INPUT_CAP_FLOOR) {
+    custom.value = String(value);
+  } else if (Number.isSafeInteger(value) && value > 0) {
+    custom.value = String(AI_INPUT_CAP_FLOOR);
+  }
+}
+
 function renderEndpointProfile(service, options = {}) {
   const normalized = ['gemini', 'openrouter', 'custom'].includes(service) ? service : 'gemini';
   const profile = profileSnapshot(normalized);
@@ -149,8 +174,6 @@ function renderEndpointProfile(service, options = {}) {
   const key = document.getElementById('ai-endpoint-api-key');
   const modelMode = document.getElementById('ai-endpoint-model-mode');
   const model = document.getElementById('ai-endpoint-model');
-  const maxInput = document.getElementById('ai-endpoint-max-input-tokens');
-  const maxOutput = document.getElementById('ai-endpoint-max-output-tokens');
   const modeGroup = document.getElementById('ai-endpoint-model-mode-group');
   const modelGroup = document.getElementById('ai-endpoint-model-group');
   const optional = document.getElementById('ai-endpoint-key-optional');
@@ -172,8 +195,7 @@ function renderEndpointProfile(service, options = {}) {
     model.placeholder = normalized === 'gemini' ? AI_ENDPOINT_DEFAULT_MODEL : normalized === 'openrouter' ? 'openai/gpt-5-mini' : 'model-id';
   }
   if (modelGroup) modelGroup.style.display = normalized === 'gemini' && mode === 'auto' ? 'none' : '';
-  if (maxInput) maxInput.value = profile.maxInputTokens || '';
-  if (maxOutput) maxOutput.value = profile.maxOutputTokens || '';
+  renderInputCap(profile);
   if (optional) optional.textContent = normalized === 'custom' ? 'optional' : 'required';
   if (geminiHelp) geminiHelp.style.display = normalized === 'gemini' ? '' : 'none';
   setEndpointValidation();
@@ -199,18 +221,23 @@ function collectEndpointConfig({ clearKey = false } = {}) {
   const keyInput = document.getElementById('ai-endpoint-api-key');
   const modelInput = document.getElementById('ai-endpoint-model');
   const maxInputInput = document.getElementById('ai-endpoint-max-input-tokens');
-  const maxOutputInput = document.getElementById('ai-endpoint-max-output-tokens');
+  const maxInputCustom = document.getElementById('ai-endpoint-max-input-custom');
   const modelMode = document.getElementById('ai-endpoint-model-mode')?.value === 'manual' ? 'manual' : 'auto';
   const saved = profileSnapshot(service);
   const enteredKey = String(keyInput?.value || '').trim();
   const model = String(modelInput?.value || '').trim();
-  const maxInputTokens = Math.max(0, Math.floor(Number(maxInputInput?.value || 0)));
-  const maxOutputTokens = Math.max(0, Math.floor(Number(maxOutputInput?.value || 0)));
+  const inputCapValue = maxInputInput?.value === 'custom'
+    ? Number(maxInputCustom?.value || 0)
+    : Number(maxInputInput?.value || AI_INPUT_CAP_DEFAULT);
   const errors = [];
   const fields = [];
   const profile = {};
-  if (maxInputTokens) profile.maxInputTokens = maxInputTokens;
-  if (maxOutputTokens) profile.maxOutputTokens = maxOutputTokens;
+  if (!Number.isSafeInteger(inputCapValue) || inputCapValue < AI_INPUT_CAP_FLOOR) {
+    errors.push(`Input cap must be at least ${AI_INPUT_CAP_FLOOR.toLocaleString()} tokens.`);
+    fields.push(maxInputInput?.value === 'custom' ? 'ai-endpoint-max-input-custom' : 'ai-endpoint-max-input-tokens');
+  } else {
+    profile.maxInputTokens = inputCapValue;
+  }
   if (clearKey) profile.apiKey = '';
   else if (enteredKey) profile.apiKey = enteredKey;
   const keyConfigured = clearKey ? false : !!(enteredKey || saved.keyConfigured);
@@ -346,6 +373,18 @@ function initAIEndpointSettings() {
       markAIEndpointDirty();
     });
   });
+  document.getElementById('ai-endpoint-max-input-tokens')?.addEventListener('change', event => {
+    const custom = document.getElementById('ai-endpoint-max-input-custom');
+    const isCustom = event.target.value === 'custom';
+    if (custom) custom.hidden = !isCustom;
+    markAIEndpointDirty();
+  });
+  document.getElementById('ai-endpoint-max-input-custom')?.addEventListener('input', () => {
+    setEndpointValidation();
+    markAIEndpointDirty();
+  });
+  document.getElementById('ai-endpoint-max-input-custom')?.addEventListener('change', commitCustomInputCap);
+  document.getElementById('ai-endpoint-max-input-custom')?.addEventListener('blur', commitCustomInputCap);
   document.getElementById('ai-endpoint-save')?.addEventListener('click', saveAIEndpointSettings);
   document.getElementById('ai-endpoint-test')?.addEventListener('click', testAIEndpointSettings);
   document.getElementById('ai-endpoint-clear-key')?.addEventListener('click', clearAIEndpointKey);

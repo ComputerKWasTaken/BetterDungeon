@@ -424,11 +424,8 @@ class NavigatorFeature {
     settings.className = 'bd-navigator-settings-panel';
     settings.hidden = true;
     settings.setAttribute('aria-label', 'Navigator adventure settings');
-    const contextCapFloor = window.NavigatorSession.MIN_CONTEXT_CAP_TOKENS;
-    const contextCapDefault = window.NavigatorSession.DEFAULT_CONTEXT_CAP_TOKENS;
     settings.innerHTML = `
       <div class="bd-navigator-settings-grid">
-        <label>Input cap (tokens)<input type="number" min="${contextCapFloor}" step="1000" placeholder="${contextCapDefault}" data-nav-setting="contextCap"></label>
         <label>Thinking level<select data-nav-setting="thinkingLevel">
           <option value="minimal">Minimal</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>
         </select></label>
@@ -534,7 +531,6 @@ class NavigatorFeature {
       let value = settings[key];
       if (key === 'readOnly') value = Object.prototype.hasOwnProperty.call(settings.overrides || {}, 'readOnly') ? String(value) : '';
       if (key === 'includeMemoryBank') value = String(value !== false);
-      if (key === 'contextCap') value = value || '';
       if (control.value !== String(value ?? '')) control.value = String(value ?? '');
     }
     const supported = settings.providerThinkingLevels || [];
@@ -553,16 +549,8 @@ class NavigatorFeature {
       this.renderNavigatorSettings();
       return;
     }
-    if (key === 'contextCap' && rawValue.trim() === '') {
-      await this.session.clearAdventureSetting('contextCap');
-      this.renderNavigatorSettings();
-      return;
-    }
-    const contextCapFloor = window.NavigatorSession.MIN_CONTEXT_CAP_TOKENS;
-    const value = key === 'contextCap'
-      ? (rawValue && Number(rawValue) > 0 ? Math.max(contextCapFloor, Number(rawValue)) : rawValue)
-      : key === 'includeMemoryBank'
-        ? rawValue === 'true'
+    const value = key === 'includeMemoryBank'
+      ? rawValue === 'true'
         : key === 'readOnly'
           ? rawValue === 'true'
           : rawValue;

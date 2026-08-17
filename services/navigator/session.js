@@ -17,8 +17,7 @@
   // Budget for the first-party chat surface. Independent of the frozen
   // script-facing ai.query cap, which stays at 12k characters.
   const CHARS_PER_TOKEN = 3;
-  const DEFAULT_CONTEXT_CAP_TOKENS = 128000;
-  const MAX_INPUT_CHARS = DEFAULT_CONTEXT_CAP_TOKENS * CHARS_PER_TOKEN;
+  const MAX_INPUT_CHARS = 128000 * CHARS_PER_TOKEN;
   const MAX_OUTPUT_TOKENS = 2048;
   const MAX_HISTORY_CHARS = 16000;
   const MAX_TOOL_ROUNDS = 6;
@@ -35,11 +34,9 @@
   const NAVIGATOR_ADVENTURE_SETTINGS_PREFIX = 'betterDungeon_navigator_adventure_';
   const THINKING_LEVELS = ['minimal', 'low', 'medium', 'high'];
   const DEFAULT_NAVIGATOR_SETTINGS = Object.freeze({
-    contextCap: DEFAULT_CONTEXT_CAP_TOKENS,
     includeMemoryBank: true,
     historyMode: 'full',
   });
-  const MIN_CONTEXT_CAP = 4000;
   const TOOL_DROP_GUIDANCE = 'Tool access was reduced for this turn because the provider input budget was nearly exhausted. Do not attempt lookups that are not represented by the tools below.';
   const READ_ONLY_GUIDANCE = [
     '',
@@ -334,11 +331,6 @@
 
     normalizeSettings(value) {
       const result = {};
-      if (Object.prototype.hasOwnProperty.call(value || {}, 'contextCap')) {
-        result.contextCap = Number.isSafeInteger(value.contextCap) && value.contextCap > 0
-          ? Math.max(MIN_CONTEXT_CAP, value.contextCap)
-          : DEFAULT_CONTEXT_CAP_TOKENS;
-      }
       if (typeof value?.includeMemoryBank === 'boolean') result.includeMemoryBank = value.includeMemoryBank;
       if (value?.historyMode === 'full' || value?.historyMode === 'floor') result.historyMode = value.historyMode;
       if (THINKING_LEVELS.includes(value?.thinkingLevel)) result.thinkingLevel = value.thinkingLevel;
@@ -1023,9 +1015,9 @@
           maxOutputTokens: MAX_OUTPUT_TOKENS,
         };
         const turnLimits = {
-          maxInputChars: (Number.isSafeInteger(this.effectiveSettings.contextCap)
-            ? this.effectiveSettings.contextCap
-            : DEFAULT_CONTEXT_CAP_TOKENS) * CHARS_PER_TOKEN,
+          maxInputChars: Number.isSafeInteger(limits.maxInputChars) && limits.maxInputChars > 0
+            ? limits.maxInputChars
+            : MAX_INPUT_CHARS,
           maxOutputTokens: Number.isSafeInteger(limits.maxOutputTokens) ? limits.maxOutputTokens : MAX_OUTPUT_TOKENS,
         };
         const turnTools = this.getToolDefinitions();
@@ -1503,8 +1495,6 @@
   NavigatorSession.CONSUMER = CONSUMER;
   NavigatorSession.MAX_INPUT_CHARS = MAX_INPUT_CHARS;
   NavigatorSession.CHARS_PER_TOKEN = CHARS_PER_TOKEN;
-  NavigatorSession.DEFAULT_CONTEXT_CAP_TOKENS = DEFAULT_CONTEXT_CAP_TOKENS;
-  NavigatorSession.MIN_CONTEXT_CAP_TOKENS = MIN_CONTEXT_CAP;
   NavigatorSession.MAX_OUTPUT_TOKENS = MAX_OUTPUT_TOKENS;
   NavigatorSession.MAX_HISTORY_CHARS = MAX_HISTORY_CHARS;
   NavigatorSession.MAX_USER_MESSAGE_CHARS = MAX_USER_MESSAGE_CHARS;
