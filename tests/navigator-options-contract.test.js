@@ -75,7 +75,7 @@ async function run() {
   assert.equal(settings.contextCap, 20000, 'per-adventure cap beats global default');
   assert.equal(settings.includeMemoryBank, false);
   assert.equal(settings.historyMode, 'floor');
-  assert.equal(settings.toolRounds, 8);
+  assert.equal(settings.toolRounds, undefined, 'stored tool-round settings are ignored');
   assert.equal(settings.global.readOnly, true, 'global read-only is reported in global defaults');
   await session.clearAdventureSetting('readOnly');
   assert.equal(session.getSettings().readOnly, true, 'clearing override inherits global read-only');
@@ -99,9 +99,14 @@ async function run() {
   unsubscribeSettings();
   assert.equal(reloadedSettings.contextCap, 120000, 'storage reload reports inherited global cap');
   assert.equal(reloadedSettings.overrides.contextCap, undefined, 'cleared adventure cap remains inherited');
-  assert.equal(reloadedSettings.effectiveInputChars, 120000, 'settings event reports the effective ledger after reload');
+  assert.equal(reloadedSettings.effectiveInputChars, undefined, 'settings no longer reports a provider-derived ledger');
   assert.equal(window.NavigatorSession.CHARS_PER_TOKEN, 3);
-  assert.match(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'), /estimatedTokens: Math\.ceil\(peakInputChars \/ CHARS_PER_TOKEN\)/);
+  assert.equal(window.NavigatorSession.DEFAULT_CONTEXT_CAP_TOKENS, 128000);
+  assert.equal(window.NavigatorSession.MIN_CONTEXT_CAP_TOKENS, 4000);
+  assert.equal(session.normalizeSettings({ contextCap: null }).contextCap, 128000, 'default context cap is 128000 input tokens');
+  assert.equal(session.normalizeSettings({ contextCap: 50000 }).contextCap * window.NavigatorSession.CHARS_PER_TOKEN, 150000, 'input ledger derives solely from cap tokens');
+  assert.match(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'), /maxInputChars: \(/);
+  assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'), /providerMaxInputChars|effectiveInputChars|getProviderMaxInputChars/);
   assert.match(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'), /peakInputChars = Math\.max\(peakInputChars, projected\)/);
   const snapshot = await new window.NavigatorContext('demo').build({
     maxChars: 100000,
@@ -145,23 +150,20 @@ async function run() {
   assert.equal(session.getSettings().readOnly, true, 'failed settings read keeps read-only fail-safe');
   session.providerStatus = { limits: { maxInputChars: 50000 } };
   await session.saveSettings({ contextCap: null }, { global: true });
-  assert.equal(session.getSettings().contextCap, null, 'blank/unset cap means no user cap');
-  assert.equal(session.getSettings().effectiveInputChars, 50000, 'unset cap leaves the full provider ledger');
-  assert.equal(session.normalizeSettings({ contextCap: 0 }).contextCap, null, 'zero cap means no user cap');
-  assert.match(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'), /Math\.min\(providerMaxInputChars, userCap/);
-  assert.match(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'), /roundLimit = this\.effectiveSettings\.toolRounds/);
+  assert.equal(session.getSettings().contextCap, 128000, 'blank/unset cap restores the default token cap');
+  assert.equal(session.normalizeSettings({ contextCap: 0 }).contextCap, 128000, 'zero cap restores the default token cap');
+  assert.equal(session.normalizeSettings({ contextCap: 1000 }).contextCap, 4000, 'small caps clamp to the token floor');
+  const sessionSource = fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8');
+  assert.doesNotMatch(sessionSource, /Math\.min\(providerMaxInputChars, userCap/);
+  assert.match(sessionSource, /roundLimit = MAX_TOOL_ROUNDS/);
+  assert.doesNotMatch(sessionSource, /effectiveSettings\.toolRounds/);
   session.adventureSettings = { readOnly: false, toolRounds: 2 };
   session.effectiveSettings = { ...session.effectiveSettings, readOnly: false, toolRounds: 2 };
   session.readOnly = false;
   session.mutations = { definitions: () => [{ name: 'propose_edit' }] };
   assert.equal(session.getPermissionState().readOnly, false, 'explicit read-only force-off clears the effective badge');
   assert.ok(session.getToolDefinitions().some(tool => tool.name === 'propose_edit'), 'force-off keeps mutation proposals available');
-  assert.deepEqual(
-    [session.normalizeSettings({ toolRounds: 0 }).toolRounds,
-      session.normalizeSettings({ toolRounds: 99 }).toolRounds],
-    [1, 12],
-    'tool rounds clamp to 1 through 12'
-  );
+  assert.equal(session.normalizeSettings({ toolRounds: 0 }).toolRounds, undefined, 'tool-round settings are not normalized');
   let chatCalls = 0;
   window.UltrascriptsAIExecutor = {
     refreshStatus: async () => ({ ready: true, limits: { maxInputChars: 50000 } }),
@@ -191,14 +193,14 @@ async function run() {
   };
   await session.runTurn('exercise round cap');
   const limitedMessage = session.messages[session.messages.length - 1];
-  assert.equal(chatCalls, 3, 'configured two-round cap stops before a third tool execution');
+  assert.equal(chatCalls, 7, 'fixed six-round cap stops before a seventh tool execution');
   assert.match(limitedMessage.content, /Answer preserved\./);
-  assert.match(limitedMessage.content, /2-round tool limit/);
+  assert.match(limitedMessage.content, /6-round tool limit/);
   assert.equal(limitedMessage.status, 'complete');
   const contextSource = fs.readFileSync(path.join(ROOT, 'services/navigator/context.js'), 'utf8');
   assert.match(contextSource, /preview: adventureSnapshot\.provenance\?\.actions\?\.source === 'ws'/);
-  const sessionSource = fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8');
-  assert.match(sessionSource, /preview: summary\.preview === true/);
+  const sessionSourceAfterTurn = fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8');
+  assert.match(sessionSourceAfterTurn, /preview: summary\.preview === true/);
   session.contextSnapshot = { summary: { preview: true, apolloRetryable: true } };
   assert.equal(session.getContextSummary().apolloRetryable, true, 'retry flag is surfaced through the session summary');
   assert.equal(session.isApolloPreviewRetryable(), true, 'retry decision reads the session summary value');
@@ -238,6 +240,13 @@ async function run() {
   assert.match(featureSource, /for \(const delay of \[250, 500, 1000\]\)/);
   assert.match(featureSource, /isApolloPreviewRetryable/);
   assert.match(featureSource, /this\.session !== session \|\| session\.isBusy/);
+  assert.doesNotMatch(featureSource, /bd-navigator-settings-note|bd-navigator-cost|toolRounds|peak input characters|tokens, estimate/);
+  assert.match(featureSource, /clearAdventureSetting\('contextCap'\)/);
+  assert.match(featureSource, /clearAdventureSetting\('contextCap'\)[\s\S]*renderNavigatorSettings\(\)/);
+  assert.doesNotMatch(featureSource, /\b4000\b|\b128000\b/);
+  assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'popup.js'), 'utf8'), /navigator-tool-rounds|toolRounds/);
+  assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'popup.js'), 'utf8'), /\b4000\b|\b128000\b/);
+  assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'popup.html'), 'utf8'), /navigator-tool-rounds|characters\)/);
   console.log('Navigator options contract tests passed');
 }
 

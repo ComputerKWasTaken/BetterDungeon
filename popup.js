@@ -287,9 +287,7 @@ function initToggles() {
     const thinkingSelect = document.getElementById('navigator-thinking-level');
     if (thinkingSelect) thinkingSelect.value = thinking;
     const cap = document.getElementById('navigator-context-cap');
-    if (cap) cap.value = Number.isSafeInteger(defaults.contextCap) ? defaults.contextCap : '';
-    const rounds = document.getElementById('navigator-tool-rounds');
-    if (rounds) rounds.value = Number.isSafeInteger(defaults.toolRounds) ? defaults.toolRounds : 6;
+    if (cap) cap.value = Number.isSafeInteger(defaults.contextCap) ? defaults.contextCap : Number(cap.placeholder);
     const memory = document.getElementById('navigator-memory-bank');
     if (memory) memory.checked = defaults.includeMemoryBank !== false;
     const history = document.getElementById('navigator-history-mode');
@@ -318,14 +316,14 @@ function initToggles() {
     const capInput = document.getElementById('navigator-context-cap');
     const capRaw = (capInput?.value || '').trim();
     const capValue = capRaw ? Number(capRaw) : null;
-    if (capInput && Number.isSafeInteger(capValue) && capValue > 0 && capValue < 8000) capInput.value = '8000';
-    const roundsValue = Number(document.getElementById('navigator-tool-rounds')?.value);
+    const contextCapFloor = Number(capInput?.min);
+    const contextCapDefault = Number(capInput?.placeholder);
+    if (capInput && Number.isSafeInteger(capValue) && capValue > 0 && capValue < contextCapFloor) capInput.value = String(contextCapFloor);
     const includeMemoryBank = document.getElementById('navigator-memory-bank')?.checked !== false;
     const historyMode = document.getElementById('navigator-history-mode')?.value === 'floor' ? 'floor' : 'full';
     const defaults = {
       thinkingLevel: thinking,
-      contextCap: Number.isSafeInteger(capValue) && capValue > 0 ? Math.max(8000, capValue) : null,
-      toolRounds: Number.isSafeInteger(roundsValue) ? Math.max(1, Math.min(12, roundsValue)) : 6,
+      contextCap: Number.isSafeInteger(capValue) && capValue > 0 ? Math.max(contextCapFloor, capValue) : contextCapDefault,
       includeMemoryBank,
       historyMode,
     };
@@ -336,7 +334,6 @@ function initToggles() {
   };
   document.getElementById('navigator-thinking-level')?.addEventListener('change', saveNavigatorDefaults);
   document.getElementById('navigator-context-cap')?.addEventListener('change', saveNavigatorDefaults);
-  document.getElementById('navigator-tool-rounds')?.addEventListener('change', saveNavigatorDefaults);
   document.getElementById('navigator-memory-bank')?.addEventListener('change', saveNavigatorDefaults);
   document.getElementById('navigator-history-mode')?.addEventListener('change', saveNavigatorDefaults);
 

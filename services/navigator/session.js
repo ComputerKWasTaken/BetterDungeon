@@ -16,8 +16,9 @@
 
   // Budget for the first-party chat surface. Independent of the frozen
   // script-facing ai.query cap, which stays at 12k characters.
-  const MAX_INPUT_CHARS = 100000;
   const CHARS_PER_TOKEN = 3;
+  const DEFAULT_CONTEXT_CAP_TOKENS = 128000;
+  const MAX_INPUT_CHARS = DEFAULT_CONTEXT_CAP_TOKENS * CHARS_PER_TOKEN;
   const MAX_OUTPUT_TOKENS = 2048;
   const MAX_HISTORY_CHARS = 16000;
   const MAX_TOOL_ROUNDS = 6;
@@ -34,14 +35,11 @@
   const NAVIGATOR_ADVENTURE_SETTINGS_PREFIX = 'betterDungeon_navigator_adventure_';
   const THINKING_LEVELS = ['minimal', 'low', 'medium', 'high'];
   const DEFAULT_NAVIGATOR_SETTINGS = Object.freeze({
-    contextCap: null,
+    contextCap: DEFAULT_CONTEXT_CAP_TOKENS,
     includeMemoryBank: true,
     historyMode: 'full',
-    toolRounds: MAX_TOOL_ROUNDS,
   });
-  const MIN_TOOL_ROUNDS = 1;
-  const MAX_CONFIGURED_TOOL_ROUNDS = 12;
-  const MIN_CONTEXT_CAP = 8000;
+  const MIN_CONTEXT_CAP = 4000;
   const TOOL_DROP_GUIDANCE = 'Tool access was reduced for this turn because the provider input budget was nearly exhausted. Do not attempt lookups that are not represented by the tools below.';
   const READ_ONLY_GUIDANCE = [
     '',
@@ -339,13 +337,10 @@
       if (Object.prototype.hasOwnProperty.call(value || {}, 'contextCap')) {
         result.contextCap = Number.isSafeInteger(value.contextCap) && value.contextCap > 0
           ? Math.max(MIN_CONTEXT_CAP, value.contextCap)
-          : null;
+          : DEFAULT_CONTEXT_CAP_TOKENS;
       }
       if (typeof value?.includeMemoryBank === 'boolean') result.includeMemoryBank = value.includeMemoryBank;
       if (value?.historyMode === 'full' || value?.historyMode === 'floor') result.historyMode = value.historyMode;
-      if (Number.isSafeInteger(value?.toolRounds)) {
-        result.toolRounds = Math.max(MIN_TOOL_ROUNDS, Math.min(MAX_CONFIGURED_TOOL_ROUNDS, value.toolRounds));
-      }
       if (THINKING_LEVELS.includes(value?.thinkingLevel)) result.thinkingLevel = value.thinkingLevel;
       if (typeof value?.readOnly === 'boolean') result.readOnly = value.readOnly;
       return result;
@@ -403,17 +398,11 @@
     }
 
     getSettings() {
-      const providerMaxInputChars = this.getProviderMaxInputChars();
-      const effectiveInputChars = providerMaxInputChars === null
-        ? null
-        : Math.min(providerMaxInputChars, this.effectiveSettings.contextCap || providerMaxInputChars);
       return {
         ...this.effectiveSettings,
         global: { ...this.globalSettings, readOnly: this.globalSettings.readOnly === true },
         overrides: { ...this.adventureSettings },
         adventureId: this.adventureId,
-        providerMaxInputChars,
-        effectiveInputChars,
         providerThinkingLevels: this.getProviderThinkingLevels(),
       };
     }
@@ -423,11 +412,6 @@
       return Array.isArray(status?.config?.thinkingLevels) && status.config.thinkingLevels.length
         ? status.config.thinkingLevels
         : (Array.isArray(status?.thinkingLevels) ? status.thinkingLevels : []);
-    }
-
-    getProviderMaxInputChars() {
-      const limits = this.providerStatus?.limits || this.providerStatus?.config?.limits;
-      return Number.isSafeInteger(limits?.maxInputChars) ? limits.maxInputChars : null;
     }
 
     async saveSettings(fields, options = {}) {
@@ -1038,12 +1022,10 @@
           maxInputChars: MAX_INPUT_CHARS,
           maxOutputTokens: MAX_OUTPUT_TOKENS,
         };
-        const providerMaxInputChars = Number.isSafeInteger(limits.maxInputChars) ? limits.maxInputChars : MAX_INPUT_CHARS;
-        const userCap = Number.isSafeInteger(this.effectiveSettings.contextCap)
-          ? this.effectiveSettings.contextCap
-          : null;
         const turnLimits = {
-          maxInputChars: Math.min(providerMaxInputChars, userCap || providerMaxInputChars),
+          maxInputChars: (Number.isSafeInteger(this.effectiveSettings.contextCap)
+            ? this.effectiveSettings.contextCap
+            : DEFAULT_CONTEXT_CAP_TOKENS) * CHARS_PER_TOKEN,
           maxOutputTokens: Number.isSafeInteger(limits.maxOutputTokens) ? limits.maxOutputTokens : MAX_OUTPUT_TOKENS,
         };
         const turnTools = this.getToolDefinitions();
@@ -1224,7 +1206,7 @@
               content: `${this.findMessage(assistant.id)?.content || ''}\n\n[Navigator did not stage a change because the provider reached its output token limit.]`,
             });
           }
-          const roundLimit = this.effectiveSettings.toolRounds || MAX_TOOL_ROUNDS;
+          const roundLimit = MAX_TOOL_ROUNDS;
           if (toolRounds >= roundLimit) {
             toolLimitReached = true;
             this.updateMessage(assistant.id, {
@@ -1280,16 +1262,6 @@
             toolRounds,
             toolResultChars,
             inputChars: peakInputChars,
-            inputCost: {
-              systemInstructionChars: request.systemInstruction.length,
-              selectedMessageChars: request.messages.reduce((sum, item) => sum + item.content.length, 0),
-              toolSchemaChars: JSON.stringify(tools).length,
-              toolResultChars,
-              peakInputChars,
-              estimatedTokens: Math.ceil(peakInputChars / CHARS_PER_TOKEN),
-              charsPerToken: CHARS_PER_TOKEN,
-              tokenEstimate: true,
-            },
             toolsDropped,
             inputLimitReached,
             toolResultsOmitted,
@@ -1531,6 +1503,8 @@
   NavigatorSession.CONSUMER = CONSUMER;
   NavigatorSession.MAX_INPUT_CHARS = MAX_INPUT_CHARS;
   NavigatorSession.CHARS_PER_TOKEN = CHARS_PER_TOKEN;
+  NavigatorSession.DEFAULT_CONTEXT_CAP_TOKENS = DEFAULT_CONTEXT_CAP_TOKENS;
+  NavigatorSession.MIN_CONTEXT_CAP_TOKENS = MIN_CONTEXT_CAP;
   NavigatorSession.MAX_OUTPUT_TOKENS = MAX_OUTPUT_TOKENS;
   NavigatorSession.MAX_HISTORY_CHARS = MAX_HISTORY_CHARS;
   NavigatorSession.MAX_USER_MESSAGE_CHARS = MAX_USER_MESSAGE_CHARS;
