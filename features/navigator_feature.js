@@ -426,17 +426,14 @@ class NavigatorFeature {
     settings.setAttribute('aria-label', 'Navigator adventure settings');
     settings.innerHTML = `
       <div class="bd-navigator-settings-grid">
-        <label>Context cap (characters)<input type="number" min="8000" step="1000" data-nav-setting="contextCap"></label>
+        <label>Input cap (tokens)<input type="number" min="4000" step="1000" placeholder="128000" data-nav-setting="contextCap"></label>
         <label>Thinking level<select data-nav-setting="thinkingLevel">
           <option value="minimal">Minimal</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>
         </select></label>
-        <label>Tool rounds<input type="number" min="1" max="12" step="1" data-nav-setting="toolRounds"></label>
         <label>Memory Bank<select data-nav-setting="includeMemoryBank"><option value="true">Include inline</option><option value="false">Omit inline</option></select></label>
         <label>History<select data-nav-setting="historyMode"><option value="full">Full history</option><option value="floor">Recency floor only</option></select></label>
         <label>Read-only<select data-nav-setting="readOnly"><option value="">Inherit global default</option><option value="true">Force on</option><option value="false">Force off</option></select></label>
       </div>
-      <p class="bd-navigator-settings-note"></p>
-      <p class="bd-navigator-cost"></p>
     `;
 
     const transcript = document.createElement('div');
@@ -545,15 +542,6 @@ class NavigatorFeature {
       thinking.title = supported.length ? '' : 'The configured provider advertises no thinking-level support.';
       for (const option of thinking.options) option.hidden = supported.length > 0 && !supported.includes(option.value);
     }
-    const note = this.settingsPanel.querySelector('.bd-navigator-settings-note');
-    if (note) {
-      const inherited = ['contextCap', 'thinkingLevel', 'includeMemoryBank', 'historyMode', 'toolRounds']
-        .filter(key => !Object.prototype.hasOwnProperty.call(settings.overrides || {}, key));
-      const effectiveLedger = Number.isSafeInteger(settings.effectiveInputChars)
-        ? `Effective ledger for this adventure: ${settings.effectiveInputChars.toLocaleString()} characters${Number.isSafeInteger(settings.providerMaxInputChars) ? ` (provider limit ${settings.providerMaxInputChars.toLocaleString()})` : ''}.`
-        : 'Effective ledger: provider limit unavailable until the AI provider is ready.';
-      note.textContent = `${inherited.length ? `Inherited from global default: ${inherited.join(', ')}. ` : ''}${effectiveLedger} Adventure settings override global defaults only when explicitly changed. Context caps are characters and can only tighten the provider ledger.`;
-    }
   }
 
   async saveNavigatorSetting(key, rawValue) {
@@ -563,9 +551,7 @@ class NavigatorFeature {
       return;
     }
     const value = key === 'contextCap'
-      ? (rawValue && Number(rawValue) > 0 ? Math.max(8000, Number(rawValue)) : null)
-      : key === 'toolRounds'
-        ? Number(rawValue)
+      ? (rawValue && Number(rawValue) > 0 ? Math.max(4000, Number(rawValue)) : 128000)
         : key === 'includeMemoryBank'
           ? rawValue === 'true'
           : key === 'readOnly'
@@ -874,12 +860,6 @@ class NavigatorFeature {
     } else {
       status.replaceChildren();
       status.className = 'bd-navigator-message-status';
-    }
-    if (message.status === 'complete' && message.meta?.inputCost) {
-      const cost = document.createElement('span');
-      cost.className = 'bd-navigator-cost';
-      cost.textContent = `${message.meta.inputCost.peakInputChars || 0} peak input characters across rounds (≈${message.meta.inputCost.estimatedTokens} tokens, estimate)`;
-      status.appendChild(cost);
     }
   }
 

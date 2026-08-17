@@ -3429,13 +3429,6 @@ body.bd-navigator-resizing {
   border-radius: 4px;
 }
 
-.bd-navigator-settings-note,
-.bd-navigator-cost {
-  margin: var(--bd-space-2) 0 0;
-  color: var(--bd-text-muted);
-  font-size: var(--bd-font-size-xs);
-}
-
 .bd-navigator-header-actions {
   display: flex;
   align-items: center;
