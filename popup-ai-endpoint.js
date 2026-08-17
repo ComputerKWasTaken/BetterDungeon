@@ -151,6 +151,7 @@ function renderInputCap(profile) {
   const cap = Number(profile.maxInputTokens) > 0 ? Math.floor(Number(profile.maxInputTokens)) : AI_INPUT_CAP_DEFAULT;
   const preset = AI_INPUT_CAP_PRESETS.includes(cap);
   select.value = preset ? String(cap) : 'custom';
+  select.dataset.previousValue = select.value;
   custom.hidden = preset;
   if (!preset) custom.value = String(cap);
 }
@@ -376,7 +377,14 @@ function initAIEndpointSettings() {
   document.getElementById('ai-endpoint-max-input-tokens')?.addEventListener('change', event => {
     const custom = document.getElementById('ai-endpoint-max-input-custom');
     const isCustom = event.target.value === 'custom';
+    if (isCustom) {
+      const previous = event.target.dataset.previousValue === 'custom'
+        ? Number(custom?.value || 0)
+        : Number(event.target.dataset.previousValue || AI_INPUT_CAP_DEFAULT);
+      if (custom && Number.isSafeInteger(previous) && previous > 0) custom.value = String(previous);
+    }
     if (custom) custom.hidden = !isCustom;
+    event.target.dataset.previousValue = event.target.value;
     markAIEndpointDirty();
   });
   document.getElementById('ai-endpoint-max-input-custom')?.addEventListener('input', () => {

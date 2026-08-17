@@ -337,13 +337,16 @@
       const model = trim(row?.id || row?.name).replace(/^models\//, '');
       if (!model) continue;
       const outputTokens = Number(row.outputTokenLimit || row.top_provider?.max_completion_tokens || row.max_completion_tokens || 0);
-      if (!outputTokens) continue;
-      entries[model.toLowerCase()] = {
+      const thinking = service === 'gemini' && typeof row.thinking === 'boolean' ? row.thinking :
+        service === 'openrouter' && Array.isArray(row.supported_parameters)
+          ? row.supported_parameters.includes('reasoning') : undefined;
+      if (!outputTokens && thinking === undefined) continue;
+      const entry = {
         outputTokens,
         outputDiscovered: outputTokens > 0,
-        thinking: service === 'gemini' ? row.thinking === true :
-          service === 'openrouter' ? Array.isArray(row.supported_parameters) && row.supported_parameters.includes('reasoning') : undefined,
       };
+      if (thinking !== undefined) entry.thinking = thinking;
+      entries[model.toLowerCase()] = entry;
     }
     return entries;
   }

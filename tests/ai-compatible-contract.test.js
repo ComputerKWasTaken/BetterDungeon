@@ -433,6 +433,12 @@ async function configure(service, profile) {
   const routerStatus = await raw({ op: 'status' });
   assert.equal(routerStatus.limits.source, 'default');
   assert.deepEqual(window.UltrascriptsAIExecutor.status().supports, { text: true, json: true, thinking: false });
+  await configure('openrouter', { apiKey: 'test-openrouter', model: 'router-reasoning-no-limit' });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const reasoningFallbackStatus = await raw({ op: 'status' });
+  assert.equal(reasoningFallbackStatus.limits.maxOutputTokens, 2048);
+  assert.equal(reasoningFallbackStatus.limits.source, 'partial');
+  assert.equal(reasoningFallbackStatus.supports.thinking, true);
   await configure('openrouter', { apiKey: 'test-openrouter', model: 'google/gemini-3.7-flash' });
   await new Promise(resolve => setTimeout(resolve, 0));
   assert.equal((await raw({ op: 'status' })).supports.thinking, true);
