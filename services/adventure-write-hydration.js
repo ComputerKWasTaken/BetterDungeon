@@ -13,6 +13,26 @@
     return fields;
   }
 
+  const CARD_BEFORE_FIELDS = Object.freeze({
+    Type: 'type',
+    Name: 'title',
+    Triggers: 'keys',
+    Entry: 'value',
+    Notes: 'description',
+  });
+
+  function cardValue(value) {
+    return Array.isArray(value) ? value.join(', ') : value == null ? '' : String(value);
+  }
+
+  function cachedCardMatchesBefore(cached, proposal) {
+    const changes = Array.isArray(proposal?.changes) ? proposal.changes : [];
+    return changes.length > 0 && changes.every(change => {
+      const field = CARD_BEFORE_FIELDS[change?.label];
+      return field && cardValue(cached?.[field]) === cardValue(change.before);
+    });
+  }
+
   async function hydrateAdventure(verified, proposal, apollo) {
     const id = verified?.id || proposal.adventureId;
     if (id == null) return { ok: false, reason: 'confirmed adventure id unavailable' };
@@ -53,6 +73,22 @@
 
   async function hydrateCard(verified, proposal, apollo) {
     if (!verified?.id) return { ok: false, reason: 'confirmed Story Card id unavailable' };
+    let cached;
+    try {
+      cached = await apollo.readEntity({
+        typename: 'StoryCard',
+        id: String(verified.id),
+        fields: ['type', 'title', 'description', 'keys', 'value', 'useForCharacterCreation'],
+      });
+    } catch {
+      return { ok: false, reason: `cached StoryCard:${verified.id} could not be inspected; hydration was skipped to avoid clobbering another adventure's cached card` };
+    }
+    if (!cached?.available || !cached.data) {
+      return { ok: false, reason: `cached StoryCard:${verified.id} is missing; hydration was skipped to avoid clobbering another adventure's cached card` };
+    }
+    if (!cachedCardMatchesBefore(cached.data, proposal)) {
+      return { ok: false, reason: `cached StoryCard:${verified.id} does not match the pre-write card for this adventure; hydration was skipped to avoid clobbering another adventure's cached card` };
+    }
     const result = await apollo.modifyEntity({
       typename: 'StoryCard',
       id: String(verified.id),

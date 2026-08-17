@@ -84,6 +84,20 @@ async function testConfirmedHydrationAndFailure() {
       return { available: true, data: { changed: true }, error: null };
     },
     async readEntity() {
+      return {
+        available: true,
+        data: {
+          type: 'lore',
+          title: 'Before title',
+          description: 'Before notes',
+          keys: 'Before triggers',
+          value: 'Before entry',
+          useForCharacterCreation: false,
+        },
+        error: null,
+      };
+    },
+    async readEntity() {
       return { available: true, data: { state: { instructions: { type: 'aiInstructions' } } }, error: null };
     },
   };
@@ -187,6 +201,20 @@ async function testCardEditAndDeletionDecision() {
       calls.push(payload);
       return { available: true, data: { changed: true }, error: null };
     },
+    async readEntity() {
+      return {
+        available: true,
+        data: {
+          type: 'lore',
+          title: 'Before title',
+          description: 'Before notes',
+          keys: 'Before triggers',
+          value: 'Before entry',
+          useForCharacterCreation: false,
+        },
+        error: null,
+      };
+    },
     async refetchActive() {
       refetches++;
       return { available: true, data: { refetched: true }, error: null };
@@ -194,7 +222,16 @@ async function testCardEditAndDeletionDecision() {
   };
   const update = await window.BetterDungeonAdventureWriteHydration.hydrateVerifiedMutation({
     kind: 'story_card_update',
-    proposal: { cardId: 'card-1' },
+    proposal: {
+      cardId: 'card-1',
+      changes: [
+        { label: 'Type', before: 'lore' },
+        { label: 'Name', before: 'Before title' },
+        { label: 'Triggers', before: 'Before triggers' },
+        { label: 'Entry', before: 'Before entry' },
+        { label: 'Notes', before: 'Before notes' },
+      ],
+    },
     verified: {
       id: 'card-1',
       title: 'Confirmed title',
@@ -205,6 +242,51 @@ async function testCardEditAndDeletionDecision() {
   assert.equal(update.ok, true);
   assert.equal(calls[0].typename, 'StoryCard');
   assert.equal(calls[0].fields.title, 'Confirmed title');
+
+  let modifyCalls = 0;
+  window.BetterDungeonApolloCache.readEntity = async () => ({
+    available: true,
+    data: {
+      type: 'lore',
+      title: 'Other adventure card',
+      description: 'Other notes',
+      keys: 'Other triggers',
+      value: 'Other entry',
+      useForCharacterCreation: false,
+    },
+    error: null,
+  });
+  window.BetterDungeonApolloCache.modifyEntity = async () => {
+    modifyCalls++;
+    return { available: true, data: { changed: true }, error: null };
+  };
+  const collision = await window.BetterDungeonAdventureWriteHydration.hydrateVerifiedMutation({
+    kind: 'story_card_update',
+    proposal: {
+      cardId: 'card-1',
+      changes: [{ label: 'Name', before: 'Before title' }],
+    },
+    verified: { id: 'card-1', title: 'New title' },
+  });
+  assert.equal(collision.ok, false);
+  assert.match(collision.reason, /does not match the pre-write card.*skipped/);
+  assert.equal(modifyCalls, 0);
+
+  window.BetterDungeonApolloCache.readEntity = async () => ({
+    available: false,
+    data: null,
+    error: null,
+  });
+  const missing = await window.BetterDungeonAdventureWriteHydration.hydrateVerifiedMutation({
+    kind: 'story_card_update',
+    proposal: {
+      cardId: 'card-1',
+      changes: [{ label: 'Name', before: 'Before title' }],
+    },
+    verified: { id: 'card-1', title: 'New title' },
+  });
+  assert.equal(missing.ok, false);
+  assert.match(missing.reason, /is missing.*skipped/);
 
   const deletion = await window.BetterDungeonAdventureWriteHydration.hydrateVerifiedMutation({
     kind: 'story_card_delete',
