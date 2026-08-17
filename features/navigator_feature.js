@@ -966,10 +966,11 @@ class NavigatorFeature {
     reject.textContent = 'Reject';
     const apply = document.createElement('button');
     apply.type = 'button';
-    apply.className = proposal.kind === 'story_card_delete'
+    const destructive = proposal.irreversible === true || proposal.action === 'delete';
+    apply.className = destructive
       ? 'bd-navigator-proposal-apply bd-navigator-proposal-delete'
       : 'bd-navigator-proposal-apply';
-    apply.textContent = proposal.kind === 'story_card_delete' ? 'Delete card' : 'Apply';
+    apply.textContent = destructive ? 'Delete' : 'Apply';
 
     const pending = proposal.status === 'pending';
     reject.disabled = !pending || state.chatBusy;

@@ -103,6 +103,32 @@ async function testMutationRejectsRestoredProposal() {
   );
 }
 
+async function testAppliedHydrationIsRecorded() {
+  const session = new window.NavigatorSession('demo');
+  await session.settingsReady;
+  session.mutations = {
+    async apply() {
+      return {
+        appliedAtIso: '2026-08-10T12:00:00.000Z',
+        hydration: { attempted: false, ok: false, reason: 'Apollo cache does not hold Memory Bank state' },
+      };
+    },
+  };
+  session.messages = [{
+    id: 'message-hydration',
+    role: 'assistant',
+    status: 'complete',
+    content: 'Memory proposal.',
+    proposals: [proposal('pending', { id: 'hydration-proposal', kind: 'memory_update', action: 'modify' })],
+  }];
+  assert.equal(await session.applyProposal('message-hydration', 'hydration-proposal'), true);
+  assert.deepEqual(session.messages[0].proposals[0].hydration, {
+    attempted: false,
+    ok: false,
+    reason: 'Apollo cache does not hold Memory Bank state',
+  });
+}
+
 function card(updatedAt, title = 'Card') {
   return { id: 'card-1', type: 'lore', title, description: '', keys: 'card', value: 'Entry', useForCharacterCreation: false, updatedAt };
 }
@@ -202,6 +228,7 @@ async function testCreateProposalDoesNotReadCards() {
 async function main() {
   await testPersistedProjectionAndRestore();
   await testMutationRejectsRestoredProposal();
+  await testAppliedHydrationIsRecorded();
   await testContentOnlyConflictAndDrift();
   await testDeleteDrift();
   await testCreateProposalDoesNotReadCards();

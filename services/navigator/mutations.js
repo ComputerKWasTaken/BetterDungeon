@@ -746,6 +746,10 @@
         throw { code: 'conflict', message: 'The Memory Bank entry changed after Navigator prepared this proposal.' };
       }
       await this.gql().editNavigatorMemory(this.shortId, proposal.memoryId, proposal.after, { signal });
+      window.BetterDungeonAdventureRead?.markMemoryWrite?.({
+        shortId: this.shortId,
+        operation: 'edit',
+      });
       const verified = (await this.readMemories(signal)).find(memory => memory.id === proposal.memoryId);
       if (!verified || verified.text !== proposal.after) {
         throw { code: 'verification_failed', message: 'The Memory Bank entry did not match the accepted value after AI Dungeon responded.' };
@@ -762,6 +766,10 @@
         throw { code: 'conflict', message: 'The Memory Bank entry changed after Navigator prepared this deletion.' };
       }
       await this.gql().deleteNavigatorMemory(this.shortId, proposal.memoryId, { signal });
+      window.BetterDungeonAdventureRead?.markMemoryWrite?.({
+        shortId: this.shortId,
+        operation: 'delete',
+      });
       const verified = (await this.readMemories(signal)).some(memory => memory.id === proposal.memoryId);
       if (verified) {
         throw { code: 'verification_failed', message: 'The Memory Bank entry was still present after AI Dungeon responded.' };

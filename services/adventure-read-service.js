@@ -164,6 +164,7 @@
   let latestRefreshAt = 0;
   let latestGeneration = 0;
   const memoryCache = new Map();
+  const memoryWriteMarkers = new Map();
   const MEMORY_TTL_MS = 500;
   const LATEST_REFRESH_FLOOR_MS = 500;
 
@@ -480,16 +481,19 @@
     if (!shortId) throw new Error('Adventure shortId is unknown. Open an adventure first.');
     if (isAborted(signal)) throw abortError();
     const now = Date.now();
+    const writeMarker = memoryWriteMarkers.get(String(shortId));
     const provenance = { memories: { source: null }, source: null, fallback: null };
     const degradations = [];
     let memories = null;
     let stateRead = null;
     try {
       stateRead = await readAdventure({ shortId, signal });
-      if (stateRead.state?.available === true && Array.isArray(stateRead.state.memories)) {
+      if (!writeMarker && stateRead.state?.available === true && Array.isArray(stateRead.state.memories)) {
         memories = normalizeMemories(stateRead.state.memories);
         provenance.source = 'apollo';
         provenance.memories.source = 'apollo';
+      } else if (writeMarker) {
+        provenance.fallback = 'Apollo Memory Bank state bypassed after verified Navigator memory write.';
       }
     } catch (error) {
       if (error?.name === 'AbortError') throw abortError();
@@ -506,7 +510,8 @@
         memories = normalizeMemories(raw);
         provenance.source = 'graphql';
         provenance.memories.source = 'graphql';
-        provenance.fallback = 'Apollo state.memories was unavailable; recentMemories was queried.';
+        provenance.fallback = provenance.fallback
+          || 'Apollo state.memories was unavailable; recentMemories was queried.';
       } catch (error) {
         if (error?.name === 'AbortError') throw abortError();
         degradations.push(issue('memories', 'graphql', error));
@@ -528,6 +533,17 @@
     };
     memoryCache.set(String(shortId), { at: now, generation: latestGeneration, source: provenance.source, value });
     return { ...value, memories: memories.map(memory => ({ ...memory, actionIds: memory.actionIds.slice() })) };
+  }
+
+  function markMemoryWrite(options = {}) {
+    const shortId = requireShortId(options.shortId, window.Ultrascripts?.ws || null);
+    if (!shortId) return false;
+    memoryCache.delete(String(shortId));
+    memoryWriteMarkers.set(String(shortId), {
+      at: Date.now(),
+      operation: options.operation || 'write',
+    });
+    return true;
   }
 
   async function refreshLatestActionId(options = {}) {
@@ -572,6 +588,7 @@
       latestAdventureShortId = event.detail?.shortId || null;
       latestAction = { id: null, source: 'unavailable', shortId: event.detail?.shortId || null };
       if (event.detail?.shortId) {
+        memoryCache.delete(String(event.detail.shortId));
         refreshLatestActionId({ shortId: event.detail.shortId, force: true }).catch(() => {});
       }
     });
@@ -584,6 +601,7 @@
     refreshLatestActionId,
     readCards,
     readMemories,
+    markMemoryWrite,
   };
 
   if (typeof module !== 'undefined' && module.exports) {
