@@ -236,7 +236,8 @@ async function run() {
   assert.match(featureSource, /for \(const delay of \[250, 500, 1000\]\)/);
   assert.match(featureSource, /isApolloPreviewRetryable/);
   assert.match(featureSource, /this\.session !== session \|\| session\.isBusy/);
-  assert.doesNotMatch(featureSource, /bd-navigator-settings-note|bd-navigator-cost|toolRounds|peak input characters|tokens, estimate/);
+  assert.doesNotMatch(featureSource, /bd-navigator-settings-note|bd-navigator-cost|peak input characters|tokens, estimate/);
+  assert.doesNotMatch(featureSource, /bd-navigator-subtitle|updateSubtitle|bd-navigator-empty-note|Navigator reads a budgeted snapshot/);
   assert.doesNotMatch(featureSource, /contextCap|clearAdventureSetting\('contextCap'\)/);
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'popup.js'), 'utf8'), /navigator-tool-rounds|toolRounds/);
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'popup.js'), 'utf8'), /navigator-context-cap|contextCap/);

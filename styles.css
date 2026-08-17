@@ -3388,14 +3388,6 @@ body.bd-navigator-resizing {
   color: var(--bd-text-primary);
 }
 
-.bd-navigator-subtitle {
-  margin: 2px 0 0;
-  font-size: var(--bd-font-size-xs);
-  color: var(--bd-text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 
 .bd-navigator-settings-panel {
   padding: var(--bd-space-3);
@@ -3482,6 +3474,60 @@ body.bd-navigator-resizing {
   color: var(--bd-error-light);
 }
 
+.bd-navigator-inspection-panel {
+  flex-shrink: 0;
+  max-height: min(70vh, 620px);
+  overflow: auto;
+  padding: var(--bd-space-3);
+  border-bottom: 1px solid var(--bd-border-subtle);
+  background: var(--bd-surface-raised);
+}
+
+.bd-navigator-inspection-summary {
+  margin-bottom: var(--bd-space-2);
+  color: var(--bd-text-secondary);
+  font-size: var(--bd-font-size-xs);
+  line-height: var(--bd-line-height-normal);
+}
+
+.bd-navigator-inspection-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--bd-space-2);
+  margin-bottom: var(--bd-space-2);
+}
+
+.bd-navigator-inspection-toolbar button,
+.bd-navigator-inspection-toolbar select {
+  min-height: 32px;
+  padding: 4px 8px;
+  color: var(--bd-text);
+  background: var(--bd-surface);
+  border: 1px solid var(--bd-border);
+  border-radius: 4px;
+}
+
+.bd-navigator-inspection-body h4 {
+  margin: var(--bd-space-2) 0 4px;
+  color: var(--bd-text-muted);
+  font-size: var(--bd-font-size-xs);
+}
+
+.bd-navigator-inspection-body pre {
+  max-height: 220px;
+  margin: 0;
+  padding: var(--bd-space-2);
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--bd-text-primary);
+  background: var(--bd-bg-secondary);
+  border: 1px solid var(--bd-border-subtle);
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+}
+
 .bd-navigator-transcript {
   flex: 1;
   min-height: 0;
@@ -3566,12 +3612,6 @@ body.bd-navigator-resizing {
   opacity: 0.45;
 }
 
-.bd-navigator-empty-note {
-  margin: 0;
-  font-size: var(--bd-font-size-sm);
-  line-height: var(--bd-line-height-normal);
-  color: var(--bd-text-muted);
-}
 
 .bd-navigator-message {
   display: flex;

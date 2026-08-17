@@ -423,6 +423,30 @@ async function testProposalResultFloor() {
   assert.equal(exhaustedOwner.proposals.length, 0);
 }
 
+
+function testRequestInspectionRetentionAndContract() {
+  const proto = window.NavigatorSession.prototype;
+  const owner = { emit() {}, lastRequestInspection: null, getLastRequestInspection: window.NavigatorSession.prototype.getLastRequestInspection };
+  proto.beginRequestInspection.call(owner);
+  assert.equal(proto.getLastRequestInspection.call(owner).rounds.length, 0);
+  for (let round = 0; round < 3; round += 1) {
+    proto.retainInspectionRound.call(owner, {
+      round, systemInstruction: 's'.repeat(1_500_000), messages: [], tools: [], toolResults: [],
+      continuationPresent: round > 0, budget: {}, thinking: { level: 'low' }, projectedInputChars: 1_500_000,
+    });
+  }
+  const inspection = proto.getLastRequestInspection.call(owner);
+  assert.ok(JSON.stringify(inspection).length <= window.NavigatorSession.MAX_INSPECTION_CHARS);
+  assert.equal(inspection.rounds[0].round, 0);
+  assert.equal(inspection.rounds.at(-1).round, 2);
+  assert.ok(inspection.rounds.some(round => round.omitted === true));
+  const source = require('node:fs').readFileSync(require('node:path').join(ROOT, 'services/navigator/session.js'), 'utf8');
+  assert.match(source, /const requestPayload =/);
+  assert.match(source, /chat\(requestPayload/);
+  assert.match(source, /getLastRequestInspection/);
+  assert.doesNotMatch(source, /persist\([^)]*lastRequestInspection/);
+}
+
 async function main() {
   await testIncompleteHistory();
   await testApolloCompleteHistoryAndDiagnostics();
@@ -435,6 +459,7 @@ async function main() {
   testNavigatorToolGuidanceAndAllowances();
   testToolDropUsesInstructionOnly();
   await testProposalResultFloor();
+  testRequestInspectionRetentionAndContract();
   console.log('Desktop Navigator context contract tests passed');
 }
 

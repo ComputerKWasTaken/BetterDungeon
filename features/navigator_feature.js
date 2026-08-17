@@ -36,6 +36,8 @@ class NavigatorFeature {
     this.emptyEl = null;
     this.readOnlyBadge = null;
     this.settingsPanel = null;
+    this.inspectionPanel = null;
+    this.inspectionRound = 0;
     this.messageNodes = new Map();
 
     this.isOpen = false;
@@ -257,8 +259,8 @@ class NavigatorFeature {
     } else if (event === 'update') {
       this.updateMessageNode(payload);
       this.scrollToBottom();
-    } else if (event === 'context') {
-      this.updateSubtitle();
+    } else if (event === 'inspection') {
+      if (event === 'inspection' && this.inspectionPanel && !this.inspectionPanel.hidden) this.renderRequestInspection(payload);
     } else if (event === 'permissions' || event === 'idle') {
       this.updatePermissionUI();
       this.renderAllProposalStates();
@@ -405,10 +407,12 @@ class NavigatorFeature {
       <span class="bd-navigator-mark icon-compass" aria-hidden="true"></span>
       <div class="bd-navigator-heading">
         <h2 class="bd-navigator-title">Navigator</h2>
-        <p class="bd-navigator-subtitle"></p>
       </div>
       <div class="bd-navigator-header-actions">
         <span class="bd-navigator-read-only" hidden>Read-only</span>
+        <button type="button" class="bd-navigator-icon-btn bd-navigator-inspection" aria-label="View last request context" title="View last request context">
+          <span class="icon-file-braces" aria-hidden="true"></span>
+        </button>
         <button type="button" class="bd-navigator-icon-btn bd-navigator-settings" aria-label="Navigator settings" title="Navigator settings">
           <span class="icon-sliders-horizontal" aria-hidden="true"></span>
         </button>
@@ -434,6 +438,12 @@ class NavigatorFeature {
         <label>Read-only<select data-nav-setting="readOnly"><option value="">Inherit global default</option><option value="true">Force on</option><option value="false">Force off</option></select></label>
       </div>
     `;
+
+    const inspection = document.createElement('section');
+    inspection.className = 'bd-navigator-inspection-panel';
+    inspection.hidden = true;
+    inspection.setAttribute('aria-label', 'Last request context');
+    inspection.innerHTML = '<div class="bd-navigator-inspection-summary"></div><div class="bd-navigator-inspection-toolbar"></div><div class="bd-navigator-inspection-body"></div>';
 
     const transcript = document.createElement('div');
     transcript.className = 'bd-navigator-transcript';
@@ -470,7 +480,7 @@ class NavigatorFeature {
       </div>
     `;
 
-    drawer.append(resize, header, settings, transcript, composer);
+    drawer.append(resize, header, settings, inspection, transcript, composer);
     document.body.appendChild(drawer);
 
     this.drawer = drawer;
@@ -481,8 +491,14 @@ class NavigatorFeature {
     this.stopBtn = composer.querySelector('.bd-navigator-stop');
     this.readOnlyBadge = header.querySelector('.bd-navigator-read-only');
     this.settingsPanel = settings;
+    this.inspectionPanel = inspection;
 
     header.querySelector('.bd-navigator-close').addEventListener('click', () => this.closeDrawer());
+    header.querySelector('.bd-navigator-inspection').addEventListener('click', () => {
+      inspection.hidden = !inspection.hidden;
+      settings.hidden = true;
+      if (!inspection.hidden) this.renderRequestInspection();
+    });
     header.querySelector('.bd-navigator-clear').addEventListener('click', () => this.handleClear());
     header.querySelector('.bd-navigator-settings').addEventListener('click', () => {
       settings.hidden = !settings.hidden;
@@ -516,7 +532,6 @@ class NavigatorFeature {
     });
 
     this.applyLayout();
-    this.updateSubtitle();
     this.updatePermissionUI();
     this.updateComposerState();
     this.renderTranscript();
@@ -558,6 +573,31 @@ class NavigatorFeature {
     this.renderNavigatorSettings();
   }
 
+  renderRequestInspection(inspection = this.session?.getLastRequestInspection?.()) {
+    if (!this.inspectionPanel) return;
+    const summary = this.inspectionPanel.querySelector('.bd-navigator-inspection-summary');
+    const toolbar = this.inspectionPanel.querySelector('.bd-navigator-inspection-toolbar');
+    const body = this.inspectionPanel.querySelector('.bd-navigator-inspection-body');
+    summary.replaceChildren(); toolbar.replaceChildren(); body.replaceChildren();
+    if (!inspection) { summary.textContent = 'Nothing has been captured yet in this page session. This inspection is not saved across reloads.'; return; }
+    const flags = ['toolsDropped', 'inputLimitReached', 'toolLimitReached', 'toolResultsOmitted'].filter(key => inspection.meta?.[key]);
+    summary.textContent = `Captured ${inspection.capturedAt || 'unknown time'} ? ${inspection.model || 'model unknown'} ? thinking ${inspection.thinkingLevel || 'unknown'} ? input cap ${inspection.inputCap || 'unknown'} chars ? peak ${inspection.meta?.peakInputChars || 0} chars ? tool rounds ${inspection.meta?.toolRounds || 0}${flags.length ? ` ? ${flags.join(', ')}` : ''}`;
+    if (inspection.error) summary.appendChild(document.createTextNode(` Error: ${inspection.error.message}`));
+    const rounds = Array.isArray(inspection.rounds) ? inspection.rounds : [];
+    if (!rounds.length) { body.textContent = 'No executor round was captured. Nothing is saved across reloads.'; return; }
+    if (rounds.length > 1) {
+      const label = document.createElement('label'); label.textContent = 'Round ';
+      const select = document.createElement('select'); select.className = 'bd-navigator-inspection-round';
+      rounds.forEach((round, index) => { const option = document.createElement('option'); option.value = String(index); option.textContent = round.omitted ? `${round.round + 1} (text omitted)` : String(round.round + 1); select.appendChild(option); });
+      select.value = String(Math.min(this.inspectionRound, rounds.length - 1));
+      select.addEventListener('change', () => { this.inspectionRound = Number(select.value); this.renderRequestInspection(inspection); }); label.appendChild(select); toolbar.appendChild(label);
+    }
+    const round = rounds[Math.min(this.inspectionRound, rounds.length - 1)];
+    if (round.omitted) { body.textContent = round.omissionReason || 'Intermediate round text omitted due to the inspection retention limit.'; return; }
+    const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = 'Copy round JSON'; copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(JSON.stringify(round, null, 2)); copy.textContent = 'Copied'; } catch { copy.textContent = 'Copy unavailable'; } }); toolbar.appendChild(copy);
+    for (const [title, value] of [['System instruction', round.systemInstruction], ['Messages', round.messages], ['Tool schemas', round.tools], ['Tool results', round.toolResults], ['Round budget', { budget: round.budget, thinking: round.thinking, continuationPresent: round.continuationPresent, projectedInputChars: round.projectedInputChars }]]) { const heading = document.createElement('h4'); heading.textContent = title; body.appendChild(heading); const pre = document.createElement('pre'); pre.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2); body.appendChild(pre); }
+  }
+
   // ==================== OPEN / CLOSE ====================
 
   toggleDrawer() {
@@ -571,7 +611,6 @@ class NavigatorFeature {
     this.drawer.hidden = false;
     this.launcher?.classList.add('bd-navigator-launcher-active');
     this.applyLayout();
-    this.updateSubtitle();
     this.scrollToBottom(true);
     this.inputEl?.focus();
   }
@@ -722,14 +761,6 @@ class NavigatorFeature {
   updatePermissionUI() {
     const readOnly = this.session?.getPermissionState?.().readOnly === true;
     if (this.readOnlyBadge) this.readOnlyBadge.hidden = !readOnly;
-    if (this.emptyEl) {
-      const note = this.emptyEl.querySelector('.bd-navigator-empty-note');
-      if (note) {
-        note.textContent = readOnly
-          ? 'Read-only mode is enabled. Navigator can inspect and draft, but mutation tools are unavailable.'
-          : 'Navigator reads a budgeted snapshot. Proposed changes require your approval before they are applied.';
-      }
-    }
   }
 
   handleClear() {
@@ -749,32 +780,6 @@ class NavigatorFeature {
     this.emptyEl?.querySelectorAll('.bd-navigator-quick-actions button').forEach(button => {
       button.disabled = busy;
     });
-  }
-
-  updateSubtitle() {
-    const subtitle = this.drawer?.querySelector('.bd-navigator-subtitle');
-    if (!subtitle) return;
-
-    const context = this.session?.getContextSummary?.();
-    if (!context || context.state === 'idle') {
-      subtitle.textContent = 'Preparing adventure context…';
-      return;
-    }
-    if (context.state === 'loading') {
-      subtitle.textContent = 'Refreshing adventure context…';
-      return;
-    }
-    if (context.state === 'error') {
-      subtitle.textContent = 'Adventure context unavailable';
-      return;
-    }
-
-    const title = context.title ? `${context.title} · ` : '';
-    const coverage = `${context.plotPopulated || 0}/4 plot · ${context.cardsIncluded || 0}/${context.cardsTotal || 0} card directory · ${context.actionsIncluded || 0} actions`;
-    const state = context.preview
-      ? ' · preview'
-      : (context.partial ? ' · partial' : '');
-    subtitle.textContent = `${title}${coverage}${state}`;
   }
 
   // ==================== TRANSCRIPT RENDERING ====================

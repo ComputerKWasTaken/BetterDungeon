@@ -51,6 +51,7 @@
   // Persistence bounds. Transcripts are convenience state, not archives.
   const MAX_PERSISTED_MESSAGES = 80;
   const MAX_PERSISTED_CHARS = 120000;
+  const MAX_INSPECTION_CHARS = 4 * 1024 * 1024;
   const MAX_PERSISTED_PROPOSAL_VALUE_CHARS = 1000;
   const PERSISTED_PROPOSAL_TRUNCATION_MARKER = ' …[truncated for reload]';
 
@@ -146,6 +147,7 @@
       this.settingsReady = this.loadSettings();
       this.destroyed = false;
       this.debug = false;
+      this.lastRequestInspection = null;
 
       try {
         chrome.storage?.onChanged?.addListener(this.boundStorageChange);
@@ -224,8 +226,65 @@
       this.abort();
       this.abortMutation();
       this.messages = [];
+      this.lastRequestInspection = null;
       this.emit('reset', this.messages);
       this.persist();
+    }
+
+    getLastRequestInspection() {
+      if (!this.lastRequestInspection) return null;
+      return JSON.parse(JSON.stringify(this.lastRequestInspection));
+    }
+
+    beginRequestInspection() {
+      this.lastRequestInspection = {
+        capturedAt: new Date().toISOString(),
+        adventureId: this.adventureId,
+        model: null,
+        thinkingLevel: null,
+        inputCap: null,
+        snapshot: null,
+        turnAllowances: null,
+        rounds: [],
+        meta: null,
+        error: null,
+      };
+      this.emit('inspection', this.getLastRequestInspection());
+    }
+
+    retainInspectionRound(round) {
+      const inspection = this.lastRequestInspection;
+      if (!inspection) return;
+      inspection.rounds.push(round);
+      const size = value => JSON.stringify(value).length;
+      const placeholder = item => ({
+        round: item.round,
+        omitted: true,
+        omissionReason: 'Intermediate round text omitted due to the inspection retention limit.',
+        projectedInputChars: item.projectedInputChars,
+        tools: Array.isArray(item.tools) ? item.tools.map(tool => ({ name: tool.name })) : [],
+        continuationPresent: item.continuationPresent,
+      });
+      while (size(inspection) > MAX_INSPECTION_CHARS && inspection.rounds.length > 2) {
+        const index = inspection.rounds.findIndex((item, i) => i > 0 && i < inspection.rounds.length - 1 && !item.omitted);
+        if (index < 0) break;
+        inspection.rounds[index] = placeholder(inspection.rounds[index]);
+      }
+      if (size(inspection) > MAX_INSPECTION_CHARS) {
+        const latest = inspection.rounds[inspection.rounds.length - 1];
+        const index = inspection.rounds.findIndex(
+          item => !item.omitted && (inspection.rounds.length === 1 || item !== latest)
+        );
+        if (index >= 0) inspection.rounds[index] = placeholder(inspection.rounds[index]);
+      }
+      this.emit('inspection', this.getLastRequestInspection());
+    }
+
+    finishRequestInspection(meta, error) {
+      if (!this.lastRequestInspection) return;
+      this.lastRequestInspection.meta = meta ? { ...meta } : null;
+      this.lastRequestInspection.error = error ? { code: error.code || 'unknown', message: error.message || String(error) } : null;
+      this.emit('inspection', this.getLastRequestInspection());
     }
 
     // ==================== PERSISTENCE ====================
@@ -973,6 +1032,7 @@
     }
 
     async runTurn(trimmed) {
+      this.beginRequestInspection();
       if (trimmed.length > MAX_USER_MESSAGE_CHARS) {
         this.addMessage({ role: 'user', content: trimmed });
         this.addMessage({
@@ -984,6 +1044,7 @@
             message: `That message is ${trimmed.length} characters. Navigator accepts up to ${MAX_USER_MESSAGE_CHARS}.`,
           },
         });
+        this.finishRequestInspection(null, { code: 'invalid_args', message: `That message is ${trimmed.length} characters.` });
         this.persist();
         return;
       }
@@ -998,6 +1059,7 @@
           content: '',
           error: { code: 'not_configured', message: ready.message },
         });
+        this.finishRequestInspection(null, { code: 'not_configured', message: ready.message });
         this.persist();
         return;
       }
@@ -1052,10 +1114,25 @@
           omittedMessages: built.omittedMessages,
           turnAllowances,
         };
+        this.lastRequestInspection.model = ready.status?.model || ready.status?.modelId || ready.status?.config?.model || null;
+        this.lastRequestInspection.thinkingLevel = this.resolveThinkingLevel(ready.status);
+        this.lastRequestInspection.inputCap = turnLimits.maxInputChars;
+        this.lastRequestInspection.snapshot = {
+          capturedAtIso: builtContext.snapshot.capturedAtIso || null,
+          summary: builtContext.snapshot.summary || null,
+          segments: builtContext.snapshot.segments || null,
+          warnings: builtContext.snapshot.warnings || [],
+          partial: builtContext.snapshot.partial === true,
+          degradation: builtContext.snapshot.degradation || builtContext.snapshot.summary?.degradation || null,
+        };
+        this.lastRequestInspection.turnAllowances = { ...turnAllowances };
+        this.emit('inspection', this.getLastRequestInspection());
       } catch (error) {
+        const inspectionError = error?.code ? error : { code: 'invalid_args', message: error?.message || 'Navigator context could not be assembled.' };
+        this.finishRequestInspection(null, inspectionError);
         this.finishWithError(
           assistant.id,
-          error?.code ? error : { code: 'invalid_args', message: error?.message || 'Navigator context could not be assembled.' }
+          inspectionError
         );
         return;
       }
@@ -1141,14 +1218,27 @@
               break;
             }
           }
-          const result = await window.UltrascriptsAIExecutor.chat({
+          const requestPayload = {
             systemInstruction: request.systemInstruction,
             messages: request.messages,
             budget: request.limits,
             thinking: { level: this.resolveThinkingLevel(ready.status) },
             tools,
             ...(continuation ? { continuation, toolResults } : {}),
-          }, {
+          };
+          this.retainInspectionRound({
+            round: toolRounds,
+            systemInstruction: requestPayload.systemInstruction,
+            messages: requestPayload.messages,
+            tools: requestPayload.tools,
+  toolResults: requestPayload.toolResults,
+            continuationPresent: Boolean(continuation),
+            budget: requestPayload.budget,
+            limits: requestPayload.budget,
+            thinking: requestPayload.thinking,
+            projectedInputChars: projected,
+          });
+          const result = await window.UltrascriptsAIExecutor.chat(requestPayload, {
             consumer: CONSUMER,
             requestId: `navigator-${this.adventureId || 'unknown'}-${Date.now()}-${toolRounds}`,
             signal: turnController.signal,
@@ -1262,9 +1352,13 @@
             readToolsCompleted: Array.from(new Set(completedReadToolNames)),
           },
         });
+        this.finishRequestInspection({
+          ...(finalMeta || {}), peakInputChars, toolRounds, toolsDropped, inputLimitReached, toolLimitReached, toolResultsOmitted,
+        }, null);
         this.persist();
       } catch (error) {
         if (this.streamingMessageId !== assistant.id) return;
+        this.finishRequestInspection(this.lastRequestInspection?.meta || {}, error);
         this.finishWithError(assistant.id, error);
       }
     }
@@ -1494,6 +1588,7 @@
 
   NavigatorSession.CONSUMER = CONSUMER;
   NavigatorSession.MAX_INPUT_CHARS = MAX_INPUT_CHARS;
+  NavigatorSession.MAX_INSPECTION_CHARS = MAX_INSPECTION_CHARS;
   NavigatorSession.CHARS_PER_TOKEN = CHARS_PER_TOKEN;
   NavigatorSession.MAX_OUTPUT_TOKENS = MAX_OUTPUT_TOKENS;
   NavigatorSession.MAX_HISTORY_CHARS = MAX_HISTORY_CHARS;
