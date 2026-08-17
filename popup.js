@@ -286,8 +286,6 @@ function initToggles() {
     const thinking = (result || {}).betterDungeon_navigator_thinking_level || defaults.thinkingLevel || 'low';
     const thinkingSelect = document.getElementById('navigator-thinking-level');
     if (thinkingSelect) thinkingSelect.value = thinking;
-    const cap = document.getElementById('navigator-context-cap');
-    if (cap) cap.value = Number.isSafeInteger(defaults.contextCap) ? defaults.contextCap : Number(cap.placeholder);
     const memory = document.getElementById('navigator-memory-bank');
     if (memory) memory.checked = defaults.includeMemoryBank !== false;
     const history = document.getElementById('navigator-history-mode');
@@ -313,17 +311,10 @@ function initToggles() {
   });
   const saveNavigatorDefaults = () => {
     const thinking = document.getElementById('navigator-thinking-level')?.value || 'low';
-    const capInput = document.getElementById('navigator-context-cap');
-    const capRaw = (capInput?.value || '').trim();
-    const capValue = capRaw ? Number(capRaw) : null;
-    const contextCapFloor = Number(capInput?.min);
-    const contextCapDefault = Number(capInput?.placeholder);
-    if (capInput && Number.isSafeInteger(capValue) && capValue > 0 && capValue < contextCapFloor) capInput.value = String(contextCapFloor);
     const includeMemoryBank = document.getElementById('navigator-memory-bank')?.checked !== false;
     const historyMode = document.getElementById('navigator-history-mode')?.value === 'floor' ? 'floor' : 'full';
     const defaults = {
       thinkingLevel: thinking,
-      contextCap: Number.isSafeInteger(capValue) && capValue > 0 ? Math.max(contextCapFloor, capValue) : contextCapDefault,
       includeMemoryBank,
       historyMode,
     };
@@ -333,7 +324,6 @@ function initToggles() {
     });
   };
   document.getElementById('navigator-thinking-level')?.addEventListener('change', saveNavigatorDefaults);
-  document.getElementById('navigator-context-cap')?.addEventListener('change', saveNavigatorDefaults);
   document.getElementById('navigator-memory-bank')?.addEventListener('change', saveNavigatorDefaults);
   document.getElementById('navigator-history-mode')?.addEventListener('change', saveNavigatorDefaults);
 

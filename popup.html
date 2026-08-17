@@ -289,10 +289,6 @@
                 </select>
               </div>
               <div class="feature-option">
-                <label class="option-label" for="navigator-context-cap">Default input cap (tokens)</label>
-                <input id="navigator-context-cap" class="bd-navigator-option-input" type="number" min="4000" step="1000" placeholder="128000">
-              </div>
-              <div class="feature-option">
                 <label class="option-label" for="navigator-memory-bank">Include Memory Bank by default</label>
                 <label class="toggle sm">
                   <input type="checkbox" id="navigator-memory-bank">
@@ -1144,13 +1140,17 @@
                     <p class="form-help" id="ai-endpoint-model-help">Use the exact model identifier accepted by the selected service.</p>
                   </div>
                   <div class="form-group">
-                    <label class="form-label" for="ai-endpoint-max-input-tokens">Maximum input tokens <span class="form-label-optional">optional</span></label>
-                    <input type="number" class="form-input" id="ai-endpoint-max-input-tokens" min="0" step="1" placeholder="Auto">
-                    <p class="form-help">Optional user cap; it can only reduce the discovered model capacity.</p>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="ai-endpoint-max-output-tokens">Maximum output tokens <span class="form-label-optional">optional</span></label>
-                    <input type="number" class="form-input" id="ai-endpoint-max-output-tokens" min="0" step="1" placeholder="Auto">
+                    <label class="form-label" for="ai-endpoint-max-input-tokens">Input cap</label>
+                    <select class="form-input" id="ai-endpoint-max-input-tokens">
+                      <option value="32000">32k</option>
+                      <option value="64000">64k</option>
+                      <option value="128000">128k</option>
+                      <option value="256000">256k</option>
+                      <option value="1000000">1M</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                    <input type="number" class="form-input" id="ai-endpoint-max-input-custom" min="4000" step="1000" placeholder="4000" hidden>
+                    <p class="form-help">Absolute input-token cap used by all BetterDungeon AI module requests.</p>
                   </div>
                   <p class="feature-hint" id="ai-endpoint-gemini-help"><span class="icon-key-round"></span> Get a Gemini key from <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer">Google AI Studio</a>.</p>
                   <div class="ai-provider-validation" id="ai-endpoint-validation" role="status" aria-live="polite"></div>

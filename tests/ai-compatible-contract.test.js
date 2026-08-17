@@ -305,6 +305,13 @@ async function configure(service, profile) {
   assert.equal(initial.service, 'gemini');
   assert.equal(initial.ready, false);
   assert.equal(discoveryRequests, 0);
+  const aiRuntimeSource = fs.readFileSync(path.join(ROOT, 'background-ai-openai-compatible.js'), 'utf8');
+  assert.doesNotMatch(aiRuntimeSource, /TOKEN_SAFETY_FACTOR|user-capped|profile\?\.maxOutputTokens/);
+  assert.doesNotMatch(aiRuntimeSource, /Math\.min\([^)]*maxInput/);
+  const endpointSource = fs.readFileSync(path.join(ROOT, 'popup-ai-endpoint.js'), 'utf8');
+  assert.match(endpointSource, /AI_INPUT_CAP_PRESETS/);
+  assert.match(endpointSource, /ai-endpoint-max-input-custom/);
+  assert.doesNotMatch(endpointSource, /maxOutputTokens|ai-endpoint-max-output-tokens/);
   local.set('ultrascripts_ai_capability_cache_v1', JSON.stringify({
     gemini: {
       entries: {
@@ -345,26 +352,38 @@ async function configure(service, profile) {
   assert.ok(discoveryRequest);
   assert.equal(String(discoveryRequest.url).includes('key='), false);
   assert.equal(discoveryRequest.headers['x-goog-api-key'], 'test-gemini');
-  assert.equal(discoveredStatus.limits.maxInputChars, Math.floor(131072 * 3 * 0.75));
+  assert.equal(discoveredStatus.limits.maxInputTokens, 128000);
+  assert.equal(discoveredStatus.limits.maxInputChars, 128000 * 3);
   assert.equal(discoveredStatus.limits.maxOutputTokens, 8192);
-  assert.equal(discoveredStatus.limits.model, 'gemma-4-31b-it');
+  assert.equal(discoveredStatus.limits.model, 'gemini-3.5-flash-lite');
   assert.equal(discoveredStatus.limits.source, 'discovered');
   await configure('gemini', {
     apiKey: 'test-gemini', modelMode: 'auto', model: 'gemini-3.5-flash-lite',
-    maxInputTokens: 40000, maxOutputTokens: 1000,
+    maxInputTokens: 32000, maxOutputTokens: 1000,
   });
   await new Promise(resolve => setTimeout(resolve, 0));
   const cappedStatus = await raw({ op: 'status' });
-  assert.equal(cappedStatus.limits.source, 'user-capped');
-  assert.equal(cappedStatus.limits.maxInputTokens, 40000);
-  assert.equal(cappedStatus.limits.maxOutputTokens, 1000);
+  assert.equal(cappedStatus.limits.source, 'discovered');
+  assert.equal(cappedStatus.limits.maxInputTokens, 32000);
+  assert.equal(cappedStatus.limits.maxInputChars, 32000 * 3);
+  assert.equal(cappedStatus.limits.maxOutputTokens, 8192);
+  for (const cap of [32000, 64000, 128000, 256000, 1000000]) {
+    await configure('gemini', {
+      apiKey: 'test-gemini', modelMode: 'auto', model: 'gemini-3.5-flash-lite',
+      maxInputTokens: cap,
+    });
+    const presetStatus = await raw({ op: 'status' });
+    assert.equal(presetStatus.limits.maxInputTokens, cap);
+    assert.equal(presetStatus.limits.maxInputChars, cap * 3);
+  }
   await configure('gemini', {
     apiKey: 'test-gemini', modelMode: 'auto', model: 'gemini-3.5-flash-lite',
-    maxInputTokens: 99999999, maxOutputTokens: 99999999,
+    maxInputTokens: 2000, maxOutputTokens: 99999999,
   });
   await new Promise(resolve => setTimeout(resolve, 0));
   const uncappedStatus = await raw({ op: 'status' });
-  assert.equal(uncappedStatus.limits.maxInputTokens, 131072);
+  assert.equal(uncappedStatus.limits.maxInputTokens, 4000);
+  assert.equal(uncappedStatus.limits.maxInputChars, 4000 * 3);
   assert.equal(uncappedStatus.limits.maxOutputTokens, 8192);
   local.delete('ultrascripts_ai_capability_cache_v1');
   holdDiscovery = true;
@@ -414,6 +433,12 @@ async function configure(service, profile) {
   const routerStatus = await raw({ op: 'status' });
   assert.equal(routerStatus.limits.source, 'default');
   assert.deepEqual(window.UltrascriptsAIExecutor.status().supports, { text: true, json: true, thinking: false });
+  await configure('openrouter', { apiKey: 'test-openrouter', model: 'router-reasoning-no-limit' });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const reasoningFallbackStatus = await raw({ op: 'status' });
+  assert.equal(reasoningFallbackStatus.limits.maxOutputTokens, 2048);
+  assert.equal(reasoningFallbackStatus.limits.source, 'partial');
+  assert.equal(reasoningFallbackStatus.supports.thinking, true);
   await configure('openrouter', { apiKey: 'test-openrouter', model: 'google/gemini-3.7-flash' });
   await new Promise(resolve => setTimeout(resolve, 0));
   assert.equal((await raw({ op: 'status' })).supports.thinking, true);
@@ -436,7 +461,7 @@ async function configure(service, profile) {
   assert.equal(customGood.ready, true);
   await new Promise(resolve => setTimeout(resolve, 0));
   const customStatus = await raw({ op: 'status' });
-  assert.equal(customStatus.limits.source, 'partial');
+  assert.equal(customStatus.limits.source, 'default');
 
   await configure('gemini', { modelMode: 'manual', model: 'gemini-tool-model' });
   const deltas = [];
