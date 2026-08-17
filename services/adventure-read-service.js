@@ -97,9 +97,8 @@
     const actionIds = Array.isArray(memory?.actionIds)
       ? memory.actionIds.map(value => String(value))
       : memory?.actionId == null ? [] : [String(memory.actionId)];
-    if (!actionIds.length) return null;
     return {
-      id: actionIds[0],
+      id: actionIds.length ? actionIds[0] : null,
       actionIds,
       text: stringValue(memory?.text),
       lastRelevantActionId: memory?.lastRelevantActionId == null ? null : String(memory.lastRelevantActionId),
@@ -488,10 +487,6 @@
     try {
       stateRead = await readAdventure({ shortId, signal });
       if (stateRead.state?.available === true && Array.isArray(stateRead.state.memories)) {
-        const cached = memoryCache.get(String(shortId));
-        if (cached && cached.source === 'apollo' && now - cached.at < MEMORY_TTL_MS && cached.generation === latestGeneration) {
-          return { ...cached.value, memories: cached.value.memories.map(memory => ({ ...memory, actionIds: memory.actionIds.slice() })) };
-        }
         memories = normalizeMemories(stateRead.state.memories);
         provenance.source = 'apollo';
         provenance.memories.source = 'apollo';

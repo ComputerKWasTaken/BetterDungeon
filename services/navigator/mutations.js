@@ -724,6 +724,9 @@
     }
 
     async hydrateMemoryIfAvailable(proposal, verified, signal) {
+      if (verified === null) {
+        return { attempted: false, ok: false, reason: 'Memory Bank deletion changes list membership; Apollo entity hydration was not attempted.' };
+      }
       const cache = window.BetterDungeonApolloCache;
       if (!cache?.readAdventure) return { attempted: false, ok: false, reason: 'Memory Bank Apollo cache unavailable' };
       try {

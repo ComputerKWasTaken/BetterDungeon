@@ -114,6 +114,11 @@ async function testGraphqlFallbackDiagnosticsUnavailable() {
   assert.match(snapshot.systemInstruction, /Memory Bank and summary lag: unavailable/i);
   assert.match(snapshot.systemInstruction, /MEMORY BANK\n\(Memory Bank is unavailable/i);
   assert.doesNotMatch(snapshot.systemInstruction, /Snapshot warnings:.*Apollo/i);
+
+  window.BetterDungeonGQL.getNavigatorRecentMemories = async () => [];
+  const emptyFallback = await new window.NavigatorContext('demo').build();
+  assert.match(emptyFallback.systemInstruction, /Memory Bank: 0 memories/);
+  assert.doesNotMatch(emptyFallback.systemInstruction, /Memory Bank and summary lag: unavailable/i);
 }
 
 async function testAuthoritativeCardGate() {
@@ -190,7 +195,7 @@ async function testDynamicAllocator() {
   current.state.storySummary = current.storySummary;
   current.state.memories = Array.from({ length: 15 }, (_, index) => ({
     __typename: 'Memory',
-    actionIds: ['1', '2'],
+    ...(index === 0 ? {} : { actionIds: ['1', '2'] }),
     text: `Memory ${index + 1}: ${'detail '.repeat(18)}`,
   }));
   const actions = Array.from({ length: 20 }, (_, index) => action(index + 1, `Action ${index + 1}: ${'story '.repeat(20)}`));
@@ -201,9 +206,11 @@ async function testDynamicAllocator() {
     error: null,
   }, null, []);
   // Primer VERSION 6 and Memory Bank proposal guidance require this headroom.
-  const small = await new window.NavigatorContext('demo').build({ maxChars: 20000 });
-  assert.ok(small.systemInstruction.length <= 20000);
+  const small = await new window.NavigatorContext('demo').build({ maxChars: 22000 });
+  assert.ok(small.systemInstruction.length <= 22000);
   assert.match(small.systemInstruction, /MEMORY BANK\n/);
+  assert.match(small.systemInstruction, /returned \d+ of 15 entries/);
+  assert.match(small.systemInstruction, /Memory 1:/);
   assert.doesNotMatch(small.systemInstruction, /__typename|actionIds/);
   assert.equal(small.partial, true);
   assert.match(small.systemInstruction, /Action 20/);
@@ -253,7 +260,7 @@ async function testDynamicAllocator() {
   assert.match(floor.systemInstruction, /You are Navigator, BetterDungeon/);
   assert.equal(floor.index.cards.length, 12);
   assert.equal(floor.index.actions.length, 20);
-  assert.equal(floor.index.memories.length, 1);
+  assert.equal(floor.index.memories.length, 15);
   assert.ok(floor.segments.recentActions.floorIncluded > 0);
   for (const section of [floor.segments.plotComponents, floor.segments.memoryBank, floor.segments.storyCardDirectory]) {
     assert.equal(section.included, 0);
@@ -313,13 +320,14 @@ async function testScaledDynamicCeilings() {
 
   const large = await new window.NavigatorContext('demo').build({ maxChars: 554119 });
   assert.ok(large.systemInstruction.length <= 554119);
-  assert.equal(large.segments.memoryBank.included, 1);
+  assert.equal(large.segments.memoryBank.included, 48);
   assert.ok(large.segments.recentActions.included > 31);
   assert.equal(large.segments.recentActions.coverage.included, large.segments.recentActions.included);
   assert.equal(large.segments.total.includedChars, large.systemInstruction.length);
 
-  const sectionBound = await new window.NavigatorContext('demo').build({ maxChars: 100000 });
-  assert.ok(sectionBound.segments.total.includedChars < 200000);
+  const sectionBound = await new window.NavigatorContext('demo').build({ maxChars: 200000 });
+  assert.equal(sectionBound.segments.memoryBank.truncatedReason, 'section ceiling');
+  assert.match(sectionBound.systemInstruction, /Memory Bank:.*reduced for section ceiling/);
 }
 
 function testStructuredToolResultBudgeting() {

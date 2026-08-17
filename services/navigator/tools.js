@@ -533,6 +533,9 @@
   }
 
   function getMemory(shortId, args, index) {
+    if (args.id === undefined && args.index === undefined) {
+      throw { code: 'invalid_tool_args', message: 'Supply either id or index to get_memory.' };
+    }
     const memories = currentMemories(index);
     let memoryIndex;
     if (args.id !== undefined) {
