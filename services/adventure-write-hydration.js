@@ -123,5 +123,8 @@
     }
   }
 
-  window.BetterDungeonAdventureWriteHydration = { hydrateVerifiedMutation };
+  window.BetterDungeonAdventureWriteHydration = {
+    hydrateVerifiedMutation,
+    cardBeforeFields: CARD_BEFORE_FIELDS,
+  };
 }());

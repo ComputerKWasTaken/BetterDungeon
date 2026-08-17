@@ -84,20 +84,6 @@ async function testConfirmedHydrationAndFailure() {
       return { available: true, data: { changed: true }, error: null };
     },
     async readEntity() {
-      return {
-        available: true,
-        data: {
-          type: 'lore',
-          title: 'Before title',
-          description: 'Before notes',
-          keys: 'Before triggers',
-          value: 'Before entry',
-          useForCharacterCreation: false,
-        },
-        error: null,
-      };
-    },
-    async readEntity() {
       return { available: true, data: { state: { instructions: { type: 'aiInstructions' } } }, error: null };
     },
   };
@@ -318,9 +304,17 @@ async function testCardEditAndDeletionDecision() {
   assert.equal(deferredCreation.deferred, true);
 }
 
+function testCardFieldMapParity() {
+  const hydrationFields = window.BetterDungeonAdventureWriteHydration.cardBeforeFields;
+  const mutationFields = window.NavigatorMutations.cardFields;
+  const mutationByLabel = Object.fromEntries(Object.values(mutationFields).map(config => [config.label, config.field]));
+  assert.deepEqual(hydrationFields, mutationByLabel);
+}
+
 async function main() {
   load('services/adventure-write-hydration.js');
   load('services/navigator/mutations.js');
+  testCardFieldMapParity();
   await testConfirmedHydrationAndFailure();
   await testFailedVerificationAndUnavailableApollo();
   await testCardEditAndDeletionDecision();

@@ -782,6 +782,7 @@
   }
 
   NavigatorMutations.DEFINITIONS = DEFINITIONS;
+  NavigatorMutations.cardFields = CARD_FIELDS;
   NavigatorMutations.READ_ONLY_STORAGE_KEY = READ_ONLY_STORAGE_KEY;
   NavigatorMutations.MAX_PROPOSAL_CHARS = MAX_PROPOSAL_CHARS;
   window.NavigatorMutations = NavigatorMutations;
