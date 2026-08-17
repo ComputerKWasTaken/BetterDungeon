@@ -92,6 +92,24 @@
       .sort((left, right) => numericId(left.id) - numericId(right.id));
   }
 
+  function normalizeMemory(memory) {
+    if (typeof memory === 'string') return { id: null, actionIds: [], text: memory, lastRelevantActionId: null };
+    const actionIds = Array.isArray(memory?.actionIds)
+      ? memory.actionIds.map(value => String(value))
+      : memory?.actionId == null ? [] : [String(memory.actionId)];
+    if (!actionIds.length) return null;
+    return {
+      id: actionIds[0],
+      actionIds,
+      text: stringValue(memory?.text),
+      lastRelevantActionId: memory?.lastRelevantActionId == null ? null : String(memory.lastRelevantActionId),
+    };
+  }
+
+  function normalizeMemories(memories) {
+    return collectionValues(memories).map(normalizeMemory).filter(Boolean);
+  }
+
   function issue(section, source, error, userVisible = true) {
     return {
       section,
@@ -146,6 +164,8 @@
   let latestRefreshShortId = null;
   let latestRefreshAt = 0;
   let latestGeneration = 0;
+  const memoryCache = new Map();
+  const MEMORY_TTL_MS = 500;
   const LATEST_REFRESH_FLOOR_MS = 500;
 
   function updateLatestAction(actions, source, shortId) {
@@ -196,7 +216,7 @@
         storySummary: stringValue(state.storySummary || adventure.storySummary),
       },
       state: {
-        memories: Array.isArray(state.memories) ? state.memories.slice() : [],
+        memories: Array.isArray(state.memories) ? state.memories.slice() : null,
         lastSummarizedActionId: state.lastSummarizedActionId ?? null,
         lastMemoryActionId: state.lastMemoryActionId ?? null,
         available: true,
@@ -454,6 +474,67 @@
     };
   }
 
+  async function readMemories(options = {}) {
+    const signal = options.signal || null;
+    const ws = window.Ultrascripts?.ws || null;
+    const shortId = requireShortId(options.shortId, ws);
+    if (!shortId) throw new Error('Adventure shortId is unknown. Open an adventure first.');
+    if (isAborted(signal)) throw abortError();
+    const now = Date.now();
+    const provenance = { memories: { source: null }, source: null, fallback: null };
+    const degradations = [];
+    let memories = null;
+    let stateRead = null;
+    try {
+      stateRead = await readAdventure({ shortId, signal });
+      if (stateRead.state?.available === true && Array.isArray(stateRead.state.memories)) {
+        const cached = memoryCache.get(String(shortId));
+        if (cached && cached.source === 'apollo' && now - cached.at < MEMORY_TTL_MS && cached.generation === latestGeneration) {
+          return { ...cached.value, memories: cached.value.memories.map(memory => ({ ...memory, actionIds: memory.actionIds.slice() })) };
+        }
+        memories = normalizeMemories(stateRead.state.memories);
+        provenance.source = 'apollo';
+        provenance.memories.source = 'apollo';
+      }
+    } catch (error) {
+      if (error?.name === 'AbortError') throw abortError();
+      degradations.push(issue('memories', 'apollo', error));
+    }
+    if (isAborted(signal)) throw abortError();
+    if (memories === null) {
+      const cached = memoryCache.get(String(shortId));
+      if (cached && cached.source === 'graphql' && now - cached.at < MEMORY_TTL_MS && cached.generation === latestGeneration) {
+        return { ...cached.value, memories: cached.value.memories.map(memory => ({ ...memory, actionIds: memory.actionIds.slice() })) };
+      }
+      try {
+        const raw = await window.BetterDungeonGQL?.getNavigatorRecentMemories(shortId, { signal });
+        memories = normalizeMemories(raw);
+        provenance.source = 'graphql';
+        provenance.memories.source = 'graphql';
+        provenance.fallback = 'Apollo state.memories was unavailable; recentMemories was queried.';
+      } catch (error) {
+        if (error?.name === 'AbortError') throw abortError();
+        degradations.push(issue('memories', 'graphql', error));
+        provenance.source = 'unavailable';
+        provenance.memories.source = 'unavailable';
+        return {
+          memories: null,
+          coverage: { authoritativeTotal: null, available: false, included: 0, omitted: null },
+          provenance,
+          degradations,
+        };
+      }
+    }
+    const value = {
+      memories,
+      coverage: { authoritativeTotal: memories.length, available: true, included: memories.length, omitted: 0 },
+      provenance,
+      degradations,
+    };
+    memoryCache.set(String(shortId), { at: now, generation: latestGeneration, source: provenance.source, value });
+    return { ...value, memories: memories.map(memory => ({ ...memory, actionIds: memory.actionIds.slice() })) };
+  }
+
   async function refreshLatestActionId(options = {}) {
     const shortId = options.shortId || window.Ultrascripts?.ws?.getAdventureShortId?.() || null;
     if (!shortId) {
@@ -507,6 +588,7 @@
     getLatestActionId,
     refreshLatestActionId,
     readCards,
+    readMemories,
   };
 
   if (typeof module !== 'undefined' && module.exports) {

@@ -75,7 +75,7 @@
     },
     {
       name: 'search_memory_bank',
-      description: 'Search normalized Memory Bank entries with case-insensitive substring matching. Entries remain in stable positional order; match count only breaks selection when more hits exist than the limit. Use get_memory with the returned index.',
+      description: 'Search normalized Memory Bank entries with case-insensitive substring matching. Results include both stable memory IDs and positional indexes; match count only breaks selection when more hits exist than the limit. Use get_memory with either returned id or index.',
       parameters: {
         type: 'object',
         properties: {
@@ -88,11 +88,11 @@
     },
     {
       name: 'get_memory',
-      description: 'Read one bounded Memory Bank entry by its stable positional index. The result is capped at 4000 characters and reports truncation explicitly.',
+      description: 'Read one bounded Memory Bank entry by stable memory ID or positional index. The result is capped at 4000 characters and reports truncation explicitly.',
       parameters: {
         type: 'object',
-        properties: { index: { type: 'integer', minimum: 0 } },
-        required: ['index'],
+        properties: { index: { type: 'integer', minimum: 0 }, id: { type: 'string', minLength: 1 } },
+        required: [],
         additionalProperties: false,
       },
     },
@@ -525,6 +525,7 @@
       totalMatches: matches.length,
       returned: Math.min(limit, matches.length),
       memories: matches.slice(0, limit).map(match => ({
+        id: match.memory.id || null,
         index: match.index,
         preview: matchPreview(match.memory.text, query, MAX_SEARCH_PREVIEW_CHARS).text,
       })),
@@ -533,12 +534,20 @@
 
   function getMemory(shortId, args, index) {
     const memories = currentMemories(index);
-    const memoryIndex = integerArg(args.index, 0, 0, Math.max(0, memories.length - 1), 'index');
+    let memoryIndex;
+    if (args.id !== undefined) {
+      const id = oneLine(args.id);
+      memoryIndex = memories.findIndex(memory => String(memory.id || memory.actionIds?.[0] || '') === id);
+      if (memoryIndex < 0) throw { code: 'not_found', message: 'No Memory Bank entry matched that identifier.' };
+    } else {
+      memoryIndex = integerArg(args.index, 0, 0, Math.max(0, memories.length - 1), 'index');
+    }
     const memory = memories[memoryIndex];
     if (!memory) throw { code: 'not_found', message: 'No Memory Bank entry matched that index.' };
     const result = boundedText(memory.text, MAX_MEMORY_CHARS);
     return {
       source: index.source || 'unknown',
+      id: memory.id || null,
       index: memoryIndex,
       text: result.text,
       sourceChars: result.sourceChars,

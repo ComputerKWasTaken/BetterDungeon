@@ -27,6 +27,23 @@
     notes: { label: 'Notes', field: 'description' },
   });
 
+  function normalizeMemory(memory) {
+    const actionIds = Array.isArray(memory?.actionIds)
+      ? memory.actionIds.map(value => String(value))
+      : memory?.actionId == null ? [] : [String(memory.actionId)];
+    if (!actionIds.length) return null;
+    return {
+      id: actionIds[0],
+      actionIds,
+      text: text(memory?.text),
+      lastRelevantActionId: memory?.lastRelevantActionId == null ? null : String(memory.lastRelevantActionId),
+    };
+  }
+
+  function fingerprintMemory(memory) {
+    return JSON.stringify({ id: memory.id, actionIds: memory.actionIds, text: memory.text });
+  }
+
   const DEFINITIONS = Object.freeze([
     {
       name: 'propose_plot_component_change',
@@ -107,6 +124,33 @@
         type: 'object',
         properties: {
           id: { type: 'string', description: 'Exact Story Card ID from the directory or a read tool.' },
+          reason: { type: 'string', description: 'Short explanation shown to the player.' },
+        },
+        required: ['id'],
+        additionalProperties: false,
+      },
+    },
+    {
+      name: 'propose_memory_update',
+      description: 'Prepare a player-approved replacement for one existing Memory Bank entry selected by stable memory ID. This function never updates the memory.',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Stable memory ID, equal to actionIds[0].' },
+          text: { type: 'string', description: 'Complete replacement memory text.' },
+          reason: { type: 'string', description: 'Short explanation shown to the player.' },
+        },
+        required: ['id', 'text'],
+        additionalProperties: false,
+      },
+    },
+    {
+      name: 'propose_memory_delete',
+      description: 'Prepare irreversible deletion of one existing Memory Bank entry selected by stable memory ID. The player must explicitly approve it. This function never deletes the memory.',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'Stable memory ID, equal to actionIds[0].' },
           reason: { type: 'string', description: 'Short explanation shown to the player.' },
         },
         required: ['id'],
@@ -276,6 +320,12 @@
         case 'propose_story_card_delete':
           proposal = await this.createCardDeleteProposal(args, index, options.signal);
           break;
+        case 'propose_memory_update':
+          proposal = await this.createMemoryUpdateProposal(args, index, options.signal);
+          break;
+        case 'propose_memory_delete':
+          proposal = await this.createMemoryDeleteProposal(args, index, options.signal);
+          break;
         default:
           throw { code: 'unknown_tool', message: `Navigator mutation proposal '${name}' is not available.` };
       }
@@ -361,6 +411,74 @@
         throw { code: 'unavailable', message: 'Authoritative Story Card data is unavailable for this turn.' };
       }
       return index.cards.map(normalizeCard).filter(Boolean);
+    }
+
+    requireIndexedMemory(index, id) {
+      if (!Array.isArray(index?.memories)) {
+        throw { code: 'unavailable', message: 'Authoritative Memory Bank data is unavailable for this turn.' };
+      }
+      const matches = index.memories.filter(memory => String(memory.id || memory.actionIds?.[0] || '') === id);
+      if (matches.length !== 1) {
+        throw { code: matches.length ? 'conflict' : 'not_found', message: matches.length ? 'The requested Memory Bank identifier is ambiguous.' : 'No current Memory Bank entry matched that identifier.' };
+      }
+    }
+
+    async readMemories(signal) {
+      const raw = await this.gql().getNavigatorRecentMemories(this.shortId, { signal });
+      return raw.map(normalizeMemory).filter(Boolean);
+    }
+
+    async createMemoryUpdateProposal(args, index, signal) {
+      assertOnlyKeys(args, ['id', 'text', 'reason'], 'Memory Bank update proposal');
+      const id = stringArg(args.id, 'id', { nonEmpty: true }).trim();
+      const next = stringArg(args.text, 'text');
+      this.requireIndexedMemory(index, id);
+      let matches;
+      try {
+        matches = (await this.readMemories(signal)).filter(memory => memory.id === id);
+      } catch {
+        throw { code: 'unavailable', message: 'Could not read the current Memory Bank while preparing this proposal.' };
+      }
+      if (matches.length !== 1) {
+        throw { code: matches.length ? 'conflict' : 'not_found', message: matches.length ? 'The requested Memory Bank identifier is ambiguous.' : 'No current Memory Bank entry matched that identifier.' };
+      }
+      const before = matches[0];
+      if (before.text === next) throw { code: 'no_change', message: 'The Memory Bank entry already matches the proposed text.' };
+      return {
+        ...this.proposalBase('memory_update', `Memory ${id}`, reasonArg(args.reason), index),
+        action: 'modify',
+        memoryId: id,
+        beforeFingerprint: fingerprintMemory(before),
+        before: before.text,
+        after: next,
+        changes: [{ label: `Memory ${id}`, before: before.text, after: next }],
+      };
+    }
+
+    async createMemoryDeleteProposal(args, index, signal) {
+      assertOnlyKeys(args, ['id', 'reason'], 'Memory Bank deletion proposal');
+      const id = stringArg(args.id, 'id', { nonEmpty: true }).trim();
+      this.requireIndexedMemory(index, id);
+      let matches;
+      try {
+        matches = (await this.readMemories(signal)).filter(memory => memory.id === id);
+      } catch {
+        throw { code: 'unavailable', message: 'Could not read the current Memory Bank while preparing this proposal.' };
+      }
+      if (matches.length !== 1) {
+        throw { code: matches.length ? 'conflict' : 'not_found', message: matches.length ? 'The requested Memory Bank identifier is ambiguous.' : 'No current Memory Bank entry matched that identifier.' };
+      }
+      const before = matches[0];
+      return {
+        ...this.proposalBase('memory_delete', `Memory ${id}`, reasonArg(args.reason), index),
+        action: 'delete',
+        memoryId: id,
+        beforeFingerprint: fingerprintMemory(before),
+        before: before.text,
+        after: null,
+        irreversible: true,
+        changes: [{ label: `Memory ${id}`, before: before.text, after: '' }],
+      };
     }
 
     async createCardUpdateProposal(args, index, signal) {
@@ -452,6 +570,8 @@
           case 'story_card_create': return await this.applyCardCreate(proposal, options.signal);
           case 'story_card_update': return await this.applyCardUpdate(proposal, options.signal);
           case 'story_card_delete': return await this.applyCardDelete(proposal, options.signal);
+          case 'memory_update': return await this.applyMemoryUpdate(proposal, options.signal);
+          case 'memory_delete': return await this.applyMemoryDelete(proposal, options.signal);
           default: throw { code: 'invalid_proposal', message: 'This proposal has an unsupported mutation type.' };
         }
       } catch (error) {
@@ -600,6 +720,52 @@
         appliedAtIso: new Date().toISOString(),
         updatedAtDrift,
         hydration: await this.hydrateVerifiedMutation(proposal, verified, signal),
+      };
+    }
+
+    async hydrateMemoryIfAvailable(proposal, verified, signal) {
+      const cache = window.BetterDungeonApolloCache;
+      if (!cache?.readAdventure) return { attempted: false, ok: false, reason: 'Memory Bank Apollo cache unavailable' };
+      try {
+        const snapshot = await cache.readAdventure({ shortId: this.shortId });
+        if (!snapshot?.available || !Array.isArray(snapshot.data?.state?.memories)) {
+          return { attempted: false, ok: false, reason: 'Apollo cache does not hold Memory Bank state' };
+        }
+      } catch {
+        return { attempted: false, ok: false, reason: 'Apollo Memory Bank state could not be inspected' };
+      }
+      return this.hydrateVerifiedMutation(proposal, verified, signal);
+    }
+
+    async applyMemoryUpdate(proposal, signal) {
+      const matches = (await this.readMemories(signal)).filter(memory => memory.id === proposal.memoryId);
+      if (matches.length !== 1 || fingerprintMemory(matches[0]) !== proposal.beforeFingerprint) {
+        throw { code: 'conflict', message: 'The Memory Bank entry changed after Navigator prepared this proposal.' };
+      }
+      await this.gql().editNavigatorMemory(this.shortId, proposal.memoryId, proposal.after, { signal });
+      const verified = (await this.readMemories(signal)).find(memory => memory.id === proposal.memoryId);
+      if (!verified || verified.text !== proposal.after) {
+        throw { code: 'verification_failed', message: 'The Memory Bank entry did not match the accepted value after AI Dungeon responded.' };
+      }
+      return {
+        appliedAtIso: new Date().toISOString(),
+        hydration: await this.hydrateMemoryIfAvailable(proposal, verified, signal),
+      };
+    }
+
+    async applyMemoryDelete(proposal, signal) {
+      const matches = (await this.readMemories(signal)).filter(memory => memory.id === proposal.memoryId);
+      if (matches.length !== 1 || fingerprintMemory(matches[0]) !== proposal.beforeFingerprint) {
+        throw { code: 'conflict', message: 'The Memory Bank entry changed after Navigator prepared this deletion.' };
+      }
+      await this.gql().deleteNavigatorMemory(this.shortId, proposal.memoryId, { signal });
+      const verified = (await this.readMemories(signal)).some(memory => memory.id === proposal.memoryId);
+      if (verified) {
+        throw { code: 'verification_failed', message: 'The Memory Bank entry was still present after AI Dungeon responded.' };
+      }
+      return {
+        appliedAtIso: new Date().toISOString(),
+        hydration: await this.hydrateMemoryIfAvailable(proposal, null, signal),
       };
     }
   }
