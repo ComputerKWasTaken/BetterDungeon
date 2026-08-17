@@ -249,14 +249,14 @@
         meta: null,
         error: null,
       };
-      this.emit('inspection', this.getLastRequestInspection());
+      this.emit('inspection');
     }
 
     retainInspectionRound(round) {
       const inspection = this.lastRequestInspection;
       if (!inspection) return;
       inspection.rounds.push(round);
-      const size = value => JSON.stringify(value).length;
+      let retainedChars = JSON.stringify(inspection).length;
       const placeholder = item => ({
         round: item.round,
         omitted: true,
@@ -265,26 +265,54 @@
         tools: Array.isArray(item.tools) ? item.tools.map(tool => ({ name: tool.name })) : [],
         continuationPresent: item.continuationPresent,
       });
-      while (size(inspection) > MAX_INSPECTION_CHARS && inspection.rounds.length > 2) {
+      const truncated = item => {
+        const marker = '\n\n[Inspection text truncated to stay within the retention limit.]';
+        const prefix = typeof item.systemInstruction === 'string'
+          ? item.systemInstruction.slice(0, 1024 * 1024) + marker
+          : marker.trim();
+        return {
+          round: item.round,
+          truncated: true,
+          omissionReason: 'This round exceeded the inspection retention limit; text is shown with an explicit prefix marker.',
+          systemInstruction: prefix,
+          messages: [],
+          tools: Array.isArray(item.tools) ? item.tools.map(tool => ({ name: tool.name })) : [],
+          toolResults: [],
+          continuationPresent: item.continuationPresent,
+          budget: item.budget,
+          thinking: item.thinking,
+          projectedInputChars: item.projectedInputChars,
+        };
+      };
+      const replaceRound = (index, replacement) => {
+        retainedChars -= JSON.stringify(inspection.rounds[index]).length;
+        inspection.rounds[index] = replacement;
+        retainedChars += JSON.stringify(replacement).length;
+      };
+      while (retainedChars > MAX_INSPECTION_CHARS && inspection.rounds.length > 2) {
         const index = inspection.rounds.findIndex((item, i) => i > 0 && i < inspection.rounds.length - 1 && !item.omitted);
         if (index < 0) break;
-        inspection.rounds[index] = placeholder(inspection.rounds[index]);
+        replaceRound(index, placeholder(inspection.rounds[index]));
       }
-      if (size(inspection) > MAX_INSPECTION_CHARS) {
+      if (retainedChars > MAX_INSPECTION_CHARS) {
         const latest = inspection.rounds[inspection.rounds.length - 1];
         const index = inspection.rounds.findIndex(
-          item => !item.omitted && (inspection.rounds.length === 1 || item !== latest)
+          item => !item.omitted && inspection.rounds.length > 1 && item !== latest
         );
-        if (index >= 0) inspection.rounds[index] = placeholder(inspection.rounds[index]);
+        if (index >= 0) replaceRound(index, placeholder(inspection.rounds[index]));
       }
-      this.emit('inspection', this.getLastRequestInspection());
+      if (retainedChars > MAX_INSPECTION_CHARS) {
+        const index = inspection.rounds.findIndex(item => !item.omitted);
+        if (index >= 0) replaceRound(index, truncated(inspection.rounds[index]));
+      }
+      this.emit('inspection');
     }
 
     finishRequestInspection(meta, error) {
       if (!this.lastRequestInspection) return;
       this.lastRequestInspection.meta = meta ? { ...meta } : null;
       this.lastRequestInspection.error = error ? { code: error.code || 'unknown', message: error.message || String(error) } : null;
-      this.emit('inspection', this.getLastRequestInspection());
+      this.emit('inspection');
     }
 
     // ==================== PERSISTENCE ====================
@@ -1141,21 +1169,21 @@
         this.updateMessage(assistant.id, { truncated: true });
       }
 
+      let toolRounds = 0;
+      let toolsDropped = false;
+      let inputLimitReached = false;
+      let toolResultsOmitted = 0;
+      let toolLimitReached = false;
+      let peakInputChars = 0;
       try {
         let tools = this.getToolDefinitions();
         const toolNames = [];
         const completedReadToolNames = [];
         let continuation = null;
         let toolResults = [];
-        let toolRounds = 0;
         let toolResultChars = 0;
         let finalMeta = null;
-        let toolsDropped = false;
-        let inputLimitReached = false;
-        let toolResultsOmitted = 0;
-        let toolLimitReached = false;
         const toolMemo = new Map();
-        let peakInputChars = 0;
 
         const rebuildToolInstruction = () => {
           let instruction = `${request.snapshotInstruction}${this.buildToolGuidance(tools, { dropped: toolsDropped })}`;
@@ -1231,10 +1259,9 @@
             systemInstruction: requestPayload.systemInstruction,
             messages: requestPayload.messages,
             tools: requestPayload.tools,
-  toolResults: requestPayload.toolResults,
+            toolResults: requestPayload.toolResults,
             continuationPresent: Boolean(continuation),
             budget: requestPayload.budget,
-            limits: requestPayload.budget,
             thinking: requestPayload.thinking,
             projectedInputChars: projected,
           });
@@ -1358,7 +1385,14 @@
         this.persist();
       } catch (error) {
         if (this.streamingMessageId !== assistant.id) return;
-        this.finishRequestInspection(this.lastRequestInspection?.meta || {}, error);
+        this.finishRequestInspection({
+          peakInputChars,
+          toolRounds,
+          toolsDropped,
+          inputLimitReached,
+          toolLimitReached,
+          toolResultsOmitted,
+        }, error);
         this.finishWithError(assistant.id, error);
       }
     }

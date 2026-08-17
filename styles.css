@@ -3388,7 +3388,6 @@ body.bd-navigator-resizing {
   color: var(--bd-text-primary);
 }
 
-
 .bd-navigator-settings-panel {
   padding: var(--bd-space-3);
   border-bottom: 1px solid var(--bd-border-subtle);
@@ -3611,7 +3610,6 @@ body.bd-navigator-resizing {
   cursor: not-allowed;
   opacity: 0.45;
 }
-
 
 .bd-navigator-message {
   display: flex;

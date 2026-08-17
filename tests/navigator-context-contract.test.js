@@ -424,6 +424,43 @@ async function testProposalResultFloor() {
 }
 
 
+async function testRequestInspectionExecutorCapture() {
+  const session = new window.NavigatorSession('inspection-adventure');
+  await session.settingsReady;
+  session.checkReady = async () => ({ ready: true, status: { model: 'inspection-model', thinkingLevels: ['low'], limits: { maxInputChars: 4000, maxOutputTokens: 2048 } } });
+  session.buildTurnContext = async () => ({
+    instruction: 'snapshot instruction',
+    snapshot: { systemInstruction: 'snapshot instruction', summary: 'complete', segments: [], warnings: [], partial: false },
+  });
+  session.getToolDefinitions = () => [{ name: 'inspect_tool', parameters: { type: 'object', description: 'tool '.repeat(100) } }];
+  session.executeToolCalls = async () => ({ results: [{ id: 'tool-1', name: 'inspect_tool', result: { ok: 'result '.repeat(1000) } }], exhausted: false });
+  const received = [];
+  let round = 0;
+  window.UltrascriptsAIExecutor = {
+    chat: async (request) => {
+      received.push(request);
+      if (round++ === 0) return { continuation: { id: 'next' }, toolCalls: [{ id: 'tool-1', name: 'inspect_tool', arguments: {} }] };
+      return { toolCalls: [], meta: { provider: 'test' } };
+    },
+  };
+  await session.send('Inspect this turn.');
+  const inspection = session.getLastRequestInspection();
+  assert.equal(received.length, 2);
+  assert.equal(inspection.rounds.length, 2);
+  inspection.rounds.forEach((captured, index) => {
+    const request = received[index];
+    assert.equal(captured.systemInstruction, request.systemInstruction);
+    assert.deepEqual(captured.messages, request.messages);
+    assert.deepEqual(captured.tools, request.tools);
+    assert.deepEqual(captured.toolResults, request.toolResults);
+    assert.deepEqual(captured.budget, request.budget);
+  });
+  assert.notEqual(inspection.rounds[0].systemInstruction, inspection.rounds[1].systemInstruction);
+  session.persist();
+  assert.doesNotMatch(JSON.stringify(session.getMessages()), /inspection-adventure|systemInstruction/);
+  session.destroy();
+}
+
 function testRequestInspectionRetentionAndContract() {
   const proto = window.NavigatorSession.prototype;
   const owner = { emit() {}, lastRequestInspection: null, getLastRequestInspection: window.NavigatorSession.prototype.getLastRequestInspection };
@@ -440,6 +477,13 @@ function testRequestInspectionRetentionAndContract() {
   assert.equal(inspection.rounds[0].round, 0);
   assert.equal(inspection.rounds.at(-1).round, 2);
   assert.ok(inspection.rounds.some(round => round.omitted === true));
+  const oversized = { emit() {}, lastRequestInspection: null, getLastRequestInspection: window.NavigatorSession.prototype.getLastRequestInspection };
+  proto.beginRequestInspection.call(oversized);
+  proto.retainInspectionRound.call(oversized, { round: 0, systemInstruction: 'x'.repeat(window.NavigatorSession.MAX_INSPECTION_CHARS + 1000), messages: [], tools: [], toolResults: [], continuationPresent: false, budget: {}, thinking: {}, projectedInputChars: window.NavigatorSession.MAX_INSPECTION_CHARS + 1000 });
+  const oversizedInspection = proto.getLastRequestInspection.call(oversized);
+  assert.ok(JSON.stringify(oversizedInspection).length <= window.NavigatorSession.MAX_INSPECTION_CHARS);
+  assert.equal(oversizedInspection.rounds[0].truncated, true);
+  assert.match(oversizedInspection.rounds[0].systemInstruction, /Inspection text truncated/);
   const source = require('node:fs').readFileSync(require('node:path').join(ROOT, 'services/navigator/session.js'), 'utf8');
   assert.match(source, /const requestPayload =/);
   assert.match(source, /chat\(requestPayload/);
@@ -459,6 +503,7 @@ async function main() {
   testNavigatorToolGuidanceAndAllowances();
   testToolDropUsesInstructionOnly();
   await testProposalResultFloor();
+  await testRequestInspectionExecutorCapture();
   testRequestInspectionRetentionAndContract();
   console.log('Desktop Navigator context contract tests passed');
 }

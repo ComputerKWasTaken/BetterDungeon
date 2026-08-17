@@ -260,7 +260,7 @@ class NavigatorFeature {
       this.updateMessageNode(payload);
       this.scrollToBottom();
     } else if (event === 'inspection') {
-      if (event === 'inspection' && this.inspectionPanel && !this.inspectionPanel.hidden) this.renderRequestInspection(payload);
+      if (this.inspectionPanel && !this.inspectionPanel.hidden) this.renderRequestInspection(payload);
     } else if (event === 'permissions' || event === 'idle') {
       this.updatePermissionUI();
       this.renderAllProposalStates();
@@ -581,7 +581,7 @@ class NavigatorFeature {
     summary.replaceChildren(); toolbar.replaceChildren(); body.replaceChildren();
     if (!inspection) { summary.textContent = 'Nothing has been captured yet in this page session. This inspection is not saved across reloads.'; return; }
     const flags = ['toolsDropped', 'inputLimitReached', 'toolLimitReached', 'toolResultsOmitted'].filter(key => inspection.meta?.[key]);
-    summary.textContent = `Captured ${inspection.capturedAt || 'unknown time'} ? ${inspection.model || 'model unknown'} ? thinking ${inspection.thinkingLevel || 'unknown'} ? input cap ${inspection.inputCap || 'unknown'} chars ? peak ${inspection.meta?.peakInputChars || 0} chars ? tool rounds ${inspection.meta?.toolRounds || 0}${flags.length ? ` ? ${flags.join(', ')}` : ''}`;
+    summary.textContent = `Captured ${inspection.capturedAt || 'unknown time'} | ${inspection.model || 'model unknown'} | thinking ${inspection.thinkingLevel || 'unknown'} | input cap ${inspection.inputCap || 'unknown'} chars | peak ${inspection.meta?.peakInputChars || 0} chars | tool rounds ${inspection.meta?.toolRounds || 0}${flags.length ? ` | ${flags.join(', ')}` : ''}`;
     if (inspection.error) summary.appendChild(document.createTextNode(` Error: ${inspection.error.message}`));
     const rounds = Array.isArray(inspection.rounds) ? inspection.rounds : [];
     if (!rounds.length) { body.textContent = 'No executor round was captured. Nothing is saved across reloads.'; return; }
@@ -593,7 +593,7 @@ class NavigatorFeature {
       select.addEventListener('change', () => { this.inspectionRound = Number(select.value); this.renderRequestInspection(inspection); }); label.appendChild(select); toolbar.appendChild(label);
     }
     const round = rounds[Math.min(this.inspectionRound, rounds.length - 1)];
-    if (round.omitted) { body.textContent = round.omissionReason || 'Intermediate round text omitted due to the inspection retention limit.'; return; }
+    if (round.omitted && !round.truncated) { body.textContent = round.omissionReason || 'Intermediate round text omitted due to the inspection retention limit.'; return; }
     const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = 'Copy round JSON'; copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(JSON.stringify(round, null, 2)); copy.textContent = 'Copied'; } catch { copy.textContent = 'Copy unavailable'; } }); toolbar.appendChild(copy);
     for (const [title, value] of [['System instruction', round.systemInstruction], ['Messages', round.messages], ['Tool schemas', round.tools], ['Tool results', round.toolResults], ['Round budget', { budget: round.budget, thinking: round.thinking, continuationPresent: round.continuationPresent, projectedInputChars: round.projectedInputChars }]]) { const heading = document.createElement('h4'); heading.textContent = title; body.appendChild(heading); const pre = document.createElement('pre'); pre.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2); body.appendChild(pre); }
   }
