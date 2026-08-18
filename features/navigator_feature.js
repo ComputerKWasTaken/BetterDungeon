@@ -252,6 +252,9 @@ class NavigatorFeature {
 
     if (event === 'reset') {
       this.renderTranscript();
+      if (this.inspectionPanel && !this.inspectionPanel.hidden) {
+        this.renderRequestInspection();
+      }
     } else if (event === 'append') {
       this.appendMessageNode(payload);
       this.updateEmptyState();
@@ -502,6 +505,7 @@ class NavigatorFeature {
     header.querySelector('.bd-navigator-clear').addEventListener('click', () => this.handleClear());
     header.querySelector('.bd-navigator-settings').addEventListener('click', () => {
       settings.hidden = !settings.hidden;
+      inspection.hidden = true;
       if (!settings.hidden) {
         this.renderNavigatorSettings();
         this.session?.checkReady?.().then(() => this.renderNavigatorSettings());
@@ -582,7 +586,7 @@ class NavigatorFeature {
     if (!inspection) { summary.textContent = 'Nothing has been captured yet in this page session. This inspection is not saved across reloads.'; return; }
     const flags = ['toolsDropped', 'inputLimitReached', 'toolLimitReached', 'toolResultsOmitted'].filter(key => inspection.meta?.[key]);
     summary.textContent = `Captured ${inspection.capturedAt || 'unknown time'} | ${inspection.model || 'model unknown'} | thinking ${inspection.thinkingLevel || 'unknown'} | input cap ${inspection.inputCap || 'unknown'} chars | peak ${inspection.meta?.peakInputChars || 0} chars | tool rounds ${inspection.meta?.toolRounds || 0}${flags.length ? ` | ${flags.join(', ')}` : ''}`;
-    if (inspection.error) summary.appendChild(document.createTextNode(` Error: ${inspection.error.message}`));
+    if (inspection.error) summary.appendChild(document.createTextNode(` | Error: ${inspection.error.message}`));
     const rounds = Array.isArray(inspection.rounds) ? inspection.rounds : [];
     if (!rounds.length) { body.textContent = 'No executor round was captured. Nothing is saved across reloads.'; return; }
     if (rounds.length > 1) {
@@ -595,7 +599,7 @@ class NavigatorFeature {
     const round = rounds[Math.min(this.inspectionRound, rounds.length - 1)];
     if (round.omitted && !round.truncated) { body.textContent = round.omissionReason || 'Intermediate round text omitted due to the inspection retention limit.'; return; }
     const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = 'Copy round JSON'; copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(JSON.stringify(round, null, 2)); copy.textContent = 'Copied'; } catch { copy.textContent = 'Copy unavailable'; } }); toolbar.appendChild(copy);
-    for (const [title, value] of [['System instruction', round.systemInstruction], ['Messages', round.messages], ['Tool schemas', round.tools], ['Tool results', round.toolResults], ['Round budget', { budget: round.budget, thinking: round.thinking, continuationPresent: round.continuationPresent, projectedInputChars: round.projectedInputChars }]]) { const heading = document.createElement('h4'); heading.textContent = title; body.appendChild(heading); const pre = document.createElement('pre'); pre.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2); body.appendChild(pre); }
+    for (const [title, value] of [['System instruction', round.systemInstruction], ['Messages', round.messages], ['Tool schemas', round.tools], ['Tool results', round.toolResults], ['Round budget', { budget: round.budget, thinking: round.thinking, continuationPresent: round.continuationPresent, projectedInputChars: round.projectedInputChars }]]) { const heading = document.createElement('h4'); heading.textContent = title; body.appendChild(heading); const pre = document.createElement('pre'); pre.textContent = value === undefined ? '(nothing was sent)' : typeof value === 'string' ? value : JSON.stringify(value, null, 2); body.appendChild(pre); }
   }
 
   // ==================== OPEN / CLOSE ====================
