@@ -291,7 +291,13 @@ function chatArgs(content, extra = {}) {
 }
 
 async function configure(service, profile) {
-  const result = await raw({ op: 'settings:set', config: { version: 1, activeService: service, profiles: { [service]: profile } } });
+  const { maxInputTokens, inputCapTokens, ...profileFields } = profile;
+  const result = await raw({ op: 'settings:set', config: {
+    version: 1, activeService: service,
+    ...(inputCapTokens !== undefined || maxInputTokens !== undefined
+      ? { inputCapTokens: inputCapTokens ?? maxInputTokens } : {}),
+    profiles: { [service]: profileFields },
+  } });
   await window.UltrascriptsAIExecutor.refreshStatus();
   return result;
 }
@@ -311,7 +317,38 @@ async function configure(service, profile) {
   const endpointSource = fs.readFileSync(path.join(ROOT, 'popup-ai-endpoint.js'), 'utf8');
   assert.match(endpointSource, /AI_INPUT_CAP_PRESETS/);
   assert.match(endpointSource, /ai-endpoint-max-input-custom/);
+  assert.match(endpointSource, /AI_INPUT_CAP_CEILING = 2000000/);
+  assert.match(endpointSource, /function parseInputCap/);
+  const parserSource = endpointSource.slice(
+    endpointSource.indexOf('function parseInputCap'),
+    endpointSource.indexOf('function renderInputCap'),
+  );
+  const parserContext = {
+    Number, String, Math, Object, AI_INPUT_CAP_FLOOR: 4000, AI_INPUT_CAP_CEILING: 2000000,
+  };
+  vm.runInNewContext(`${parserSource}\nthis.parseInputCap = parseInputCap;`, parserContext);
+  const parseInputCap = parserContext.parseInputCap;
+  for (const [input, expected] of [['128000', 128000], ['128,000', 128000], ['128k', 128000], ['1m', 1000000], ['  256000  ', 256000]]) {
+    assert.equal(parseInputCap(input).value, expected);
+  }
+  for (const input of ['garbage', '3999', '2000001']) {
+    assert.match(parseInputCap(input).error, /Input cap/);
+  }
   assert.doesNotMatch(endpointSource, /maxOutputTokens|ai-endpoint-max-output-tokens/);
+  local.set('ultrascripts_ai_endpoint_config_v1', JSON.stringify({
+    version: 1, activeService: 'openrouter',
+    profiles: {
+      gemini: { apiKey: '', modelMode: 'auto', model: '', maxInputTokens: 64000 },
+      openrouter: { apiKey: '', model: '', maxInputTokens: 256000 },
+      custom: { baseUrl: '', apiKey: '', model: '', maxInputTokens: 32000 },
+    },
+  }));
+  const migrated = await raw({ op: 'status' });
+  assert.equal(migrated.config.inputCapTokens, 256000);
+  const migratedStored = JSON.parse(local.get('ultrascripts_ai_endpoint_config_v1'));
+  assert.equal(migratedStored.inputCapTokens, 256000);
+  assert.equal(Object.values(migratedStored.profiles).some(profile => 'maxInputTokens' in profile), false);
+  await configure('gemini', { inputCapTokens: 0, apiKey: '', modelMode: 'auto', model: '' });
   local.set('ultrascripts_ai_capability_cache_v1', JSON.stringify({
     gemini: {
       entries: {
