@@ -472,10 +472,10 @@
         : floorIncluded > 0
           ? 'served partially'
           : 'not served';
-      const memoryCoverage = !memoryEnabled
-        ? 'Memory Bank: omitted by user setting. Use search_memory_bank and get_memory to retrieve entries.'
-        : !memoryAvailable
+      const memoryCoverage = !memoryAvailable
         ? 'Memory Bank: unavailable from the current GraphQL fallback reader.'
+        : !memoryEnabled
+          ? 'Memory Bank: omitted by user setting. Use search_memory_bank and get_memory to retrieve entries.'
         : 'Memory Bank: dropped for total budget. Use search_memory_bank and get_memory to retrieve omitted entries.';
       const coverage = [
         plotEnabled
@@ -778,11 +778,11 @@
             : adventureSnapshot.coverage?.actions?.availabilityGap
               ? 'Action-count reference differs from retained normalized actions; these counts are informational, not a completeness claim.'
               : 'Action-count reference and retained normalized actions currently align; this remains an informational comparison.'),
-          !memoryEnabled
-            ? 'Memory Bank: omitted by user setting; use search_memory_bank and get_memory to retrieve entries.'
-            : memoryBank !== null
-              ? `Memory Bank: ${finalMemory.meta.included} memories, ${finalMemory.meta.includedChars} characters; returned ${finalMemory.meta.included} of ${finalMemory.meta.total} entries${memoryReason ? `; reduced for ${memoryReason}` : ''} summary lag latest=${summaryLag.latestActionId || 'unknown'}, lastSummarized=${summaryLag.lastSummarizedActionId || 'unknown'}, lastMemory=${summaryLag.lastMemoryActionId || 'unknown'}.${finalMemory.meta.included < finalMemory.meta.total ? ' Use search_memory_bank and get_memory to retrieve omitted entries.' : ''}`
-              : 'Memory Bank and summary lag: unavailable from the GraphQL fallback reader.',
+          memoryBank === null
+            ? 'Memory Bank and summary lag: unavailable from the GraphQL fallback reader.'
+            : !memoryEnabled
+              ? 'Memory Bank: omitted by user setting; use search_memory_bank and get_memory to retrieve entries.'
+              : `Memory Bank: ${finalMemory.meta.included} memories, ${finalMemory.meta.includedChars} characters; returned ${finalMemory.meta.included} of ${finalMemory.meta.total} entries${memoryReason ? `; reduced for ${memoryReason}` : ''}. summary lag latest=${summaryLag.latestActionId || 'unknown'}, lastSummarized=${summaryLag.lastSummarizedActionId || 'unknown'}, lastMemory=${summaryLag.lastMemoryActionId || 'unknown'}.${finalMemory.meta.included < finalMemory.meta.total ? ' Use search_memory_bank and get_memory to retrieve omitted entries.' : ''}`,
           !cardsEnabled
             ? 'Story Card directory: omitted by user setting; use search_story_cards to retrieve cards.'
             : `Story Card directory: ${cardCoverage.included} of ${adventureSnapshot.coverage?.storyCards?.authoritativeTotal ?? cards.length} included from ${finalCards.meta.source}; ${cardCoverage.omitted} omitted${cardReason ? ` for ${cardReason}` : ''}.${cardCoverage.omitted ? ' Use search_story_cards to retrieve omitted cards.' : ''}`,

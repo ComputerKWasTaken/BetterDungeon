@@ -440,7 +440,7 @@ class NavigatorFeature {
         <label class="bd-navigator-toggle-control">Read-only
           <input type="checkbox" data-nav-setting="readOnly" aria-label="Read-only mode">
         </label>
-        <fieldset class="bd-navigator-context-sections" data-nav-setting="contextSections">
+        <fieldset class="bd-navigator-context-sections">
           <legend>Context sections</legend>
           <label><input type="checkbox" data-nav-context-section="plot"> Plot Components</label>
           <label><input type="checkbox" data-nav-context-section="history"> Recent story actions</label>
@@ -527,7 +527,7 @@ class NavigatorFeature {
       });
     });
     settings.querySelector('[data-nav-setting="thinkingLevel"]')?.addEventListener('input', event => {
-      this.updateThinkingLevelLabel(event.target.value);
+      this.updateThinkingLevelLabel(Number(event.target.value));
     });
     settings.querySelectorAll('[data-nav-context-section]').forEach(control => {
       control.addEventListener('change', () => {
@@ -571,14 +571,27 @@ class NavigatorFeature {
     const thinking = this.settingsPanel.querySelector('[data-nav-setting="thinkingLevel"]');
     if (thinking) {
       const index = supported.indexOf(settings.thinkingLevel);
+      const preferredLevels = ['minimal', 'low', 'medium', 'high'];
+      const storedRank = preferredLevels.indexOf(settings.thinkingLevel);
+      const nearestIndex = index >= 0
+        ? index
+        : supported.reduce((best, level, candidate) => {
+          if (best < 0) return candidate;
+          const rank = preferredLevels.indexOf(level);
+          const bestRank = preferredLevels.indexOf(supported[best]);
+          if (storedRank < 0 || rank < 0 || bestRank < 0) return best;
+          return Math.abs(rank - storedRank) < Math.abs(bestRank - storedRank)
+            ? candidate
+            : best;
+        }, -1);
       thinking.min = '0';
       thinking.max = String(Math.max(0, supported.length - 1));
-      thinking.value = String(index >= 0 ? index : 0);
-      thinking.disabled = supported.length === 0 || index < 0;
+      thinking.value = String(nearestIndex >= 0 ? nearestIndex : 0);
+      thinking.disabled = supported.length === 0;
       thinking.title = supported.length
         ? index >= 0 ? '' : 'The stored thinking level is not advertised by the configured provider.'
         : 'The configured provider advertises no thinking-level support.';
-      this.updateThinkingLevelLabel(index >= 0 ? settings.thinkingLevel : (settings.thinkingLevel || 'Unavailable'));
+      this.updateThinkingLevelLabel(nearestIndex);
     }
     const readOnly = this.settingsPanel.querySelector('[data-nav-setting="readOnly"]');
     if (readOnly) readOnly.checked = settings.readOnly === true;
@@ -590,11 +603,11 @@ class NavigatorFeature {
     }
   }
 
-  updateThinkingLevelLabel(level) {
+  updateThinkingLevelLabel(index) {
     const label = this.settingsPanel?.querySelector('.bd-navigator-thinking-value');
     if (!label) return;
     const supported = this.session?.getSettings?.()?.providerThinkingLevels || [];
-    label.textContent = supported[Number(level)] || level || 'Unavailable';
+    label.textContent = supported[Number(index)] || 'Unavailable';
   }
 
   async saveNavigatorSetting(key, rawValue) {

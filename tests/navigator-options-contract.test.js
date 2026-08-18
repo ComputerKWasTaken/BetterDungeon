@@ -139,6 +139,7 @@ async function run() {
   assert.equal(snapshot.segments.recentActions.truncatedReason, null);
   assert.equal(snapshot.segments.recentActions.coverage.omittedReason, null);
   const defaultSnapshot = await new window.NavigatorContext('demo').build({ maxChars: 100000 });
+  assert.match(defaultSnapshot.systemInstruction, /entries\. summary lag latest=/);
   assert.deepEqual(
     defaultSnapshot.summary.settings.contextSections,
     ['plot', 'history', 'memory', 'cards'],
@@ -209,8 +210,8 @@ async function run() {
     maxChars: 100000,
     contextSections: ['plot', 'history', 'cards'],
   });
-  assert.match(unavailable.systemInstruction, /Memory Bank: omitted by user setting/);
-  assert.match(unavailable.systemInstruction, /search_memory_bank/);
+  assert.match(unavailable.systemInstruction, /Memory Bank and summary lag: unavailable from the GraphQL fallback reader/);
+  assert.doesNotMatch(unavailable.systemInstruction, /search_memory_bank/);
   assert.equal(unavailable.segments.memoryBank.truncatedReason, 'user setting');
 
   adventureData = {
@@ -327,11 +328,14 @@ async function run() {
   assert.doesNotMatch(featureSource, /contextCap|clearAdventureSetting\('contextCap'\)/);
   assert.match(featureSource, /if \(event === 'reset'\) \{[\s\S]*?this\.renderTranscript\(\);[\s\S]*?if \(this\.inspectionPanel && !this\.inspectionPanel\.hidden\) \{\s*this\.renderRequestInspection\(\);\s*\}\s*\}/);
   assert.match(featureSource, /header\.querySelector\('\.bd-navigator-settings'\)\.addEventListener\('click', \(\) => \{\s*settings\.hidden = !settings\.hidden;\s*inspection\.hidden = true;/);
-  assert.equal((featureSource.match(/<(?:input|fieldset)[^>]*data-nav-setting="/g) || []).length, 3);
+  assert.equal((featureSource.match(/<input[^>]*data-nav-setting="/g) || []).length, 2);
   assert.match(featureSource, /input type="range"[\s\S]*data-nav-setting="thinkingLevel"/);
   assert.match(featureSource, /input type="checkbox" data-nav-setting="readOnly"/);
-  assert.match(featureSource, /data-nav-setting="contextSections"/);
+  assert.match(featureSource, /fieldset class="bd-navigator-context-sections"/);
   assert.match(featureSource, /data-nav-context-section="plot"[\s\S]*data-nav-context-section="history"[\s\S]*data-nav-context-section="memory"[\s\S]*data-nav-context-section="cards"/);
+  assert.doesNotMatch(featureSource, /fieldset[^>]*data-nav-setting="contextSections"/);
+  assert.match(featureSource, /updateThinkingLevelLabel\(Number\(event\.target\.value\)\)/);
+  assert.match(featureSource, /thinking\.disabled = supported\.length === 0/);
   assert.doesNotMatch(featureSource, /includeMemoryBank|historyMode|Inherit global default/);
   assert.match(featureSource, /value === undefined \? '\(nothing was sent\)'/);
   assert.match(featureSource, /` \| Error: \$\{inspection\.error\.message\}`/);

@@ -3469,7 +3469,14 @@ body.bd-navigator-resizing {
   align-items: center;
   gap: 4px;
   min-width: 0;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 480px) {
+  .bd-navigator-context-sections {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .bd-navigator-header-actions {
