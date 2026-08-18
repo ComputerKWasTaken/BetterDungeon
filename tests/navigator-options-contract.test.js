@@ -88,7 +88,11 @@ async function run() {
   local.set('betterDungeon_navigator_adventure_mutation', { readOnly: false });
   assert.equal(await mutations.readOnlyEnabled(), false, 'adventure read-only overrides legacy sync value');
   chrome.runtime.id = null;
-  assert.equal(await mutations.readOnlyEnabled(), true, 'invalid extension context fails closed');
+  await assert.rejects(
+    mutations.readOnlyEnabled(),
+    error => error?.code === 'extension_context_invalid'
+      && error.message === 'The extension was reloaded. Reload this page before applying changes.'
+  );
   chrome.runtime.id = 'navigator-options-contract';
   session.providerStatus = { limits: { maxInputChars: 150000 } };
   sync.set('betterDungeon_navigator_defaults', { contextCap: 120000, toolRounds: 8 });
@@ -259,6 +263,7 @@ async function run() {
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'popup.js'), 'utf8'), /navigator-context-cap|contextCap/);
   const popupJs = fs.readFileSync(path.join(ROOT, 'popup.js'), 'utf8');
   const popupHtml = fs.readFileSync(path.join(ROOT, 'popup.html'), 'utf8');
+  assert.doesNotMatch(popupHtml, /navigator-tool-rounds|navigator-context-cap|characters\)/);
   for (const id of ['navigator-read-only', 'navigator-thinking-level', 'navigator-memory-bank', 'navigator-history-mode']) {
     assert.doesNotMatch(popupHtml, new RegExp(`id="${id}"`));
     assert.doesNotMatch(popupJs, new RegExp(id));

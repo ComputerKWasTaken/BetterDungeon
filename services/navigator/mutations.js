@@ -268,7 +268,10 @@
 
     async readOnlyEnabled() {
       if (!isExtensionContextValid()) {
-        return true;
+        throw {
+          code: 'extension_context_invalid',
+          message: 'The extension was reloaded. Reload this page before applying changes.'
+        };
       }
       const adventureKey = `${ADVENTURE_SETTINGS_PREFIX}${encodeURIComponent(String(this.shortId || 'unknown'))}`;
       return new Promise(resolve => {
