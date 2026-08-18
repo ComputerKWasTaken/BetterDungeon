@@ -319,6 +319,9 @@ async function configure(service, profile) {
   assert.match(endpointSource, /ai-endpoint-max-input-custom/);
   assert.match(endpointSource, /AI_INPUT_CAP_CEILING = 2000000/);
   assert.match(endpointSource, /function parseInputCap/);
+  assert.match(endpointSource, /profiles: profileValid \|\| clearKey/);
+  assert.match(endpointSource, /if \(!saved\.profileValid\) return;/);
+  assert.match(endpointSource, /aiEndpointCapDirty = true;\s*\n\s*const custom/);
   const parserSource = endpointSource.slice(
     endpointSource.indexOf('function parseInputCap'),
     endpointSource.indexOf('function renderInputCap'),
