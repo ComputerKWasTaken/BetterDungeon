@@ -3434,10 +3434,36 @@ body.bd-navigator-resizing {
 
 .bd-navigator-toggle-control input[type="checkbox"],
 .bd-navigator-context-sections input[type="checkbox"] {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  display: inline-block;
+  box-sizing: border-box;
   width: 16px;
   height: 16px;
+  flex: 0 0 16px;
+  margin: 0;
   padding: 0;
-  accent-color: var(--bd-accent-primary);
+  border: 1px solid var(--bd-border-default) !important;
+  border-radius: 3px;
+  background-color: var(--bd-bg-tertiary) !important;
+  background-image: none;
+  cursor: pointer;
+}
+
+.bd-navigator-toggle-control input[type="checkbox"]:checked,
+.bd-navigator-context-sections input[type="checkbox"]:checked {
+  border-color: var(--bd-accent-primary) !important;
+  background-color: var(--bd-accent-primary) !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2 5 8.7 9.5 3.8' fill='none' stroke='%23ffffff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 12px 12px;
+}
+
+.bd-navigator-toggle-control input[type="checkbox"]:focus-visible,
+.bd-navigator-context-sections input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--bd-border-focus) !important;
+  outline-offset: 2px;
 }
 
 .bd-navigator-thinking-value {
