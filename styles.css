@@ -3474,7 +3474,7 @@ body.bd-navigator-resizing {
 }
 
 .bd-navigator-inspection-panel {
-  flex: 0 1 min(70vh, 620px);
+  flex: 0 1 auto;
   min-height: 0;
   max-height: min(70vh, 620px);
   overflow: auto;
