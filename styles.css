@@ -3419,6 +3419,59 @@ body.bd-navigator-resizing {
   border-radius: 4px;
 }
 
+.bd-navigator-settings-grid input[type="range"] {
+  width: 100%;
+  padding: 0;
+  accent-color: var(--bd-accent-primary);
+}
+
+.bd-navigator-toggle-control {
+  flex-direction: row !important;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+}
+
+.bd-navigator-toggle-control input[type="checkbox"],
+.bd-navigator-context-sections input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  accent-color: var(--bd-accent-primary);
+}
+
+.bd-navigator-thinking-value {
+  color: var(--bd-text-primary);
+  font-size: var(--bd-font-size-xs);
+}
+
+.bd-navigator-context-sections {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 4px 6px 6px;
+  border: 1px solid var(--bd-border);
+  border-radius: 4px;
+  color: var(--bd-text-muted);
+  font-size: var(--bd-font-size-xs);
+}
+
+.bd-navigator-context-sections legend {
+  padding: 0 3px;
+}
+
+.bd-navigator-context-sections label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
 .bd-navigator-header-actions {
   display: flex;
   align-items: center;
