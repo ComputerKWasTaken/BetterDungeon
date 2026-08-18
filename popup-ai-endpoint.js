@@ -242,7 +242,6 @@ function collectEndpointConfig({ clearKey = false } = {}) {
   if (inputCap.error) {
     errors.push(inputCap.error);
     fields.push(maxInputInput?.value === 'custom' ? 'ai-endpoint-max-input-custom' : 'ai-endpoint-max-input-tokens');
-  } else {
   }
   if (clearKey) profile.apiKey = '';
   else if (enteredKey) profile.apiKey = enteredKey;
