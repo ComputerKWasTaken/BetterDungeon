@@ -1069,7 +1069,10 @@ class NavigatorFeature {
         const pre = document.createElement('pre');
         const code = document.createElement('code');
         if (fence.language) code.dataset.language = fence.language;
-        code.textContent = codeLines.join('\n');
+        codeLines.forEach((codeLine, lineIndex) => {
+          if (lineIndex > 0) code.appendChild(document.createElement('br'));
+          code.appendChild(document.createTextNode(codeLine));
+        });
         pre.appendChild(code);
         container.appendChild(pre);
         continue;
