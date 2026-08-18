@@ -438,7 +438,7 @@ class NavigatorFeature {
         </select></label>
         <label>Memory Bank<select data-nav-setting="includeMemoryBank"><option value="true">Include inline</option><option value="false">Omit inline</option></select></label>
         <label>History<select data-nav-setting="historyMode"><option value="full">Full history</option><option value="floor">Recency floor only</option></select></label>
-        <label>Read-only<select data-nav-setting="readOnly"><option value="">Inherit global default</option><option value="true">Force on</option><option value="false">Force off</option></select></label>
+        <label>Read-only<select data-nav-setting="readOnly"><option value="false">Off</option><option value="true">On</option></select></label>
       </div>
     `;
 
@@ -548,7 +548,6 @@ class NavigatorFeature {
     for (const control of this.settingsPanel.querySelectorAll('[data-nav-setting]')) {
       const key = control.dataset.navSetting;
       let value = settings[key];
-      if (key === 'readOnly') value = Object.prototype.hasOwnProperty.call(settings.overrides || {}, 'readOnly') ? String(value) : '';
       if (key === 'includeMemoryBank') value = String(value !== false);
       if (control.value !== String(value ?? '')) control.value = String(value ?? '');
     }
@@ -563,11 +562,6 @@ class NavigatorFeature {
 
   async saveNavigatorSetting(key, rawValue) {
     if (!this.session) return;
-    if (key === 'readOnly' && rawValue === '') {
-      await this.session.clearAdventureSetting('readOnly');
-      this.renderNavigatorSettings();
-      return;
-    }
     const value = key === 'includeMemoryBank'
       ? rawValue === 'true'
         : key === 'readOnly'

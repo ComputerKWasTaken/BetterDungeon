@@ -64,6 +64,7 @@ global.chrome = {
   },
 };
 vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'));
+vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'services/navigator/mutations.js'), 'utf8'));
 vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'services/navigator/primer.js'), 'utf8'));
 vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'services/navigator/context.js'), 'utf8'));
 
@@ -76,9 +77,23 @@ async function run() {
   assert.equal(settings.includeMemoryBank, false);
   assert.equal(settings.historyMode, 'floor');
   assert.equal(settings.toolRounds, undefined, 'stored tool-round settings are ignored');
-  assert.equal(settings.global.readOnly, true, 'global read-only is reported in global defaults');
-  await session.clearAdventureSetting('readOnly');
-  assert.equal(session.getSettings().readOnly, true, 'clearing override inherits global read-only');
+  assert.equal(settings.global, undefined, 'effective settings do not expose global defaults');
+  assert.equal(settings.overrides, undefined, 'effective settings do not expose adventure overrides');
+  const legacySession = new window.NavigatorSession('legacy');
+  await legacySession.settingsReady;
+  assert.equal(legacySession.getSettings().readOnly, true, 'legacy global read-only remains the fallback');
+  local.set('betterDungeon_navigator_adventure_mutation', { readOnly: true });
+  const mutations = new window.NavigatorMutations('mutation');
+  assert.equal(await mutations.readOnlyEnabled(), true, 'per-adventure read-only is enforced');
+  local.set('betterDungeon_navigator_adventure_mutation', { readOnly: false });
+  assert.equal(await mutations.readOnlyEnabled(), false, 'adventure read-only overrides legacy sync value');
+  chrome.runtime.id = null;
+  await assert.rejects(
+    mutations.readOnlyEnabled(),
+    error => error?.code === 'extension_context_invalid'
+      && error.message === 'The extension was reloaded. Reload this page before applying changes.'
+  );
+  chrome.runtime.id = 'navigator-options-contract';
   session.providerStatus = { limits: { maxInputChars: 150000 } };
   sync.set('betterDungeon_navigator_defaults', { contextCap: 120000, toolRounds: 8 });
   let reloadedSettings = null;
@@ -96,7 +111,8 @@ async function run() {
   await new Promise(resolve => setTimeout(resolve, 0));
   unsubscribeSettings();
   assert.equal(reloadedSettings.contextCap, undefined, 'stored global cap is ignored');
-  assert.equal(reloadedSettings.overrides.contextCap, undefined, 'cleared adventure cap remains inherited');
+  assert.equal(reloadedSettings.global, undefined);
+  assert.equal(reloadedSettings.overrides, undefined);
   assert.equal(window.NavigatorSession.CHARS_PER_TOKEN, 3);
   assert.equal(window.NavigatorSession.DEFAULT_CONTEXT_CAP_TOKENS, undefined);
   assert.equal(window.NavigatorSession.MIN_CONTEXT_CAP_TOKENS, undefined);
@@ -245,7 +261,15 @@ async function run() {
   assert.match(featureSource, /` \| Error: \$\{inspection\.error\.message\}`/);
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'popup.js'), 'utf8'), /navigator-tool-rounds|toolRounds/);
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'popup.js'), 'utf8'), /navigator-context-cap|contextCap/);
-  assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'popup.html'), 'utf8'), /navigator-tool-rounds|navigator-context-cap|characters\)/);
+  const popupJs = fs.readFileSync(path.join(ROOT, 'popup.js'), 'utf8');
+  const popupHtml = fs.readFileSync(path.join(ROOT, 'popup.html'), 'utf8');
+  assert.doesNotMatch(popupHtml, /navigator-tool-rounds|navigator-context-cap|characters\)/);
+  for (const id of ['navigator-read-only', 'navigator-thinking-level', 'navigator-memory-bank', 'navigator-history-mode']) {
+    assert.doesNotMatch(popupHtml, new RegExp(`id="${id}"`));
+    assert.doesNotMatch(popupJs, new RegExp(id));
+  }
+  assert.doesNotMatch(popupJs, /betterDungeon_navigator_(read_only|thinking_level|defaults)/);
+  assert.doesNotMatch(popupHtml, /navigator-option-select/);
   console.log('Navigator options contract tests passed');
 }
 

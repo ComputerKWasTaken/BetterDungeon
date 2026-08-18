@@ -3410,8 +3410,7 @@ body.bd-navigator-resizing {
 
 .bd-navigator-settings-grid input,
 .bd-navigator-settings-grid select,
-.bd-navigator-option-input,
-.bd-navigator-option-select {
+.bd-navigator-option-input {
   min-width: 0;
   padding: 4px 6px;
   color: var(--bd-text);

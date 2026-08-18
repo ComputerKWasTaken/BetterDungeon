@@ -24,8 +24,6 @@ const STORAGE_KEYS = {
   textToSpeech: 'betterDungeon_textToSpeechSettings',
   customDynamicConfig: 'betterDungeon_customDynamicConfig',
   customDynamicRuntime: 'betterDungeon_customDynamicRuntime',
-  navigatorReadOnly: 'betterDungeon_navigator_read_only',
-  navigatorDefaults: 'betterDungeon_navigator_defaults',
 };
 
 // Default mode colors (hex format)
@@ -277,21 +275,6 @@ function initToggles() {
     if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.autoApply] ?? false;
   });
 
-  chrome.storage.sync.get(STORAGE_KEYS.navigatorReadOnly, (result) => {
-    const toggle = document.getElementById('navigator-read-only');
-    if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.navigatorReadOnly] === true;
-  });
-  chrome.storage.sync.get([STORAGE_KEYS.navigatorDefaults, 'betterDungeon_navigator_thinking_level'], (result) => {
-    const defaults = (result || {})[STORAGE_KEYS.navigatorDefaults] || {};
-    const thinking = (result || {}).betterDungeon_navigator_thinking_level || defaults.thinkingLevel || 'low';
-    const thinkingSelect = document.getElementById('navigator-thinking-level');
-    if (thinkingSelect) thinkingSelect.value = thinking;
-    const memory = document.getElementById('navigator-memory-bank');
-    if (memory) memory.checked = defaults.includeMemoryBank !== false;
-    const history = document.getElementById('navigator-history-mode');
-    if (history) history.value = defaults.historyMode === 'floor' ? 'floor' : 'full';
-  });
-
   // Setup change handlers
   document.querySelectorAll('input[type="checkbox"][id^="feature-"]').forEach(toggle => {
     toggle.addEventListener('change', () => {
@@ -305,27 +288,6 @@ function initToggles() {
     chrome.storage.sync.set({ [STORAGE_KEYS.autoApply]: e.target.checked });
     notifyContentScript('SET_AUTO_APPLY', { enabled: e.target.checked });
   });
-
-  document.getElementById('navigator-read-only')?.addEventListener('change', (e) => {
-    chrome.storage.sync.set({ [STORAGE_KEYS.navigatorReadOnly]: e.target.checked });
-  });
-  const saveNavigatorDefaults = () => {
-    const thinking = document.getElementById('navigator-thinking-level')?.value || 'low';
-    const includeMemoryBank = document.getElementById('navigator-memory-bank')?.checked !== false;
-    const historyMode = document.getElementById('navigator-history-mode')?.value === 'floor' ? 'floor' : 'full';
-    const defaults = {
-      thinkingLevel: thinking,
-      includeMemoryBank,
-      historyMode,
-    };
-    chrome.storage.sync.set({
-      [STORAGE_KEYS.navigatorDefaults]: defaults,
-      betterDungeon_navigator_thinking_level: thinking,
-    });
-  };
-  document.getElementById('navigator-thinking-level')?.addEventListener('change', saveNavigatorDefaults);
-  document.getElementById('navigator-memory-bank')?.addEventListener('change', saveNavigatorDefaults);
-  document.getElementById('navigator-history-mode')?.addEventListener('change', saveNavigatorDefaults);
 
   // Ultrascripts debug toggle
   chrome.storage.sync.get(STORAGE_KEYS.ultrascriptsDebug, (result) => {
