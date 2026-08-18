@@ -172,6 +172,9 @@ async function testPlotUnavailableAndEmpty() {
   empty.storySummary = '';
   empty.state.instructions = '';
   empty.state.storySummary = '';
+  empty.state.memories = [];
+  empty.state.lastSummarizedActionId = '';
+  empty.state.lastMemoryActionId = '';
   configure({
     available: true,
     data: { adventure: empty, state: empty.state, storyCards: [], actions: [] },
@@ -183,6 +186,8 @@ async function testPlotUnavailableAndEmpty() {
   assert.match(emptySnapshot.systemInstruction, /AI Instructions:\n\(empty\)/);
   assert.equal(emptySnapshot.segments.plotComponents.fields.instructions.empty, true);
   assert.equal(emptySnapshot.segments.plotComponents.fields.instructions.unavailable, false);
+  assert.equal(emptySnapshot.segments.memoryBank.includedChars, 0);
+  assert.match(emptySnapshot.systemInstruction, /lastSummarized=unknown, lastMemory=unknown/);
 }
 
 async function testDynamicAllocator() {
@@ -352,10 +357,15 @@ function testNavigatorToolGuidanceAndAllowances() {
   const proposalGuidance = session.buildToolGuidance.call(session, proposal);
   const droppedGuidance = session.buildToolGuidance.call(session, [], { dropped: true });
   assert.match(readGuidance, /Every available tool is read-only/);
+  assert.match(`snapshot${readGuidance}`, /^snapshot\n=== NAVIGATOR READ TOOLS ===/);
   assert.doesNotMatch(readGuidance, /CHANGE PROPOSALS/);
   assert.match(proposalGuidance, /CHANGE PROPOSALS/);
   assert.doesNotMatch(proposalGuidance, /every available tool is read-only/);
   assert.match(proposalGuidance, /Never claim a proposal was applied/);
+  assert.match(proposalGuidance, /Third Person/);
+  assert.match(proposalGuidance, /Memory Bank/);
+  assert.match(proposalGuidance, /stable (?:card|memory) IDs/);
+  assert.match(proposalGuidance, /cannot create/);
   assert.match(droppedGuidance, /lookups.*not represented by the tools below/);
   assert.equal(session.getTurnAllowances.call({}, 40000, false).toolResultAllowance, 0);
   assert.ok(session.getTurnAllowances.call({}, 300000, true).historyAllowance > 16000);

@@ -104,7 +104,7 @@
         budgetChars: budget,
         sourceChars: rendered.reduce((sum, item) => sum + item.text.length, 0) +
           Math.max(0, rendered.length - 1) * SECTION_SEPARATORS.history.length,
-        includedChars: output.length,
+        includedChars: selected.length ? output.length : 0,
         total: rendered.length,
         included: selected.length,
         floorIncluded: selected.filter(item => floor.some(candidate => candidate.action === item.action)).length,
@@ -142,7 +142,7 @@
         budgetChars: budget,
         sourceChars: rows.reduce((sum, row) => sum + row.length, 0) +
           Math.max(0, rows.length - 1) * SECTION_SEPARATORS.cards.length,
-        includedChars: output.length,
+        includedChars: selected.length ? output.length : 0,
         total: rows.length,
         included: selected.length,
         omitted: Math.max(0, rows.length - selected.length),
@@ -228,7 +228,7 @@
         const value = field.available ? field.source || '(empty)' : '(unavailable)';
         metas[field.key] = {
           sourceChars: field.source.length,
-          includedChars: value.length,
+          includedChars: field.source.length,
           maxChars: value.length,
           empty: !field.source,
           unavailable: !field.available,
@@ -244,7 +244,7 @@
         meta: {
           budgetChars: budget,
           sourceChars: fields.reduce((sum, field) => sum + field.source.length, 0),
-          includedChars: fullOutput.length,
+          includedChars: fields.reduce((sum, field) => sum + field.source.length, 0),
           available: fields.some(field => field.available),
           populated: fields.filter(field => field.source).length,
           fields: metas,
@@ -261,7 +261,9 @@
       parts.push(`${field.label}:\n${clipped.text}`);
       metas[field.key] = {
         sourceChars: field.source.length,
-        includedChars: clipped.text.length,
+        includedChars: field.source.length
+          ? Math.min(field.source.length, allocations[index])
+          : 0,
         maxChars: allocations[index],
         empty: !field.source,
         unavailable: !field.available,
@@ -278,7 +280,7 @@
       meta: {
         budgetChars: budget,
         sourceChars: fields.reduce((sum, field) => sum + field.source.length, 0),
-        includedChars: output.length,
+        includedChars: Object.values(metas).reduce((sum, field) => sum + field.includedChars, 0),
         available: fields.some(field => field.available),
         populated: fields.filter(field => field.source).length,
         fields: metas,
@@ -300,31 +302,43 @@
         meta: { budgetChars: budget, sourceChars: 0, includedChars: 0, total: null, included: null, omitted: null, unavailable: true, truncated: false, truncatedReason: null },
       };
     }
-    const rows = values.map((value, index) => `[Memory ${index + 1}] ${memoryText(value).trim() || '(empty)'}`);
+    const rows = values.map((value, index) => {
+      const content = memoryText(value).trim();
+      return {
+        text: `[Memory ${index + 1}] ${content || '(empty)'}`,
+        contentChars: content.length,
+        prefixChars: `[Memory ${index + 1}] `.length,
+      };
+    });
     const selected = [];
     let used = 0;
     for (const row of rows) {
       const separator = selected.length ? SECTION_SEPARATORS.memory.length : 0;
-      if (used + separator + row.length <= budget) {
+      if (used + separator + row.text.length <= budget) {
         selected.push(row);
-        used += separator + row.length;
+        used += separator + row.text.length;
       } else if (!selected.length && budget > 0) {
-        selected.push(truncate(row, budget).text);
+        const clipped = truncate(row.text, budget);
+        selected.push({
+          text: clipped.text,
+          contentChars: Math.min(row.contentChars, Math.max(0, clipped.text.length - row.prefixChars)),
+          prefixChars: row.prefixChars,
+        });
         break;
       } else {
         break;
       }
     }
     const output = selected.length
-      ? selected.join(SECTION_SEPARATORS.memory)
+      ? selected.map(row => row.text).join(SECTION_SEPARATORS.memory)
       : '(No Memory Bank entries are available.)';
     return {
       text: output,
       meta: {
         budgetChars: budget,
-        sourceChars: rows.reduce((sum, row) => sum + row.length, 0) +
+        sourceChars: rows.reduce((sum, row) => sum + row.text.length, 0) +
           Math.max(0, rows.length - 1) * SECTION_SEPARATORS.memory.length,
-        includedChars: output.length,
+        includedChars: selected.reduce((sum, row) => sum + row.contentChars, 0),
         total: rows.length,
         included: selected.length,
         omitted: Math.max(0, rows.length - selected.length),
@@ -725,7 +739,7 @@
           memoryBank !== null
             ? `${includeMemoryBank
               ? `Memory Bank: ${finalMemory.meta.included} memories, ${finalMemory.meta.includedChars} characters; returned ${finalMemory.meta.included} of ${finalMemory.meta.total} entries${memoryReason ? `; reduced for ${memoryReason}` : ''}.`
-              : 'Memory Bank: omitted by user setting; use search_memory_bank and get_memory to retrieve entries.'} summary lag latest=${summaryLag.latestActionId ?? 'unknown'}, lastSummarized=${summaryLag.lastSummarizedActionId ?? 'unknown'}, lastMemory=${summaryLag.lastMemoryActionId ?? 'unknown'}.${includeMemoryBank && finalMemory.meta.included < finalMemory.meta.total ? ' Use search_memory_bank and get_memory to retrieve omitted entries.' : ''}`
+              : 'Memory Bank: omitted by user setting; use search_memory_bank and get_memory to retrieve entries.'} summary lag latest=${summaryLag.latestActionId || 'unknown'}, lastSummarized=${summaryLag.lastSummarizedActionId || 'unknown'}, lastMemory=${summaryLag.lastMemoryActionId || 'unknown'}.${includeMemoryBank && finalMemory.meta.included < finalMemory.meta.total ? ' Use search_memory_bank and get_memory to retrieve omitted entries.' : ''}`
             : 'Memory Bank and summary lag: unavailable from the GraphQL fallback reader.',
           `Story Card directory: ${cardCoverage.included} of ${adventureSnapshot.coverage?.storyCards?.authoritativeTotal ?? cards.length} included from ${finalCards.meta.source}; ${cardCoverage.omitted} omitted${cardReason ? ` for ${cardReason}` : ''}.${cardCoverage.omitted ? ' Use search_story_cards to retrieve omitted cards.' : ''}`,
           warnings.length ? `Snapshot warnings: ${warnings.join(' ')}` : 'Snapshot warnings: none.',

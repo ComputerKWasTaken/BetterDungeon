@@ -31,6 +31,7 @@
   });
   const CHARS_PER_TOKEN = 3;
   const MIN_INPUT_CAP_TOKENS = 4000;
+  const MAX_INPUT_CAP_TOKENS = 2000000;
   const MAX_DISCOVERED_OUTPUT_TOKENS = 16384;
   const CAPABILITY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
   const CAPABILITY_FAILURE_TTL_MS = 5 * 60 * 1000;
@@ -147,10 +148,11 @@
     return {
       version: 1,
       activeService: 'gemini',
+      inputCapTokens: 0,
       profiles: {
-        gemini: { apiKey: '', modelMode: 'auto', model: DEFAULT_MODEL, maxInputTokens: 0 },
-        openrouter: { apiKey: '', model: '', maxInputTokens: 0 },
-        custom: { baseUrl: '', apiKey: '', model: '', maxInputTokens: 0 },
+        gemini: { apiKey: '', modelMode: 'auto', model: DEFAULT_MODEL },
+        openrouter: { apiKey: '', model: '' },
+        custom: { baseUrl: '', apiKey: '', model: '' },
       },
     };
   }
@@ -162,7 +164,7 @@
   function normalizeCap(value) {
     const number = Number(value);
     return Number.isFinite(number) && number > 0
-      ? Math.max(MIN_INPUT_CAP_TOKENS, Math.floor(number))
+      ? Math.min(MAX_INPUT_CAP_TOKENS, Math.max(MIN_INPUT_CAP_TOKENS, Math.floor(number)))
       : 0;
   }
 
@@ -178,27 +180,29 @@
     const openrouter = isObject(profiles.openrouter) ? profiles.openrouter : {};
     const custom = isObject(profiles.custom) ? profiles.custom : {};
     const activeService = SERVICES.includes(raw.activeService) ? raw.activeService : 'gemini';
+    const legacyCaps = [gemini.maxInputTokens, openrouter.maxInputTokens, custom.maxInputTokens]
+      .map(normalizeCap);
+    const inputCapTokens = normalizeCap(raw.inputCapTokens) ||
+      legacyCaps[SERVICES.indexOf(activeService)] || legacyCaps.find(Boolean) || 0;
     return {
       version: 1,
       activeService,
+      inputCapTokens,
       profiles: {
         gemini: {
           apiKey: trim(gemini.apiKey),
           modelMode: gemini.modelMode === 'manual' ? 'manual' : 'auto',
           model: trim(gemini.model).replace(/^models\//, '') ||
             (gemini.modelMode === 'manual' ? '' : defaults.profiles.gemini.model),
-          maxInputTokens: normalizeCap(gemini.maxInputTokens),
         },
         openrouter: {
           apiKey: trim(openrouter.apiKey),
           model: trim(openrouter.model),
-          maxInputTokens: normalizeCap(openrouter.maxInputTokens),
         },
         custom: {
           baseUrl: normalizeBaseUrl(custom.baseUrl),
           apiKey: trim(custom.apiKey),
           model: trim(custom.model),
-          maxInputTokens: normalizeCap(custom.maxInputTokens),
         },
       },
     };
@@ -207,7 +211,13 @@
   async function getConfig() {
     await cleanLegacyStorage();
     const local = await storageGet('local', CONFIG_KEY);
-    return normalizeConfig(local?.[CONFIG_KEY]);
+    const raw = local?.[CONFIG_KEY];
+    const config = normalizeConfig(raw);
+    if (isObject(raw) && (raw.inputCapTokens === undefined ||
+      Object.values(raw.profiles || {}).some(profile => profile?.maxInputTokens !== undefined))) {
+      await storageSet('local', { [CONFIG_KEY]: config });
+    }
+    return config;
   }
 
   async function saveConfig(value) {
@@ -218,6 +228,7 @@
     const updateProfiles = isObject(update.profiles) ? update.profiles : {};
     const merged = cloneJson(previous);
     if (SERVICES.includes(update.activeService)) merged.activeService = update.activeService;
+    if (update.inputCapTokens !== undefined) merged.inputCapTokens = update.inputCapTokens;
     for (const service of SERVICES) {
       if (!isObject(updateProfiles[service])) continue;
       for (const [key, fieldValue] of Object.entries(updateProfiles[service])) {
@@ -237,6 +248,7 @@
       const modelMode = profile.modelMode;
       return {
         service,
+        inputCapTokens: config.inputCapTokens,
         profile,
         baseUrl: GEMINI_BASE_URL,
         apiKey: profile.apiKey,
@@ -249,6 +261,7 @@
     if (service === 'openrouter') {
       return {
         service,
+        inputCapTokens: config.inputCapTokens,
         profile,
         baseUrl: OPENROUTER_BASE_URL,
         apiKey: profile.apiKey,
@@ -261,6 +274,7 @@
     const https = /^https:\/\/[^\s/$.?#].*/i.test(profile.baseUrl);
     return {
       service,
+      inputCapTokens: config.inputCapTokens,
       profile,
       baseUrl: profile.baseUrl,
       apiKey: profile.apiKey,
@@ -285,8 +299,8 @@
     return key ? { ...cache.entries[key], model: key } : null;
   }
 
-  function limitsFromCapability(entry, profile) {
-    const inputCap = normalizeCap(profile?.maxInputTokens) || DEFAULT_INPUT_CAP_TOKENS;
+  function limitsFromCapability(entry, settings) {
+    const inputCap = normalizeCap(settings?.inputCapTokens) || DEFAULT_INPUT_CAP_TOKENS;
     if (!entry) {
       return {
         ...DEFAULT_LIMITS,
@@ -311,7 +325,7 @@
 
   function resolveLimits(models, settings) {
     const cache = capabilityCache.get(settings?.service);
-    const resolved = models.map(model => limitsFromCapability(capabilityEntry(model, cache), settings?.profile));
+    const resolved = models.map(model => limitsFromCapability(capabilityEntry(model, cache), settings));
     const maxInputChars = resolved[0]?.maxInputChars || DEFAULT_LIMITS.maxInputChars;
     const maxInputTokens = resolved[0]?.maxInputTokens || DEFAULT_LIMITS.maxInputTokens;
     const maxOutputTokens = Math.min(...resolved.map(item => item.maxOutputTokens));
@@ -487,6 +501,7 @@
       baseUrlLocked: settings.service !== 'custom',
       modelMode: settings.modelMode,
       model: settings.model,
+      inputCapTokens: config.inputCapTokens,
       selectedModel: settings.model,
       thinkingDefault: AI_DEFAULT_THINKING_LEVEL,
       thinkingLevels: thinkingLevelsFor(settings),

@@ -8,6 +8,7 @@ const AI_ENDPOINT_URLS = Object.freeze({
 const AI_ENDPOINT_DEFAULT_MODEL = 'gemini-3.5-flash-lite';
 const AI_INPUT_CAP_DEFAULT = 128000;
 const AI_INPUT_CAP_FLOOR = 4000;
+const AI_INPUT_CAP_CEILING = 2000000;
 const AI_INPUT_CAP_PRESETS = Object.freeze([32000, 64000, 128000, 256000, 1000000]);
 
 let aiEndpointStatus = null;
@@ -15,6 +16,7 @@ let aiEndpointLoaded = false;
 let aiEndpointPending = false;
 let aiEndpointDirty = false;
 let aiEndpointError = null;
+let aiEndpointCapDirty = false;
 
 function sendAIEndpointMessage(request) {
   return new Promise((resolve, reject) => {
@@ -144,27 +146,30 @@ function profileSnapshot(service) {
   return aiEndpointStatus?.config?.profiles?.[service] || {};
 }
 
-function renderInputCap(profile) {
+function parseInputCap(value) {
+  const raw = String(value ?? '').trim().toLowerCase();
+  if (!raw) return { error: 'Enter an input cap.' };
+  const match = raw.match(/^([0-9][0-9,_ ]*)([km])?$/);
+  if (!match) return { error: 'Input cap must be a number, optionally ending in k or m.' };
+  const digits = match[1].replace(/[,_ ]/g, '');
+  const number = Number(digits) * (match[2] === 'k' ? 1000 : match[2] === 'm' ? 1000000 : 1);
+  if (!Number.isSafeInteger(number)) return { error: 'Input cap must be a whole number.' };
+  if (number < AI_INPUT_CAP_FLOOR) return { error: `Input cap must be at least ${AI_INPUT_CAP_FLOOR.toLocaleString()} tokens.` };
+  if (number > AI_INPUT_CAP_CEILING) return { error: `Input cap must be at most ${AI_INPUT_CAP_CEILING.toLocaleString()} tokens.` };
+  return { value: number };
+}
+
+function renderInputCap(config) {
   const select = document.getElementById('ai-endpoint-max-input-tokens');
   const custom = document.getElementById('ai-endpoint-max-input-custom');
   if (!select || !custom) return;
-  const cap = Number(profile.maxInputTokens) > 0 ? Math.floor(Number(profile.maxInputTokens)) : AI_INPUT_CAP_DEFAULT;
+  if (aiEndpointCapDirty) return;
+  const cap = Number(config?.inputCapTokens) > 0 ? Math.floor(Number(config.inputCapTokens)) : AI_INPUT_CAP_DEFAULT;
   const preset = AI_INPUT_CAP_PRESETS.includes(cap);
   select.value = preset ? String(cap) : 'custom';
   select.dataset.previousValue = select.value;
   custom.hidden = preset;
   if (!preset) custom.value = String(cap);
-}
-
-function commitCustomInputCap() {
-  const custom = document.getElementById('ai-endpoint-max-input-custom');
-  if (!custom || custom.hidden) return;
-  const value = Number(custom.value);
-  if (Number.isSafeInteger(value) && value >= AI_INPUT_CAP_FLOOR) {
-    custom.value = String(value);
-  } else if (Number.isSafeInteger(value) && value > 0) {
-    custom.value = String(AI_INPUT_CAP_FLOOR);
-  }
 }
 
 function renderEndpointProfile(service, options = {}) {
@@ -196,7 +201,7 @@ function renderEndpointProfile(service, options = {}) {
     model.placeholder = normalized === 'gemini' ? AI_ENDPOINT_DEFAULT_MODEL : normalized === 'openrouter' ? 'openai/gpt-5-mini' : 'model-id';
   }
   if (modelGroup) modelGroup.style.display = normalized === 'gemini' && mode === 'auto' ? 'none' : '';
-  renderInputCap(profile);
+  renderInputCap(aiEndpointStatus?.config);
   if (optional) optional.textContent = normalized === 'custom' ? 'optional' : 'required';
   if (geminiHelp) geminiHelp.style.display = normalized === 'gemini' ? '' : 'none';
   setEndpointValidation();
@@ -227,17 +232,16 @@ function collectEndpointConfig({ clearKey = false } = {}) {
   const saved = profileSnapshot(service);
   const enteredKey = String(keyInput?.value || '').trim();
   const model = String(modelInput?.value || '').trim();
-  const inputCapValue = maxInputInput?.value === 'custom'
-    ? Number(maxInputCustom?.value || 0)
-    : Number(maxInputInput?.value || AI_INPUT_CAP_DEFAULT);
+  const inputCapRaw = maxInputInput?.value === 'custom'
+    ? maxInputCustom?.value
+    : maxInputInput?.value || AI_INPUT_CAP_DEFAULT;
+  const inputCap = parseInputCap(inputCapRaw);
   const errors = [];
   const fields = [];
   const profile = {};
-  if (!Number.isSafeInteger(inputCapValue) || inputCapValue < AI_INPUT_CAP_FLOOR) {
-    errors.push(`Input cap must be at least ${AI_INPUT_CAP_FLOOR.toLocaleString()} tokens.`);
+  if (inputCap.error) {
+    errors.push(inputCap.error);
     fields.push(maxInputInput?.value === 'custom' ? 'ai-endpoint-max-input-custom' : 'ai-endpoint-max-input-tokens');
-  } else {
-    profile.maxInputTokens = inputCapValue;
   }
   if (clearKey) profile.apiKey = '';
   else if (enteredKey) profile.apiKey = enteredKey;
@@ -259,12 +263,18 @@ function collectEndpointConfig({ clearKey = false } = {}) {
     profile.model = model;
     if (!model) { errors.push('Enter the custom endpoint model ID.'); fields.push('ai-endpoint-model'); }
   }
-  if (errors.length && !clearKey) {
+  if (errors.length && !clearKey && inputCap.error) {
     setEndpointValidation(errors.join(' '), fields);
     return null;
   }
   setEndpointValidation();
-  return { version: 1, activeService: service, profiles: { [service]: profile } };
+  const profileValid = errors.length === 0;
+  return {
+    version: 1, activeService: service, inputCapTokens: inputCap.value,
+    profiles: profileValid || clearKey ? { [service]: profile } : {},
+    profileValid,
+    validation: errors.length ? { message: errors.join(' '), fields } : null,
+  };
 }
 
 function setEndpointControlsPending(pending) {
@@ -293,10 +303,14 @@ async function loadAIEndpointSettings() {
 async function persistEndpointSettings() {
   const config = collectEndpointConfig();
   if (!config) return null;
+  const validation = config.validation;
+  const profileValid = config.profileValid;
   const status = await sendAIEndpointMessage({ op: 'settings:set', config });
   updateEndpointStatus({ status });
+  aiEndpointCapDirty = false;
   renderEndpointProfile(status.service || config.activeService);
-  return status;
+  if (validation) setEndpointValidation(validation.message, validation.fields);
+  return { ...status, profileValid };
 }
 
 async function saveAIEndpointSettings() {
@@ -304,7 +318,9 @@ async function saveAIEndpointSettings() {
   setEndpointControlsPending(true);
   updateEndpointStatus({ pending: 'Saving...' });
   try {
-    if (await persistEndpointSettings()) showToast('AI endpoint profile saved and activated', 'success');
+    const saved = await persistEndpointSettings();
+    if (saved?.profileValid) showToast('AI endpoint profile saved and activated', 'success');
+    else if (saved) showToast('Input cap saved; endpoint profile was not saved', 'warning');
     else updateEndpointStatus({ dirty: true });
   } catch (error) {
     updateEndpointStatus({ error });
@@ -321,6 +337,7 @@ async function testAIEndpointSettings() {
   try {
     const saved = await persistEndpointSettings();
     if (!saved) return updateEndpointStatus({ dirty: true });
+    if (!saved.profileValid) return;
     updateEndpointStatus({ pending: 'Testing...' });
     const result = await sendAIEndpointMessage({ op: 'test' });
     updateEndpointStatus({ status: result.status });
@@ -343,6 +360,7 @@ async function clearAIEndpointKey() {
   try {
     const status = await sendAIEndpointMessage({ op: 'settings:set', config });
     updateEndpointStatus({ status });
+    aiEndpointCapDirty = false;
     renderEndpointProfile(service);
     showToast(`${aiServiceLabel(service)} API key cleared`, 'success');
   } catch (error) {
@@ -375,6 +393,7 @@ function initAIEndpointSettings() {
     });
   });
   document.getElementById('ai-endpoint-max-input-tokens')?.addEventListener('change', event => {
+    aiEndpointCapDirty = true;
     const custom = document.getElementById('ai-endpoint-max-input-custom');
     const isCustom = event.target.value === 'custom';
     if (isCustom) {
@@ -388,11 +407,10 @@ function initAIEndpointSettings() {
     markAIEndpointDirty();
   });
   document.getElementById('ai-endpoint-max-input-custom')?.addEventListener('input', () => {
+    aiEndpointCapDirty = true;
     setEndpointValidation();
     markAIEndpointDirty();
   });
-  document.getElementById('ai-endpoint-max-input-custom')?.addEventListener('change', commitCustomInputCap);
-  document.getElementById('ai-endpoint-max-input-custom')?.addEventListener('blur', commitCustomInputCap);
   document.getElementById('ai-endpoint-save')?.addEventListener('click', saveAIEndpointSettings);
   document.getElementById('ai-endpoint-test')?.addEventListener('click', testAIEndpointSettings);
   document.getElementById('ai-endpoint-clear-key')?.addEventListener('click', clearAIEndpointKey);
