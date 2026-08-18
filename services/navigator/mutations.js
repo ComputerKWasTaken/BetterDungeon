@@ -8,6 +8,7 @@
   if (typeof window === 'undefined' || window.NavigatorMutations) return;
 
   const READ_ONLY_STORAGE_KEY = 'betterDungeon_navigator_read_only';
+  const ADVENTURE_SETTINGS_PREFIX = 'betterDungeon_navigator_adventure_';
   const MAX_PROPOSAL_CHARS = 40000;
   const MAX_REASON_CHARS = 1000;
   const ID_ATTEMPTS = 8;
@@ -267,31 +268,43 @@
 
     async readOnlyEnabled() {
       if (!isExtensionContextValid()) {
-        throw { code: 'extension_context_invalid', message: 'The extension was reloaded. Reload this page before applying changes.' };
+        return true;
       }
+      const adventureKey = `${ADVENTURE_SETTINGS_PREFIX}${encodeURIComponent(String(this.shortId || 'unknown'))}`;
       return new Promise(resolve => {
         let settled = false;
+        let localResult = null;
+        let syncResult = null;
+        let pending = 2;
         const finish = value => {
           if (settled) return;
           settled = true;
           clearTimeout(timer);
           resolve(value);
         };
+        const received = () => {
+          pending -= 1;
+          if (pending > 0) return;
+          const localSettings = localResult?.[adventureKey];
+          finish(typeof localSettings?.readOnly === 'boolean'
+            ? localSettings.readOnly
+            : syncResult?.[READ_ONLY_STORAGE_KEY] === true);
+        };
+        const fail = () => finish(true);
         const timer = setTimeout(() => finish(true), 2000);
         try {
+          chrome.storage.local.get(adventureKey, result => {
+            if (chrome.runtime?.lastError) return fail();
+            localResult = result || {};
+            received();
+          });
           chrome.storage.sync.get(READ_ONLY_STORAGE_KEY, result => {
-            try {
-              if (chrome.runtime?.lastError) {
-                finish(true);
-                return;
-              }
-              finish((result || {})[READ_ONLY_STORAGE_KEY] === true);
-            } catch {
-              finish(true);
-            }
+            if (chrome.runtime?.lastError) return fail();
+            syncResult = result || {};
+            received();
           });
         } catch {
-          finish(true);
+          fail();
         }
       });
     }

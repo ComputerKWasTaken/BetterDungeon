@@ -140,7 +140,7 @@
       this.thinkingLevel = 'low';
       this.providerStatus = null;
       this.hasLoadedSettings = false;
-      this.globalSettings = { ...DEFAULT_NAVIGATOR_SETTINGS };
+      this.fallbackSettings = { ...DEFAULT_NAVIGATOR_SETTINGS };
       this.adventureSettings = {};
       this.effectiveSettings = { ...DEFAULT_NAVIGATOR_SETTINGS, readOnly: true, thinkingLevel: 'low' };
       this.boundStorageChange = (changes, areaName) => this.onStorageChange(changes, areaName);
@@ -366,31 +366,15 @@
       if (!isExtensionContextValid()) {
         return this.setReadOnlyMode(true);
       }
-      const readOnly = await new Promise(resolve => {
-        let settled = false;
-        const finish = value => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timer);
-          resolve(value);
-        };
-        const timer = setTimeout(() => finish(true), 2000);
-        try {
-          chrome.storage.sync.get(READ_ONLY_STORAGE_KEY, result => {
-            try {
-              if (chrome.runtime?.lastError) {
-                finish(true);
-                return;
-              }
-              finish((result || {})[READ_ONLY_STORAGE_KEY] === true);
-            } catch {
-              finish(true);
-            }
-          });
-        } catch {
-          finish(true);
-        }
-      });
+      const [syncResult, localResult] = await Promise.all([
+        this.storageGet(chrome.storage.sync, READ_ONLY_STORAGE_KEY),
+        this.storageGet(chrome.storage.local, this.adventureSettingsKey()),
+      ]);
+      if (syncResult.__failed || localResult.__failed) return this.setReadOnlyMode(true);
+      const localSettings = this.normalizeSettings(localResult[this.adventureSettingsKey()]);
+      const readOnly = Object.prototype.hasOwnProperty.call(localSettings, 'readOnly')
+        ? localSettings.readOnly
+        : syncResult[READ_ONLY_STORAGE_KEY] === true;
       return this.setReadOnlyMode(readOnly);
     }
 
@@ -437,7 +421,7 @@
       ]);
       if (syncResult.__failed || localResult.__failed) {
         if (!this.hasLoadedSettings) {
-          this.globalSettings = { ...DEFAULT_NAVIGATOR_SETTINGS };
+          this.fallbackSettings = { ...DEFAULT_NAVIGATOR_SETTINGS };
           this.adventureSettings = {};
           this.effectiveSettings = { ...DEFAULT_NAVIGATOR_SETTINGS, readOnly: true, thinkingLevel: 'low' };
         } else {
@@ -450,18 +434,18 @@
       const defaults = this.normalizeSettings(syncResult[NAVIGATOR_DEFAULTS_STORAGE_KEY]);
       const legacyThinking = syncResult[THINKING_LEVEL_STORAGE_KEY];
       const globalReadOnly = syncResult[READ_ONLY_STORAGE_KEY] === true;
-      this.globalSettings = { ...DEFAULT_NAVIGATOR_SETTINGS, ...defaults, readOnly: globalReadOnly };
-      this.globalSettings.thinkingLevel = THINKING_LEVELS.includes(legacyThinking)
+      this.fallbackSettings = { ...DEFAULT_NAVIGATOR_SETTINGS, ...defaults, readOnly: globalReadOnly };
+      this.fallbackSettings.thinkingLevel = THINKING_LEVELS.includes(legacyThinking)
         ? legacyThinking
         : (defaults.thinkingLevel || 'low');
       this.adventureSettings = this.normalizeSettings(localResult[this.adventureSettingsKey()]);
       const effective = {
-        ...this.globalSettings,
+        ...this.fallbackSettings,
         ...this.adventureSettings,
         readOnly: Object.prototype.hasOwnProperty.call(this.adventureSettings, 'readOnly')
           ? this.adventureSettings.readOnly
           : globalReadOnly,
-        thinkingLevel: this.adventureSettings.thinkingLevel || this.globalSettings.thinkingLevel || 'low',
+        thinkingLevel: this.adventureSettings.thinkingLevel || this.fallbackSettings.thinkingLevel || 'low',
       };
       this.effectiveSettings = effective;
       this.hasLoadedSettings = true;
@@ -479,8 +463,6 @@
     getSettings() {
       return {
         ...this.effectiveSettings,
-        global: { ...this.globalSettings, readOnly: this.globalSettings.readOnly === true },
-        overrides: { ...this.adventureSettings },
         adventureId: this.adventureId,
         providerThinkingLevels: this.getProviderThinkingLevels(),
       };
@@ -493,36 +475,15 @@
         : (Array.isArray(status?.thinkingLevels) ? status.thinkingLevels : []);
     }
 
-    async saveSettings(fields, options = {}) {
+    async saveSettings(fields) {
       if (!isExtensionContextValid()) return this.getSettings();
       const normalized = this.normalizeSettings(fields);
-      const nextOverrides = options.global
-        ? null
-        : { ...this.adventureSettings, ...normalized };
-      if (!options.global) {
-        for (const key of Object.keys(fields || {})) {
-          if (fields[key] === null || fields[key] === undefined) delete nextOverrides[key];
-        }
+      const nextSettings = { ...this.adventureSettings, ...normalized };
+      for (const key of Object.keys(fields || {})) {
+        if (fields[key] === null || fields[key] === undefined) delete nextSettings[key];
       }
-      if (options.global) {
-        this.globalSettings = { ...this.globalSettings, ...normalized };
-        await new Promise(resolve => chrome.storage.sync.set({ [NAVIGATOR_DEFAULTS_STORAGE_KEY]: this.globalSettings }, resolve));
-      } else {
-        this.adventureSettings = nextOverrides;
-        await new Promise(resolve => chrome.storage.local.set({ [this.adventureSettingsKey()]: nextOverrides }, resolve));
-      }
-      await this.loadSettings();
-      this.emit('settings', this.getSettings());
-      return this.getSettings();
-    }
-
-    async clearAdventureSetting(field) {
-      const next = { ...this.adventureSettings };
-      delete next[field];
-      this.adventureSettings = next;
-      if (isExtensionContextValid()) {
-        await new Promise(resolve => chrome.storage.local.set({ [this.adventureSettingsKey()]: next }, resolve));
-      }
+      this.adventureSettings = nextSettings;
+      await new Promise(resolve => chrome.storage.local.set({ [this.adventureSettingsKey()]: nextSettings }, resolve));
       await this.loadSettings();
       this.emit('settings', this.getSettings());
       return this.getSettings();
@@ -561,7 +522,7 @@
       }
       if (areaName === 'sync' && changes?.[READ_ONLY_STORAGE_KEY]) {
         if (!Object.prototype.hasOwnProperty.call(this.adventureSettings, 'readOnly')) {
-          this.setReadOnlyMode(changes[READ_ONLY_STORAGE_KEY].newValue);
+          this.setReadOnlyMode(changes[READ_ONLY_STORAGE_KEY].newValue === true);
         }
         shouldReload = true;
       }

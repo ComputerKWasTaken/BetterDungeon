@@ -14,7 +14,10 @@ global.window = global;
 global.location = { href: 'https://play.aidungeon.com/adventure/hydration', pathname: '/adventure/hydration' };
 global.chrome = {
   runtime: { id: 'hydration-test', lastError: null },
-  storage: { sync: { get(_key, callback) { callback({}); } } },
+  storage: {
+    local: { get(_key, callback) { callback({}); } },
+    sync: { get(_key, callback) { callback({}); } },
+  },
 };
 window.Ultrascripts = { ws: { getAdventureShortId: () => 'hydration' } };
 
