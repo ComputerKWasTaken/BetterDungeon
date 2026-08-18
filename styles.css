@@ -3474,7 +3474,8 @@ body.bd-navigator-resizing {
 }
 
 .bd-navigator-inspection-panel {
-  flex-shrink: 0;
+  flex: 0 1 auto;
+  min-height: 0;
   max-height: min(70vh, 620px);
   overflow: auto;
   padding: var(--bd-space-3);
@@ -3513,6 +3514,9 @@ body.bd-navigator-resizing {
 }
 
 .bd-navigator-inspection-body pre {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
   max-height: 220px;
   margin: 0;
   padding: var(--bd-space-2);

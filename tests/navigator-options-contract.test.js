@@ -239,6 +239,10 @@ async function run() {
   assert.doesNotMatch(featureSource, /bd-navigator-settings-note|bd-navigator-cost|peak input characters|tokens, estimate/);
   assert.doesNotMatch(featureSource, /bd-navigator-subtitle|updateSubtitle|bd-navigator-empty-note|Navigator reads a budgeted snapshot/);
   assert.doesNotMatch(featureSource, /contextCap|clearAdventureSetting\('contextCap'\)/);
+  assert.match(featureSource, /if \(event === 'reset'\) \{[\s\S]*?this\.renderTranscript\(\);[\s\S]*?if \(this\.inspectionPanel && !this\.inspectionPanel\.hidden\) \{\s*this\.renderRequestInspection\(\);\s*\}\s*\}/);
+  assert.match(featureSource, /header\.querySelector\('\.bd-navigator-settings'\)\.addEventListener\('click', \(\) => \{\s*settings\.hidden = !settings\.hidden;\s*inspection\.hidden = true;/);
+  assert.match(featureSource, /value === undefined \? '\(nothing was sent\)'/);
+  assert.match(featureSource, /` \| Error: \$\{inspection\.error\.message\}`/);
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'popup.js'), 'utf8'), /navigator-tool-rounds|toolRounds/);
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'popup.js'), 'utf8'), /navigator-context-cap|contextCap/);
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'popup.html'), 'utf8'), /navigator-tool-rounds|navigator-context-cap|characters\)/);
