@@ -146,8 +146,57 @@
     return null;
   }
 
-  function hydratePlotEditor(proposal, verified) {
+  async function readAuthoritativePlot(proposal, signal) {
+    const shortId = proposal?.shortId || window.Ultrascripts?.ws?.getAdventureShortId?.();
+    const gql = window.BetterDungeonGQL;
+    if (!shortId || !gql?.getNavigatorAdventureContext) {
+      return {
+        ok: false,
+        reason: 'authoritative adventure read unavailable; Plot editor hydration was skipped',
+      };
+    }
     try {
+      const adventure = await gql.getNavigatorAdventureContext(shortId, { signal });
+      if (!adventure?.id) {
+        return {
+          ok: false,
+          reason: 'authoritative adventure read returned no adventure; Plot editor hydration was skipped',
+        };
+      }
+      return { ok: true, adventure };
+    } catch (error) {
+      return {
+        ok: false,
+        reason: `authoritative adventure read failed; Plot editor hydration was skipped (${error?.message || String(error)})`,
+      };
+    }
+  }
+
+  // input/change can trigger AI Dungeon's plot save, which writes all plot fields from mounted state.
+  async function hydratePlotEditor(proposal, verified, signal) {
+    try {
+      const authoritative = await readAuthoritativePlot(proposal, signal);
+      if (!authoritative.ok) return { attempted: true, ok: false, reason: authoritative.reason };
+      const plotFields = ['instructions', 'memory', 'authorsNote', 'storySummary'];
+      for (const field of plotFields) {
+        if (field === proposal?.field) continue;
+        const textarea = findPlotEditorTextarea(field);
+        if (!textarea) continue;
+        if (!has(authoritative.adventure, field) || authoritative.adventure[field] == null) {
+          return {
+            attempted: true,
+            ok: false,
+            reason: `authoritative '${field}' is unavailable; Plot editor hydration was skipped`,
+          };
+        }
+        if (textarea.value !== String(authoritative.adventure[field])) {
+          return {
+            attempted: true,
+            ok: false,
+            reason: 'The open Plot editor holds text that differs from the server; hydration was skipped to avoid provoking a save with stale text',
+          };
+        }
+      }
       const textarea = findPlotEditorTextarea(proposal?.field);
       return fillEditorTextarea(textarea, proposal?.before, verified?.[proposal?.field]);
     } catch (error) {
@@ -350,7 +399,9 @@
       }
       if (!result.ok) return { attempted: true, ...result };
       const output = { attempted: true, ...result, refetch: await refetchActive(apollo) };
-      if (kind === 'plot_component') output.editor = hydratePlotEditor(options.proposal, options.verified);
+      if (kind === 'plot_component') {
+        output.editor = await hydratePlotEditor(options.proposal, options.verified, options.signal);
+      }
       return output;
     } catch (error) {
       console.warn('[Navigator] Verified-write Apollo hydration failed:', error);

@@ -449,7 +449,132 @@ function createTextarea(value) {
   };
 }
 
+function installPlotEditorServices(editors) {
+  window.betterDungeonInstance = {
+    aiDungeonService: {
+      findAIInstructionsTextarea() {
+        return editors.instructions || null;
+      },
+      findPlotEssentialsTextarea() {
+        return editors.memory || null;
+      },
+      findAuthorsNoteTextarea() {
+        return editors.authorsNote || null;
+      },
+      _findTextareaByComponentHeading(heading) {
+        return heading === 'Story Summary' ? editors.storySummary || null : null;
+      },
+    },
+  };
+}
+
+function authoritativePlot() {
+  return {
+    id: '101',
+    shortId: 'hydration',
+    instructions: 'Instructions',
+    memory: 'After',
+    authorsNote: 'Author note',
+    storySummary: 'Summary',
+  };
+}
+
+async function testPlotEditorSiblingSafety() {
+  const matching = {
+    instructions: createTextarea('Instructions'),
+    memory: createTextarea('Before'),
+    authorsNote: createTextarea('Author note'),
+    storySummary: createTextarea('Summary'),
+  };
+  let authoritativeReads = 0;
+  window.BetterDungeonGQL = {
+    async getNavigatorAdventureContext() {
+      authoritativeReads++;
+      return authoritativePlot();
+    },
+  };
+  window.BetterDungeonApolloCache = {
+    async modifyEntity() {
+      return { available: true, data: { changed: true }, error: null };
+    },
+    async refetchActive() {
+      return { available: true, data: { refetched: true }, error: null };
+    },
+  };
+  installPlotEditorServices(Object.fromEntries(
+    Object.entries(matching).map(([field, entry]) => [field, entry.textarea]),
+  ));
+  const filled = await window.BetterDungeonAdventureWriteHydration.hydrateVerifiedMutation({
+    kind: 'plot_component',
+    proposal: {
+      shortId: 'hydration',
+      adventureId: '101',
+      field: 'memory',
+      before: 'Before',
+      after: 'After',
+    },
+    verified: authoritativePlot(),
+  });
+  assert.equal(filled.ok, true);
+  assert.equal(filled.editor.ok, true);
+  assert.equal(authoritativeReads, 1);
+  assert.equal(matching.memory.setterCalls, 1);
+
+  const divergent = {
+    instructions: createTextarea('Stale instructions'),
+    memory: createTextarea('Before'),
+    authorsNote: createTextarea('Author note'),
+    storySummary: createTextarea('Summary'),
+  };
+  installPlotEditorServices(Object.fromEntries(
+    Object.entries(divergent).map(([field, entry]) => [field, entry.textarea]),
+  ));
+  const skippedDivergence = await window.BetterDungeonAdventureWriteHydration.hydrateVerifiedMutation({
+    kind: 'plot_component',
+    proposal: {
+      shortId: 'hydration',
+      adventureId: '101',
+      field: 'memory',
+      before: 'Before',
+      after: 'After',
+    },
+    verified: authoritativePlot(),
+  });
+  assert.equal(skippedDivergence.ok, true);
+  assert.equal(skippedDivergence.editor.ok, false);
+  assert.match(skippedDivergence.editor.reason, /differs from the server.*provoking a save/);
+  assert.equal(divergent.memory.setterCalls, 0);
+
+  const unavailable = createTextarea('Before');
+  installPlotEditorServices({ memory: unavailable.textarea });
+  window.BetterDungeonGQL = {
+    async getNavigatorAdventureContext() {
+      throw new Error('authoritative read unavailable');
+    },
+  };
+  const skippedUnavailable = await window.BetterDungeonAdventureWriteHydration.hydrateVerifiedMutation({
+    kind: 'plot_component',
+    proposal: {
+      shortId: 'hydration',
+      adventureId: '101',
+      field: 'memory',
+      before: 'Before',
+      after: 'After',
+    },
+    verified: authoritativePlot(),
+  });
+  assert.equal(skippedUnavailable.ok, true);
+  assert.equal(skippedUnavailable.editor.ok, false);
+  assert.match(skippedUnavailable.editor.reason, /authoritative adventure read failed/);
+  assert.equal(unavailable.setterCalls, 0);
+}
+
 async function testPlotEditorHydration() {
+  window.BetterDungeonGQL = {
+    async getNavigatorAdventureContext() {
+      return authoritativePlot();
+    },
+  };
   const success = createTextarea('Before');
   const filled = window.BetterDungeonAdventureWriteHydration.fillEditorTextarea(
     success.textarea,
@@ -560,6 +685,7 @@ async function main() {
   await testFailedVerificationAndUnavailableApollo();
   await testCardEditAndDeletionDecision();
   await testMemoryHydrationAndRouting();
+  await testPlotEditorSiblingSafety();
   await testPlotEditorHydration();
   console.log('Adventure write hydration contract tests passed');
 }
