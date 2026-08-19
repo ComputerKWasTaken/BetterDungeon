@@ -20,6 +20,30 @@
     Entry: 'value',
     Notes: 'description',
   });
+  const PLOT_EDITOR_FIELDS = Object.freeze(['instructions', 'memory', 'authorsNote', 'storySummary']);
+  const outstandingPlotEditorFields = new Map();
+
+  function plotLedgerKey(proposal) {
+    const id = proposal?.adventureId || proposal?.shortId;
+    return id ? String(id) : null;
+  }
+
+  function outstandingPlotFields(proposal) {
+    const key = plotLedgerKey(proposal);
+    return key ? [...(outstandingPlotEditorFields.get(key) || [])] : [];
+  }
+
+  function rememberPlotEditorResult(proposal, result) {
+    const field = proposal?.field;
+    const key = plotLedgerKey(proposal);
+    if (!key || !PLOT_EDITOR_FIELDS.includes(field)) return result;
+    const fields = outstandingPlotEditorFields.get(key) || new Set();
+    if (result?.ok) fields.delete(field);
+    else fields.add(field);
+    if (fields.size) outstandingPlotEditorFields.set(key, fields);
+    else outstandingPlotEditorFields.delete(key);
+    return result;
+  }
 
   function cardValue(value) {
     return Array.isArray(value) ? value.join(', ') : value == null ? '' : String(value);
@@ -174,37 +198,54 @@
 
   // input/change can trigger AI Dungeon's plot save, which writes all plot fields from mounted state.
   async function hydratePlotEditor(proposal, verified, signal) {
+    // Virtualized plot textareas make DOM inspection incomplete, so this page-lifetime ledger tracks unconfirmed fields.
+    const blockedFields = outstandingPlotFields(proposal).filter(field => field !== proposal?.field);
+    if (blockedFields.length) {
+      return rememberPlotEditorResult(proposal, {
+        attempted: true,
+        ok: false,
+        reason: 'An earlier Navigator Plot editor change has not reached the open editor; hydration was skipped to avoid a save that would revert it',
+      });
+    }
     try {
       const authoritative = await readAuthoritativePlot(proposal, signal);
-      if (!authoritative.ok) return { attempted: true, ok: false, reason: authoritative.reason };
-      const plotFields = ['instructions', 'memory', 'authorsNote', 'storySummary'];
-      for (const field of plotFields) {
+      if (!authoritative.ok) {
+        return rememberPlotEditorResult(proposal, {
+          attempted: true,
+          ok: false,
+          reason: authoritative.reason,
+        });
+      }
+      for (const field of PLOT_EDITOR_FIELDS) {
         if (field === proposal?.field) continue;
         const textarea = findPlotEditorTextarea(field);
         if (!textarea) continue;
         if (!has(authoritative.adventure, field) || authoritative.adventure[field] == null) {
-          return {
+          return rememberPlotEditorResult(proposal, {
             attempted: true,
             ok: false,
             reason: `authoritative '${field}' is unavailable; Plot editor hydration was skipped`,
-          };
+          });
         }
         if (textarea.value !== String(authoritative.adventure[field])) {
-          return {
+          return rememberPlotEditorResult(proposal, {
             attempted: true,
             ok: false,
             reason: 'The open Plot editor holds text that differs from the server; hydration was skipped to avoid provoking a save with stale text',
-          };
+          });
         }
       }
       const textarea = findPlotEditorTextarea(proposal?.field);
-      return fillEditorTextarea(textarea, proposal?.before, verified?.[proposal?.field]);
+      return rememberPlotEditorResult(
+        proposal,
+        fillEditorTextarea(textarea, proposal?.before, verified?.[proposal?.field]),
+      );
     } catch (error) {
-      return {
+      return rememberPlotEditorResult(proposal, {
         attempted: true,
         ok: false,
         reason: error?.message || String(error),
-      };
+      });
     }
   }
 

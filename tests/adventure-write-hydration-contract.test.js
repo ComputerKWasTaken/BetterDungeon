@@ -508,7 +508,7 @@ async function testPlotEditorSiblingSafety() {
     kind: 'plot_component',
     proposal: {
       shortId: 'hydration',
-      adventureId: '101',
+      adventureId: 'ledger-sibling',
       field: 'memory',
       before: 'Before',
       after: 'After',
@@ -533,7 +533,7 @@ async function testPlotEditorSiblingSafety() {
     kind: 'plot_component',
     proposal: {
       shortId: 'hydration',
-      adventureId: '101',
+      adventureId: 'ledger-sibling',
       field: 'memory',
       before: 'Before',
       after: 'After',
@@ -556,7 +556,7 @@ async function testPlotEditorSiblingSafety() {
     kind: 'plot_component',
     proposal: {
       shortId: 'hydration',
-      adventureId: '101',
+      adventureId: 'ledger-sibling',
       field: 'memory',
       before: 'Before',
       after: 'After',
@@ -567,6 +567,113 @@ async function testPlotEditorSiblingSafety() {
   assert.equal(skippedUnavailable.editor.ok, false);
   assert.match(skippedUnavailable.editor.reason, /authoritative adventure read failed/);
   assert.equal(unavailable.setterCalls, 0);
+}
+
+async function testPlotEditorOutstandingLedger() {
+  window.BetterDungeonGQL = {
+    async getNavigatorAdventureContext() {
+      return authoritativePlot();
+    },
+  };
+  window.BetterDungeonApolloCache = {
+    async readEntity() {
+      return {
+        available: true,
+        data: { state: { instructions: { type: 'custom' } } },
+        error: null,
+      };
+    },
+    async modifyEntity() {
+      return { available: true, data: { changed: true }, error: null };
+    },
+    async refetchActive() {
+      return { available: true, data: { refetched: true }, error: null };
+    },
+  };
+
+  const failed = createTextarea('Stale instructions');
+  installPlotEditorServices({ instructions: failed.textarea });
+  const failedFill = await window.BetterDungeonAdventureWriteHydration.hydrateVerifiedMutation({
+    kind: 'plot_component',
+    proposal: {
+      shortId: 'hydration',
+      adventureId: 'ledger-clear',
+      field: 'instructions',
+      before: 'Before instructions',
+      after: 'Instructions',
+    },
+    verified: { id: '101', instructions: 'Instructions' },
+  });
+  assert.equal(failedFill.ok, true);
+  assert.equal(failedFill.editor.ok, false);
+  assert.equal(failed.setterCalls, 0);
+
+  const retry = createTextarea('Before instructions');
+  installPlotEditorServices({ instructions: retry.textarea });
+  const retried = await window.BetterDungeonAdventureWriteHydration.hydrateVerifiedMutation({
+    kind: 'plot_component',
+    proposal: {
+      shortId: 'hydration',
+      adventureId: 'ledger-clear',
+      field: 'instructions',
+      before: 'Before instructions',
+      after: 'Instructions',
+    },
+    verified: { id: '101', instructions: 'Instructions' },
+  });
+  assert.equal(retried.ok, true);
+  assert.equal(retried.editor.ok, true);
+  assert.equal(retry.setterCalls, 1);
+
+  const later = createTextarea('Before');
+  installPlotEditorServices({ memory: later.textarea });
+  const laterFill = await window.BetterDungeonAdventureWriteHydration.hydrateVerifiedMutation({
+    kind: 'plot_component',
+    proposal: {
+      shortId: 'hydration',
+      adventureId: 'ledger-clear',
+      field: 'memory',
+      before: 'Before',
+      after: 'After',
+    },
+    verified: { id: '101', memory: 'After' },
+  });
+  assert.equal(laterFill.ok, true);
+  assert.equal(laterFill.editor.ok, true);
+  assert.equal(later.setterCalls, 1);
+
+  const outstanding = createTextarea('Stale instructions');
+  installPlotEditorServices({ instructions: outstanding.textarea });
+  const outstandingFill = await window.BetterDungeonAdventureWriteHydration.hydrateVerifiedMutation({
+    kind: 'plot_component',
+    proposal: {
+      shortId: 'hydration',
+      adventureId: 'ledger-block',
+      field: 'instructions',
+      before: 'Before instructions',
+      after: 'Instructions',
+    },
+    verified: { id: '101', instructions: 'Instructions' },
+  });
+  assert.equal(outstandingFill.editor.ok, false);
+
+  const blocked = createTextarea('Before');
+  installPlotEditorServices({ memory: blocked.textarea });
+  const blockedFill = await window.BetterDungeonAdventureWriteHydration.hydrateVerifiedMutation({
+    kind: 'plot_component',
+    proposal: {
+      shortId: 'hydration',
+      adventureId: 'ledger-block',
+      field: 'memory',
+      before: 'Before',
+      after: 'After',
+    },
+    verified: { id: '101', memory: 'After' },
+  });
+  assert.equal(blockedFill.ok, true);
+  assert.equal(blockedFill.editor.ok, false);
+  assert.match(blockedFill.editor.reason, /earlier Navigator Plot editor change.*revert it/);
+  assert.equal(blocked.setterCalls, 0);
 }
 
 async function testPlotEditorHydration() {
@@ -631,7 +738,7 @@ async function testPlotEditorHydration() {
   const hydration = await window.BetterDungeonAdventureWriteHydration.hydrateVerifiedMutation({
     kind: 'plot_component',
     proposal: {
-      adventureId: '101',
+      adventureId: 'editor-cases',
       field: 'memory',
       before: 'Before',
       after: 'After',
@@ -686,6 +793,7 @@ async function main() {
   await testCardEditAndDeletionDecision();
   await testMemoryHydrationAndRouting();
   await testPlotEditorSiblingSafety();
+  await testPlotEditorOutstandingLedger();
   await testPlotEditorHydration();
   console.log('Adventure write hydration contract tests passed');
 }
