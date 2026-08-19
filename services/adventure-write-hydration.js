@@ -35,7 +35,7 @@
 
   async function hydrateAdventure(verified, proposal, apollo) {
     const id = verified?.id || proposal.adventureId;
-    if (id == null) return { ok: false, reason: 'confirmed adventure id unavailable' };
+    if (!id) return { ok: false, reason: 'confirmed adventure id unavailable' };
     const field = proposal.field;
     const rootFields = ['title', 'memory', 'authorsNote', 'thirdPerson'];
     const stateFields = ['instructions', 'storySummary'];
@@ -102,9 +102,9 @@
 
   async function hydrateMemory(verified, proposal, apollo, kind = proposal?.kind) {
     const id = verified?.id ?? proposal?.memoryId;
-    if (id == null) return { ok: false, reason: 'Memory Bank identity unavailable' };
+    if (id == null || id === '') return { ok: false, reason: 'Memory Bank identity unavailable' };
     const adventureId = verified?.adventureId || proposal.adventureId;
-    if (adventureId == null) return { ok: false, reason: 'Memory Bank adventure id unavailable' };
+    if (!adventureId) return { ok: false, reason: 'Memory Bank adventure id unavailable' };
     let cached;
     try {
       cached = await apollo.readEntity({
