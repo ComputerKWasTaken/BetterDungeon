@@ -338,9 +338,12 @@ async function run() {
   assert.match(featureSource, /thinking\.disabled = supported\.length === 0/);
   assert.doesNotMatch(featureSource, /includeMemoryBank|historyMode|Inherit global default/);
   assert.match(featureSource, /search_memory_bank[\s\S]*get_memory[\s\S]*search_story_history[\s\S]*get_story_actions/);
+  assert.match(featureSource, /const category = tools\.length > 0 && tools\.every/);
   assert.match(featureSource, /Used \$\{tools\.length\} Memory Bank tools/);
   assert.match(featureSource, /Used \$\{tools\.length\} story history tools/);
   assert.match(featureSource, /Used \$\{tools\.length\} Navigator read tools/);
+  assert.match(featureSource, /proposal\.status === 'applied'[\s\S]*proposal\.kind === 'plot_component'[\s\S]*proposal\.hydration\?\.editor\?\.ok !== true/);
+  assert.match(featureSource, /The change is saved and verified on the server\. The open editor will show it after a page reload\./);
   assert.match(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'), /this turn\\'s read-tool budget/);
   assert.match(featureSource, /value === undefined \? '\(nothing was sent\)'/);
   assert.match(featureSource, /` \| Error: \$\{inspection\.error\.message\}`/);

@@ -991,6 +991,16 @@ class NavigatorFeature {
       drift.textContent = 'The card had an unrelated timestamp update while Navigator applied this change.';
       card.appendChild(drift);
     }
+    if (
+      proposal.status === 'applied' &&
+      proposal.kind === 'plot_component' &&
+      proposal.hydration?.editor?.ok !== true
+    ) {
+      const hydrationNote = document.createElement('p');
+      hydrationNote.className = 'bd-navigator-proposal-note';
+      hydrationNote.textContent = 'The change is saved and verified on the server. The open editor will show it after a page reload.';
+      card.appendChild(hydrationNote);
+    }
 
     const actions = document.createElement('div');
     actions.className = 'bd-navigator-proposal-buttons';
@@ -1505,11 +1515,11 @@ class NavigatorFeature {
     const storyCardTools = new Set(['search_story_cards', 'get_story_card']);
     const memoryBankTools = new Set(['search_memory_bank', 'get_memory']);
     const historyTools = new Set(['search_story_history', 'get_story_actions']);
-    const category = tools.every(name => storyCardTools.has(name))
+    const category = tools.length > 0 && tools.every(name => storyCardTools.has(name))
       ? 'story_cards'
-      : (tools.every(name => memoryBankTools.has(name))
+      : (tools.length > 0 && tools.every(name => memoryBankTools.has(name))
         ? 'memory_bank'
-        : (tools.every(name => historyTools.has(name)) ? 'history' : 'mixed'));
+        : (tools.length > 0 && tools.every(name => historyTools.has(name)) ? 'history' : 'mixed'));
     const icon = document.createElement('span');
     const onlySearch = tools.length === 1 && tools[0].startsWith('search_');
     const onlyRead = tools.length === 1 && tools[0].startsWith('get_');

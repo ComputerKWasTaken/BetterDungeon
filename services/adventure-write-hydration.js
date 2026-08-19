@@ -143,14 +143,6 @@
     const pageDocument = editorDocument(null);
     const selector = selectorKey && serviceClass?.SEL?.[selectorKey];
     if (selector && pageDocument?.querySelector) return pageDocument.querySelector(selector);
-    if (field === 'storySummary' && typeof serviceClass === 'function') {
-      try {
-        const fallbackService = new serviceClass();
-        return fallbackService._findTextareaByComponentHeading?.('Story Summary') || null;
-      } catch {
-        return null;
-      }
-    }
     return null;
   }
 
