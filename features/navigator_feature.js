@@ -433,12 +433,20 @@ class NavigatorFeature {
     settings.setAttribute('aria-label', 'Navigator adventure settings');
     settings.innerHTML = `
       <div class="bd-navigator-settings-grid">
-        <label>Thinking level<select data-nav-setting="thinkingLevel">
-          <option value="minimal">Minimal</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>
-        </select></label>
-        <label>Memory Bank<select data-nav-setting="includeMemoryBank"><option value="true">Include inline</option><option value="false">Omit inline</option></select></label>
-        <label>History<select data-nav-setting="historyMode"><option value="full">Full history</option><option value="floor">Recency floor only</option></select></label>
-        <label>Read-only<select data-nav-setting="readOnly"><option value="false">Off</option><option value="true">On</option></select></label>
+        <label class="bd-navigator-thinking-control">Thinking level
+          <input type="range" min="0" max="0" step="1" value="0" data-nav-setting="thinkingLevel" aria-label="Thinking level">
+          <span class="bd-navigator-thinking-value" aria-live="polite"></span>
+        </label>
+        <label class="bd-navigator-toggle-control">Read-only
+          <input type="checkbox" data-nav-setting="readOnly" aria-label="Read-only mode">
+        </label>
+        <fieldset class="bd-navigator-context-sections">
+          <legend>Context sections</legend>
+          <label><input type="checkbox" data-nav-context-section="plot"> Plot Components</label>
+          <label><input type="checkbox" data-nav-context-section="history"> Recent story actions</label>
+          <label><input type="checkbox" data-nav-context-section="memory"> Memory Bank</label>
+          <label><input type="checkbox" data-nav-context-section="cards"> Story Card directory</label>
+        </fieldset>
       </div>
     `;
 
@@ -512,7 +520,21 @@ class NavigatorFeature {
       }
     });
     settings.querySelectorAll('[data-nav-setting]').forEach(control => {
-      control.addEventListener('change', () => this.saveNavigatorSetting(control.dataset.navSetting, control.value));
+      if (control.tagName === 'FIELDSET') return;
+      control.addEventListener('change', () => {
+        const value = control.type === 'checkbox' ? control.checked : control.value;
+        this.saveNavigatorSetting(control.dataset.navSetting, value);
+      });
+    });
+    settings.querySelector('[data-nav-setting="thinkingLevel"]')?.addEventListener('input', event => {
+      this.updateThinkingLevelLabel(Number(event.target.value));
+    });
+    settings.querySelectorAll('[data-nav-context-section]').forEach(control => {
+      control.addEventListener('change', () => {
+        const contextSections = [...settings.querySelectorAll('[data-nav-context-section]:checked')]
+          .map(input => input.dataset.navContextSection);
+        this.saveNavigatorSetting('contextSections', contextSections);
+      });
     });
     this.stopBtn.addEventListener('click', () => this.session?.abort());
 
@@ -545,28 +567,60 @@ class NavigatorFeature {
     if (!this.settingsPanel || !this.session) return;
     const settings = this.session.getSettings?.();
     if (!settings) return;
-    for (const control of this.settingsPanel.querySelectorAll('[data-nav-setting]')) {
-      const key = control.dataset.navSetting;
-      let value = settings[key];
-      if (key === 'includeMemoryBank') value = String(value !== false);
-      if (control.value !== String(value ?? '')) control.value = String(value ?? '');
-    }
     const supported = settings.providerThinkingLevels || [];
     const thinking = this.settingsPanel.querySelector('[data-nav-setting="thinkingLevel"]');
     if (thinking) {
+      const index = supported.indexOf(settings.thinkingLevel);
+      const preferredLevels = ['minimal', 'low', 'medium', 'high'];
+      const storedRank = preferredLevels.indexOf(settings.thinkingLevel);
+      const nearestIndex = index >= 0
+        ? index
+        : supported.reduce((best, level, candidate) => {
+          if (best < 0) return candidate;
+          const rank = preferredLevels.indexOf(level);
+          const bestRank = preferredLevels.indexOf(supported[best]);
+          if (storedRank < 0 || rank < 0 || bestRank < 0) return best;
+          return Math.abs(rank - storedRank) < Math.abs(bestRank - storedRank)
+            ? candidate
+            : best;
+        }, -1);
+      thinking.min = '0';
+      thinking.max = String(Math.max(0, supported.length - 1));
+      thinking.value = String(nearestIndex >= 0 ? nearestIndex : 0);
       thinking.disabled = supported.length === 0;
-      thinking.title = supported.length ? '' : 'The configured provider advertises no thinking-level support.';
-      for (const option of thinking.options) option.hidden = supported.length > 0 && !supported.includes(option.value);
+      thinking.title = supported.length
+        ? index >= 0 ? '' : 'The stored thinking level is not advertised by the configured provider.'
+        : 'The configured provider advertises no thinking-level support.';
+      this.updateThinkingLevelLabel(nearestIndex);
     }
+    const readOnly = this.settingsPanel.querySelector('[data-nav-setting="readOnly"]');
+    if (readOnly) readOnly.checked = settings.readOnly === true;
+    const selectedSections = Array.isArray(settings.contextSections)
+      ? settings.contextSections
+      : ['plot', 'history', 'memory', 'cards'];
+    for (const control of this.settingsPanel.querySelectorAll('[data-nav-context-section]')) {
+      control.checked = selectedSections.includes(control.dataset.navContextSection);
+    }
+  }
+
+  updateThinkingLevelLabel(index) {
+    const label = this.settingsPanel?.querySelector('.bd-navigator-thinking-value');
+    if (!label) return;
+    const supported = this.session?.getSettings?.()?.providerThinkingLevels || [];
+    label.textContent = supported[Number(index)] || 'Unavailable';
   }
 
   async saveNavigatorSetting(key, rawValue) {
     if (!this.session) return;
-    const value = key === 'includeMemoryBank'
-      ? rawValue === 'true'
-        : key === 'readOnly'
-          ? rawValue === 'true'
-          : rawValue;
+    const value = key === 'readOnly' ? rawValue === true : rawValue;
+    if (key === 'thinkingLevel') {
+      const supported = this.session.getSettings?.().providerThinkingLevels || [];
+      const selected = supported[Number(rawValue)];
+      if (!selected) return;
+      await this.session.saveSettings({ [key]: selected });
+      this.renderNavigatorSettings();
+      return;
+    }
     await this.session.saveSettings({ [key]: value });
     this.renderNavigatorSettings();
   }
