@@ -337,6 +337,11 @@ async function run() {
   assert.match(featureSource, /updateThinkingLevelLabel\(Number\(event\.target\.value\)\)/);
   assert.match(featureSource, /thinking\.disabled = supported\.length === 0/);
   assert.doesNotMatch(featureSource, /includeMemoryBank|historyMode|Inherit global default/);
+  assert.match(featureSource, /search_memory_bank[\s\S]*get_memory[\s\S]*search_story_history[\s\S]*get_story_actions/);
+  assert.match(featureSource, /Used \$\{tools\.length\} Memory Bank tools/);
+  assert.match(featureSource, /Used \$\{tools\.length\} story history tools/);
+  assert.match(featureSource, /Used \$\{tools\.length\} Navigator read tools/);
+  assert.match(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'), /this turn\\'s read-tool budget/);
   assert.match(featureSource, /value === undefined \? '\(nothing was sent\)'/);
   assert.match(featureSource, /` \| Error: \$\{inspection\.error\.message\}`/);
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'popup.js'), 'utf8'), /navigator-tool-rounds|toolRounds/);

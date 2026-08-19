@@ -100,23 +100,130 @@
     return { ok: true, entity: `StoryCard:${verified.id}` };
   }
 
+  async function hydrateMemory(verified, proposal, apollo, kind = proposal?.kind) {
+    const id = verified?.id ?? proposal?.memoryId;
+    if (id == null) return { ok: false, reason: 'Memory Bank identity unavailable' };
+    const adventureId = verified?.adventureId || proposal.adventureId;
+    if (adventureId == null) return { ok: false, reason: 'Memory Bank adventure id unavailable' };
+    let cached;
+    try {
+      cached = await apollo.readEntity({
+        typename: 'Adventure',
+        id: String(adventureId),
+        fields: ['state'],
+      });
+    } catch {
+      return { ok: false, reason: 'Memory Bank Adventure state could not be inspected' };
+    }
+    if (!cached?.available || !cached.data?.state) {
+      return { ok: false, reason: 'Memory Bank Adventure state unavailable' };
+    }
+    const state = cached.data.state;
+    if (!Array.isArray(state.memories)) {
+      return { ok: false, reason: 'Memory Bank state is unavailable in the Adventure cache' };
+    }
+    const memoryIndex = state.memories.findIndex(entry => (
+      String(entry?.actionIds?.[0]) === String(id)
+    ));
+    if (memoryIndex < 0) {
+      return { ok: false, reason: `Memory Bank entry '${id}' is missing from the Adventure cache` };
+    }
+    const current = state.memories[memoryIndex];
+    if (kind === 'memory_update' && current.text !== proposal.before) {
+      return { ok: false, reason: `Memory Bank entry '${id}' does not match its pre-write text; hydration was skipped` };
+    }
+    if (kind === 'memory_delete' && has(proposal, 'before') && proposal.before != null && current.text !== proposal.before) {
+      return { ok: false, reason: `Memory Bank entry '${id}' does not match its pre-write text; deletion hydration was skipped` };
+    }
+    const memories = state.memories.slice();
+    if (kind === 'memory_delete') memories.splice(memoryIndex, 1);
+    else memories[memoryIndex] = { ...current, text: verified.text };
+    const result = await apollo.modifyEntity({
+      typename: 'Adventure',
+      id: String(adventureId),
+      fields: { state: { ...state, memories } },
+    });
+    if (!result.available || result.data?.changed !== true) {
+      return { ok: false, reason: result.error?.message || 'Memory Bank cache modification was not applied' };
+    }
+    return { ok: true, entity: `Adventure:${adventureId}`, memoryId: String(id) };
+  }
+
+  async function refetchActive(apollo) {
+    if (!apollo.refetchActive) {
+      return { attempted: false, ok: false, reason: 'Apollo active-query refetch unavailable' };
+    }
+    try {
+      const result = await apollo.refetchActive();
+      if (!result?.available || result.data?.refetched !== true) {
+        return {
+          attempted: true,
+          ok: false,
+          reason: result?.error?.message || 'Apollo active-query refetch failed',
+        };
+      }
+      return { attempted: true, ok: true };
+    } catch (error) {
+      return { attempted: true, ok: false, reason: error?.message || String(error) };
+    }
+  }
+
   async function hydrateVerifiedMutation(options = {}) {
     const apollo = window.BetterDungeonApolloCache;
     if (!apollo) return { attempted: false, ok: false, reason: 'Apollo cache unavailable' };
     try {
+      const kind = options.kind;
       if (options.kind === 'story_card_create' || options.kind === 'story_card_delete') {
-        if (!apollo.refetchActive) return { attempted: false, ok: false, deferred: true, reason: 'Story Card membership hydration deferred' };
-        const result = await apollo.refetchActive();
-        if (!result.available || result.data?.refetched !== true) {
-          return { attempted: true, ok: false, deferred: true, reason: result.error?.message || 'Story Card membership refetch failed' };
+        const refetch = await refetchActive(apollo);
+        if (!refetch.ok) {
+          return {
+            attempted: refetch.attempted,
+            ok: false,
+            deferred: true,
+            refetch,
+            reason: refetch.reason || 'Story Card membership refetch failed',
+          };
         }
-        return { attempted: true, ok: true, deferred: true, reason: 'Story Card membership refreshed through active queries' };
+        return {
+          attempted: true,
+          ok: true,
+          deferred: true,
+          refetch,
+          reason: 'Story Card membership refreshed through active queries',
+        };
+      }
+      if (![
+        'plot_component',
+        'third_person',
+        'story_card_update',
+        'memory_update',
+        'memory_delete',
+      ].includes(kind)) {
+        return {
+          attempted: false,
+          ok: false,
+          reason: `Unsupported verified mutation kind '${kind || 'unknown'}'; hydration was not attempted`,
+        };
       }
       if (!apollo.modifyEntity) return { attempted: false, ok: false, reason: 'Apollo cache unavailable' };
-      const result = options.kind?.startsWith('story_card_')
-        ? await hydrateCard(options.verified, options.proposal, apollo)
-        : await hydrateAdventure(options.verified, options.proposal, apollo);
-      return { attempted: true, ...result };
+      let result;
+      switch (kind) {
+        case 'plot_component':
+        case 'third_person':
+          result = await hydrateAdventure(options.verified, options.proposal, apollo);
+          break;
+        case 'story_card_update':
+          result = await hydrateCard(options.verified, options.proposal, apollo);
+          break;
+        case 'memory_update':
+        case 'memory_delete':
+          result = await hydrateMemory(options.verified, options.proposal, apollo, kind);
+          break;
+        default:
+          result = { ok: false, reason: `Unsupported verified mutation kind '${kind || 'unknown'}'; hydration was not attempted` };
+      }
+      if (!result.ok) return { attempted: true, ...result };
+      return { attempted: true, ...result, refetch: await refetchActive(apollo) };
     } catch (error) {
       console.warn('[Navigator] Verified-write Apollo hydration failed:', error);
       return { attempted: true, ok: false, reason: error?.message || String(error) };
