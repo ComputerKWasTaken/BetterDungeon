@@ -20,6 +20,30 @@
     Entry: 'value',
     Notes: 'description',
   });
+  const PLOT_EDITOR_FIELDS = Object.freeze(['instructions', 'memory', 'authorsNote', 'storySummary']);
+  const outstandingPlotEditorFields = new Map();
+
+  function plotLedgerKey(proposal) {
+    const id = proposal?.adventureId || proposal?.shortId;
+    return id ? String(id) : null;
+  }
+
+  function outstandingPlotFields(proposal) {
+    const key = plotLedgerKey(proposal);
+    return key ? [...(outstandingPlotEditorFields.get(key) || [])] : [];
+  }
+
+  function rememberPlotEditorResult(proposal, result) {
+    const field = proposal?.field;
+    const key = plotLedgerKey(proposal);
+    if (!key || !PLOT_EDITOR_FIELDS.includes(field)) return result;
+    const fields = outstandingPlotEditorFields.get(key) || new Set();
+    if (result?.ok) fields.delete(field);
+    else fields.add(field);
+    if (fields.size) outstandingPlotEditorFields.set(key, fields);
+    else outstandingPlotEditorFields.delete(key);
+    return result;
+  }
 
   function cardValue(value) {
     return Array.isArray(value) ? value.join(', ') : value == null ? '' : String(value);
@@ -33,9 +57,201 @@
     });
   }
 
+  function editorDocument(textarea, documentLike) {
+    if (documentLike) return documentLike;
+    if (textarea?.ownerDocument) return textarea.ownerDocument;
+    return typeof document !== 'undefined' ? document : null;
+  }
+
+  function editorValueSetter(textarea) {
+    const hostWindow = typeof window !== 'undefined' ? window : null;
+    const prototypes = [
+      Object.getPrototypeOf(textarea),
+      textarea?.constructor?.prototype,
+      textarea?.ownerDocument?.defaultView?.HTMLTextAreaElement?.prototype,
+      hostWindow?.HTMLTextAreaElement?.prototype,
+    ];
+    for (const prototype of prototypes) {
+      const setter = prototype && Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
+      if (setter) return setter;
+    }
+    return null;
+  }
+
+  function dispatchEditorEvent(textarea, type) {
+    const hostWindow = typeof window !== 'undefined' ? window : null;
+    const eventConstructor = textarea?.ownerDocument?.defaultView?.Event
+      || hostWindow?.Event
+      || (typeof Event !== 'undefined' ? Event : null);
+    const event = eventConstructor
+      ? new eventConstructor(type, { bubbles: true })
+      : { type, bubbles: true };
+    textarea.dispatchEvent(event);
+  }
+
+  function fillEditorTextarea(textarea, before, after, documentLike) {
+    if (!textarea) {
+      return { attempted: true, ok: false, reason: 'no editor surface located' };
+    }
+    try {
+      const pageDocument = editorDocument(textarea, documentLike);
+      if (pageDocument?.activeElement === textarea) {
+        return {
+          attempted: true,
+          ok: false,
+          reason: 'Plot editor is active; editor hydration was skipped to avoid clobbering unsaved text',
+        };
+      }
+      if (textarea.value !== before) {
+        return {
+          attempted: true,
+          ok: false,
+          reason: 'Plot editor holds different or unsaved text; editor hydration was skipped',
+        };
+      }
+      const setter = editorValueSetter(textarea);
+      if (!setter) {
+        return { attempted: true, ok: false, reason: 'Plot editor value setter unavailable' };
+      }
+      setter.call(textarea, after);
+      if (textarea.value !== after) {
+        return { attempted: true, ok: false, reason: 'Plot editor value could not be updated' };
+      }
+      dispatchEditorEvent(textarea, 'input');
+      dispatchEditorEvent(textarea, 'change');
+      return { attempted: true, ok: true };
+    } catch (error) {
+      return {
+        attempted: true,
+        ok: false,
+        reason: error?.message || String(error),
+      };
+    }
+  }
+
+  function getAIDungeonService() {
+    const hostWindow = typeof window !== 'undefined' ? window : null;
+    let instance = hostWindow?.betterDungeonInstance;
+    if (!instance) {
+      try {
+        instance = betterDungeonInstance;
+      } catch {
+        instance = null;
+      }
+    }
+    return instance?.aiDungeonService || null;
+  }
+
+  function findPlotEditorTextarea(field) {
+    const service = getAIDungeonService();
+    const methods = {
+      instructions: 'findAIInstructionsTextarea',
+      memory: 'findPlotEssentialsTextarea',
+      authorsNote: 'findAuthorsNoteTextarea',
+    };
+    const method = methods[field];
+    if (service && method && typeof service[method] === 'function') {
+      return service[method]();
+    }
+    if (field === 'storySummary' && service && typeof service._findTextareaByComponentHeading === 'function') {
+      return service._findTextareaByComponentHeading('Story Summary');
+    }
+
+    const hostWindow = typeof window !== 'undefined' ? window : null;
+    const serviceClass = hostWindow?.AIDungeonService;
+    const selectorKey = {
+      instructions: 'AI_INSTRUCTIONS',
+      memory: 'PLOT_ESSENTIALS',
+      authorsNote: 'AUTHORS_NOTE',
+    }[field];
+    const pageDocument = editorDocument(null);
+    const selector = selectorKey && serviceClass?.SEL?.[selectorKey];
+    if (selector && pageDocument?.querySelector) return pageDocument.querySelector(selector);
+    return null;
+  }
+
+  async function readAuthoritativePlot(proposal, signal) {
+    const shortId = proposal?.shortId || window.Ultrascripts?.ws?.getAdventureShortId?.();
+    const gql = window.BetterDungeonGQL;
+    if (!shortId || !gql?.getNavigatorAdventureContext) {
+      return {
+        ok: false,
+        reason: 'authoritative adventure read unavailable; Plot editor hydration was skipped',
+      };
+    }
+    try {
+      const adventure = await gql.getNavigatorAdventureContext(shortId, { signal });
+      if (!adventure?.id) {
+        return {
+          ok: false,
+          reason: 'authoritative adventure read returned no adventure; Plot editor hydration was skipped',
+        };
+      }
+      return { ok: true, adventure };
+    } catch (error) {
+      return {
+        ok: false,
+        reason: `authoritative adventure read failed; Plot editor hydration was skipped (${error?.message || String(error)})`,
+      };
+    }
+  }
+
+  // input/change can trigger AI Dungeon's plot save, which writes all plot fields from mounted state.
+  async function hydratePlotEditor(proposal, verified, signal) {
+    // Virtualized plot textareas make DOM inspection incomplete, so this page-lifetime ledger tracks unconfirmed fields.
+    const blockedFields = outstandingPlotFields(proposal).filter(field => field !== proposal?.field);
+    if (blockedFields.length) {
+      return rememberPlotEditorResult(proposal, {
+        attempted: true,
+        ok: false,
+        reason: 'An earlier Navigator Plot editor change has not reached the open editor; hydration was skipped to avoid a save that would revert it',
+      });
+    }
+    try {
+      const authoritative = await readAuthoritativePlot(proposal, signal);
+      if (!authoritative.ok) {
+        return rememberPlotEditorResult(proposal, {
+          attempted: true,
+          ok: false,
+          reason: authoritative.reason,
+        });
+      }
+      for (const field of PLOT_EDITOR_FIELDS) {
+        if (field === proposal?.field) continue;
+        const textarea = findPlotEditorTextarea(field);
+        if (!textarea) continue;
+        if (!has(authoritative.adventure, field) || authoritative.adventure[field] == null) {
+          return rememberPlotEditorResult(proposal, {
+            attempted: true,
+            ok: false,
+            reason: `authoritative '${field}' is unavailable; Plot editor hydration was skipped`,
+          });
+        }
+        if (textarea.value !== String(authoritative.adventure[field])) {
+          return rememberPlotEditorResult(proposal, {
+            attempted: true,
+            ok: false,
+            reason: 'The open Plot editor holds text that differs from the server; hydration was skipped to avoid provoking a save with stale text',
+          });
+        }
+      }
+      const textarea = findPlotEditorTextarea(proposal?.field);
+      return rememberPlotEditorResult(
+        proposal,
+        fillEditorTextarea(textarea, proposal?.before, verified?.[proposal?.field]),
+      );
+    } catch (error) {
+      return rememberPlotEditorResult(proposal, {
+        attempted: true,
+        ok: false,
+        reason: error?.message || String(error),
+      });
+    }
+  }
+
   async function hydrateAdventure(verified, proposal, apollo) {
     const id = verified?.id || proposal.adventureId;
-    if (id == null) return { ok: false, reason: 'confirmed adventure id unavailable' };
+    if (!id) return { ok: false, reason: 'confirmed adventure id unavailable' };
     const field = proposal.field;
     const rootFields = ['title', 'memory', 'authorsNote', 'thirdPerson'];
     const stateFields = ['instructions', 'storySummary'];
@@ -100,23 +316,134 @@
     return { ok: true, entity: `StoryCard:${verified.id}` };
   }
 
+  async function hydrateMemory(verified, proposal, apollo, kind = proposal?.kind) {
+    const id = verified?.id ?? proposal?.memoryId;
+    if (id == null || id === '') return { ok: false, reason: 'Memory Bank identity unavailable' };
+    const adventureId = verified?.adventureId || proposal.adventureId;
+    if (!adventureId) return { ok: false, reason: 'Memory Bank adventure id unavailable' };
+    let cached;
+    try {
+      cached = await apollo.readEntity({
+        typename: 'Adventure',
+        id: String(adventureId),
+        fields: ['state'],
+      });
+    } catch {
+      return { ok: false, reason: 'Memory Bank Adventure state could not be inspected' };
+    }
+    if (!cached?.available || !cached.data?.state) {
+      return { ok: false, reason: 'Memory Bank Adventure state unavailable' };
+    }
+    const state = cached.data.state;
+    if (!Array.isArray(state.memories)) {
+      return { ok: false, reason: 'Memory Bank state is unavailable in the Adventure cache' };
+    }
+    const memoryIndex = state.memories.findIndex(entry => (
+      String(entry?.actionIds?.[0]) === String(id)
+    ));
+    if (memoryIndex < 0) {
+      return { ok: false, reason: `Memory Bank entry '${id}' is missing from the Adventure cache` };
+    }
+    const current = state.memories[memoryIndex];
+    if (kind === 'memory_update' && current.text !== proposal.before) {
+      return { ok: false, reason: `Memory Bank entry '${id}' does not match its pre-write text; hydration was skipped` };
+    }
+    if (kind === 'memory_delete' && has(proposal, 'before') && proposal.before != null && current.text !== proposal.before) {
+      return { ok: false, reason: `Memory Bank entry '${id}' does not match its pre-write text; deletion hydration was skipped` };
+    }
+    const memories = state.memories.slice();
+    if (kind === 'memory_delete') memories.splice(memoryIndex, 1);
+    else memories[memoryIndex] = { ...current, text: verified.text };
+    const result = await apollo.modifyEntity({
+      typename: 'Adventure',
+      id: String(adventureId),
+      fields: { state: { ...state, memories } },
+    });
+    if (!result.available || result.data?.changed !== true) {
+      return { ok: false, reason: result.error?.message || 'Memory Bank cache modification was not applied' };
+    }
+    return { ok: true, entity: `Adventure:${adventureId}`, memoryId: String(id) };
+  }
+
+  async function refetchActive(apollo) {
+    if (!apollo.refetchActive) {
+      return { attempted: false, ok: false, reason: 'Apollo active-query refetch unavailable' };
+    }
+    try {
+      const result = await apollo.refetchActive();
+      if (!result?.available || result.data?.refetched !== true) {
+        return {
+          attempted: true,
+          ok: false,
+          reason: result?.error?.message || 'Apollo active-query refetch failed',
+        };
+      }
+      return { attempted: true, ok: true };
+    } catch (error) {
+      return { attempted: true, ok: false, reason: error?.message || String(error) };
+    }
+  }
+
   async function hydrateVerifiedMutation(options = {}) {
     const apollo = window.BetterDungeonApolloCache;
     if (!apollo) return { attempted: false, ok: false, reason: 'Apollo cache unavailable' };
     try {
+      const kind = options.kind;
       if (options.kind === 'story_card_create' || options.kind === 'story_card_delete') {
-        if (!apollo.refetchActive) return { attempted: false, ok: false, deferred: true, reason: 'Story Card membership hydration deferred' };
-        const result = await apollo.refetchActive();
-        if (!result.available || result.data?.refetched !== true) {
-          return { attempted: true, ok: false, deferred: true, reason: result.error?.message || 'Story Card membership refetch failed' };
+        const refetch = await refetchActive(apollo);
+        if (!refetch.ok) {
+          return {
+            attempted: refetch.attempted,
+            ok: false,
+            deferred: true,
+            refetch,
+            reason: refetch.reason || 'Story Card membership refetch failed',
+          };
         }
-        return { attempted: true, ok: true, deferred: true, reason: 'Story Card membership refreshed through active queries' };
+        return {
+          attempted: true,
+          ok: true,
+          deferred: true,
+          refetch,
+          reason: 'Story Card membership refreshed through active queries',
+        };
+      }
+      if (![
+        'plot_component',
+        'third_person',
+        'story_card_update',
+        'memory_update',
+        'memory_delete',
+      ].includes(kind)) {
+        return {
+          attempted: false,
+          ok: false,
+          reason: `Unsupported verified mutation kind '${kind || 'unknown'}'; hydration was not attempted`,
+        };
       }
       if (!apollo.modifyEntity) return { attempted: false, ok: false, reason: 'Apollo cache unavailable' };
-      const result = options.kind?.startsWith('story_card_')
-        ? await hydrateCard(options.verified, options.proposal, apollo)
-        : await hydrateAdventure(options.verified, options.proposal, apollo);
-      return { attempted: true, ...result };
+      let result;
+      switch (kind) {
+        case 'plot_component':
+        case 'third_person':
+          result = await hydrateAdventure(options.verified, options.proposal, apollo);
+          break;
+        case 'story_card_update':
+          result = await hydrateCard(options.verified, options.proposal, apollo);
+          break;
+        case 'memory_update':
+        case 'memory_delete':
+          result = await hydrateMemory(options.verified, options.proposal, apollo, kind);
+          break;
+        default:
+          result = { ok: false, reason: `Unsupported verified mutation kind '${kind || 'unknown'}'; hydration was not attempted` };
+      }
+      if (!result.ok) return { attempted: true, ...result };
+      const output = { attempted: true, ...result, refetch: await refetchActive(apollo) };
+      if (kind === 'plot_component') {
+        output.editor = await hydratePlotEditor(options.proposal, options.verified, options.signal);
+      }
+      return output;
     } catch (error) {
       console.warn('[Navigator] Verified-write Apollo hydration failed:', error);
       return { attempted: true, ok: false, reason: error?.message || String(error) };
@@ -125,6 +452,7 @@
 
   window.BetterDungeonAdventureWriteHydration = {
     hydrateVerifiedMutation,
+    fillEditorTextarea,
     cardBeforeFields: CARD_BEFORE_FIELDS,
   };
 }());

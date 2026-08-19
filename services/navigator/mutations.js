@@ -740,19 +740,6 @@
     }
 
     async hydrateMemoryIfAvailable(proposal, verified, signal) {
-      if (verified === null) {
-        return { attempted: false, ok: false, reason: 'Memory Bank deletion changes list membership; Apollo entity hydration was not attempted.' };
-      }
-      const cache = window.BetterDungeonApolloCache;
-      if (!cache?.readAdventure) return { attempted: false, ok: false, reason: 'Memory Bank Apollo cache unavailable' };
-      try {
-        const snapshot = await cache.readAdventure({ shortId: this.shortId });
-        if (!snapshot?.available || !Array.isArray(snapshot.data?.state?.memories)) {
-          return { attempted: false, ok: false, reason: 'Apollo cache does not hold Memory Bank state' };
-        }
-      } catch {
-        return { attempted: false, ok: false, reason: 'Apollo Memory Bank state could not be inspected' };
-      }
       return this.hydrateVerifiedMutation(proposal, verified, signal);
     }
 

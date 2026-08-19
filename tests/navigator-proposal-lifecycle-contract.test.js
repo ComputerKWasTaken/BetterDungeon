@@ -110,7 +110,7 @@ async function testAppliedHydrationIsRecorded() {
     async apply() {
       return {
         appliedAtIso: '2026-08-10T12:00:00.000Z',
-        hydration: { attempted: false, ok: false, reason: 'Apollo cache does not hold Memory Bank state' },
+        hydration: { attempted: true, ok: false, reason: 'Memory Bank Adventure state unavailable' },
       };
     },
   };
@@ -123,9 +123,9 @@ async function testAppliedHydrationIsRecorded() {
   }];
   assert.equal(await session.applyProposal('message-hydration', 'hydration-proposal'), true);
   assert.deepEqual(session.messages[0].proposals[0].hydration, {
-    attempted: false,
+    attempted: true,
     ok: false,
-    reason: 'Apollo cache does not hold Memory Bank state',
+    reason: 'Memory Bank Adventure state unavailable',
   });
 }
 

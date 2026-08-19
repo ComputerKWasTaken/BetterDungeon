@@ -991,6 +991,16 @@ class NavigatorFeature {
       drift.textContent = 'The card had an unrelated timestamp update while Navigator applied this change.';
       card.appendChild(drift);
     }
+    if (
+      proposal.status === 'applied' &&
+      proposal.kind === 'plot_component' &&
+      proposal.hydration?.editor?.ok !== true
+    ) {
+      const hydrationNote = document.createElement('p');
+      hydrationNote.className = 'bd-navigator-proposal-note';
+      hydrationNote.textContent = 'The change is saved and verified on the server. The open editor will show it after a page reload.';
+      card.appendChild(hydrationNote);
+    }
 
     const actions = document.createElement('div');
     actions.className = 'bd-navigator-proposal-buttons';
@@ -1501,17 +1511,33 @@ class NavigatorFeature {
     const wrap = document.createElement('span');
     wrap.className = `bd-navigator-tool-activity${complete ? ' bd-navigator-tool-complete' : ''}`;
 
+    const tools = Array.from(new Set(Array.isArray(names) ? names : []));
+    const storyCardTools = new Set(['search_story_cards', 'get_story_card']);
+    const memoryBankTools = new Set(['search_memory_bank', 'get_memory']);
+    const historyTools = new Set(['search_story_history', 'get_story_actions']);
+    const category = tools.length > 0 && tools.every(name => storyCardTools.has(name))
+      ? 'story_cards'
+      : (tools.length > 0 && tools.every(name => memoryBankTools.has(name))
+        ? 'memory_bank'
+        : (tools.length > 0 && tools.every(name => historyTools.has(name)) ? 'history' : 'mixed'));
     const icon = document.createElement('span');
-    const onlySearch = names.length === 1 && names[0] === 'search_story_cards';
-    const onlyRead = names.length === 1 && names[0] === 'get_story_card';
-    icon.className = onlySearch ? 'icon-search' : (onlyRead ? 'icon-book-open-text' : 'icon-wand-sparkles');
+    const onlySearch = tools.length === 1 && tools[0].startsWith('search_');
+    const onlyRead = tools.length === 1 && tools[0].startsWith('get_');
+    icon.className = onlySearch ? 'icon-search' : (onlyRead && category === 'story_cards' ? 'icon-book-open-text' : 'icon-wand-sparkles');
     icon.setAttribute('aria-hidden', 'true');
 
     const label = document.createElement('span');
-    if (onlySearch) label.textContent = complete ? 'Searched Story Cards' : 'Searching Story Cards';
-    else if (onlyRead) label.textContent = complete ? 'Read Story Card' : 'Reading Story Card';
-    else if (complete) label.textContent = `Used ${names.length} Story Card tools`;
-    else label.textContent = `Using ${names.length} Story Card tools`;
+    const action = complete ? 'Searched' : 'Searching';
+    if (tools.length === 1 && tools[0] === 'search_story_cards') label.textContent = `${action} Story Cards`;
+    else if (tools.length === 1 && tools[0] === 'get_story_card') label.textContent = complete ? 'Read Story Card' : 'Reading Story Card';
+    else if (tools.length === 1 && tools[0] === 'search_memory_bank') label.textContent = `${action} Memory Bank`;
+    else if (tools.length === 1 && tools[0] === 'get_memory') label.textContent = complete ? 'Read Memory Bank entry' : 'Reading Memory Bank entry';
+    else if (tools.length === 1 && tools[0] === 'search_story_history') label.textContent = `${action} story history`;
+    else if (tools.length === 1 && tools[0] === 'get_story_actions') label.textContent = complete ? 'Read story actions' : 'Reading story actions';
+    else if (category === 'story_cards') label.textContent = complete ? `Used ${tools.length} Story Card tools` : `Using ${tools.length} Story Card tools`;
+    else if (category === 'memory_bank') label.textContent = complete ? `Used ${tools.length} Memory Bank tools` : `Using ${tools.length} Memory Bank tools`;
+    else if (category === 'history') label.textContent = complete ? `Used ${tools.length} story history tools` : `Using ${tools.length} story history tools`;
+    else label.textContent = complete ? `Used ${tools.length} Navigator read tools` : `Using ${tools.length} Navigator read tools`;
 
     wrap.append(icon, label);
     if (!complete) {

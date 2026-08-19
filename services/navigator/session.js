@@ -816,7 +816,7 @@
           ok: false,
           error: {
             code: 'context_budget_exhausted',
-            message: 'Navigator reached this turn\'s Story Card tool budget.',
+            message: 'Navigator reached this turn\'s read-tool budget.',
           },
         },
       });
@@ -920,7 +920,7 @@
             results,
             charsUsed,
             exhausted: true,
-            note: 'Navigator reached this turn\'s Story Card tool budget; remaining tool calls were skipped.',
+            note: 'Navigator reached this turn\'s read-tool budget; remaining tool calls were skipped.',
           };
         }
 
@@ -1443,7 +1443,7 @@
         case 'tool_limit':
           return { code, message: error?.message || 'Navigator reached its read-tool limit. Narrow the request and try again.' };
         case 'context_budget_exhausted':
-          return { code, message: error?.message || 'Navigator reached this turn\'s Story Card tool budget. Start a new turn or narrow the request.' };
+          return { code, message: error?.message || 'Navigator reached this turn\'s read-tool budget. Start a new turn or narrow the request.' };
         case 'aborted':
           return { code, message: 'Stopped.' };
         case 'invalid_args':
