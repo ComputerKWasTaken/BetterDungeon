@@ -409,6 +409,142 @@ async function testMemoryHydrationAndRouting() {
   assert.match(refetchFailure.refetch.reason, /active refetch unavailable/);
 }
 
+function createTextarea(value) {
+  let current = value;
+  let setterCalls = 0;
+  const textarea = {
+    ownerDocument: { activeElement: null },
+    events: [],
+    focusCalls: 0,
+    blurCalls: 0,
+    dispatchEvent(event) {
+      this.events.push(event.type);
+    },
+    focus() {
+      this.focusCalls++;
+    },
+    blur() {
+      this.blurCalls++;
+    },
+  };
+  const prototype = {};
+  Object.defineProperty(prototype, 'value', {
+    get() {
+      return current;
+    },
+    set(next) {
+      setterCalls++;
+      current = next;
+    },
+  });
+  Object.setPrototypeOf(textarea, prototype);
+  return {
+    textarea,
+    get value() {
+      return current;
+    },
+    get setterCalls() {
+      return setterCalls;
+    },
+  };
+}
+
+async function testPlotEditorHydration() {
+  const success = createTextarea('Before');
+  const filled = window.BetterDungeonAdventureWriteHydration.fillEditorTextarea(
+    success.textarea,
+    'Before',
+    'After',
+  );
+  assert.deepEqual(filled, { attempted: true, ok: true });
+  assert.equal(success.value, 'After');
+  assert.equal(success.setterCalls, 1);
+  assert.deepEqual(success.textarea.events, ['input', 'change']);
+  assert.equal(success.textarea.focusCalls, 0);
+  assert.equal(success.textarea.blurCalls, 0);
+
+  const mismatch = createTextarea('Different');
+  const skippedMismatch = window.BetterDungeonAdventureWriteHydration.fillEditorTextarea(
+    mismatch.textarea,
+    'Before',
+    'After',
+  );
+  assert.equal(skippedMismatch.ok, false);
+  assert.match(skippedMismatch.reason, /different or unsaved text/);
+  assert.equal(mismatch.setterCalls, 0);
+  assert.deepEqual(mismatch.textarea.events, []);
+
+  const active = createTextarea('Before');
+  active.textarea.ownerDocument.activeElement = active.textarea;
+  const skippedActive = window.BetterDungeonAdventureWriteHydration.fillEditorTextarea(
+    active.textarea,
+    'Before',
+    'After',
+  );
+  assert.equal(skippedActive.ok, false);
+  assert.match(skippedActive.reason, /active/);
+  assert.equal(active.setterCalls, 0);
+  assert.deepEqual(active.textarea.events, []);
+
+  const previousInstance = window.betterDungeonInstance;
+  const editorMismatch = createTextarea('Unsaved text');
+  window.betterDungeonInstance = {
+    aiDungeonService: {
+      findPlotEssentialsTextarea() {
+        return editorMismatch.textarea;
+      },
+    },
+  };
+  window.BetterDungeonApolloCache = {
+    async modifyEntity() {
+      return { available: true, data: { changed: true }, error: null };
+    },
+    async refetchActive() {
+      return { available: true, data: { refetched: true }, error: null };
+    },
+  };
+  const hydration = await window.BetterDungeonAdventureWriteHydration.hydrateVerifiedMutation({
+    kind: 'plot_component',
+    proposal: {
+      adventureId: '101',
+      field: 'memory',
+      before: 'Before',
+      after: 'After',
+    },
+    verified: { id: '101', memory: 'After' },
+  });
+  assert.equal(hydration.ok, true);
+  assert.equal(hydration.refetch.ok, true);
+  assert.equal(hydration.editor.ok, false);
+  assert.match(hydration.editor.reason, /different or unsaved text/);
+  assert.equal(editorMismatch.setterCalls, 0);
+
+  let locatorCalls = 0;
+  window.betterDungeonInstance = {
+    aiDungeonService: {
+      findPlotEssentialsTextarea() {
+        locatorCalls++;
+        return success.textarea;
+      },
+    },
+  };
+  const nonPlot = await window.BetterDungeonAdventureWriteHydration.hydrateVerifiedMutation({
+    kind: 'third_person',
+    proposal: {
+      adventureId: '101',
+      field: 'thirdPerson',
+      before: false,
+      after: true,
+    },
+    verified: { id: '101', thirdPerson: true },
+  });
+  assert.equal(nonPlot.ok, true);
+  assert.equal(nonPlot.editor, undefined);
+  assert.equal(locatorCalls, 0);
+  if (previousInstance === undefined) delete window.betterDungeonInstance;
+  else window.betterDungeonInstance = previousInstance;
+}
+
 function testCardFieldMapParity() {
   const hydrationFields = window.BetterDungeonAdventureWriteHydration.cardBeforeFields;
   const mutationFields = window.NavigatorMutations.cardFields;
@@ -424,6 +560,7 @@ async function main() {
   await testFailedVerificationAndUnavailableApollo();
   await testCardEditAndDeletionDecision();
   await testMemoryHydrationAndRouting();
+  await testPlotEditorHydration();
   console.log('Adventure write hydration contract tests passed');
 }
 

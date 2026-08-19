@@ -33,6 +33,140 @@
     });
   }
 
+  function editorDocument(textarea, documentLike) {
+    if (documentLike) return documentLike;
+    if (textarea?.ownerDocument) return textarea.ownerDocument;
+    return typeof document !== 'undefined' ? document : null;
+  }
+
+  function editorValueSetter(textarea) {
+    const hostWindow = typeof window !== 'undefined' ? window : null;
+    const prototypes = [
+      Object.getPrototypeOf(textarea),
+      textarea?.constructor?.prototype,
+      textarea?.ownerDocument?.defaultView?.HTMLTextAreaElement?.prototype,
+      hostWindow?.HTMLTextAreaElement?.prototype,
+    ];
+    for (const prototype of prototypes) {
+      const setter = prototype && Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
+      if (setter) return setter;
+    }
+    return null;
+  }
+
+  function dispatchEditorEvent(textarea, type) {
+    const hostWindow = typeof window !== 'undefined' ? window : null;
+    const eventConstructor = textarea?.ownerDocument?.defaultView?.Event
+      || hostWindow?.Event
+      || (typeof Event !== 'undefined' ? Event : null);
+    const event = eventConstructor
+      ? new eventConstructor(type, { bubbles: true })
+      : { type, bubbles: true };
+    textarea.dispatchEvent(event);
+  }
+
+  function fillEditorTextarea(textarea, before, after, documentLike) {
+    if (!textarea) {
+      return { attempted: true, ok: false, reason: 'no editor surface located' };
+    }
+    try {
+      const pageDocument = editorDocument(textarea, documentLike);
+      if (pageDocument?.activeElement === textarea) {
+        return {
+          attempted: true,
+          ok: false,
+          reason: 'Plot editor is active; editor hydration was skipped to avoid clobbering unsaved text',
+        };
+      }
+      if (textarea.value !== before) {
+        return {
+          attempted: true,
+          ok: false,
+          reason: 'Plot editor holds different or unsaved text; editor hydration was skipped',
+        };
+      }
+      const setter = editorValueSetter(textarea);
+      if (!setter) {
+        return { attempted: true, ok: false, reason: 'Plot editor value setter unavailable' };
+      }
+      setter.call(textarea, after);
+      if (textarea.value !== after) {
+        return { attempted: true, ok: false, reason: 'Plot editor value could not be updated' };
+      }
+      dispatchEditorEvent(textarea, 'input');
+      dispatchEditorEvent(textarea, 'change');
+      return { attempted: true, ok: true };
+    } catch (error) {
+      return {
+        attempted: true,
+        ok: false,
+        reason: error?.message || String(error),
+      };
+    }
+  }
+
+  function getAIDungeonService() {
+    const hostWindow = typeof window !== 'undefined' ? window : null;
+    let instance = hostWindow?.betterDungeonInstance;
+    if (!instance) {
+      try {
+        instance = betterDungeonInstance;
+      } catch {
+        instance = null;
+      }
+    }
+    return instance?.aiDungeonService || null;
+  }
+
+  function findPlotEditorTextarea(field) {
+    const service = getAIDungeonService();
+    const methods = {
+      instructions: 'findAIInstructionsTextarea',
+      memory: 'findPlotEssentialsTextarea',
+      authorsNote: 'findAuthorsNoteTextarea',
+    };
+    const method = methods[field];
+    if (service && method && typeof service[method] === 'function') {
+      return service[method]();
+    }
+    if (field === 'storySummary' && service && typeof service._findTextareaByComponentHeading === 'function') {
+      return service._findTextareaByComponentHeading('Story Summary');
+    }
+
+    const hostWindow = typeof window !== 'undefined' ? window : null;
+    const serviceClass = hostWindow?.AIDungeonService;
+    const selectorKey = {
+      instructions: 'AI_INSTRUCTIONS',
+      memory: 'PLOT_ESSENTIALS',
+      authorsNote: 'AUTHORS_NOTE',
+    }[field];
+    const pageDocument = editorDocument(null);
+    const selector = selectorKey && serviceClass?.SEL?.[selectorKey];
+    if (selector && pageDocument?.querySelector) return pageDocument.querySelector(selector);
+    if (field === 'storySummary' && typeof serviceClass === 'function') {
+      try {
+        const fallbackService = new serviceClass();
+        return fallbackService._findTextareaByComponentHeading?.('Story Summary') || null;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  function hydratePlotEditor(proposal, verified) {
+    try {
+      const textarea = findPlotEditorTextarea(proposal?.field);
+      return fillEditorTextarea(textarea, proposal?.before, verified?.[proposal?.field]);
+    } catch (error) {
+      return {
+        attempted: true,
+        ok: false,
+        reason: error?.message || String(error),
+      };
+    }
+  }
+
   async function hydrateAdventure(verified, proposal, apollo) {
     const id = verified?.id || proposal.adventureId;
     if (!id) return { ok: false, reason: 'confirmed adventure id unavailable' };
@@ -223,7 +357,9 @@
           result = { ok: false, reason: `Unsupported verified mutation kind '${kind || 'unknown'}'; hydration was not attempted` };
       }
       if (!result.ok) return { attempted: true, ...result };
-      return { attempted: true, ...result, refetch: await refetchActive(apollo) };
+      const output = { attempted: true, ...result, refetch: await refetchActive(apollo) };
+      if (kind === 'plot_component') output.editor = hydratePlotEditor(options.proposal, options.verified);
+      return output;
     } catch (error) {
       console.warn('[Navigator] Verified-write Apollo hydration failed:', error);
       return { attempted: true, ok: false, reason: error?.message || String(error) };
@@ -232,6 +368,7 @@
 
   window.BetterDungeonAdventureWriteHydration = {
     hydrateVerifiedMutation,
+    fillEditorTextarea,
     cardBeforeFields: CARD_BEFORE_FIELDS,
   };
 }());
