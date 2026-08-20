@@ -76,7 +76,7 @@ Android builds are distributed through the [GitHub Releases](../../releases) pag
 
 ### Build better scenarios
 
-- **Navigator** — Grounded, multi-turn chat over an Apollo-backed adventure snapshot with retrieval for Story Cards, Memory Bank, and story history, player-selected context sections, rich Markdown, quick actions, visible tool activity, and direct-approval writes for Plot Components, Third Person, all five editable Story Card fields, and Memory Bank entries (edit/delete only), with live-record conflict checks and server read-back. Its settings live in the Navigator drawer, and its request inspector shows each tool-round payload; AI model settings choose the input cap (128k tokens by default).
+- **Navigator** — Chat with a grounded adventure assistant, research Story Cards, Memory Bank, and story history, choose which context it receives, and approve conflict-checked changes it proposes.
 - **Plot Presets** — Save and swap Plot Essentials, AI Instructions, and Author's Notes.
 - **Character Presets** — Save character descriptions and use the Ultrascripts AI module to generate scenario prefill answers.
 - **Story Card Scanner** — Quickly index Story Cards through AI Dungeon's GraphQL systems, including large scenarios.

@@ -83,11 +83,11 @@ class MyFeature {
 }
 ```
 
+If a feature adds an observer, event listener, timer, or injected element, it should also clean that resource up in `destroy()`. This matters because BetterDungeon can enable and disable features without reloading the page.
+
 ## Automated contract suites
 
 The `tests/*.test.js` files are dependency-free Node contract suites. Run an individual suite with `node tests/<name>.test.js`. When changing shared Navigator or Apollo files, mirror the corresponding changes into the mobile repository and keep those shared files byte-identical.
-
-If a feature adds an observer, event listener, timer, or injected element, it should also clean that resource up in `destroy()`. This matters because BetterDungeon can enable and disable features without reloading the page.
 
 ## Adding a feature
 
