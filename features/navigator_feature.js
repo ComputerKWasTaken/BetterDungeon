@@ -991,17 +991,6 @@ class NavigatorFeature {
       drift.textContent = 'The card had an unrelated timestamp update while Navigator applied this change.';
       card.appendChild(drift);
     }
-    if (
-      proposal.status === 'applied' &&
-      proposal.kind === 'plot_component' &&
-      proposal.hydration?.editor?.ok !== true
-    ) {
-      const hydrationNote = document.createElement('p');
-      hydrationNote.className = 'bd-navigator-proposal-note';
-      hydrationNote.textContent = 'The change is saved and verified on the server. The open editor will show it after a page reload.';
-      card.appendChild(hydrationNote);
-    }
-
     const actions = document.createElement('div');
     actions.className = 'bd-navigator-proposal-buttons';
     const reject = document.createElement('button');
