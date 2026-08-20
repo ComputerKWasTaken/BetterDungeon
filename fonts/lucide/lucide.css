@@ -1366,7 +1366,6 @@
 .icon-sparkle::before { content: "\e47e"; }
 .icon-sparkles::before { content: "\e412"; }
 .icon-speaker::before { content: "\e166"; }
-.icon-speech::before { content: "\e51e"; }
 .icon-spell-check-2::before { content: "\e49b"; }
 .icon-spell-check::before { content: "\e49a"; }
 .icon-spline-pointer::before { content: "\e64f"; }
@@ -1681,5 +1680,4 @@
 .icon-zap::before { content: "\e1b4"; }
 .icon-zoom-in::before { content: "\e1b6"; }
 .icon-zoom-out::before { content: "\e1b7"; }
-
 
