@@ -3397,6 +3397,8 @@ body.bd-navigator-resizing {
 .bd-navigator-settings-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  max-width: 440px;
   gap: 10px;
 }
 

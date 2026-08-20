@@ -9,7 +9,12 @@ const ROOT = path.resolve(__dirname, '..');
 const sync = new Map([
   ['betterDungeon_navigator_read_only', true],
   ['betterDungeon_navigator_thinking_level', 'medium'],
-  ['betterDungeon_navigator_defaults', { contextCap: 90000, toolRounds: 8 }],
+  ['betterDungeon_navigator_defaults', {
+    contextCap: 90000,
+    toolRounds: 8,
+    contextSections: ['plot', 'memory'],
+    thinkingLevel: 'high',
+  }],
 ]);
 const local = new Map([
   ['betterDungeon_navigator_adventure_demo', {
@@ -89,7 +94,23 @@ async function run() {
   assert.equal(settings.overrides, undefined, 'effective settings do not expose adventure overrides');
   const legacySession = new window.NavigatorSession('legacy');
   await legacySession.settingsReady;
-  assert.equal(legacySession.getSettings().readOnly, true, 'legacy global read-only remains the fallback');
+  assert.equal(legacySession.getSettings().readOnly, true, 'legacy global read-only is migrated');
+  assert.equal(legacySession.getSettings().thinkingLevel, 'medium', 'legacy thinking level is migrated');
+  assert.deepEqual(legacySession.getSettings().contextSections, ['plot', 'memory'], 'legacy context defaults are migrated');
+  assert.deepEqual(local.get('betterDungeon_navigator_adventure_legacy'), {
+    readOnly: true,
+    thinkingLevel: 'medium',
+    contextSections: ['plot', 'memory'],
+  }, 'legacy settings are persisted into the adventure record');
+  await legacySession.saveSettings({ readOnly: false, thinkingLevel: 'minimal', contextSections: ['cards'] });
+  sync.set('betterDungeon_navigator_read_only', true);
+  sync.set('betterDungeon_navigator_thinking_level', 'high');
+  sync.set('betterDungeon_navigator_defaults', { contextSections: ['history'], thinkingLevel: 'high' });
+  const reloadedLegacySession = new window.NavigatorSession('legacy');
+  await reloadedLegacySession.settingsReady;
+  assert.equal(reloadedLegacySession.getSettings().readOnly, false, 'drawer read-only change overrides migrated value');
+  assert.equal(reloadedLegacySession.getSettings().thinkingLevel, 'minimal', 'drawer thinking change overrides migrated value');
+  assert.deepEqual(reloadedLegacySession.getSettings().contextSections, ['cards'], 'drawer context change overrides migrated value');
   local.set('betterDungeon_navigator_adventure_mutation', { readOnly: true });
   const mutations = new window.NavigatorMutations('mutation');
   assert.equal(await mutations.readOnlyEnabled(), true, 'per-adventure read-only is enforced');
@@ -343,7 +364,15 @@ async function run() {
   assert.match(featureSource, /Used \$\{tools\.length\} story history tools/);
   assert.match(featureSource, /Used \$\{tools\.length\} Navigator read tools/);
   assert.doesNotMatch(featureSource, /hydrationNote|The change is saved and verified on the server\. The open editor will show it after a page reload\./);
-  assert.match(fs.readFileSync(path.join(ROOT, 'services/navigator/session.js'), 'utf8'), /this turn\\'s read-tool budget/);
+  assert.match(featureSource, /NavigatorSession\.CHARS_PER_TOKEN/);
+  assert.match(featureSource, /input cap \$\{formatCapacity\(inspection\.inputCap\)\}/);
+  assert.match(featureSource, /if \(proposal\.status !== 'pending'\) return card;/);
+  assert.match(featureSource, /reject\.disabled = state\.chatBusy;/);
+  assert.match(featureSource, /apply\.disabled = state\.chatBusy \|\| state\.readOnly;/);
+  assert.doesNotMatch(sessionSource, /loadThinkingLevel/);
+  assert.match(sessionSource, /this\.log\(`\[Navigator\] \$\{isMutation \? 'Proposal' : 'Read tool'\} executed:/);
+  assert.match(sessionSource, /this\.log\('\[Navigator\] Verified mutation applied:'/);
+  assert.match(sessionSource, /this turn\\'s read-tool budget/);
   assert.match(featureSource, /value === undefined \? '\(nothing was sent\)'/);
   assert.match(featureSource, /` \| Error: \$\{inspection\.error\.message\}`/);
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'popup.js'), 'utf8'), /navigator-tool-rounds|toolRounds/);

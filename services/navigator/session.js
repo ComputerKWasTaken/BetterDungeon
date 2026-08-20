@@ -447,7 +447,31 @@
       this.fallbackSettings.thinkingLevel = THINKING_LEVELS.includes(legacyThinking)
         ? legacyThinking
         : (defaults.thinkingLevel || 'low');
-      this.adventureSettings = this.normalizeSettings(localResult[this.adventureSettingsKey()]);
+      const adventureSettingsKey = this.adventureSettingsKey();
+      const storedSettings = this.normalizeSettings(localResult[adventureSettingsKey]);
+      const migratedSettings = { ...storedSettings };
+      if (!Object.prototype.hasOwnProperty.call(storedSettings, 'readOnly')
+        && Object.prototype.hasOwnProperty.call(syncResult, READ_ONLY_STORAGE_KEY)
+        && typeof syncResult[READ_ONLY_STORAGE_KEY] === 'boolean') {
+        migratedSettings.readOnly = syncResult[READ_ONLY_STORAGE_KEY];
+      }
+      if (!Object.prototype.hasOwnProperty.call(storedSettings, 'thinkingLevel')) {
+        const migratedThinking = THINKING_LEVELS.includes(legacyThinking)
+          ? legacyThinking
+          : defaults.thinkingLevel;
+        if (migratedThinking) migratedSettings.thinkingLevel = migratedThinking;
+      }
+      if (!Object.prototype.hasOwnProperty.call(storedSettings, 'contextSections')
+        && Array.isArray(defaults.contextSections)) {
+        migratedSettings.contextSections = [...defaults.contextSections];
+      }
+      if (JSON.stringify(migratedSettings) !== JSON.stringify(storedSettings)) {
+        await new Promise(resolve => chrome.storage.local.set(
+          { [adventureSettingsKey]: migratedSettings },
+          resolve
+        ));
+      }
+      this.adventureSettings = migratedSettings;
       const effective = {
         ...this.fallbackSettings,
         ...this.adventureSettings,
@@ -496,25 +520,6 @@
       await this.loadSettings();
       this.emit('settings', this.getSettings());
       return this.getSettings();
-    }
-
-    async loadThinkingLevel() {
-      if (!isExtensionContextValid()) {
-        this.thinkingLevel = 'low';
-        return;
-      }
-      this.thinkingLevel = await new Promise(resolve => {
-        let settled = false;
-        const finish = value => { if (!settled) { settled = true; clearTimeout(timer); resolve(value); } };
-        const timer = setTimeout(() => finish('low'), 2000);
-        try {
-          chrome.storage.sync.get(THINKING_LEVEL_STORAGE_KEY, result => {
-            if (chrome.runtime?.lastError) return finish('low');
-            const value = (result || {})[THINKING_LEVEL_STORAGE_KEY];
-            finish(THINKING_LEVELS.includes(value) ? value : 'low');
-          });
-        } catch { finish('low'); }
-      });
     }
 
     setReadOnlyMode(enabled) {
@@ -927,7 +932,7 @@
         if (proposalToRegister) this.registerProposal(messageId, proposalToRegister);
         results.push(envelope);
         charsUsed += serializedChars;
-        if (!envelope.isError) console.log(`[Navigator] ${isMutation ? 'Proposal' : 'Read tool'} executed:`, call.name);
+        if (!envelope.isError) this.log(`[Navigator] ${isMutation ? 'Proposal' : 'Read tool'} executed:`, call.name);
       }
       return { results, charsUsed };
     }
@@ -1518,7 +1523,7 @@
           targetLabel: result.targetLabel || proposal.targetLabel,
           updatedAtDrift: result.updatedAtDrift || null,
         });
-        console.log('[Navigator] Verified mutation applied:', proposal.kind, proposal.targetLabel);
+        this.log('[Navigator] Verified mutation applied:', proposal.kind, proposal.targetLabel);
         try {
           await this.refreshContext();
         } catch (error) {
