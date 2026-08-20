@@ -73,20 +73,12 @@ class FeatureManager {
       this.featureClasses.set('notes', NotesFeature);
     }
 
-    if (typeof AutoEnableScriptsFeature !== 'undefined') {
-      this.featureClasses.set('autoEnableScripts', AutoEnableScriptsFeature);
-    }
-
     if (typeof StoryCardModalDockFeature !== 'undefined') {
       this.featureClasses.set('storyCardModalDock', StoryCardModalDockFeature);
     }
 
     if (typeof InputHistoryFeature !== 'undefined') {
       this.featureClasses.set('inputHistory', InputHistoryFeature);
-    }
-
-    if (typeof TextToSpeechFeature !== 'undefined') {
-      this.featureClasses.set('textToSpeech', TextToSpeechFeature);
     }
 
     if (typeof CustomDynamicFeature !== 'undefined') {
@@ -103,9 +95,9 @@ class FeatureManager {
 
     this.featureClasses.forEach((FeatureClass, id) => {
       // Always-on QOL features that don't need user toggling
-      const alwaysEnabled = ['storyCardAnalytics', 'autoEnableScripts'];
+      const alwaysEnabled = ['storyCardAnalytics'];
       // Features that are disabled by default
-      const defaultOff = ['autoSee', 'textToSpeech', 'customDynamic'];
+      const defaultOff = ['autoSee', 'customDynamic'];
       
       const enabled = alwaysEnabled.includes(id) || 
                       savedStates[id] === true || 

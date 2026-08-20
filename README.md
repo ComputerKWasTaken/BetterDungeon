@@ -65,7 +65,6 @@ Android builds are distributed through the [GitHub Releases](../../releases) pag
 - **Markdown** — Add reliable formatting to generated text with six instruction presets designed for different writing styles.
 - **Command Mode** — Send direct narrative instructions without cluttering the story. Subtle and OOC sub-modes are included.
 - **Try Mode** — Add configurable, RNG-based action checks with live rolls, critical success, and critical failure margins.
-- **Text to Speech** — Have new story text narrated using the voices available through your browser or device.
 - **Adventure Notes** — Keep private notes attached to each adventure, saved locally in your browser.
 
 ### Take control of your input
@@ -88,7 +87,6 @@ Android builds are distributed through the [GitHub Releases](../../releases) pag
 
 - **Custom Dynamic** — Build a weighted-random model pool, choose exact model versions, and control how many turns each selection stays active.
 - **Auto See** — Automatically send See requests after a configurable number of turns.
-- **Auto Enable Scripts** — Keep scenario scripts enabled when AI Dungeon tries to turn them off.
 
 ## Ultrascripts: the part I'm really excited about
 

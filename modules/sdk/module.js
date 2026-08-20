@@ -29,7 +29,6 @@
     notes: true,
     storyCardModalDock: true,
     inputHistory: true,
-    textToSpeech: false,
   };
   const ULTRASCRIPTS_MODULES = [
     'widget',

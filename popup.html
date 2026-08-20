@@ -172,10 +172,6 @@
                   <div><strong>Custom Dynamic</strong>: Your very own, customizable version of the Dynamic models is here! Choose from any available model, configure your pool, and have fun. Directly inspired by the great work of Zoocata's PRISM browser extension.</div>
                 </div>
                 <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-volume-2" style="color: #ec4899;"></span>
-                  <div><strong>Text to Speech</strong>: Your story, narrated like an audio book. Select a voice, configure the settings, and enjoy listening to your story as you play. Will likely be seeing improvements in the future.</div>
-                </div>
-                <div class="whats-new-archive-item">
                   <span class="whats-new-item-icon icon-palette" style="color: #06b6d4;"></span>
                   <div><strong>Revamped UI</strong>: A redesigned UI for all features and the popup menus, looking sleeker and less smelly. It's also got reduced clutter and is easier to navigate.</div>
                 </div>
@@ -779,96 +775,6 @@
                 <span class="icon-triangle-alert"></span>
                 <span>Uses Credits per trigger if using a premium image model</span>
               </div>
-            </div>
-          </article>
-
-          <!-- Text To Speech -->
-          <article class="feature-card" data-feature="textToSpeech">
-            <div class="feature-row">
-              <div class="feature-info">
-                <div class="feature-title-row">
-                  <span class="feature-icon" style="color: var(--accent);">
-                    <span class="icon-volume-2"></span>
-                  </span>
-                  <h3 class="feature-title">Text To Speech</h3>
-                </div>
-                <p class="feature-desc">Narrate the latest AI adventure text</p>
-              </div>
-              <label class="toggle">
-                <input type="checkbox" id="feature-textToSpeech">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="feature-details">
-              <div class="automation-info">
-                <p>Reads new story output aloud after it settles. User action text is skipped.</p>
-              </div>
-
-              <div class="feature-option-inline">
-                <span class="option-label-inline">Voice</span>
-                <select class="form-select form-select-sm" id="tts-voice-select">
-                  <option value="auto">Auto natural voice</option>
-                </select>
-              </div>
-
-              <div class="feature-option-inline">
-                <span class="option-label-inline">Rate</span>
-                <div class="interval-control">
-                  <input type="range" class="slider slider-sm" id="tts-rate" min="0.65" max="1.35" step="0.01" value="0.96">
-                  <span class="interval-value" id="tts-rate-value">0.96</span>
-                </div>
-              </div>
-
-              <div class="feature-option-inline">
-                <span class="option-label-inline">Pitch</span>
-                <div class="interval-control">
-                  <input type="range" class="slider slider-sm" id="tts-pitch" min="0.75" max="1.35" step="0.01" value="1.00">
-                  <span class="interval-value" id="tts-pitch-value">1.00</span>
-                </div>
-              </div>
-
-              <div class="feature-option-inline">
-                <span class="option-label-inline">Volume</span>
-                <div class="interval-control">
-                  <input type="range" class="slider slider-sm" id="tts-volume" min="0" max="1" step="0.01" value="1.00">
-                  <span class="interval-value" id="tts-volume-value">100%</span>
-                </div>
-              </div>
-
-              <div class="tts-actions">
-                <button class="btn btn-action tts-action-btn" id="tts-test-voice">
-                  <span class="icon-speech"></span>
-                  Test Voice
-                </button>
-                <button class="btn btn-action tts-action-btn" id="tts-stop">
-                  <span class="icon-volume-x"></span>
-                  Stop
-                </button>
-              </div>
-
-              <div class="alert alert-info alert-compact">
-                <span class="icon-sparkles"></span>
-                <span>Uses free browser voices, no API key or paid service required.</span>
-              </div>
-            </div>
-          </article>
-
-          <!-- Auto Enable Scripts -->
-          <article class="feature-card" data-feature="autoEnableScripts">
-            <div class="feature-row">
-              <div class="feature-info">
-                <div class="feature-title-row">
-                  <span class="feature-icon" style="color: var(--bd-icon-auto-scripts);">
-                    <span class="icon-terminal"></span>
-                  </span>
-                  <h3 class="feature-title">Auto Enable Scripts</h3>
-                </div>
-                <p class="feature-desc">Re-enable scripts in the scenario editor</p>
-              </div>
-            </div>
-            <div class="feature-details">
-              <p>Automatically retoggles the "Enable Scripts" option in the <strong>Scenario Creation page</strong> when it gets disabled.</p>
-              <p class="feature-hint"><span class="icon-lightbulb"></span> Saves you from manually re-enabling scripts every time.</p>
             </div>
           </article>
 

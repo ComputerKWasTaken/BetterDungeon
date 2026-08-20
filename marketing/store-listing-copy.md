@@ -47,9 +47,6 @@ It supports:
 • One-click instruction setup
 • Automatic application when starting an adventure
 
-TEXT TO SPEECH
-Have recent story context narrated using the speech engines available in Chromium and Firefox. Perfect for listening along to your story like an audiobook.
-
 ADVENTURE NOTES
 Keep private notes for each adventure using an embedded Plot Component. Track characters, mysteries, plans, and all the plot details you absolutely intended to remember.
 
@@ -121,9 +118,6 @@ Create your own Dynamic-style model pool and let BetterDungeon select from the m
 
 AUTO SEE
 Automatically request a generated image after every AI response or after a chosen number of turns. Frequency controls and credit warnings help prevent enthusiastic automation from eating your credits.
-
-AUTO ENABLE SCRIPTS
-Automatically re-enable scripts while working in Scenario Creation. It is a small feature with one noble purpose: eliminating one extremely repetitive click.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
