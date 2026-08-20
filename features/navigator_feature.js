@@ -633,7 +633,14 @@ class NavigatorFeature {
     summary.replaceChildren(); toolbar.replaceChildren(); body.replaceChildren();
     if (!inspection) { summary.textContent = 'Nothing has been captured yet in this page session. This inspection is not saved across reloads.'; return; }
     const flags = ['toolsDropped', 'inputLimitReached', 'toolLimitReached', 'toolResultsOmitted'].filter(key => inspection.meta?.[key]);
-    summary.textContent = `Captured ${inspection.capturedAt || 'unknown time'} | ${inspection.model || 'model unknown'} | thinking ${inspection.thinkingLevel || 'unknown'} | input cap ${inspection.inputCap || 'unknown'} chars | peak ${inspection.meta?.peakInputChars || 0} chars | tool rounds ${inspection.meta?.toolRounds || 0}${flags.length ? ` | ${flags.join(', ')}` : ''}`;
+    const charsPerToken = Number(NavigatorSession.CHARS_PER_TOKEN);
+    const formatCapacity = value => {
+      const chars = Number(value);
+      return Number.isFinite(chars) && chars >= 0
+        ? `${value} chars (~${Math.round(chars / charsPerToken)} tokens)`
+        : 'unknown';
+    };
+    summary.textContent = `Captured ${inspection.capturedAt || 'unknown time'} | ${inspection.model || 'model unknown'} | thinking ${inspection.thinkingLevel || 'unknown'} | input cap ${formatCapacity(inspection.inputCap)} | peak ${formatCapacity(inspection.meta?.peakInputChars || 0)} | tool rounds ${inspection.meta?.toolRounds || 0}${flags.length ? ` | ${flags.join(', ')}` : ''}`;
     if (inspection.error) summary.appendChild(document.createTextNode(` | Error: ${inspection.error.message}`));
     const rounds = Array.isArray(inspection.rounds) ? inspection.rounds : [];
     if (!rounds.length) { body.textContent = 'No executor round was captured. Nothing is saved across reloads.'; return; }
@@ -991,6 +998,7 @@ class NavigatorFeature {
       drift.textContent = 'The card had an unrelated timestamp update while Navigator applied this change.';
       card.appendChild(drift);
     }
+    if (proposal.status !== 'pending') return card;
     const actions = document.createElement('div');
     actions.className = 'bd-navigator-proposal-buttons';
     const reject = document.createElement('button');
@@ -1005,11 +1013,10 @@ class NavigatorFeature {
       : 'bd-navigator-proposal-apply';
     apply.textContent = destructive ? 'Delete' : 'Apply';
 
-    const pending = proposal.status === 'pending';
-    reject.disabled = !pending || state.chatBusy;
-    apply.disabled = !pending || state.chatBusy || state.readOnly;
-    if (state.readOnly && pending) apply.title = 'Read-only mode is enabled.';
-    else if (state.chatBusy && pending) apply.title = 'Wait for Navigator to finish this response.';
+    reject.disabled = state.chatBusy;
+    apply.disabled = state.chatBusy || state.readOnly;
+    if (state.readOnly) apply.title = 'Read-only mode is enabled.';
+    else if (state.chatBusy) apply.title = 'Wait for Navigator to finish this response.';
     reject.addEventListener('click', () => this.session?.rejectProposal(messageId, proposal.id));
     apply.addEventListener('click', () => this.session?.applyProposal(messageId, proposal.id));
     actions.append(reject, apply);
