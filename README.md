@@ -23,9 +23,10 @@ The current release is **BetterDungeon v2.1.0**. Its headline addition is Naviga
 
 ### What's new in v2.1.0
 
-- **Navigator** — Grounded, multi-turn streaming chat with Plot Component and Recent Story context, selective Story Card research, rich Markdown, quick actions, and visible tool activity.
-- **Confirmed modifications** — Navigator can propose changes to Plot Components, Third Person, and all five editable Story Card fields. Every write requires direct approval, conflict checks, and server read-back.
-- **Read-only mode** — Remove Navigator's mutation tools while retaining chat and Story Card research.
+- **Navigator** — Grounded, multi-turn streaming chat over an Apollo-backed adventure snapshot, with retrieval tools for Story Cards, Memory Bank, and story history, player-selected context sections, rich Markdown, quick actions, and visible tool activity.
+- **Confirmed modifications** — Navigator can propose changes to Plot Components, Third Person, all five editable Story Card fields, and Memory Bank entries (edit and delete; AI Dungeon has no create-memory mutation). Every write requires direct approval, a conflict check against the live record, and a server read-back before it is reported as applied.
+- **Read-only mode** — Remove Navigator's mutation tools while retaining chat and retrieval tools. Navigator settings now live in the Navigator drawer: thinking level, read-only mode, and context sections.
+- **Request inspection and input limits** — Inspect the exact payload the last turn sent for each tool round, and choose an input cap in AI model settings (128k tokens by default).
 - **One compatible AI backend** — Gemini (default), OpenRouter, and remote custom HTTPS services share one OpenAI-compatible Chat Completions implementation for Ultrascripts, Character Prefill, and Navigator.
 - **Profile-based setup** — One service panel provides local profile storage, connection testing, validation, and explicit activation without cross-service fallback.
 - **Ultrascripts reliability** — A stronger liveness heartbeat, revised WebFetch behavior, and compatible structured output, reasoning, safety, and tool continuation while preserving the existing `ai.query` contract.
@@ -75,6 +76,7 @@ Android builds are distributed through the [GitHub Releases](../../releases) pag
 
 ### Build better scenarios
 
+- **Navigator** — Chat with a grounded adventure assistant, research Story Cards, Memory Bank, and story history, choose which context it receives, and approve conflict-checked changes it proposes.
 - **Plot Presets** — Save and swap Plot Essentials, AI Instructions, and Author's Notes.
 - **Character Presets** — Save character descriptions and use the Ultrascripts AI module to generate scenario prefill answers.
 - **Story Card Scanner** — Quickly index Story Cards through AI Dungeon's GraphQL systems, including large scenarios.
