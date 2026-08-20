@@ -87,7 +87,6 @@ Android builds are distributed through the [GitHub Releases](../../releases) pag
 
 - **Custom Dynamic** — Build a weighted-random model pool, choose exact model versions, and control how many turns each selection stays active.
 - **Auto See** — Automatically send See requests after a configurable number of turns.
-- **Auto Enable Scripts** — Keep scenario scripts enabled when AI Dungeon tries to turn them off.
 
 ## Ultrascripts: the part I'm really excited about
 
