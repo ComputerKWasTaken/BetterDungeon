@@ -53,7 +53,7 @@ BetterDungeon/
 ├── modules/                   Permission-gated Ultrascripts modules
 ├── utils/                     Storage, DOM, browser, and Markdown helpers
 ├── examples/                  Ultrascripts starter templates and examples
-├── tests/                     Ultrascripts verification notes and test material
+├── tests/                     Dependency-free Node contract suites and Ultrascripts verification material
 ├── icons/                     Extension icons
 └── fonts/                     Local fonts and icon assets
 ```
@@ -82,6 +82,10 @@ class MyFeature {
   }
 }
 ```
+
+## Automated contract suites
+
+The `tests/*.test.js` files are dependency-free Node contract suites. Run an individual suite with `node tests/<name>.test.js`. When changing shared Navigator or Apollo files, mirror the corresponding changes into the mobile repository and keep those shared files byte-identical.
 
 If a feature adds an observer, event listener, timer, or injected element, it should also clean that resource up in `destroy()`. This matters because BetterDungeon can enable and disable features without reloading the page.
 
@@ -128,7 +132,7 @@ Before opening a pull request, please check the parts relevant to your change:
 - [ ] No API keys, tokens, personal data, or generated secrets are committed.
 - [ ] Documentation and examples are updated when behavior or public APIs change.
 
-There is no automated build command at the moment, so manual browser testing is especially important.
+There is no build step for the extension at the moment, so manual browser testing is especially important.
 
 ## Pull requests
 
