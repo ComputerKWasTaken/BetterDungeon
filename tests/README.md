@@ -5,8 +5,8 @@ code - anything here is for verifying behavior, not for shipping.
 
 ## Node contract suites
 
-These dependency-free Node suites exercise the desktop extension and its
-shared Navigator and Apollo services. Run an individual suite with:
+These dependency-free Node suites protect shared extension services and the
+write paths Navigator relies on. Run an individual suite with:
 
 `node tests/<name>.test.js`
 
@@ -15,10 +15,6 @@ shared Navigator and Apollo services. Run an individual suite with:
 - **`ai-compatible-contract.test.js`** - Compatible AI profile and capability behavior, text and JSON requests, Gemini reasoning and rate-limit handling, streaming, cancellation, timeouts, errors, and opaque thought-signature replay across tool rounds.
 - **`apollo-cache-contract.test.js`** - Apollo bridge wiring, operation allowlisting, unavailable and direct-error handling, Adventure denormalization, memo invalidation, relay pairing, and timeout recovery.
 - **`apollo-consumer-contract.test.js`** - Apollo-first Story Card scanning with fallback behavior, Ultrascripts history compatibility, and Auto See warm-tail refresh coordination.
-- **`navigator-context-contract.test.js`** - Authoritative Navigator context reads, provenance and degradation reporting, dynamic budget allocation, tool guidance and result floors, and request-inspection capture and retention.
-- **`navigator-options-contract.test.js`** - Effective Navigator settings, read-only and context-section behavior, provider input limits, section omission and degradation, tool activity labels, drawer integration, and request inspection.
-- **`navigator-proposal-lifecycle-contract.test.js`** - Proposal persistence and restoration, applied hydration diagnostics, conflict and timestamp-drift handling, and proposal creation and mutation lifecycle behavior.
-- **`navigator-retrieval-contract.test.js`** - Bounded Story Card, Memory Bank, and story-history retrieval, ranking and truncation, per-turn deduplication, and retrieval proposal behavior.
 
 ## Live Ultrascripts suites
 
