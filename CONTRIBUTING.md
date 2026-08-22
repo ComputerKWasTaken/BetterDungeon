@@ -51,7 +51,7 @@ BetterDungeon/
 ├── features/                  Self-contained user-facing features
 ├── services/                  AI Dungeon, GraphQL, caching, and bridge services
 ├── modules/                   Permission-gated Ultrascripts modules
-├── utils/                     Storage, DOM, browser, and Markdown helpers
+├── utils/                     Storage, DOM, and browser helpers
 ├── examples/                  Ultrascripts starter templates and examples
 ├── tests/                     Dependency-free Node contract suites and Ultrascripts verification material
 ├── icons/                     Extension icons

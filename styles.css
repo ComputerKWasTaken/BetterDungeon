@@ -1,5 +1,5 @@
 /* BetterDungeon - Styles */
-/* CSS for enhanced markdown rendering in AI Dungeon */
+/* CSS for BetterDungeon enhancements in AI Dungeon */
 /* All styles inherit original fonts and colors from the game */
 
 /* Theme Variables
@@ -12,46 +12,6 @@
    needed here — individual .bd-* selectors already use
    'inherit' where appropriate.
    ============================================ */
-
-/* ============================================
-   TEXT FORMATTING
-   ============================================ */
-
-/* Bold text */
-.bd-markdown strong,
-[data-bd-processed="true"] strong {
-  font-weight: 700;
-  color: inherit;
-  font-family: inherit;
-}
-
-/* Italic text */
-.bd-markdown em,
-[data-bd-processed="true"] em {
-  font-style: italic;
-  color: inherit;
-  font-family: inherit;
-}
-
-/* Bold + Italic */
-.bd-markdown strong em,
-.bd-markdown em strong,
-[data-bd-processed="true"] strong em,
-[data-bd-processed="true"] em strong {
-  font-weight: 700;
-  font-style: italic;
-  color: inherit;
-}
-
-/* ============================================
-   PRESERVE WHITESPACE
-   ============================================ */
-
-.bd-markdown,
-[data-bd-processed="true"] {
-  white-space: pre-wrap;
-  word-wrap: break-word;
-}
 
 /* ============================================
    TRIGGER HIGHLIGHTING

@@ -62,7 +62,6 @@ Android builds are distributed through the [GitHub Releases](../../releases) pag
 
 ### Make writing feel better
 
-- **Markdown** — Add reliable formatting to generated text with six instruction presets designed for different writing styles.
 - **Command Mode** — Send direct narrative instructions without cluttering the story. Subtle and OOC sub-modes are included.
 - **Try Mode** — Add configurable, RNG-based action checks with live rolls, critical success, and critical failure margins.
 - **Adventure Notes** — Keep private notes attached to each adventure, saved locally in your browser.

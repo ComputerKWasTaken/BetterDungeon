@@ -492,65 +492,6 @@
         </button>
         <div class="section-body" id="collapse-writing">
 
-          <!-- Markdown -->
-          <article class="feature-card" data-feature="markdown">
-            <div class="feature-row">
-              <div class="feature-info">
-                <div class="feature-title-row">
-                  <span class="feature-icon" style="color: var(--bd-icon-markdown);">
-                    <span class="icon-pilcrow"></span>
-                  </span>
-                  <h3 class="feature-title">Markdown Formatting</h3>
-                </div>
-                <p class="feature-desc">Render rich text emphasis in AI responses</p>
-              </div>
-              <label class="toggle">
-                <input type="checkbox" id="feature-markdown" checked>
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="feature-details">
-              <p>Renders AID-safe Markdown emphasis using focused custom syntax that AI Dungeon does not strip.</p>
-
-              <div class="md-options-header">
-                <span class="md-options-title">Syntax</span>
-                <span class="md-options-hint">Used by rendering and AI instructions</span>
-              </div>
-              <div class="md-cheatsheet" id="markdown-cheatsheet">
-                <!-- Populated dynamically by popup.js -->
-              </div>
-
-              <div class="md-preset-control">
-                <label class="md-preset-label" for="markdown-instruction-preset">Instruction Style</label>
-                <select class="form-select form-select-sm" id="markdown-instruction-preset">
-                  <!-- Populated dynamically by popup.js -->
-                </select>
-                <p class="md-preset-desc" id="markdown-instruction-preset-desc"></p>
-                <div class="md-instruction-preview" aria-live="polite">
-                  <div class="md-instruction-preview-title">Preview</div>
-                  <pre id="markdown-instruction-preview"></pre>
-                </div>
-              </div>
-
-              <div class="md-actions">
-                <div class="feature-option">
-                  <span class="option-label">Auto-apply on adventure</span>
-                  <label class="toggle sm">
-                    <input type="checkbox" id="auto-apply-instructions">
-                    <span class="toggle-slider"></span>
-                  </label>
-                </div>
-
-                <button class="btn btn-action" id="apply-instructions-btn">
-                  <span class="icon-wand"></span>
-                  Apply Instructions
-                </button>
-              </div>
-
-              <p class="feature-credit">Thanks to <a href="https://play.aidungeon.com/profile/OffMetaGamer">OffMetaGamer</a> & <a href="https://play.aidungeon.com/profile/effortlyss">Shiny</a></p>
-            </div>
-          </article>
-
           <!-- Adventure Notes -->
           <article class="feature-card" data-feature="notes">
             <div class="feature-row">
@@ -1531,7 +1472,6 @@
 
   <script src="utils/browser-polyfill.js"></script>
   <script src="services/tutorial-service.js"></script>
-  <script src="utils/markdown-config.js"></script>
   <script src="popup-ai-endpoint.js"></script>
   <script src="popup.js"></script>
 </body>

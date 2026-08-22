@@ -14,8 +14,6 @@ const STORAGE_KEYS = {
   characters: 'betterDungeon_characterPresets',
   activeCharacter: 'betterDungeon_activeCharacterPreset',
   characterGenerationInstructions: 'betterDungeon_characterPresetGenerationInstructions',
-  autoApply: 'betterDungeon_autoApplyInstructions',
-  markdownInstructionPreset: 'betterDungeon_markdownInstructionPreset',
   ultrascriptsDebug: 'ultrascripts_debug',
   ultrascriptsModules: 'ultrascripts_enabled_modules',
   customHotkeys: 'betterDungeon_customHotkeys',
@@ -74,7 +72,6 @@ const DEFAULT_HOTKEY_BINDINGS = {
 
 const DEFAULT_FEATURES = {
   ultrascripts: true,
-  markdown: true,
   command: true,
   try: true,
   triggerHighlight: true,
@@ -160,7 +157,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initCharacters();
   initModals();
   initTools();
-  initMarkdownOptions();
   initHotkeys();
   initModeColors();
   initUltrascriptsSettings();
@@ -251,24 +247,12 @@ function initToggles() {
     setUltrascriptsModuleControlsEnabled(features.ultrascripts !== false);
   });
 
-  // Load auto-apply setting
-  chrome.storage.sync.get(STORAGE_KEYS.autoApply, (result) => {
-    const toggle = document.getElementById('auto-apply-instructions');
-    if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.autoApply] ?? false;
-  });
-
   // Setup change handlers
   document.querySelectorAll('input[type="checkbox"][id^="feature-"]').forEach(toggle => {
     toggle.addEventListener('change', () => {
       const featureId = toggle.id.replace('feature-', '');
       saveFeatureState(featureId, toggle.checked);
     });
-  });
-
-  // Auto-apply toggle
-  document.getElementById('auto-apply-instructions')?.addEventListener('change', (e) => {
-    chrome.storage.sync.set({ [STORAGE_KEYS.autoApply]: e.target.checked });
-    notifyContentScript('SET_AUTO_APPLY', { enabled: e.target.checked });
   });
 
   // Ultrascripts debug toggle
@@ -1051,43 +1035,10 @@ function initAutoSeeSettings() {
 // ============================================
 
 function initTools() {
-  // Apply Instructions button (in Markdown feature card)
-  const applyBtn = document.getElementById('apply-instructions-btn');
-  if (applyBtn) {
-    applyBtn.addEventListener('click', () => applyInstructions(applyBtn));
-  }
-
   // Open Analytics button (in Tools section)
   const analyticsBtn = document.getElementById('open-analytics-btn');
   if (analyticsBtn) {
     analyticsBtn.addEventListener('click', () => openAnalyticsDashboard(analyticsBtn));
-  }
-}
-
-async function applyInstructions(btn) {
-  const originalText = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = '<span class="icon-loader"></span> Applying...';
-
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
-    if (!tab?.url?.includes('aidungeon.com')) {
-      showButtonStatus(btn, 'error', 'Not on AI Dungeon', originalText);
-      return;
-    }
-
-    const response = await chrome.tabs.sendMessage(tab.id, {
-      type: 'APPLY_INSTRUCTIONS_WITH_LOADING'
-    });
-
-    if (response?.success) {
-      showButtonStatus(btn, 'success', 'Done!', originalText);
-    } else {
-      showButtonStatus(btn, 'error', response?.error || 'Failed', originalText);
-    }
-  } catch (error) {
-    showButtonStatus(btn, 'error', 'Error', originalText);
   }
 }
 
@@ -1117,89 +1068,6 @@ async function openAnalyticsDashboard(btn) {
   } catch (error) {
     showButtonStatus(btn, 'error', 'Error', originalText);
   }
-}
-
-// ============================================
-// MARKDOWN CHEAT SHEET
-// ============================================
-
-const LEGACY_MARKDOWN_OPTIONS_KEY = 'betterDungeon_markdownOptions';
-
-function initMarkdownOptions() {
-  const container = document.getElementById('markdown-cheatsheet');
-  if (!container) return;
-
-  chrome.storage.sync.remove(LEGACY_MARKDOWN_OPTIONS_KEY);
-  renderMarkdownOptions(container);
-  initMarkdownInstructionPreset();
-}
-
-function renderMarkdownOptions(container) {
-  container.innerHTML = '';
-  const formats = window.BetterDungeonMarkdownConfig?.formats || [];
-
-  for (const opt of formats) {
-    const item = document.createElement('div');
-    item.className = 'md-cheatsheet-item';
-    item.innerHTML = `
-      <code class="md-cheatsheet-syntax">${escapeHtml(opt.syntax)}</code>
-      <div class="md-cheatsheet-content">
-        <span class="md-cheatsheet-label">${escapeHtml(opt.label)}</span>
-        <span class="md-cheatsheet-role">${escapeHtml(opt.role)}</span>
-      </div>
-      <span class="md-cheatsheet-preview">${opt.preview}</span>
-    `;
-
-    container.appendChild(item);
-  }
-}
-
-function initMarkdownInstructionPreset() {
-  const select = document.getElementById('markdown-instruction-preset');
-  if (!select) return;
-
-  const config = window.BetterDungeonMarkdownConfig;
-  const presets = config?.instructionPresets || [];
-  const defaultPreset = config?.defaultInstructionPreset || presets[0]?.id || '';
-
-  select.innerHTML = '';
-  for (const preset of presets) {
-    const option = document.createElement('option');
-    option.value = preset.id;
-    option.textContent = preset.label;
-    select.appendChild(option);
-  }
-
-  const updatePresetDetails = () => {
-    const desc = document.getElementById('markdown-instruction-preset-desc');
-    const preview = document.getElementById('markdown-instruction-preview');
-    const preset = presets.find(item => item.id === select.value);
-    if (desc) desc.textContent = preset?.description || '';
-
-    if (preview) {
-      const instructions = config?.buildInstructions?.(select.value) || '';
-      const authorsNote = config?.buildAuthorsNote?.(select.value) || '';
-      preview.textContent = [
-        'AI Instructions',
-        instructions,
-        '',
-        'Author\'s Note',
-        authorsNote,
-      ].join('\n');
-    }
-  };
-
-  chrome.storage.sync.get(STORAGE_KEYS.markdownInstructionPreset, (result) => {
-    const saved = (result || {})[STORAGE_KEYS.markdownInstructionPreset];
-    select.value = presets.some(item => item.id === saved) ? saved : defaultPreset;
-    updatePresetDetails();
-  });
-
-  select.addEventListener('change', () => {
-    const presetId = presets.some(item => item.id === select.value) ? select.value : defaultPreset;
-    chrome.storage.sync.set({ [STORAGE_KEYS.markdownInstructionPreset]: presetId });
-    updatePresetDetails();
-  });
 }
 
 function showButtonStatus(btn, status, text, originalText) {

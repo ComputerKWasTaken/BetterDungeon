@@ -29,18 +29,10 @@ class BetterDungeon {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message.type === 'FEATURE_TOGGLE') {
         this.handleFeatureToggle(message.featureId, message.enabled);
-      } else if (message.type === 'APPLY_INSTRUCTIONS') {
-        this.handleApplyInstructions().then(sendResponse);
-        return true;
-      } else if (message.type === 'SET_AUTO_APPLY') {
-        this.handleSetAutoApply(message.enabled);
       } else if (message.type === 'SET_AUTO_SEE_TRIGGER_MODE') {
         this.handleSetAutoSeeTriggerMode(message.mode);
       } else if (message.type === 'SET_AUTO_SEE_TURN_INTERVAL') {
         this.handleSetAutoSeeTurnInterval(message.interval);
-      } else if (message.type === 'APPLY_INSTRUCTIONS_WITH_LOADING') {
-        this.handleApplyInstructionsWithLoading().then(sendResponse);
-        return true;
       } else if (message.type === 'GET_PRESETS') {
         this.handleGetPresets().then(sendResponse);
         return true;
@@ -130,13 +122,6 @@ class BetterDungeon {
     }
   }
 
-  handleSetAutoApply(enabled) {
-    const markdownFeature = this.featureManager.features.get('markdown');
-    if (markdownFeature && typeof markdownFeature.setAutoApply === 'function') {
-      markdownFeature.setAutoApply(enabled);
-    }
-  }
-
   handleSetAutoSeeTriggerMode(mode) {
     const autoSeeFeature = this.featureManager.features.get('autoSee');
     if (autoSeeFeature && typeof autoSeeFeature.setTriggerMode === 'function') {
@@ -149,14 +134,6 @@ class BetterDungeon {
     if (autoSeeFeature && typeof autoSeeFeature.setTurnInterval === 'function') {
       autoSeeFeature.setTurnInterval(interval);
     }
-  }
-
-  async handleApplyInstructionsWithLoading() {
-    const markdownFeature = this.featureManager.features.get('markdown');
-    if (markdownFeature && typeof markdownFeature.applyInstructionsWithLoadingScreen === 'function') {
-      return await markdownFeature.applyInstructionsWithLoadingScreen();
-    }
-    return { success: false, error: 'Markdown feature not available' };
   }
 
   async handleGetPresets() {
@@ -287,25 +264,6 @@ class BetterDungeon {
   async handleFeatureToggle(featureId, enabled) {
     await this.featureManager.toggleFeature(featureId, enabled);
   }
-
-
-  async handleApplyInstructions() {
-    try {
-      const instructionsResult = await this.aiDungeonService.fetchInstructionsFile();
-      if (!instructionsResult.success) {
-        return { success: false, error: instructionsResult.error };
-      }
-
-      return await this.aiDungeonService.applyInstructionsToTextareas(instructionsResult.data, {
-        forceApply: true,
-        authorsNoteText: instructionsResult.authorsNoteData || null,
-      });
-    } catch (error) {
-      console.error('[BetterDungeon] Error applying instructions:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
 
   injectStyles() {
     DOMUtils.injectStyles(chrome.runtime.getURL('styles.css'), 'better-dungeon-styles');
