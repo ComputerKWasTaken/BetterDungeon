@@ -2233,12 +2233,12 @@ body.mobile {
 /* === Tutorial Tooltip === */
 .tutorial-tooltip {
   position: absolute;
-  width: 260px;
+  width: min(286px, calc(100vw - 32px));
   background: var(--bg-surface);
   border: 1px solid var(--border-accent);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
-  z-index: calc(var(--z-tutorial) + 1);
+  z-index: calc(var(--z-tutorial) + 2);
   opacity: 0;
   transform: translateY(8px);
   transition: all var(--transition-normal);
@@ -2423,8 +2423,9 @@ body.mobile {
 
 .tutorial-tooltip-footer {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
   padding: 10px 14px;
   border-top: 1px solid var(--border);
 }
@@ -2436,7 +2437,7 @@ body.mobile {
 }
 
 .tutorial-progress-bar {
-  width: 50px;
+  flex: 1;
   height: 3px;
   background: var(--bg-active);
   border-radius: 2px;
@@ -2453,6 +2454,7 @@ body.mobile {
 .tutorial-progress-text {
   font-size: 10px;
   color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .tutorial-nav {
@@ -2461,11 +2463,15 @@ body.mobile {
   justify-content: flex-end;
 }
 
+.tutorial-nav #tutorial-skip {
+  margin-right: auto;
+}
+
 /* === Tutorial Modal === */
 .tutorial-modal {
   position: fixed;
   inset: 0;
-  z-index: calc(var(--z-tutorial) + 2);
+  z-index: calc(var(--z-tutorial) + 3);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2528,6 +2534,7 @@ body.mobile {
   display: grid;
   gap: 8px;
   overflow-y: auto;
+  max-height: 275px;
   margin-bottom: 16px;
 }
 
@@ -2549,7 +2556,7 @@ body.mobile {
 /* === Highlighted Element === */
 .tutorial-highlighted {
   position: relative;
-  z-index: calc(var(--z-tutorial) - 1);
+  z-index: calc(var(--z-tutorial) + 1);
   pointer-events: auto !important;
 }
 
@@ -3449,6 +3456,18 @@ kbd.hotkey-unbound {
 .whats-new-release-hero h3 {
   font-size: 13px;
   line-height: 1.25;
+}
+
+.tutorial-topic-meta {
+  display: block;
+  margin-top: 4px;
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.tutorial-topic-panel .tutorial-topic-meta {
+  display: none;
 }
 
 .whats-new-release-hero p,

@@ -1355,11 +1355,11 @@
     </div>
     <div class="tutorial-banner-content">
       <strong>Welcome to BetterDungeon!</strong>
-      <span>Take a quick tour to learn the features.</span>
+      <span>Learn what BetterDungeon is and what it can do.</span>
     </div>
     <div class="tutorial-banner-actions">
       <button class="btn btn-ghost btn-sm" id="tutorial-banner-dismiss">Later</button>
-      <button class="btn btn-primary btn-sm" id="tutorial-banner-start">Start</button>
+      <button class="btn btn-primary btn-sm" id="tutorial-banner-start">Start Tutorial</button>
     </div>
   </div>
 
@@ -1369,14 +1369,14 @@
   </div>
 
   <!-- Tutorial Tooltip -->
-  <div class="tutorial-tooltip" id="tutorial-tooltip" data-position="bottom">
+  <div class="tutorial-tooltip" id="tutorial-tooltip" data-position="bottom" role="dialog" aria-modal="true" aria-labelledby="tutorial-tooltip-title" tabindex="-1">
     <div class="tutorial-tooltip-arrow"></div>
     <div class="tutorial-tooltip-header">
       <div class="tutorial-tooltip-icon">
         <span class="icon-lightbulb" id="tutorial-tooltip-icon"></span>
       </div>
       <h4 class="tutorial-tooltip-title" id="tutorial-tooltip-title">Feature Title</h4>
-      <button class="btn btn-icon btn-ghost tutorial-topic-toggle" id="tutorial-topics" type="button" aria-label="Browse tutorial topics" title="Topics">
+      <button class="btn btn-icon btn-ghost tutorial-topic-toggle" id="tutorial-topics" type="button" aria-label="Browse tutorial topics" aria-expanded="false" aria-controls="tutorial-topic-panel" title="Topics">
         <span class="icon-list"></span>
       </button>
     </div>
@@ -1386,13 +1386,13 @@
     </div>
     <div class="tutorial-tooltip-footer">
       <div class="tutorial-progress">
-        <div class="tutorial-progress-bar">
+        <div class="tutorial-progress-bar" role="progressbar" aria-label="Tutorial progress" aria-valuemin="1" aria-valuenow="1" aria-valuemax="5">
           <div class="tutorial-progress-fill" id="tutorial-progress-fill"></div>
         </div>
-        <span class="tutorial-progress-text" id="tutorial-progress-text">1/12</span>
+        <span class="tutorial-progress-text" id="tutorial-progress-text">Step 1 of 5</span>
       </div>
       <div class="tutorial-nav">
-        <button class="btn btn-ghost btn-sm" id="tutorial-skip">Skip</button>
+        <button class="btn btn-ghost btn-sm" id="tutorial-skip">Exit Tutorial</button>
         <button class="btn btn-ghost btn-sm" id="tutorial-prev">Back</button>
         <button class="btn btn-primary btn-sm" id="tutorial-next">Next</button>
       </div>
@@ -1400,17 +1400,17 @@
   </div>
 
   <!-- Tutorial Modal -->
-  <div class="tutorial-modal" id="tutorial-modal">
+  <div class="tutorial-modal" id="tutorial-modal" role="dialog" aria-modal="true" aria-labelledby="tutorial-modal-title">
     <div class="tutorial-modal-content">
       <div class="tutorial-modal-icon" id="tutorial-modal-icon">
         <span class="icon-wand-sparkles"></span>
       </div>
       <h3 class="tutorial-modal-title" id="tutorial-modal-title">Welcome to BetterDungeon!</h3>
-      <p class="tutorial-modal-text" id="tutorial-modal-text">This quick tour will introduce you to the features.</p>
+      <p class="tutorial-modal-text" id="tutorial-modal-text">This tutorial will introduce you to BetterDungeon.</p>
       <div class="tutorial-modal-topics" id="tutorial-modal-topics"></div>
       <div class="tutorial-modal-actions">
-        <button class="btn btn-primary" id="tutorial-modal-primary">Start Tour</button>
-        <button class="btn btn-ghost" id="tutorial-modal-secondary">Maybe Later</button>
+        <button class="btn btn-primary" id="tutorial-modal-primary">Start Premise</button>
+        <button class="btn btn-ghost" id="tutorial-modal-secondary">Not Now</button>
       </div>
     </div>
   </div>

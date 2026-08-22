@@ -2568,9 +2568,13 @@ function setupTutorialHandlers() {
       closeTutorialModal();
       switchToTab('features');
     } else {
-      // Regular step modal - proceed to next
+      // The welcome screen launches the main Premise tutorial.
       closeTutorialModal();
-      tutorialService?.next();
+      if (tutorialService?.getCurrentStep()?.id === 'welcome') {
+        tutorialService.goToTopic('premise');
+      } else {
+        tutorialService?.next();
+      }
     }
   });
   
@@ -2579,9 +2583,25 @@ function setupTutorialHandlers() {
     exitTutorial();
   });
 
-  document.getElementById('tutorial-overlay')?.addEventListener('click', (e) => {
-    if (e.target.id === 'tutorial-overlay') tutorialService?.next();
-  });
+  document.addEventListener('keydown', handleTutorialKeydown);
+  window.addEventListener('resize', queueTutorialReposition);
+  document.querySelector('.main')?.addEventListener('scroll', queueTutorialReposition, { passive: true });
+}
+
+function handleTutorialKeydown(event) {
+  if (!tutorialService?.isRunning()) return;
+  if (event.key !== 'Escape') return;
+
+  const topicPanel = document.getElementById('tutorial-topic-panel');
+  if (topicPanel && !topicPanel.classList.contains('hidden')) {
+    topicPanel.classList.add('hidden');
+    document.getElementById('tutorial-topics')?.setAttribute('aria-expanded', 'false');
+    repositionTutorialTooltip();
+    return;
+  }
+
+  event.preventDefault();
+  exitTutorial();
 }
 
 function showTutorialBanner() {
@@ -2610,6 +2630,8 @@ function exitTutorial() {
 }
 
 let previouslyExpandedCard = null;
+let previouslyExpandedSection = null;
+let tutorialRepositionFrame = null;
 
 function handleTutorialStep(step, currentIndex, totalSteps) {
   if (!step) return;
@@ -2649,9 +2671,9 @@ function showTutorialModal(step) {
     topicList?.classList.add('hidden');
     if (topicList) topicList.innerHTML = '';
   } else {
-    primaryBtn.textContent = 'Start from Beginning';
+    primaryBtn.textContent = 'Start Premise';
     secondaryBtn.style.display = 'block';
-    secondaryBtn.textContent = 'Maybe Later';
+    secondaryBtn.textContent = 'Not Now';
     if (step.id === 'welcome' && topicList) {
       renderTutorialTopics(topicList, { includeHeading: true });
       topicList.classList.remove('hidden');
@@ -2662,6 +2684,7 @@ function showTutorialModal(step) {
   }
 
   modal.classList.add('visible');
+  requestAnimationFrame(() => primaryBtn?.focus());
 }
 
 function closeTutorialModal() {
@@ -2705,8 +2728,13 @@ function renderTutorialTopics(container, options = {}) {
     desc.className = 'tutorial-topic-desc';
     desc.textContent = topic.description;
 
+    const meta = document.createElement('span');
+    meta.className = 'tutorial-topic-meta';
+    meta.textContent = `${topic.stepCount} ${topic.stepCount === 1 ? 'step' : 'steps'}`;
+
     copy.appendChild(title);
     copy.appendChild(desc);
+    copy.appendChild(meta);
 
     const arrow = document.createElement('span');
     arrow.className = 'tutorial-topic-arrow';
@@ -2734,17 +2762,37 @@ function toggleTutorialTopics() {
 
   renderTutorialTopics(panel);
   panel.classList.toggle('hidden');
+  document.getElementById('tutorial-topics')?.setAttribute(
+    'aria-expanded',
+    String(!panel.classList.contains('hidden'))
+  );
   repositionTutorialTooltip();
 }
 
 function repositionTutorialTooltip() {
   const tooltip = document.getElementById('tutorial-tooltip');
+  const spotlight = document.getElementById('tutorial-spotlight');
   const step = tutorialService?.getCurrentStep?.();
-  if (!tooltip || !step?.target) return;
+  if (!tooltip || !spotlight || !step?.target || !tutorialService?.isRunning()) return;
 
   requestAnimationFrame(() => {
     const target = document.querySelector(step.target);
-    if (target) positionTooltip(tooltip, target.getBoundingClientRect(), step.position || 'bottom');
+    if (!target) return;
+    const rect = target.getBoundingClientRect();
+    const padding = 8;
+    spotlight.style.left = `${rect.left - padding}px`;
+    spotlight.style.top = `${rect.top - padding}px`;
+    spotlight.style.width = `${rect.width + padding * 2}px`;
+    spotlight.style.height = `${rect.height + padding * 2}px`;
+    positionTooltip(tooltip, rect, step.position || 'bottom');
+  });
+}
+
+function queueTutorialReposition() {
+  if (!tutorialService?.isRunning() || tutorialRepositionFrame) return;
+  tutorialRepositionFrame = requestAnimationFrame(() => {
+    tutorialRepositionFrame = null;
+    repositionTutorialTooltip();
   });
 }
 
@@ -2759,6 +2807,14 @@ function showSpotlight(step, currentIndex, totalSteps) {
   const spotlight = document.getElementById('tutorial-spotlight');
   const tooltip = document.getElementById('tutorial-tooltip');
   if (!overlay || !spotlight || !tooltip) return;
+
+  const sectionBody = target.closest('.section-body');
+  if (sectionBody?.classList.contains('collapsed')) {
+    const sectionHeader = sectionBody.previousElementSibling;
+    previouslyExpandedSection = { body: sectionBody, header: sectionHeader };
+    sectionBody.classList.remove('collapsed');
+    sectionHeader?.setAttribute('aria-expanded', 'true');
+  }
 
   // Expand card if needed
   if (step.expandCard) {
@@ -2797,15 +2853,18 @@ function showSpotlight(step, currentIndex, totalSteps) {
     target.classList.add('tutorial-highlighted');
     overlay.classList.add('active');
 
-    positionTooltip(tooltip, finalRect, step.position || 'bottom');
     updateTooltipContent(step, currentIndex, totalSteps);
+    positionTooltip(tooltip, finalRect, step.position || 'bottom');
 
-    setTimeout(() => tooltip.classList.add('visible'), 200);
+    setTimeout(() => {
+      tooltip.classList.add('visible');
+      tooltip.focus({ preventScroll: true });
+    }, 100);
   }, 300);
 }
 
 function positionTooltip(tooltip, targetRect, position) {
-  const width = 260;
+  const width = tooltip.offsetWidth || Math.min(286, window.innerWidth - 32);
   const gap = 16;
   const padding = 16;
   const tooltipHeight = tooltip.offsetHeight || 150; // Estimate if not yet rendered
@@ -2857,16 +2916,24 @@ function positionTooltip(tooltip, targetRect, position) {
 function updateTooltipContent(step, currentIndex, totalSteps) {
   document.getElementById('tutorial-tooltip-title').textContent = step.title;
   document.getElementById('tutorial-tooltip-content').textContent = step.content;
+  const icon = document.getElementById('tutorial-tooltip-icon');
+  if (icon) icon.className = step.icon || 'icon-lightbulb';
+
   renderTutorialTopics(document.getElementById('tutorial-topic-panel'));
 
   const progress = ((currentIndex + 1) / totalSteps) * 100;
-  document.getElementById('tutorial-progress-fill').style.width = `${progress}%`;
-  document.getElementById('tutorial-progress-text').textContent = `${currentIndex + 1}/${totalSteps}`;
+  const progressFill = document.getElementById('tutorial-progress-fill');
+  if (progressFill) {
+    progressFill.style.width = `${progress}%`;
+    progressFill.parentElement?.setAttribute('aria-valuenow', String(currentIndex + 1));
+    progressFill.parentElement?.setAttribute('aria-valuemax', String(totalSteps));
+  }
+  document.getElementById('tutorial-progress-text').textContent = `Step ${currentIndex + 1} of ${totalSteps}`;
 
   const prevBtn = document.getElementById('tutorial-prev');
   const nextBtn = document.getElementById('tutorial-next');
   
-  if (prevBtn) prevBtn.style.display = currentIndex > 1 ? 'block' : 'none';
+  if (prevBtn) prevBtn.style.display = currentIndex > 0 ? 'block' : 'none';
   if (nextBtn) nextBtn.textContent = currentIndex === totalSteps - 1 ? 'Finish' : 'Next';
 }
 
@@ -2874,11 +2941,18 @@ function cleanupTutorialStep() {
   document.getElementById('tutorial-overlay')?.classList.remove('active');
   document.getElementById('tutorial-tooltip')?.classList.remove('visible');
   document.getElementById('tutorial-topic-panel')?.classList.add('hidden');
+  document.getElementById('tutorial-topics')?.setAttribute('aria-expanded', 'false');
   document.querySelectorAll('.tutorial-highlighted').forEach(el => el.classList.remove('tutorial-highlighted'));
 
   if (previouslyExpandedCard) {
     previouslyExpandedCard.classList.remove('expanded');
     previouslyExpandedCard = null;
+  }
+
+  if (previouslyExpandedSection) {
+    previouslyExpandedSection.body.classList.add('collapsed');
+    previouslyExpandedSection.header?.setAttribute('aria-expanded', 'false');
+    previouslyExpandedSection = null;
   }
 }
 
@@ -2901,6 +2975,7 @@ function handleTutorialComplete(completionModal) {
 function handleTutorialExit() {
   cleanupTutorialStep();
   closeTutorialModal();
+  document.getElementById('tutorial-help-btn')?.focus();
 }
 
 // ============================================
