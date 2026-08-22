@@ -33,23 +33,6 @@ function aiServiceLabel(service) {
   return service === 'openrouter' ? 'OpenRouter' : service === 'custom' ? 'Custom endpoint' : 'Google Gemini';
 }
 
-function setCharacterAIStatus(text, state = 'unknown') {
-  const element = document.getElementById('character-ai-status');
-  if (!element) return;
-  element.textContent = text;
-  element.dataset.state = state;
-}
-
-function openAISettingsFromCharacters() {
-  activateTab('ultrascripts');
-  requestAnimationFrame(() => {
-    const card = document.getElementById('ai-settings-card');
-    card?.classList.add('expanded');
-    card?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    setTimeout(() => document.getElementById('ai-endpoint-api-key')?.focus(), 250);
-  });
-}
-
 function setEndpointBadge(text, state = 'pending', detail = '') {
   const badge = document.getElementById('ai-endpoint-status');
   if (!badge) return;
@@ -86,7 +69,6 @@ function updateEndpointStatus({ status = null, pending = '', error = null, dirty
     if (card) card.dataset.state = 'dirty';
     if (title) title.textContent = 'Unsaved profile changes';
     if (detail) detail.textContent = 'Saving activates the service selected above.';
-    setCharacterAIStatus('AI endpoint has unsaved settings', 'missing');
     return;
   }
   if (error) {
@@ -96,7 +78,6 @@ function updateEndpointStatus({ status = null, pending = '', error = null, dirty
     if (card) card.dataset.state = 'error';
     if (title) title.textContent = 'Connection failed';
     if (detail) detail.textContent = message;
-    setCharacterAIStatus('AI endpoint connection failed', 'missing');
     return;
   }
 
@@ -109,7 +90,6 @@ function updateEndpointStatus({ status = null, pending = '', error = null, dirty
     if (card) card.dataset.state = 'error';
     if (title) title.textContent = 'Endpoint unavailable';
     if (detail) detail.textContent = 'BetterDungeon could not read the endpoint configuration.';
-    setCharacterAIStatus('AI endpoint unavailable', 'missing');
     return;
   }
   const service = status.service || status.config?.service || 'gemini';
@@ -119,7 +99,6 @@ function updateEndpointStatus({ status = null, pending = '', error = null, dirty
     if (card) card.dataset.state = 'warning';
     if (title) title.textContent = `${aiServiceLabel(service)} setup required`;
     if (detail) detail.textContent = 'Complete this profile, then save or save and test.';
-    setCharacterAIStatus('Selected AI service needs setup', 'missing');
     return;
   }
   const verified = !!status.config?.activeModel;
@@ -127,7 +106,6 @@ function updateEndpointStatus({ status = null, pending = '', error = null, dirty
   if (card) card.dataset.state = 'ready';
   if (title) title.textContent = `${aiServiceLabel(service)} ${verified ? 'verified' : 'configured'}`;
   if (detail) detail.textContent = model ? `${model}${verified ? ' responded successfully.' : ' is ready to test.'}` : 'Profile saved.';
-  setCharacterAIStatus(`${aiServiceLabel(service)} ready`, 'ready');
 }
 
 function setEndpointValidation(message = '', fields = []) {

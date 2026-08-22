@@ -13,7 +13,6 @@ const STORAGE_KEYS = {
   presets: 'betterDungeon_favoritePresets',
   characters: 'betterDungeon_characterPresets',
   activeCharacter: 'betterDungeon_activeCharacterPreset',
-  characterGenerationInstructions: 'betterDungeon_characterPresetGenerationInstructions',
   ultrascriptsDebug: 'ultrascripts_debug',
   ultrascriptsModules: 'ultrascripts_enabled_modules',
   customHotkeys: 'betterDungeon_customHotkeys',
@@ -1485,6 +1484,7 @@ async function resetModeColors() {
 // ============================================
 
 function initPresets() {
+  initPresetViews();
   loadPresets();
   
   // Save button
@@ -1495,6 +1495,45 @@ function initPresets() {
 
   // Undo button
   document.getElementById('undo-preset-btn')?.addEventListener('click', undoLastApply);
+}
+
+function switchPresetView(view, shouldFocus = false) {
+  const tabs = [...document.querySelectorAll('[data-preset-view]')];
+  const panels = [...document.querySelectorAll('[data-preset-panel]')];
+  const selectedView = tabs.some(tab => tab.dataset.presetView === view) ? view : 'characters';
+
+  tabs.forEach((tab) => {
+    const isSelected = tab.dataset.presetView === selectedView;
+    tab.classList.toggle('active', isSelected);
+    tab.setAttribute('aria-selected', String(isSelected));
+    tab.tabIndex = isSelected ? 0 : -1;
+    if (isSelected && shouldFocus) tab.focus();
+  });
+
+  panels.forEach((panel) => {
+    panel.hidden = panel.dataset.presetPanel !== selectedView;
+  });
+}
+
+function initPresetViews() {
+  const tabs = [...document.querySelectorAll('[data-preset-view]')];
+  if (tabs.length === 0) return;
+
+  tabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => switchPresetView(tab.dataset.presetView));
+    tab.addEventListener('keydown', (event) => {
+      let nextIndex = null;
+      if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length;
+      if (event.key === 'ArrowLeft') nextIndex = (index - 1 + tabs.length) % tabs.length;
+      if (event.key === 'Home') nextIndex = 0;
+      if (event.key === 'End') nextIndex = tabs.length - 1;
+      if (nextIndex === null) return;
+      event.preventDefault();
+      switchPresetView(tabs[nextIndex].dataset.presetView, true);
+    });
+  });
+
+  switchPresetView('characters');
 }
 
 async function loadPresets() {
@@ -1808,31 +1847,9 @@ function updateTextareaStates() {
 
 function initCharacters() {
   loadCharacters();
-  loadCharacterGenerationInstructions();
   
   document.getElementById('create-character-btn')?.addEventListener('click', async () => {
     openCharacterModal(createBlankCharacter(), true);
-  });
-  document.getElementById('character-open-ai-settings')?.addEventListener('click', openAISettingsFromCharacters);
-}
-
-function loadCharacterGenerationInstructions() {
-  const input = document.getElementById('character-generation-instructions');
-  const counter = document.getElementById('character-generation-instructions-count');
-  let saveTimer = null;
-  if (!input) return;
-  chrome.storage.local.get(STORAGE_KEYS.characterGenerationInstructions, (result) => {
-    input.value = String((result || {})[STORAGE_KEYS.characterGenerationInstructions] || '').slice(0, 1500);
-    if (counter) counter.textContent = `${input.value.length}/1500`;
-  });
-  input.addEventListener('input', () => {
-    if (input.value.length > 1500) input.value = input.value.slice(0, 1500);
-    if (counter) counter.textContent = `${input.value.length}/1500`;
-    if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      chrome.storage.local.set({ [STORAGE_KEYS.characterGenerationInstructions]: input.value });
-      saveTimer = null;
-    }, 350);
   });
 }
 
@@ -1905,9 +1922,11 @@ function normalizeCharacterList(raw) {
 function renderCharacters(characters) {
   const container = document.getElementById('character-list');
   const emptyState = document.getElementById('character-empty');
+  const count = document.getElementById('character-count');
   if (!container) return;
 
   container.querySelectorAll('.character-card').forEach(c => c.remove());
+  if (count) count.textContent = `${characters.length} saved`;
 
   if (characters.length === 0) {
     if (emptyState) emptyState.style.display = 'flex';
@@ -1916,7 +1935,13 @@ function renderCharacters(characters) {
 
   if (emptyState) emptyState.style.display = 'none';
 
-  characters.forEach(char => {
+  const sortedCharacters = [...characters].sort((a, b) => {
+    if (a.id === currentMainCharacterId) return -1;
+    if (b.id === currentMainCharacterId) return 1;
+    return Number(b.updatedAt || 0) - Number(a.updatedAt || 0);
+  });
+
+  sortedCharacters.forEach(char => {
     const card = createCharacterCard(char);
     container.appendChild(card);
   });
@@ -1933,26 +1958,25 @@ function createCharacterCard(character) {
     : 'No description yet';
 
   card.innerHTML = `
-    <div class="character-card-main">
+    <div class="character-card-header">
       <div class="character-title-row">
         <h4 class="character-name">${escapeHtml(character.name)}</h4>
-        ${isMain ? '<span class="character-main-badge"><span class="icon-star"></span>Main</span>' : ''}
+        ${isMain ? '<span class="character-main-badge"><span class="icon-check"></span>Selected</span>' : ''}
       </div>
-      <div class="character-meta">
-        <span class="character-description-preview">${escapeHtml(preview)}</span>
-      </div>
-    </div>
-    <div class="character-card-actions">
-      <button class="character-main-btn${isMain ? ' active' : ''}" aria-label="${isMain ? 'Main character' : 'Make main character'}" title="${isMain ? 'Main character' : 'Make main character'}"${isMain ? ' disabled' : ''}>
-        <span class="icon-star"></span>
-      </button>
-      <button class="character-edit-btn" aria-label="Edit" title="Edit">
+      <button class="character-edit-btn" type="button" aria-label="Edit character" title="Edit character">
         <span class="icon-pencil"></span>
+      </button>
+    </div>
+    <p class="character-description-preview">${escapeHtml(preview)}</p>
+    <div class="character-card-actions">
+      <button class="character-select-btn${isMain ? ' active' : ''}" type="button"${isMain ? ' disabled' : ''}>
+        <span class="${isMain ? 'icon-check' : 'icon-user-check'}"></span>
+        ${isMain ? 'Selected for Prefill' : 'Use for Prefill'}
       </button>
     </div>
   `;
 
-  card.querySelector('.character-main-btn')?.addEventListener('click', (event) => {
+  card.querySelector('.character-select-btn')?.addEventListener('click', (event) => {
     event.stopPropagation();
     if (!isMain) setMainCharacter(character.id);
   });
@@ -1968,7 +1992,7 @@ function setMainCharacter(characterId) {
   currentMainCharacterId = characterId || null;
   chrome.storage.local.set({ [STORAGE_KEYS.activeCharacter]: currentMainCharacterId }, () => {
     loadCharacters();
-    showToast('Main character updated', 'success');
+    showToast('Character selected for prefill', 'success');
   });
 }
 
@@ -2008,13 +2032,16 @@ function openCharacterModal(character, isNew = false) {
   const nameInput = document.getElementById('character-name-input');
   const descriptionInput = document.getElementById('character-description-input');
   const deleteBtn = document.getElementById('character-delete-btn');
+  const saveBtn = document.getElementById('character-modal-save');
 
   if (title) title.textContent = isNew ? 'New Character' : 'Edit Character';
   if (nameInput) nameInput.value = character.name || '';
   if (descriptionInput) descriptionInput.value = character.description || '';
   if (deleteBtn) deleteBtn.style.display = isNew ? 'none' : '';
+  if (saveBtn) saveBtn.textContent = isNew ? 'Create Character' : 'Save Changes';
   
   openModal('character-modal');
+  requestAnimationFrame(() => nameInput?.focus());
 }
 
 function saveCharacterChanges() {
@@ -2593,6 +2620,10 @@ function handleTutorialStep(step, currentIndex, totalSteps) {
   } else if (step.type === 'spotlight') {
     if (step.action === 'switchTab') {
       switchToTab(step.actionTarget);
+      setTimeout(() => showSpotlight(step, currentIndex, totalSteps), 100);
+    } else if (step.action === 'switchPresetView') {
+      switchToTab('presets');
+      switchPresetView(step.actionTarget);
       setTimeout(() => showSpotlight(step, currentIndex, totalSteps), 100);
     } else {
       showSpotlight(step, currentIndex, totalSteps);

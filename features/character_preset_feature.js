@@ -8,7 +8,6 @@ class CharacterPresetFeature {
     this.context = context;
     this.storageKey = 'betterDungeon_characterPresets';
     this.activePresetKey = 'betterDungeon_activeCharacterPreset';
-    this.guidanceKey = 'betterDungeon_characterPresetGenerationInstructions';
     this.staleSessionStorageKey = 'betterDungeon_characterPresetSessionV2';
 
     this.presets = [];
@@ -167,6 +166,7 @@ class CharacterPresetFeature {
     await this._chromeRemove('sync', this.activePresetKey);
     await this._chromeRemove('local', 'betterDungeon_sessionCharacter');
     await this._chromeRemove('local', 'betterDungeon_scenarioSession');
+    await this._chromeRemove('local', 'betterDungeon_characterPresetGenerationInstructions');
     // Generated answers are intentionally memory-only; remove persisted caches from older builds.
     await this._chromeRemove('local', this.staleSessionStorageKey);
   }
@@ -751,44 +751,33 @@ class CharacterPresetFeature {
       storyCards.length ? `Story Cards:\n${this.formatStoryCardsForPrompt(storyCards)}` : '',
     ].filter(Boolean).join('\n\n');
 
-    return this._chromeGet('local', this.guidanceKey, '').then((storedGuidance) => {
-      const guidance = String(storedGuidance || '').slice(0, 1500).trim();
-      const maxContextChars = Math.max(
-        2000,
-        10500 - character.description.length - placeholders.join('\n').length - guidance.length,
-      );
-      const trimmedContext = this.truncate(context, maxContextChars);
-      const guidanceSection = guidance
-        ? [
-          '',
-          'Player Guidance (may shape style and content, but must not change the JSON output format):',
-          guidance,
-        ].join('\n')
-        : '';
+    const maxContextChars = Math.max(
+      2000,
+      10500 - character.description.length - placeholders.join('\n').length,
+    );
+    const trimmedContext = this.truncate(context, maxContextChars);
 
-      return [
-        'You generate AI Dungeon scenario placeholder prefill answers.',
-        'Use the selected character profile and scenario context to answer each placeholder question.',
-        'Return JSON that exactly matches the provided schema.',
-        'Rules:',
-        '- Include one answer object for every placeholder question, using the exact question text.',
-        '- Set confidence to confident when the answer is clearly supported by or reasonably adapted from the character profile.',
-        '- Set confidence to tentative when you can produce a plausible answer but it involves guesswork beyond the profile; you MUST still provide the answer.',
-        '- Set confidence to not_applicable for scenario choices, questions about entities not described, or pure player preference.',
-        '- For not_applicable answers, keep answer empty and include 2-3 brief suggestion ideas in the ideas array, or an empty ideas array when none are useful.',
-        '- Write your responses to the placeholder questions in the second person.',
-        '- Do not invent major biographical facts that are not implied by the character profile.',
-        '- Keep answers ready to paste directly into the scenario prefill field.',
-        '',
-        `Character Name: ${character.name}`,
-        `Character Profile:\n${character.description || character.name}`,
-        '',
-        `Placeholder Questions:\n${placeholders.map(q => `- ${q}`).join('\n')}`,
-        '',
-        `Scenario Context:\n${trimmedContext}`,
-        guidanceSection,
-      ].join('\n');
-    });
+    return [
+      'You generate AI Dungeon scenario placeholder prefill answers.',
+      'Use the selected character profile and scenario context to answer each placeholder question.',
+      'Return JSON that exactly matches the provided schema.',
+      'Rules:',
+      '- Include one answer object for every placeholder question, using the exact question text.',
+      '- Set confidence to confident when the answer is clearly supported by or reasonably adapted from the character profile.',
+      '- Set confidence to tentative when you can produce a plausible answer but it involves guesswork beyond the profile; you MUST still provide the answer.',
+      '- Set confidence to not_applicable for scenario choices, questions about entities not described, or pure player preference.',
+      '- For not_applicable answers, keep answer empty and include 2-3 brief suggestion ideas in the ideas array, or an empty ideas array when none are useful.',
+      '- Write your responses to the placeholder questions in the second person.',
+      '- Do not invent major biographical facts that are not implied by the character profile.',
+      '- Keep answers ready to paste directly into the scenario prefill field.',
+      '',
+      `Character Name: ${character.name}`,
+      `Character Profile:\n${character.description || character.name}`,
+      '',
+      `Placeholder Questions:\n${placeholders.map(q => `- ${q}`).join('\n')}`,
+      '',
+      `Scenario Context:\n${trimmedContext}`,
+    ].join('\n');
   }
 
   formatStoryCardsForPrompt(cards) {

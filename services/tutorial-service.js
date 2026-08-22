@@ -239,7 +239,9 @@ class TutorialService {
         target: '#preset-list',
         title: 'Plot Presets',
         content: 'Save your current AI Instructions, Plot Essentials, and Author\'s Note as reusable presets. Apply them to any adventure with one click!',
-        position: 'bottom'
+        position: 'bottom',
+        action: 'switchPresetView',
+        actionTarget: 'plot'
       },
       // === Character Presets Section ===
       {
@@ -248,7 +250,9 @@ class TutorialService {
         target: '#character-list',
         title: 'Character Presets',
         content: 'Tired of retyping character info? Save character profiles and auto-fill scenario entry questions with one click!',
-        position: 'top'
+        position: 'top',
+        action: 'switchPresetView',
+        actionTarget: 'characters'
       }
     ];
 

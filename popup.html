@@ -60,7 +60,7 @@
             <span class="whats-new-compact-icon icon-sparkles"></span>
             <span class="whats-new-compact-text">
               <strong id="whats-new-title">What's New</strong>
-              <span class="whats-new-compact-summary">Navigator &middot; Compatible AI profiles &middot; Ultrascripts upgrades</span>
+              <span class="whats-new-compact-summary">Navigator &middot; Grounded chat &middot; Approval-first changes</span>
             </span>
           </span>
           <span class="whats-new-compact-right">
@@ -83,63 +83,79 @@
 
           <div class="whats-new-release-panels">
             <section class="whats-new-release" id="whats-new-release-210" role="tabpanel" aria-labelledby="whats-new-tab-210" data-whats-new-panel="2.1.0">
-              <div class="whats-new-archive-list">
-                <div class="whats-new-archive-item whats-new-archive-item-group">
-                  <span class="whats-new-item-icon icon-compass" style="color: #f59e0b;"></span>
+              <div class="whats-new-release-hero">
+                <span class="whats-new-release-icon icon-compass" aria-hidden="true"></span>
+                <div>
+                  <span class="whats-new-eyebrow">Headline feature</span>
+                  <h3>Meet Navigator</h3>
+                  <p>An AI assistant that understands your current adventure, helps you find what matters, and keeps every change under your control.</p>
+                </div>
+              </div>
+
+              <div class="whats-new-navigator-features">
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-navigator icon-book-open-text" aria-hidden="true"></span>
                   <div>
-                    <div><strong>Navigator</strong>: BetterDungeon's new AI agent understands the adventure you're currently playing and helps you maintain the machinery behind the story.</div>
-                    <ul class="whats-new-sublist">
-                      <li><strong>Grounded Chat</strong>: Navigator receives your Plot Components, a large Recent Story window, and a compact directory of current Story Cards.</li>
-                      <li><strong>Story Card Research</strong>: It can search your complete card collection and inspect the exact cards needed for the conversation.</li>
-                      <li><strong>Safe Modifications</strong>: Navigator can propose Plot Component, Third Person, and complete Story Card changes, but nothing is written without your direct approval.</li>
-                      <li><strong>Read-only Mode</strong>: Disable all mutation proposals while retaining grounded chat and Story Card research.</li>
-                      <li><strong>Built for Conversation</strong>: Multi-turn history, streaming responses, cancellation, Markdown, quick actions, and visible thinking and tool activity are built in.</li>
-                    </ul>
+                    <h4>Understands your adventure</h4>
+                    <p>Navigator can discuss your Plot Components and recent story, search your complete Story Card collection, and inspect the exact details it needs.</p>
+                    <span class="whats-new-detail">Multi-turn chat &middot; Streaming responses &middot; Story Card research</span>
                   </div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-paintbrush" style="color: #ec4899;"></span>
-                  <div><strong>Teaser: Artisan</strong>: Navigator's future counterpart for scenario creators. Artisan will help build, organize, and polish AI Dungeon scenarios with the same grounded, approval-first approach. It is not available yet.</div>
-                </div>
-                <div class="whats-new-archive-item whats-new-archive-item-group">
-                  <span class="whats-new-item-icon icon-brain-circuit" style="color: #6366f1;"></span>
+                </article>
+
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-navigator icon-shield-check" aria-hidden="true"></span>
                   <div>
-                    <div><strong>One Compatible AI Backend</strong>: Gemini, OpenRouter, and remote custom services now share one OpenAI-compatible endpoint for Ultrascripts, Character Prefill, and Navigator.</div>
-                    <ul class="whats-new-sublist">
-                      <li><strong>Gemini Default</strong>: Gemini keeps its automatic 429-only model stepdown and remains the default service.</li>
-                      <li><strong>Explicit Services</strong>: BetterDungeon never silently sends adventure content to a different service.</li>
-                      <li><strong>Profile Setup</strong>: Save Gemini, OpenRouter, or custom HTTPS profile settings in one panel with inline validation and connection testing.</li>
-                    </ul>
+                    <h4>Keeps you in control</h4>
+                    <p>Navigator can propose changes to your adventure, but nothing is written until you approve it. Read-only mode disables proposals entirely.</p>
+                    <span class="whats-new-detail">Direct approval &middot; Conflict checks &middot; Verified changes &middot; PC and Android</span>
                   </div>
+                </article>
+              </div>
+
+              <aside class="whats-new-teaser">
+                <span class="whats-new-teaser-icon icon-paintbrush" aria-hidden="true"></span>
+                <div>
+                  <span class="whats-new-eyebrow">Coming later</span>
+                  <strong>Artisan</strong>
+                  <p>Navigator's future counterpart for helping creators build, organize, and polish AI Dungeon scenarios.</p>
                 </div>
-                <div class="whats-new-archive-item whats-new-archive-item-group">
-                  <span class="whats-new-item-icon icon-radio-tower" style="color: #a855f7;"></span>
+              </aside>
+
+              <div class="whats-new-section-label">Also in V2.1</div>
+
+              <div class="whats-new-highlight-list">
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-ai icon-brain-circuit" aria-hidden="true"></span>
                   <div>
-                    <div><strong>Ultrascripts V2.1</strong>: The scripting foundation received a reliability and capability pass while preserving existing script contracts.</div>
-                    <ul class="whats-new-sublist">
-                      <li><strong>Reliable Heartbeat</strong>: Scripts can distinguish a live BetterDungeon client from stale state more accurately.</li>
-                      <li><strong>Audio Module</strong>: Scripts can request bounded synthesized sound effects with waveforms, pitch sweeps, envelopes, volume, and stop controls.</li>
-                      <li><strong>Revised WebFetch</strong>: Safe public HTTPS reads are simpler and no longer interrupted by per-origin approval prompts.</li>
-                      <li><strong>Modernized AI</strong>: One OpenAI-compatible Chat Completions backend now preserves Gemini reasoning, structured output, safety diagnostics, and multi-step tool state while the public <code>ai.query</code> contract remains unchanged.</li>
-                    </ul>
+                    <h4>Simpler AI setup</h4>
+                    <p>Gemini, OpenRouter, and custom HTTPS services now use one clear profile system with validation, connection testing, and explicit provider selection.</p>
                   </div>
-                </div>
+                </article>
+
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-ultrascripts icon-radio-tower" aria-hidden="true"></span>
+                  <div>
+                    <h4>Stronger Ultrascripts</h4>
+                    <p>V2.1 improves connection reliability, adds synthesized audio, simplifies safe web requests, and upgrades AI responses without changing the public script contract.</p>
+                  </div>
+                </article>
+
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-native icon-sparkles" aria-hidden="true"></span>
+                  <div>
+                    <h4>Native feature cleanup</h4>
+                    <p>AI Dungeon now handles Markdown and desktop text-to-speech natively, so BetterDungeon no longer duplicates them. Mobile text-to-speech remains because AI Dungeon's native speech does not work inside the app's WebView.</p>
+                  </div>
+                </article>
               </div>
             </section>
 
             <section class="whats-new-release whats-new-release-archive" id="whats-new-release-202" role="tabpanel" aria-labelledby="whats-new-tab-202" data-whats-new-panel="2.0.2" hidden>
               <div class="whats-new-archive-list">
-                <div class="whats-new-archive-item whats-new-archive-item-group">
+                <div class="whats-new-archive-item">
                   <span class="whats-new-item-icon icon-route" style="color: #a855f7;"></span>
                   <div>
-                    <div><strong>Revamped Custom Dynamic</strong>: The fan-favorite feature Custom Dynamic has received some excellent additions with v2.0.2.</div>
-                    <ul class="whats-new-sublist">
-                      <li><strong>Latest Models</strong>: Custom Dynamic has been updated to support the latest AI Dungeon models.</li>
-                      <li><strong>Model Versions</strong>: You can now switch between different model versions in the pool rather than using the last used model version.</li>
-                      <li><strong>Switch Frequency</strong>: You can now configure how long it will take before Custom Dynamic causes a model switch, between 1–20 turns.</li>
-                      <li><strong>Simplification</strong>: Some redundant or unnecessary options were removed for ease of use and clarity, including model switch mechanism and continue if failed.</li>
-                      <li><strong>Enabled Icon</strong>: Custom Dynamic now replaces the current model icon with a Custom Dynamic model icon to indicate that the feature is enabled.</li>
-                    </ul>
+                    <div><strong>Improved Custom Dynamic</strong>: Added current AI Dungeon models, model-version selection, configurable 1–20 turn switching, simpler settings, and a clear enabled indicator.</div>
                   </div>
                 </div>
                 <div class="whats-new-archive-item">
@@ -153,83 +169,31 @@
               <div class="whats-new-archive-list">
                 <div class="whats-new-archive-item">
                   <span class="whats-new-item-icon icon-radio-tower" style="color: #a855f7;"></span>
-                  <div><strong>Ultrascripts</strong>: My new two-way communication system between AI Dungeon scripts and BetterDungeon, giving scripts SUPERPOWERS, like calling AI models or rendering UI widgets. The natural replacement to BetterScripts, Ultrascripts no longer requires DOM manipulation, uses up story context, or requires the script creator to manually disable their systems when BetterScripts isn't available. It's smarter, more capable, and the future of scripting.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-coffee" style="color: #f97316;"></span>
-                  <div><strong>Ko-fi Page</strong>: I've launched a Ko-fi page for BetterDungeon, BetterRepository, and my other projects! Supporting is completely optional, but if you enjoy what I make and want to help me keep building, you can <a href="https://ko-fi.com/computerk" target="_blank" rel="noopener noreferrer">check it out here</a>. Every bit of support is greatly appreciated.</div>
+                  <div><strong>Ultrascripts</strong>: Introduced direct two-way communication between AI Dungeon scripts and BetterDungeon, enabling widgets, AI requests, web access, weather, device information, and more without story-context tricks or page manipulation.</div>
                 </div>
                 <div class="whats-new-archive-item">
                   <span class="whats-new-item-icon icon-smartphone" style="color: #22c55e;"></span>
-                  <div><strong>Android Port</strong>: BetterDungeon is now available on Android devices! Simply head to the Github releases tab or the pins in the thread to download the APK.</div>
+                  <div><strong>More Platforms</strong>: Added the Android app and officially brought BetterDungeon to Firefox.</div>
                 </div>
                 <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-globe-lock" style="color: #3b82f6;"></span>
-                  <div><strong>Firefox Port</strong>: BetterDungeon has been officially released on to the Firefox Browser Add-ons Store! No more reinstalling it as a temporary extension, it's here to stay.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-route" style="color: #fbbf24;"></span>
-                  <div><strong>Custom Dynamic</strong>: Your very own, customizable version of the Dynamic models is here! Choose from any available model, configure your pool, and have fun. Directly inspired by the great work of Zoocata's PRISM browser extension.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-palette" style="color: #06b6d4;"></span>
-                  <div><strong>Revamped UI</strong>: A redesigned UI for all features and the popup menus, looking sleeker and less smelly. It's also got reduced clutter and is easier to navigate.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-pilcrow" style="color: #a855f7;"></span>
-                  <div><strong>Revamped Markdown</strong>: Markdown has been revamped from the ground up to be more intelligent, easier to use, and have less refusals. High quality story formatting without any compromises, with 6 new instructions sets and a rewritten backend to maximize usage.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-user" style="color: #3b82f6;"></span>
-                  <div><strong>Revamped Character Presets</strong>: Rebuilt from the ground up and powered by my AI module from Ultrascripts, Character Presets takes away the burden of having to answer 47 scenario prefill questions, by leveraging the power of AI to intelligently answer the questions proposed.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-eye" style="color: #6366f1;"></span>
-                  <div><strong>Revamped Auto See</strong>: Using a reworked GQL backend, Auto See has been improved to be less fragile and disruptive, feeling much more natural and preventing blockages. Will likely be seeing improvements in the future.</div>
+                  <span class="whats-new-item-icon icon-route" style="color: #f59e0b;"></span>
+                  <div><strong>Custom Dynamic</strong>: Added customizable model pools and automatic model switching inspired by Zoocata's PRISM extension.</div>
                 </div>
                 <div class="whats-new-archive-item">
                   <span class="whats-new-item-icon icon-activity" style="color: #14b8a6;"></span>
-                  <div><strong>Revamped Story Card Scanner</strong>: Using the magic of GQL, the Story Card Scanner is now instant, non-disruptive, and more intelligent. Less fragile and capable of handling even scenarios upwards of many hundreds of story cards. A massive plus for anybody designing scenarios.</div>
+                  <div><strong>Faster Story Tools</strong>: Rebuilt Story Card scanning, trigger highlighting, and analytics around direct adventure data for quicker, less disruptive results.</div>
                 </div>
                 <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-sparkle" style="color: #eab308;"></span>
-                  <div><strong>Revamped Trigger Highlighting</strong>: Thanks to the revamped Story Card Scanner, trigger highlighting is now instant and enabled in all scenarios.</div>
+                  <span class="whats-new-item-icon icon-user" style="color: #3b82f6;"></span>
+                  <div><strong>Smarter Character Prefill</strong>: Rebuilt Character Presets with Ultrascripts AI to help answer large sets of scenario questions.</div>
                 </div>
                 <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-chart-bar" style="color: #ef4444;"></span>
-                  <div><strong>Revamped Story Card Analytics</strong>: Another improvement due to the revamped Story Card Scanner, the Story Card Analytics is instant and improved. Underrated feature that's now even better.</div>
+                  <span class="whats-new-item-icon icon-eye" style="color: #6366f1;"></span>
+                  <div><strong>More Reliable Auto See</strong>: Reworked adventure integration made automatic See actions more natural and less disruptive.</div>
                 </div>
                 <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-book-open-text" style="color: #8b5cf6;"></span>
-                  <div><strong>Ultrascripts Widget Module</strong>: Originally what BetterScripts was, Widget is now one piece of the many capabilities of Ultrascripts. Now featuring interactive widgets for elements like interactable buttons, better sizing, mobile support, and the ability to collapse widgets.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-globe-lock" style="color: #3b82f6;"></span>
-                  <div><strong>Ultrascripts WebFetch Module</strong>: Allows scripts powered by Ultrascripts to read small public HTTPS resources without cookies or credentials.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-clock" style="color: #eab308;"></span>
-                  <div><strong>Ultrascripts Clock Module</strong>: Clock gives scripts the user's current local time, IANA time-zone conversion, ISO timestamps, offsets, and deterministic formatted dates, for real time grounding. Imagine an AI Dungeon scenario, synced to your real time in the world.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-layers" style="color: #f97316;"></span>
-                  <div><strong>Ultrascripts SDK Module</strong>: The SDK module allows scripts to get toggle and configuration info about BetterDungeon, excluding secrets. Enables scripts to intelligently alter their behavior depending on what features are available.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-bot-message-square" style="color: #6366f1;"></span>
-                  <div><strong>Ultrascripts AI Module</strong>: The magnum opus of Ultrascripts, the AI module allows scripts to asynchronously query the player's configured AI provider. No need to hijack the story or embed zero-width encoded messages, like AC or IS. The AI module also powers the revamped Character Presets feature. Highly recommend you all check this out, it is incredibly cool.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-cloud-sun" style="color: #06b6d4;"></span>
-                  <div><strong>Ultrascripts Weather Module</strong>: Allows scripts to get the real life weather data for locations, without the need for web scraping. Enables AI Dungeon scripts to be synced with real weather conditions.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-wifi" style="color: #22c55e;"></span>
-                  <div><strong>Ultrascripts Network Module</strong>: Allows scripts to request online status and network quality information. Not sure what this might be used for but it's here if scripters want it.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-cpu" style="color: #f97316;"></span>
-                  <div><strong>Ultrascripts System Module</strong>: Enables scripts to get info such as device class, platform family, locale, screen size, touch support, browser family, and battery state, to enable scripts to alter its behavior depending on the system/device the user is on.</div>
+                  <span class="whats-new-item-icon icon-palette" style="color: #06b6d4;"></span>
+                  <div><strong>Redesigned Interface</strong>: Simplified the popup and feature controls with clearer navigation and less clutter.</div>
                 </div>
               </div>
             </section>
@@ -1087,19 +1051,69 @@
     <!-- Presets Tab -->
     <section class="tab-panel" id="tab-presets">
       
-      <!-- Plot Presets -->
-      <div class="section">
-        <div class="section-header">
-<span class="section-icon icon-star" style="color: var(--bd-accent-primary);"></span>
-          <h2 class="section-title">Plot Presets</h2>
+      <div class="preset-view-tabs" role="tablist" aria-label="Preset type">
+        <button class="preset-view-tab active" id="preset-view-tab-characters" type="button" role="tab" aria-selected="true" aria-controls="preset-view-characters" data-preset-view="characters">
+          <span class="icon-users" aria-hidden="true"></span>
+          Characters
+        </button>
+        <button class="preset-view-tab" id="preset-view-tab-plot" type="button" role="tab" aria-selected="false" aria-controls="preset-view-plot" data-preset-view="plot" tabindex="-1">
+          <span class="icon-star" aria-hidden="true"></span>
+          Plot Presets
+        </button>
+      </div>
+
+      <!-- Character Presets -->
+      <section class="preset-view-panel" id="preset-view-characters" role="tabpanel" aria-labelledby="preset-view-tab-characters" data-preset-panel="characters">
+        <div class="section-header preset-panel-heading">
+          <span class="section-icon icon-user" style="color: var(--bd-accent-primary);" aria-hidden="true"></span>
+          <div class="preset-panel-copy">
+            <h2 class="section-title">Character Presets</h2>
+            <p>Save reusable characters and choose which one should answer scenario-start questions.</p>
+          </div>
+          <label class="character-prefill-toggle" title="Enable Character Prefill">
+            <span>Prefill</span>
+            <span class="toggle sm">
+              <input type="checkbox" id="feature-characterPreset" checked aria-label="Enable Character Prefill">
+              <span class="toggle-slider"></span>
+            </span>
+          </label>
         </div>
 
-        <button class="btn btn-full" id="save-current-preset-btn">
+        <button class="btn btn-full" id="create-character-btn" type="button">
+          <span class="icon-user-plus"></span>
+          New Character
+        </button>
+
+        <div class="character-list-heading">
+          <h3>Saved characters</h3>
+          <span id="character-count">0 saved</span>
+        </div>
+
+        <div class="character-list" id="character-list">
+          <div class="empty-state character-empty-state" id="character-empty">
+            <span class="empty-icon icon-user-plus"></span>
+            <p class="empty-title">No characters yet</p>
+            <p class="empty-desc">Create a character, then select it for automatic scenario prefill.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Plot Presets -->
+      <section class="preset-view-panel" id="preset-view-plot" role="tabpanel" aria-labelledby="preset-view-tab-plot" data-preset-panel="plot" hidden>
+        <div class="section-header preset-panel-heading">
+          <span class="section-icon icon-star" style="color: var(--bd-accent-primary);" aria-hidden="true"></span>
+          <div class="preset-panel-copy">
+            <h2 class="section-title">Plot Presets</h2>
+            <p>Save your current Plot Components and reuse them in another adventure.</p>
+          </div>
+        </div>
+
+        <button class="btn btn-full" id="save-current-preset-btn" type="button">
           <span class="icon-plus"></span>
           Save Current Plot
         </button>
-        
-        <button class="btn btn-ghost" id="undo-preset-btn" style="display: none;">
+
+        <button class="btn btn-ghost" id="undo-preset-btn" type="button" style="display: none;">
           <span class="icon-undo-2"></span>
           Undo Last Apply
         </button>
@@ -1107,62 +1121,11 @@
         <div class="preset-list" id="preset-list">
           <div class="empty-state" id="preset-empty">
             <span class="empty-icon icon-clipboard"></span>
-            <p class="empty-title">No presets saved</p>
-            <p class="empty-desc">Save your current plot configuration to reuse it later.</p>
+            <p class="empty-title">No plot presets yet</p>
+            <p class="empty-desc">Save the current plot configuration to reuse it later.</p>
           </div>
         </div>
-      </div>
-
-      <!-- Character Presets -->
-      <div class="section">
-        <div class="section-header">
-<span class="section-icon icon-user" style="color: var(--bd-accent-primary);"></span>
-          <h2 class="section-title">Characters</h2>
-          <label class="toggle sm section-toggle">
-            <input type="checkbox" id="feature-characterPreset" checked>
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-
-        <button class="btn btn-full" id="create-character-btn">
-          <span class="icon-plus"></span>
-          Create Character
-        </button>
-
-        <div class="character-ai-dependency">
-          <div class="character-ai-dependency-main">
-            <span class="icon-brain-circuit"></span>
-            <div>
-              <strong>AI powers Character Prefill</strong>
-              <span>Configure the AI provider used by Character Prefill in Ultrascripts &gt; AI before generating scenario answers.</span>
-            </div>
-          </div>
-          <div class="character-ai-dependency-footer">
-            <span class="character-ai-status" id="character-ai-status">Checking AI provider...</span>
-            <button class="btn btn-ghost btn-sm" id="character-open-ai-settings" type="button">
-              <span class="icon-key-round"></span>
-              AI Settings
-            </button>
-          </div>
-        </div>
-
-        <div class="character-generation-guidance">
-          <label class="character-generation-guidance-label" for="character-generation-instructions">Generation instructions</label>
-          <textarea id="character-generation-instructions" class="character-generation-guidance-input" maxlength="1500" placeholder="Optional guidance for Character Prefill's style and content."></textarea>
-          <div class="character-generation-guidance-footer">
-            <span>Applies only to Character Presets.</span>
-            <span id="character-generation-instructions-count">0/1500</span>
-          </div>
-        </div>
-
-        <div class="character-list" id="character-list">
-          <div class="empty-state" id="character-empty">
-            <span class="empty-icon icon-user-plus"></span>
-            <p class="empty-title">No characters saved</p>
-            <p class="empty-desc">Create a character description to generate scenario prefill answers.</p>
-          </div>
-        </div>
-      </div>
+      </section>
 
       <!-- BetterRepository Link -->
       <div class="section section-compact">
@@ -1272,20 +1235,22 @@
         </button>
       </div>
       <div class="modal-body">
+        <p class="character-modal-intro">Describe the character once. Character Prefill uses this profile to answer scenario-start questions.</p>
         <div class="form-group">
-          <label class="form-label">Character Name</label>
-          <input type="text" class="form-input" id="character-name-input" placeholder="Enter character name">
+          <label class="form-label" for="character-name-input">Name</label>
+          <input type="text" class="form-input" id="character-name-input" placeholder="Character name" autocomplete="off">
         </div>
         <div class="form-group">
-          <label class="form-label">Character Description</label>
-          <textarea class="form-textarea character-description-textarea" id="character-description-input" placeholder="Describe the character in natural language. Include identity, appearance, personality, background, role, abilities, gear, relationships, or anything else the configured AI provider should know."></textarea>
+          <label class="form-label" for="character-description-input">Character profile</label>
+          <p class="form-help">Write naturally. Include appearance, personality, background, role, abilities, relationships, or any details the AI should preserve.</p>
+          <textarea class="form-textarea character-description-textarea" id="character-description-input" placeholder="Example: Mara is a cautious elven cartographer with a dry sense of humor. She carries an enchanted compass and is searching for her missing mentor."></textarea>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-danger" id="character-delete-btn">Delete</button>
+        <button class="btn btn-danger" id="character-delete-btn">Delete Character</button>
         <div class="modal-footer-spacer"></div>
         <button class="btn btn-ghost" id="character-modal-cancel">Cancel</button>
-        <button class="btn btn-primary" id="character-modal-save">Save</button>
+        <button class="btn btn-primary" id="character-modal-save">Save Changes</button>
       </div>
     </div>
   </div>
