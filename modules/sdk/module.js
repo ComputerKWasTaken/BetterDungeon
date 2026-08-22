@@ -17,7 +17,6 @@
   };
   const DEFAULT_FEATURES = {
     ultrascripts: true,
-    markdown: true,
     command: true,
     try: true,
     triggerHighlight: true,

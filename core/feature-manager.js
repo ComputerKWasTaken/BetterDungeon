@@ -27,10 +27,6 @@ class FeatureManager {
       this.featureClasses.set('ultrascripts', UltrascriptsFeature);
     }
 
-    if (typeof MarkdownFeature !== 'undefined') {
-      this.featureClasses.set('markdown', MarkdownFeature);
-    }
-
     if (typeof CommandFeature !== 'undefined') {
       this.featureClasses.set('command', CommandFeature);
     }

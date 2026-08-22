@@ -85,16 +85,6 @@ class TutorialService {
         position: 'top',
         expandCard: true
       },
-      // === Formatting Section ===
-      {
-        id: 'markdown',
-        type: 'spotlight',
-        target: '[data-feature="markdown"]',
-        title: 'Markdown Formatting',
-        content: 'Renders rich text in AI responses. Click "Apply Instructions" to teach the AI the syntax!',
-        position: 'bottom',
-        expandCard: true
-      },
       // === Scenario Building Section ===
       {
         id: 'trigger-highlight',
