@@ -3206,10 +3206,45 @@ html.bd-story-card-dock-active > body {
 /* ================================================================
    NAVIGATOR
    ================================================================
-   Adventure-page copilot. Overlays the right gutter of the AI Dungeon
-   play page rather than reflowing its fixed-width Tamagui layout, and
-   becomes a full-screen sheet when there is no gutter available.
+   Adventure-page copilot. Desktop mounts the existing surface inside an
+   injected Gameplay settings subtab. Mobile retains the floating launcher
+   and overlay/sheet presentation for now.
    ================================================================ */
+
+.bd-navigator-settings-native-hidden {
+  display: none !important;
+}
+
+.bd-navigator-settings-content {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  margin-top: var(--bd-space-4);
+  overflow: hidden;
+}
+
+.bd-navigator-settings-content[hidden] {
+  display: none;
+}
+
+.bd-navigator-settings-tab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+  font-size: var(--bd-font-size-base);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.bd-navigator-settings-tab-label {
+  pointer-events: none;
+}
+
+#keyboard-field-reveal-scroll-surface-settings-gameplay.bd-navigator-settings-active {
+  overflow-y: hidden !important;
+  overscroll-behavior-y: none;
+}
 
 .bd-navigator-launcher {
   position: fixed;
@@ -3285,6 +3320,184 @@ html.bd-story-card-dock-active > body {
 .bd-navigator-sheet {
   width: 100vw;
   border-left: none;
+}
+
+.bd-navigator-drawer.bd-navigator-embedded {
+  position: relative;
+  inset: auto;
+  z-index: 0;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-resize {
+  display: none;
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-header {
+  gap: var(--bd-space-2);
+  min-height: 52px;
+  padding: 0 var(--bd-space-4);
+  background: transparent;
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-settings-panel,
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-inspection-panel {
+  margin: var(--bd-space-3) var(--bd-space-4) 0;
+  padding: var(--bd-space-3);
+  border: 1px solid var(--bd-border-subtle);
+  border-radius: var(--bd-radius-xl);
+  background: var(--bd-tag-bg);
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-mark {
+  flex-basis: 30px;
+  width: 30px;
+  height: 30px;
+  font-size: var(--bd-font-size-base);
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-title {
+  font-size: var(--bd-font-size-md);
+  font-weight: var(--bd-font-weight-medium);
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-header-actions {
+  gap: 2px;
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-icon-btn {
+  width: 30px;
+  height: 30px;
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-icon-btn[aria-expanded="true"] {
+  background: var(--bd-accent-muted);
+  color: var(--bd-accent-light);
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-settings-grid {
+  max-width: none;
+  gap: 0;
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-thinking-control,
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-toggle-control,
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-context-sections {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-thinking-control {
+  padding: 0 0 var(--bd-space-3);
+  border-bottom: 1px solid var(--bd-border-subtle);
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-toggle-control {
+  padding: var(--bd-space-3) 0;
+  border-bottom: 1px solid var(--bd-border-subtle);
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-context-sections {
+  padding: var(--bd-space-3) 0 0;
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-context-sections legend {
+  margin: 0 0 var(--bd-space-2);
+  padding: 0;
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-transcript {
+  padding-right: var(--bd-space-4);
+  padding-left: var(--bd-space-4);
+  scrollbar-width: thin;
+  scrollbar-color: var(--bd-border-default) transparent;
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-transcript::-webkit-scrollbar {
+  width: 6px;
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-transcript::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-transcript::-webkit-scrollbar-thumb {
+  border-radius: var(--bd-radius-full);
+  background: var(--bd-border-default);
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-empty {
+  width: 100%;
+  max-width: 360px;
+  padding: var(--bd-space-5) 0;
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-empty-icon {
+  margin-bottom: var(--bd-space-2);
+  font-size: 24px;
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-empty-text strong {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--bd-text-primary);
+  font-size: var(--bd-font-size-md);
+}
+
+.bd-navigator-drawer.bd-navigator-embedded.bd-navigator-secondary-open .bd-navigator-empty {
+  padding: var(--bd-space-3) 0;
+}
+
+.bd-navigator-drawer.bd-navigator-embedded.bd-navigator-secondary-open .bd-navigator-empty-icon,
+.bd-navigator-drawer.bd-navigator-embedded.bd-navigator-secondary-open .bd-navigator-empty-text {
+  display: none;
+}
+
+.bd-navigator-drawer.bd-navigator-embedded.bd-navigator-secondary-open .bd-navigator-quick-actions {
+  margin-top: 0;
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-quick-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+  max-width: 336px;
+  margin-top: var(--bd-space-4);
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-quick-actions button {
+  min-height: 40px;
+  padding: var(--bd-space-2);
+  border-color: transparent;
+  border-radius: var(--bd-radius-lg);
+  background: var(--bd-tag-bg);
+  line-height: var(--bd-line-height-normal);
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-quick-actions button:hover:not(:disabled) {
+  transform: none;
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-composer {
+  padding: 12px 0 0;
+  background: transparent;
+}
+
+.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-input {
+  min-height: 48px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  border-color: transparent;
+  background: var(--bd-tag-bg);
 }
 
 .bd-navigator-resize {
