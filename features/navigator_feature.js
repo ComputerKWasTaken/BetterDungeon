@@ -1178,7 +1178,7 @@ class NavigatorFeature {
     if (this.stopBtn) this.stopBtn.hidden = !chatBusy;
     if (this.inputEl) this.inputEl.disabled = busy && !chatBusy;
     this.editBanner?.querySelector('button')?.toggleAttribute('disabled', busy);
-    const clear = this.drawer?.querySelector('.bd-navigator-clear');
+    const clear = this.drawer?.querySelector?.('.bd-navigator-clear');
     if (clear) clear.disabled = busy || !(this.session?.getMessages().length > 0);
     this.emptyEl?.querySelectorAll('.bd-navigator-quick-actions button').forEach(button => {
       button.disabled = busy;

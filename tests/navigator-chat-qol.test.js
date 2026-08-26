@@ -101,18 +101,30 @@ vm.runInThisContext(
     isError: false,
     result: { ok: true, data: { index: 0, text: 'MEMORY_BODY_SECRET' } },
   });
+  const repeated = session.startToolActivity(trailOwner.id, {
+    id: 'tool-1',
+    name: 'search_story_cards',
+    arguments: { query: 'dragon' },
+  }, 3);
+  session.finishToolActivity(trailOwner.id, repeated.id, {
+    isError: true,
+    result: { ok: false, error: { code: 'tool_already_read', message: 'ERROR_DETAIL_SECRET' } },
+  });
 
   const activityJson = JSON.stringify(trailOwner.toolActivityTrail);
-  assert.doesNotMatch(activityJson, /RAW_ARGUMENT_SECRET|SECOND_ARGUMENT_SECRET|RESULT_CONTENT_SECRET|RESULT_BODY_SECRET|MEMORY_BODY_SECRET/);
-  assert.deepEqual(trailOwner.toolActivityTrail.map(activity => activity.name), ['search_story_cards', 'get_memory']);
+  assert.doesNotMatch(activityJson, /RAW_ARGUMENT_SECRET|SECOND_ARGUMENT_SECRET|RESULT_CONTENT_SECRET|RESULT_BODY_SECRET|MEMORY_BODY_SECRET|ERROR_DETAIL_SECRET/);
+  assert.deepEqual(trailOwner.toolActivityTrail.map(activity => activity.name), ['search_story_cards', 'get_memory', 'search_story_cards']);
   assert.equal(trailOwner.toolActivityTrail[0].summary.query, 'dragon');
   assert.equal(trailOwner.toolActivityTrail[0].summary.resultCount, 2);
   assert.equal(trailOwner.toolActivityTrail[0].summary.resultTotal, 4);
+  assert.ok(Number.isFinite(trailOwner.toolActivityTrail[0].durationMs));
   assert.equal(trailOwner.toolActivityTrail[1].summary.target, 'Memory Bank entry #1');
+  assert.equal(trailOwner.toolActivityTrail[2].status, 'error');
+  assert.equal(trailOwner.toolActivityTrail[2].errorCode, 'tool_already_read');
 
   session.persist();
   const persistedJson = JSON.stringify(lastPersisted);
-  assert.doesNotMatch(persistedJson, /RAW_ARGUMENT_SECRET|SECOND_ARGUMENT_SECRET|RESULT_CONTENT_SECRET|RESULT_BODY_SECRET|MEMORY_BODY_SECRET/);
+  assert.doesNotMatch(persistedJson, /RAW_ARGUMENT_SECRET|SECOND_ARGUMENT_SECRET|RESULT_CONTENT_SECRET|RESULT_BODY_SECRET|MEMORY_BODY_SECRET|ERROR_DETAIL_SECRET/);
   assert.match(persistedJson, /toolActivityTrail/);
 
   const blocked = session.addMessage({
