@@ -39,6 +39,7 @@ class NavigatorFeature {
     this.settingsActiveThemeClass = '';
     this.settingsInactiveThemeClass = '';
     this.settingsTabActive = false;
+    this.settingsTabPreferred = false;
     this.boundSettingsTablistClick = null;
     this.boundSettingsTablistScroll = null;
     this.settingsTabsOverflowHost = null;
@@ -589,7 +590,7 @@ class NavigatorFeature {
     this.boundSettingsTablistClick = event => {
       const clickedTab = event.target?.closest?.('[role="tab"]');
       if (!clickedTab || clickedTab === this.settingsTab) return;
-      this.deactivateSettingsNavigator({ abort: true });
+      this.deactivateSettingsNavigator({ abort: true, preservePreference: false });
     };
     tablist.addEventListener('click', this.boundSettingsTablistClick, true);
     return true;
@@ -618,6 +619,11 @@ class NavigatorFeature {
       const preserveActive = this.settingsTabActive;
       this.resetSettingsIntegration({ preserveActive });
       if (!this.injectSettingsIntegration(surface, tablist)) return false;
+    }
+
+    if (this.settingsTabPreferred && !this.settingsTabActive) {
+      this.settingsTabActive = true;
+      this.isOpen = true;
     }
 
     if (this.settingsTabActive) this.applyActiveSettingsView({ focus: false });
@@ -665,13 +671,15 @@ class NavigatorFeature {
   activateSettingsNavigator({ focus = false } = {}) {
     if (!this.syncSettingsIntegration()) return false;
     this.settingsTabActive = true;
+    this.settingsTabPreferred = true;
     this.isOpen = true;
     this.applyActiveSettingsView({ focus });
     return true;
   }
 
-  deactivateSettingsNavigator({ abort = false } = {}) {
+  deactivateSettingsNavigator({ abort = false, preservePreference = false } = {}) {
     if (abort && this.session?.isChatBusy) this.session.abort();
+    if (!preservePreference) this.settingsTabPreferred = false;
     this.settingsTabActive = false;
     this.isOpen = false;
     this.restoreNativeSelectedTab();
@@ -692,8 +700,8 @@ class NavigatorFeature {
     const header = document.createElement('header');
     header.className = 'bd-navigator-header';
     header.innerHTML = `
-      <span class="bd-navigator-mark icon-compass" aria-hidden="true"></span>
-      <div class="bd-navigator-heading">
+      <div class="bd-navigator-header-identity">
+        <span class="bd-navigator-mark icon-compass" aria-hidden="true"></span>
         <h2 class="bd-navigator-title">Navigator</h2>
       </div>
       <div class="bd-navigator-header-actions">
@@ -954,7 +962,7 @@ class NavigatorFeature {
 
   closeDrawer() {
     if (!this.drawer) return;
-    this.deactivateSettingsNavigator({ abort: true });
+    this.deactivateSettingsNavigator({ abort: true, preservePreference: true });
     document.querySelector('[aria-label="Close settings"]')?.click();
   }
 

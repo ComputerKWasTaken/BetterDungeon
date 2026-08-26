@@ -22,6 +22,10 @@ assert.match(feature, /_w-t-size-4--5[\s\S]*w_arrow_\$\{direction\}/);
 assert.doesNotMatch(feature, /event\.altKey[\s\S]*event\.key\?\.toLowerCase\(\) === 'n'/);
 assert.doesNotMatch(feature, /betterDungeon_navigator_(?:width|position)/);
 assert.doesNotMatch(feature, /createLauncher\(\)/);
+assert.match(feature, /class="bd-navigator-header-identity"[\s\S]*class="bd-navigator-mark icon-compass"[\s\S]*class="bd-navigator-title">Navigator/);
+assert.match(feature, /this\.settingsTabPreferred = true/);
+assert.match(feature, /if \(this\.settingsTabPreferred && !this\.settingsTabActive\)/);
+assert.match(feature, /preservePreference: true/);
 assert.match(feature, /hasPlotUILimitation[\s\S]*proposal\.field === 'memory'[\s\S]*proposal\.field === 'authorsNote'/);
 assert.match(feature, /hasPlotUILimitation && proposal\.status === 'applied'/);
 assert.match(feature, /Plot Essentials and Author's Note changes don't update the UI due to technical limitations\./);
@@ -39,5 +43,7 @@ assert.match(styles, /\.bd-navigator-settings-tabs-arrow-right \{[^}]*right: -22
 assert.match(styles, /\.bd-navigator-settings-tabs-native-button \{[^}]*width: 36px;[^}]*height: 36px;[^}]*border-radius: 50%/);
 assert.match(styles, /\.bd-navigator-settings-tabs-arrow \{[^}]*opacity: 0;[^}]*transition: opacity 160ms ease/);
 assert.match(styles, /\.bd-navigator-settings-tabs-host:hover \.bd-navigator-settings-tabs-arrow/);
+assert.match(styles, /\.bd-navigator-drawer\.bd-navigator-embedded \.bd-navigator-header-actions \{[^}]*margin-left: auto/);
+assert.match(styles, /\.bd-navigator-mark \{[^}]*width: 30px;[^}]*height: 30px;[^}]*border-radius: 50%/);
 
 console.log('Navigator settings integration contract tests passed');
