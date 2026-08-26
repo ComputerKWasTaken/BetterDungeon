@@ -413,7 +413,7 @@ class NavigatorFeature {
   }
 
   getSectionTablist(surface = this.getGameplaySettingsSurface()) {
-    return surface?.querySelector('[role="tablist"][aria-label="Section Tabs"]') || null;
+    return surface?.querySelector('[role="tablist"][aria-label="Section Tabs" i]') || null;
   }
 
   getNativeSectionTabs(tablist = this.settingsTablist) {
@@ -1356,6 +1356,25 @@ class NavigatorFeature {
       drift.className = 'bd-navigator-proposal-note';
       drift.textContent = 'The card had an unrelated timestamp update while Navigator applied this change.';
       card.appendChild(drift);
+    }
+    const hasPlotUILimitation = proposal.kind === 'plot_component' && (
+      proposal.field === 'memory'
+      || proposal.field === 'authorsNote'
+      || proposal.targetLabel === 'Plot Essentials'
+      || proposal.targetLabel === "Author's Note"
+    );
+    if (hasPlotUILimitation && proposal.status === 'applied') {
+      const limitation = document.createElement('p');
+      limitation.className = 'bd-navigator-proposal-note';
+      limitation.appendChild(document.createTextNode("Plot Essentials and Author's Note changes don't update the UI due to technical limitations. "));
+      const refresh = document.createElement('button');
+      refresh.type = 'button';
+      refresh.className = 'bd-navigator-proposal-refresh';
+      refresh.textContent = 'Refresh';
+      refresh.setAttribute('aria-label', 'Refresh AI Dungeon to show the applied Plot changes');
+      refresh.addEventListener('click', () => window.location.reload());
+      limitation.appendChild(refresh);
+      card.appendChild(limitation);
     }
     if (proposal.status !== 'pending') return card;
     const actions = document.createElement('div');

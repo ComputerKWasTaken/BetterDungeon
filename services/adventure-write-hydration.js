@@ -94,6 +94,9 @@
       return { attempted: true, ok: false, reason: 'no editor surface located' };
     }
     try {
+      if (textarea.value === after) {
+        return { attempted: true, ok: true, alreadyCurrent: true };
+      }
       const pageDocument = editorDocument(textarea, documentLike);
       if (pageDocument?.activeElement === textarea) {
         return {
@@ -423,27 +426,50 @@
       }
       if (!apollo.modifyEntity) return { attempted: false, ok: false, reason: 'Apollo cache unavailable' };
       let result;
-      switch (kind) {
-        case 'plot_component':
-        case 'third_person':
-          result = await hydrateAdventure(options.verified, options.proposal, apollo);
-          break;
-        case 'story_card_update':
-          result = await hydrateCard(options.verified, options.proposal, apollo);
-          break;
-        case 'memory_update':
-        case 'memory_delete':
-          result = await hydrateMemory(options.verified, options.proposal, apollo, kind);
-          break;
-        default:
-          result = { ok: false, reason: `Unsupported verified mutation kind '${kind || 'unknown'}'; hydration was not attempted` };
+      try {
+        switch (kind) {
+          case 'plot_component':
+          case 'third_person':
+            result = await hydrateAdventure(options.verified, options.proposal, apollo);
+            break;
+          case 'story_card_update':
+            result = await hydrateCard(options.verified, options.proposal, apollo);
+            break;
+          case 'memory_update':
+          case 'memory_delete':
+            result = await hydrateMemory(options.verified, options.proposal, apollo, kind);
+            break;
+          default:
+            result = { ok: false, reason: `Unsupported verified mutation kind '${kind || 'unknown'}'; hydration was not attempted` };
+        }
+      } catch (error) {
+        if (kind !== 'plot_component') throw error;
+        result = { ok: false, reason: error?.message || String(error) };
+      }
+
+      if (kind === 'plot_component') {
+        // Some AI Dungeon clients do not normalize Plot Essentials or Author's Note
+        // onto Adventure:<id>. Keep the mounted editor/refetch fallbacks independent
+        // from that optional cache placement so those fields still hydrate immediately.
+        const refetch = await refetchActive(apollo);
+        const editor = await hydratePlotEditor(options.proposal, options.verified, options.signal);
+        if (!result.ok) {
+          const fallbackOk = refetch.ok || editor.ok;
+          return {
+            attempted: true,
+            ok: fallbackOk,
+            cache: { attempted: true, ...result },
+            refetch,
+            editor,
+            reason: fallbackOk
+              ? 'Plot UI synchronized through the active-query/editor fallback; normalized Adventure cache placement was unavailable'
+              : result.reason,
+          };
+        }
+        return { attempted: true, ...result, refetch, editor };
       }
       if (!result.ok) return { attempted: true, ...result };
-      const output = { attempted: true, ...result, refetch: await refetchActive(apollo) };
-      if (kind === 'plot_component') {
-        output.editor = await hydratePlotEditor(options.proposal, options.verified, options.signal);
-      }
-      return output;
+      return { attempted: true, ...result, refetch: await refetchActive(apollo) };
     } catch (error) {
       console.warn('[Navigator] Verified-write Apollo hydration failed:', error);
       return { attempted: true, ok: false, reason: error?.message || String(error) };

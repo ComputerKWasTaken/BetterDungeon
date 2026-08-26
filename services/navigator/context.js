@@ -440,6 +440,7 @@
   function buildDegradedSnapshot({
     maxChars,
     primer,
+    primerCoreChars,
     identity,
     actions,
     capturedAtIso,
@@ -456,7 +457,7 @@
     const cardsEnabled = sectionEnabled(sections, 'cards');
     const floorActions = actions.slice(-BUDGETS.historyFloorActions);
     const floorText = buildRecentActions(floorActions, Number.MAX_SAFE_INTEGER).text;
-    const minimumPrimer = Math.min(BUDGETS.degradedPrimerMinimum, primer.length);
+    const minimumPrimer = Math.min(Math.max(BUDGETS.degradedPrimerMinimum, primerCoreChars || 0), primer.length);
     const marker = CLOSING_MARKER;
     const emptyHistory = buildRecentActions(actions, 0);
     emptyHistory.text = '';
@@ -479,8 +480,8 @@
         : 'Memory Bank: dropped for total budget. Use search_memory_bank and get_memory to retrieve omitted entries.';
       const coverage = [
         plotEnabled
-          ? 'Plot Components: dropped for total budget; no retrieval tool exists for Plot Components.'
-          : 'Plot Components: omitted by user setting; no retrieval tool exists for Plot Components.',
+          ? 'Plot Components: dropped for total budget. Use get_plot_components to retrieve them.'
+          : 'Plot Components: omitted by user setting. Use get_plot_components to retrieve them.',
         historyEnabled
           ? `Recent story actions: ${historyCoverageBase.authoritativeTotal ?? 'unknown'} total; ${historyCoverageBase.available ?? 0} available; ${history.meta.included} included; source ${historySource}; newest-${floorActions.length} floor ${floorStatus}. Use search_story_history and get_story_actions to retrieve omitted history.`
           : 'Recent story actions: omitted by user setting. Use search_story_history and get_story_actions to retrieve entries.',
@@ -513,6 +514,7 @@
         ].join('\n'),
         coverage,
         floorStatus,
+        primerIncludedChars: primerText.length,
       };
     };
     const historyForBudget = budget => {
@@ -530,21 +532,21 @@
     };
 
     const emptyFrame = render('', '', emptyHistory);
-    const identityBudget = Math.max(0, maxChars - emptyFrame.snapshot.length);
+    const identityBudget = Math.min(identity.text.length, Math.max(0, maxChars - emptyFrame.snapshot.length));
     const identityText = truncate(identity.text, identityBudget).text;
     const identityFrame = render('', identityText, emptyHistory);
     let remaining = Math.max(0, maxChars - identityFrame.snapshot.length);
+    let primerBudget = Math.min(minimumPrimer, remaining);
+    const coreFrame = renderWithBudgets(primerBudget, identityBudget, 0);
+    remaining = Math.max(0, maxChars - coreFrame.snapshot.length);
     let historyBudget = Math.min(floorText.length, remaining);
     let history = historyForBudget(historyBudget);
-    let rendered = render('', identityText, history);
+    let rendered = renderWithBudgets(primerBudget, identityBudget, historyBudget);
     if (rendered.snapshot.length > maxChars) {
       historyBudget = Math.max(0, historyBudget - (rendered.snapshot.length - maxChars));
       history = historyForBudget(historyBudget);
-      rendered = render('', identityText, history);
+      rendered = renderWithBudgets(primerBudget, identityBudget, historyBudget);
     }
-    remaining = Math.max(0, maxChars - rendered.snapshot.length);
-    let primerBudget = Math.min(minimumPrimer, remaining);
-    rendered = renderWithBudgets(primerBudget, identityBudget, historyBudget);
     remaining = Math.max(0, maxChars - rendered.snapshot.length);
     primerBudget = Math.min(primer.length, primerBudget + remaining);
     rendered = renderWithBudgets(primerBudget, identityBudget, historyBudget);
@@ -562,7 +564,7 @@
         emptyHistory,
         compactWarning
       );
-      rendered = { ...compact, history: emptyHistory };
+      rendered = { ...compact, history: emptyHistory, primerIncludedChars: compact.primerIncludedChars };
     }
     if (rendered.snapshot.length > maxChars) {
       const minimalWarning = 'Context budget is too small for full framing.';
@@ -580,6 +582,7 @@
         snapshot: minimal,
         coverage: minimalCoverage,
         history: emptyHistory,
+        primerIncludedChars: truncate(primer, primerBudget).text.length,
       };
     }
     return rendered;
@@ -615,7 +618,11 @@
       if (memoryRead.provenance) provenance.memoryBank = memoryRead.provenance;
       const readerCardSource = provenance.storyCards.source || 'unavailable';
       const cardSource = readerCardSource === 'storyCardCache' || readerCardSource === 'ws' ? 'cache' : readerCardSource;
-      const primer = stringValue(window.NavigatorPrimer?.TEXT);
+      const primerCore = stringValue(window.NavigatorPrimer?.CORE || window.NavigatorPrimer?.TEXT);
+      const primerReference = window.NavigatorPrimer?.CORE
+        ? stringValue(window.NavigatorPrimer?.REFERENCE)
+        : '';
+      const primer = [primerCore, primerReference].filter(Boolean).join('\n\n');
       if (!primer) throw new Error('Navigator primer is unavailable.');
 
       const identity = truncate([
@@ -674,6 +681,7 @@
       let coverage = '';
       let snapshot = '';
       let safetyFallback = false;
+      let primerIncludedChars = primer.length;
       let previousSnapshotLength = null;
 
       for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -766,7 +774,7 @@
         const memoryReason = sectionReasons.memory;
         const coverageLines = [
           !plotEnabled
-            ? 'Plot Components: omitted by user setting; no retrieval tool exists for Plot Components.'
+            ? 'Plot Components: omitted by user setting. Use get_plot_components to retrieve them.'
             : finalPlot.meta.available
               ? `Plot Components: ${finalPlot.meta.populated} of 4 populated; source ${provenance.plot.instructions}.${plotReason ? ` Space reduced for ${plotReason}.` : ''}`
               : 'Plot Components: unavailable; the adventure plot could not be read.',
@@ -821,7 +829,7 @@
       if (snapshot.length > maxChars) {
         safetyFallback = true;
         const warning = primer.length > maxChars
-          ? 'The primer exceeds the requested context budget; it was clipped before adventure data could be included.'
+          ? 'The full primer exceeds the requested context budget; its optional reference was clipped before adventure data could be included.'
           : 'The requested context budget cannot fit the fixed snapshot framing and a full data allocation; lower-priority sections were dropped.';
         warnings.push(warning);
 
@@ -829,6 +837,7 @@
           const degraded = buildDegradedSnapshot({
             maxChars,
             primer,
+            primerCoreChars: primerCore.length,
             identity,
             actions,
             capturedAtIso,
@@ -839,6 +848,7 @@
             memoryAvailable: memoryBank !== null,
           });
           snapshot = degraded.snapshot;
+          primerIncludedChars = degraded.primerIncludedChars;
           finalHistory = historyEnabled
             ? degraded.history
             : { text: '', meta: droppedMeta(rawHistory.meta, 0, 'user setting') };
@@ -866,6 +876,7 @@
           const degraded = buildDegradedSnapshot({
             maxChars,
             primer,
+            primerCoreChars: primerCore.length,
             identity,
             actions,
             capturedAtIso,
@@ -876,6 +887,7 @@
             memoryAvailable: memoryBank !== null,
           });
           snapshot = degraded.snapshot;
+          primerIncludedChars = degraded.primerIncludedChars;
           finalHistory = historyEnabled
             ? degraded.history
             : { text: '', meta: droppedMeta(rawHistory.meta, 0, 'user setting') };
@@ -983,7 +995,16 @@
           },
         },
         segments: {
-          primer: { budgetChars: primer.length, sourceChars: primer.length, includedChars: primer.length, truncated: false, version: window.NavigatorPrimer.VERSION },
+          primer: {
+            budgetChars: primer.length,
+            sourceChars: primer.length,
+            includedChars: primerIncludedChars,
+            truncated: primerIncludedChars < primer.length,
+            coreChars: primerCore.length,
+            coreIncluded: primerIncludedChars >= primerCore.length,
+            referenceChars: primerReference.length,
+            version: window.NavigatorPrimer.VERSION,
+          },
           identity: { budgetChars: BUDGETS.identity, sourceChars: identity.sourceChars, includedChars: identity.text.length, truncated: identity.truncated },
           plotComponents: finalPlot.meta,
           recentActions: { ...finalHistory.meta, coverage: finalHistoryCoverage },

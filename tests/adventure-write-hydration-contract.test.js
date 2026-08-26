@@ -569,6 +569,73 @@ async function testPlotEditorSiblingSafety() {
   assert.equal(unavailable.setterCalls, 0);
 }
 
+async function testPlotEditorFallbackWhenCachePlacementIsMissing() {
+  const editors = {
+    instructions: createTextarea('Instructions'),
+    memory: createTextarea('Before'),
+    authorsNote: createTextarea('Before note'),
+    storySummary: createTextarea('Summary'),
+  };
+  installPlotEditorServices(Object.fromEntries(
+    Object.entries(editors).map(([field, entry]) => [field, entry.textarea]),
+  ));
+  const authoritative = {
+    id: '101',
+    shortId: 'hydration',
+    instructions: 'Instructions',
+    memory: 'After',
+    authorsNote: 'Before note',
+    storySummary: 'Summary',
+  };
+  window.BetterDungeonGQL = {
+    async getNavigatorAdventureContext() {
+      return clone(authoritative);
+    },
+  };
+  window.BetterDungeonApolloCache = {
+    async modifyEntity() {
+      return { available: true, data: { changed: false }, error: null };
+    },
+    async refetchActive() {
+      return { available: false, data: null, error: { message: 'No active query exposes these fields' } };
+    },
+  };
+
+  const memory = await window.BetterDungeonAdventureWriteHydration.hydrateVerifiedMutation({
+    kind: 'plot_component',
+    proposal: {
+      shortId: 'hydration',
+      adventureId: 'cache-missing',
+      field: 'memory',
+      before: 'Before',
+      after: 'After',
+    },
+    verified: { id: '101', memory: 'After' },
+  });
+  assert.equal(memory.ok, true);
+  assert.equal(memory.cache.ok, false);
+  assert.equal(memory.refetch.ok, false);
+  assert.equal(memory.editor.ok, true);
+  assert.equal(editors.memory.value, 'After');
+
+  authoritative.authorsNote = 'After note';
+  const authorsNote = await window.BetterDungeonAdventureWriteHydration.hydrateVerifiedMutation({
+    kind: 'plot_component',
+    proposal: {
+      shortId: 'hydration',
+      adventureId: 'cache-missing',
+      field: 'authorsNote',
+      before: 'Before note',
+      after: 'After note',
+    },
+    verified: { id: '101', authorsNote: 'After note' },
+  });
+  assert.equal(authorsNote.ok, true);
+  assert.equal(authorsNote.cache.ok, false);
+  assert.equal(authorsNote.editor.ok, true);
+  assert.equal(editors.authorsNote.value, 'After note');
+}
+
 async function testPlotEditorOutstandingLedger() {
   window.BetterDungeonGQL = {
     async getNavigatorAdventureContext() {
@@ -793,6 +860,7 @@ async function main() {
   await testCardEditAndDeletionDecision();
   await testMemoryHydrationAndRouting();
   await testPlotEditorSiblingSafety();
+  await testPlotEditorFallbackWhenCachePlacementIsMissing();
   await testPlotEditorOutstandingLedger();
   await testPlotEditorHydration();
   console.log('Adventure write hydration contract tests passed');

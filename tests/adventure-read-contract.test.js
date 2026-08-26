@@ -275,12 +275,22 @@ async function testLatestActionRefreshCoordination() {
 
 function testWiringAndMirror() {
   const relative = 'services/adventure-read-service.js';
-  const desktop = path.basename(REPO_ROOT) === 'BetterDungeon'
-    ? path.join(REPO_ROOT, relative)
-    : path.join(REPO_ROOT, '..', 'BetterDungeon', relative);
-  const mobile = path.basename(REPO_ROOT) === 'BetterDungeon'
-    ? path.join(REPO_ROOT, '..', 'BetterDungeon-Mobile', 'app', 'src', 'main', 'assets', 'betterdungeon', relative)
+  const runningMobile = ASSETS !== REPO_ROOT;
+  const firstExisting = candidates => candidates.find(candidate => candidate && fs.existsSync(candidate));
+  const desktop = runningMobile
+    ? firstExisting([
+        process.env.BETTERDUNGEON_DESKTOP_ROOT && path.join(process.env.BETTERDUNGEON_DESKTOP_ROOT, relative),
+        path.resolve(REPO_ROOT, '..', '..', 'Web Dev', 'BetterEcosystem', 'BetterDungeon', relative),
+      ])
     : path.join(REPO_ROOT, relative);
+  const mobile = runningMobile
+    ? path.join(ASSETS, relative)
+    : firstExisting([
+        process.env.BETTERDUNGEON_MOBILE_ROOT && path.join(process.env.BETTERDUNGEON_MOBILE_ROOT, 'app', 'src', 'main', 'assets', 'betterdungeon', relative),
+        path.resolve(REPO_ROOT, '..', '..', '..', 'MobileDev', 'BetterDungeon', 'app', 'src', 'main', 'assets', 'betterdungeon', relative),
+        path.resolve(REPO_ROOT, '..', 'BetterDungeon-Mobile', 'app', 'src', 'main', 'assets', 'betterdungeon', relative),
+      ]);
+  assert.ok(desktop && mobile, 'desktop and Mobile BetterDungeon repositories must be locatable');
   const hash = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
   assert.equal(hash(desktop), hash(mobile), 'desktop and Mobile reader files must match');
   if (ASSETS === REPO_ROOT) {

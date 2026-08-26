@@ -530,7 +530,9 @@ class AIDungeonService {
 
   // Find the Plot Essentials textarea if it exists
   findPlotEssentialsTextarea() {
-    return document.querySelector(AIDungeonService.SEL.PLOT_ESSENTIALS);
+    const byPlaceholder = document.querySelector(AIDungeonService.SEL.PLOT_ESSENTIALS);
+    if (byPlaceholder) return byPlaceholder;
+    return this._findTextareaByComponentHeading('Plot Essentials');
   }
 
   // Check which plot components are currently rendered
