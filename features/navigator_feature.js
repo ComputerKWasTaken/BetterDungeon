@@ -1,6 +1,6 @@
 // BetterDungeon - Navigator Feature
 //
-// Adventure-page copilot shell with a transcript and composer. On desktop the
+// Adventure-page AI agent shell with a transcript and composer. On desktop the
 // existing Navigator surface is mounted into AI Dungeon's Gameplay settings as
 // an injected subtab.
 //

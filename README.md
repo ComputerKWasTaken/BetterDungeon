@@ -19,11 +19,11 @@ Hey everyone, it's computerK here. BetterDungeon is my attempt to turn AI Dungeo
 
 It started as a collection of small quality-of-life features. It has grown into a full ecosystem of tools for input, formatting, scenario building, automation, and script-to-extension communication. Whether you want cleaner formatting, smarter presets, a better way to manage Story Cards, or completely new capabilities inside your scripts, BetterDungeon is built to get out of your way and let you play.
 
-The current release is **BetterDungeon v2.1.0**. Its headline addition is Navigator, a grounded AI agent for understanding and safely maintaining the adventure you are currently playing.
+The current release is **BetterDungeon v2.1.0**. Its headline addition is Navigator, an AI agent designed to help you improve and modify your adventures.
 
 ### What's new in v2.1.0
 
-- **Meet Navigator** — Chat with an AI assistant that understands your Plot Components and recent story, can research your complete Story Card collection, and remembers the conversation across multiple turns.
+- **Meet Navigator** — Work with an AI agent designed to help you improve and modify your adventures. Navigator understands your Plot Components and recent story, can research your complete Story Card collection, and remembers the conversation across multiple turns.
 - **You approve every change** — Navigator can propose useful adventure edits, but never applies them without direct approval. Live conflict checks and server verification keep approved changes safe, while Read-only mode disables proposals entirely.
 - **Coming later: Artisan** — Meet Navigator's future counterpart for helping creators build, organize, and polish AI Dungeon scenarios. Artisan is not part of V2.1.
 - **Simpler AI setup** — Gemini, OpenRouter, and custom HTTPS services share one clear profile system with validation, connection testing, and explicit provider selection.
@@ -73,7 +73,7 @@ Android builds are distributed through the [GitHub Releases](../../releases) pag
 
 ### Build better scenarios
 
-- **Navigator** — Chat with a grounded adventure assistant, research Story Cards, Memory Bank, and story history, choose which context it receives, and approve conflict-checked changes it proposes.
+- **Navigator** — An AI agent designed to help you improve and modify your adventures by researching Story Cards, Memory Bank, and story history and proposing conflict-checked changes for your approval.
 - **Plot Presets** — Save and swap Plot Essentials, AI Instructions, and Author's Notes.
 - **Character Presets** — Save character descriptions and use the Ultrascripts AI module to generate scenario prefill answers.
 - **Story Card Scanner** — Quickly index Story Cards through AI Dungeon's GraphQL systems, including large scenarios.

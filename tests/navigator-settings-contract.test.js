@@ -7,6 +7,15 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..');
 const feature = fs.readFileSync(path.join(ROOT, 'features', 'navigator_feature.js'), 'utf8');
 const styles = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+const popup = fs.readFileSync(path.join(ROOT, 'popup.html'), 'utf8');
+const tutorial = fs.readFileSync(path.join(ROOT, 'services', 'tutorial-service.js'), 'utf8');
+const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
+const navigatorDescription = /an AI agent designed to help you improve and modify your adventures/i;
+
+for (const [name, source] of [['Navigator UI', feature], ['popup', popup], ['tutorial', tutorial], ['README', readme]]) {
+  assert.match(source, navigatorDescription, `${name} must use Navigator's canonical description`);
+}
+assert.doesNotMatch(`${popup}\n${tutorial}`, /adventure-aware AI assistant|Your AI agent for improving/i);
 
 assert.match(
   feature,
