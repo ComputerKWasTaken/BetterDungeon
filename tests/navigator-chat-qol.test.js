@@ -134,6 +134,45 @@ vm.runInThisContext(
   });
   assert.equal(session.getMessageActionState(blocked.id).retryable, false);
 
+  session.tools = {
+    definitions: () => [
+      { name: 'get_plot_components' },
+      { name: 'search_story_cards' },
+      { name: 'get_story_card' },
+      { name: 'search_story_history' },
+      { name: 'get_story_actions' },
+      { name: 'search_memory_bank' },
+      { name: 'get_memory' },
+    ],
+  };
+  session.mutations = { definitions: () => [{ name: 'propose_plot_component_change' }] };
+  session.readOnly = false;
+  session.effectiveSettings.contextSections = ['plot'];
+  const fullPlotSnapshot = {
+    segments: { plotComponents: { truncated: false, sourceChars: 120, includedChars: 120 } },
+  };
+  assert.deepEqual(
+    session.getToolDefinitions(fullPlotSnapshot).map(tool => tool.name),
+    ['propose_plot_component_change']
+  );
+  const truncatedPlotSnapshot = {
+    segments: { plotComponents: { truncated: true, sourceChars: 120, includedChars: 60 } },
+  };
+  assert.deepEqual(
+    session.getToolDefinitions(truncatedPlotSnapshot).map(tool => tool.name),
+    ['get_plot_components', 'propose_plot_component_change']
+  );
+  session.effectiveSettings.contextSections = [];
+  assert.deepEqual(
+    session.getToolDefinitions(truncatedPlotSnapshot).map(tool => tool.name),
+    ['propose_plot_component_change']
+  );
+  const fullPlotGuidance = session.buildToolGuidance([
+    { name: 'search_story_cards' },
+  ]);
+  assert.match(fullPlotGuidance, /Do not call a read tool/);
+  assert.doesNotMatch(fullPlotGuidance, /get_plot_components/);
+
   session.destroy();
   console.log('Navigator chat quality-of-life tests passed');
 })().catch(error => {

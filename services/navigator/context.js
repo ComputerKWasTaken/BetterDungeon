@@ -476,19 +476,19 @@
       const memoryCoverage = !memoryAvailable
         ? 'Memory Bank: unavailable from the current GraphQL fallback reader.'
         : !memoryEnabled
-          ? 'Memory Bank: omitted by user setting. Use search_memory_bank and get_memory to retrieve entries.'
+          ? 'Memory Bank: omitted by user setting.'
         : 'Memory Bank: dropped for total budget. Use search_memory_bank and get_memory to retrieve omitted entries.';
       const coverage = [
         plotEnabled
           ? 'Plot Components: dropped for total budget. Use get_plot_components to retrieve them.'
-          : 'Plot Components: omitted by user setting. Use get_plot_components to retrieve them.',
+          : 'Plot Components: omitted by user setting.',
         historyEnabled
           ? `Recent story actions: ${historyCoverageBase.authoritativeTotal ?? 'unknown'} total; ${historyCoverageBase.available ?? 0} available; ${history.meta.included} included; source ${historySource}; newest-${floorActions.length} floor ${floorStatus}. Use search_story_history and get_story_actions to retrieve omitted history.`
-          : 'Recent story actions: omitted by user setting. Use search_story_history and get_story_actions to retrieve entries.',
+          : 'Recent story actions: omitted by user setting.',
         memoryCoverage,
         cardsEnabled
           ? 'Story Card directory: dropped for total budget. Use search_story_cards to retrieve omitted cards.'
-          : 'Story Card directory: omitted by user setting. Use search_story_cards to retrieve cards.',
+          : 'Story Card directory: omitted by user setting.',
         `Snapshot warnings: ${snapshotWarning}`,
       ].join('\n');
       const snapshotSections = [
@@ -774,12 +774,12 @@
         const memoryReason = sectionReasons.memory;
         const coverageLines = [
           !plotEnabled
-            ? 'Plot Components: omitted by user setting. Use get_plot_components to retrieve them.'
+            ? 'Plot Components: omitted by user setting.'
             : finalPlot.meta.available
               ? `Plot Components: ${finalPlot.meta.populated} of 4 populated; source ${provenance.plot.instructions}.${plotReason ? ` Space reduced for ${plotReason}.` : ''}`
               : 'Plot Components: unavailable; the adventure plot could not be read.',
           !historyEnabled
-            ? 'Recent story actions: omitted by user setting. Use search_story_history and get_story_actions to retrieve entries.'
+            ? 'Recent story actions: omitted by user setting.'
             : `Recent story actions: authoritative total ${historyCoverage.authoritativeTotal ?? 'unknown'}; ${historyAvailable} available; ${historyIncluded} included; source ${provenance.actions.source}.${historyReason ? ` Space reduced for ${historyReason}.` : ''}${historyIncluded < historyAvailable ? ' Use search_story_history and get_story_actions to retrieve omitted history.' : ''}`,
           historyEnabled && (adventureSnapshot.historyIncomplete
             ? 'History is incomplete because Apollo history was unavailable; Navigator is NOT seeing the whole story.'
@@ -789,10 +789,10 @@
           memoryBank === null
             ? 'Memory Bank and summary lag: unavailable from the GraphQL fallback reader.'
             : !memoryEnabled
-              ? 'Memory Bank: omitted by user setting; use search_memory_bank and get_memory to retrieve entries.'
+              ? 'Memory Bank: omitted by user setting.'
               : `Memory Bank: ${finalMemory.meta.included} memories, ${finalMemory.meta.includedChars} characters; returned ${finalMemory.meta.included} of ${finalMemory.meta.total} entries${memoryReason ? `; reduced for ${memoryReason}` : ''}. summary lag latest=${summaryLag.latestActionId || 'unknown'}, lastSummarized=${summaryLag.lastSummarizedActionId || 'unknown'}, lastMemory=${summaryLag.lastMemoryActionId || 'unknown'}.${finalMemory.meta.included < finalMemory.meta.total ? ' Use search_memory_bank and get_memory to retrieve omitted entries.' : ''}`,
           !cardsEnabled
-            ? 'Story Card directory: omitted by user setting; use search_story_cards to retrieve cards.'
+            ? 'Story Card directory: omitted by user setting.'
             : `Story Card directory: ${cardCoverage.included} of ${adventureSnapshot.coverage?.storyCards?.authoritativeTotal ?? cards.length} included from ${finalCards.meta.source}; ${cardCoverage.omitted} omitted${cardReason ? ` for ${cardReason}` : ''}.${cardCoverage.omitted ? ' Use search_story_cards to retrieve omitted cards.' : ''}`,
           warnings.length ? `Snapshot warnings: ${warnings.join(' ')}` : 'Snapshot warnings: none.',
         ].filter(Boolean);
