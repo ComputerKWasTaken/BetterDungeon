@@ -2,8 +2,7 @@
 //
 // Adventure-page copilot shell with a transcript and composer. On desktop the
 // existing Navigator surface is mounted into AI Dungeon's Gameplay settings as
-// an injected subtab. Mobile retains the floating launcher and overlay drawer
-// until the native mobile settings integration is implemented separately.
+// an injected subtab.
 //
 // NavigatorSession owns live streaming chat, adventure context, and confirmed
 // mutation proposals assembled from Plot Components, Story Cards, and actions.
@@ -11,24 +10,15 @@
 class NavigatorFeature {
   static id = 'navigator';
 
-  static MIN_DRAWER_WIDTH = 340;
-  static MAX_DRAWER_WIDTH = 560;
-  static SHEET_BREAKPOINT = 900;
-  static WIDTH_STORAGE_KEY = 'betterDungeon_navigator_width';
-  static POSITION_STORAGE_KEY = 'betterDungeon_navigator_position';
-  static LAUNCHER_MARGIN = 12;
   static GAMEPLAY_SETTINGS_SURFACE_ID = 'keyboard-field-reveal-scroll-surface-settings-gameplay';
 
   constructor() {
     this.enabled = true;
     this.debug = false;
-    this.useSettingsPanel = this.shouldUseSettingsPanel();
-
     this.currentAdventureId = null;
     this.session = null;
     this.unsubscribe = null;
 
-    this.launcher = null;
     this.drawer = null;
     this.transcriptEl = null;
     this.inputEl = null;
@@ -50,12 +40,14 @@ class NavigatorFeature {
     this.settingsInactiveThemeClass = '';
     this.settingsTabActive = false;
     this.boundSettingsTablistClick = null;
+    this.boundSettingsTablistScroll = null;
+    this.settingsTabsOverflowHost = null;
+    this.settingsTabsLeftButton = null;
+    this.settingsTabsRightButton = null;
     this.inspectionRound = 0;
     this.messageNodes = new Map();
 
     this.isOpen = false;
-    this.drawerWidth = 420;
-    this.launcherPosition = null;
     this.autoScroll = true;
 
     this.boundUrlChange = null;
@@ -66,35 +58,10 @@ class NavigatorFeature {
     this.originalPushState = null;
     this.originalReplaceState = null;
 
-    this.dragState = null;
-    this.boundDragMove = null;
-    this.boundDragEnd = null;
-    this.launcherDragState = null;
-    this.suppressLauncherClick = false;
   }
 
   log(message, ...args) {
     if (this.debug) console.log(message, ...args);
-  }
-
-  shouldUseSettingsPanel() {
-    if (typeof navigator === 'undefined') return true;
-    if (typeof navigator.userAgentData?.mobile === 'boolean') {
-      return navigator.userAgentData.mobile !== true;
-    }
-
-    const userAgent = String(navigator.userAgent || '');
-    const mobileUserAgent = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
-    const iPadDesktopMode = /Macintosh/i.test(userAgent) && Number(navigator.maxTouchPoints) > 1;
-    return !(mobileUserAgent || iPadDesktopMode);
-  }
-
-  isExtensionContextValid() {
-    try {
-      return !!chrome.runtime?.id;
-    } catch {
-      return false;
-    }
   }
 
   isOwnNode(node) {
@@ -103,9 +70,10 @@ class NavigatorFeature {
     if (!element) return false;
     return !!(
       this.drawer?.contains(element) ||
-      this.launcher?.contains(element) ||
       this.settingsTabWrapper?.contains(element) ||
-      this.settingsContentPanel?.contains(element)
+      this.settingsContentPanel?.contains(element) ||
+      this.settingsTabsLeftButton?.contains(element) ||
+      this.settingsTabsRightButton?.contains(element)
     );
   }
 
@@ -113,7 +81,6 @@ class NavigatorFeature {
 
   async init() {
     console.log('[Navigator] Initializing Navigator feature...');
-    if (!this.useSettingsPanel) await this.loadWidth();
     this.detectCurrentAdventure();
     this.startAdventureChangeDetection();
     console.log('[Navigator] Initialization complete');
@@ -122,8 +89,6 @@ class NavigatorFeature {
   destroy() {
     console.log('[Navigator] Destroying Navigator feature...');
     this.stopAdventureChangeDetection();
-    this.endDrag();
-    this.endLauncherDrag();
     this.teardownSession();
     this.removeUI();
     console.log('[Navigator] Cleanup complete');
@@ -197,8 +162,8 @@ class NavigatorFeature {
 
     this.boundResize = () => {
       this.applyLayout();
-      this.applyLauncherPosition();
-      if (this.useSettingsPanel) this.syncSettingsIntegration();
+      this.syncSettingsIntegration();
+      this.updateSettingsTabOverflow();
     };
     window.addEventListener('resize', this.boundResize);
 
@@ -306,94 +271,20 @@ class NavigatorFeature {
     this.updateComposerState();
   }
 
-  // ==================== WIDTH ====================
-
-  async loadWidth() {
-    if (!this.isExtensionContextValid()) return;
-    const stored = await new Promise((resolve) => {
-      try {
-        chrome.storage.local.get([
-          NavigatorFeature.WIDTH_STORAGE_KEY,
-          NavigatorFeature.POSITION_STORAGE_KEY
-        ], result => resolve(result || {}));
-      } catch {
-        resolve({});
-      }
-    });
-    if (Number.isFinite(stored[NavigatorFeature.WIDTH_STORAGE_KEY])) {
-      this.drawerWidth = this.clampWidth(stored[NavigatorFeature.WIDTH_STORAGE_KEY]);
-    }
-    const position = stored[NavigatorFeature.POSITION_STORAGE_KEY];
-    if (Number.isFinite(position?.x) && Number.isFinite(position?.y)) {
-      this.launcherPosition = { x: position.x, y: position.y };
-    }
-  }
-
-  saveWidth() {
-    if (!this.isExtensionContextValid()) return;
-    try {
-      chrome.storage.local.set({ [NavigatorFeature.WIDTH_STORAGE_KEY]: this.drawerWidth });
-    } catch {
-      /* noop */
-    }
-  }
-
-  saveLauncherPosition() {
-    if (!this.isExtensionContextValid() || !this.launcherPosition) return;
-    try {
-      chrome.storage.local.set({
-        [NavigatorFeature.POSITION_STORAGE_KEY]: this.launcherPosition
-      });
-    } catch {
-      /* noop */
-    }
-  }
-
-  clampWidth(width) {
-    return Math.max(
-      NavigatorFeature.MIN_DRAWER_WIDTH,
-      Math.min(NavigatorFeature.MAX_DRAWER_WIDTH, Math.round(width))
-    );
-  }
-
-  // A drawer is only worth showing when it can sit beside the story instead of
-  // on top of it. Otherwise Navigator becomes a full-screen sheet.
-  shouldUseSheet() {
-    if (window.innerWidth < NavigatorFeature.SHEET_BREAKPOINT) return true;
-
-    const gameplay = document.getElementById('gameplay-output');
-    if (!gameplay) return false;
-
-    const rect = gameplay.getBoundingClientRect();
-    const availableRight = window.innerWidth - rect.right;
-    return !isFinite(availableRight) || availableRight < NavigatorFeature.MIN_DRAWER_WIDTH;
-  }
-
   applyLayout() {
     if (!this.drawer) return;
-    if (this.useSettingsPanel && this.drawer.classList.contains('bd-navigator-embedded')) {
-      this.drawer.classList.remove('bd-navigator-sheet');
-      this.drawer.style.width = '';
-      this.updateEmbeddedHeight();
-      return;
-    }
-    const sheet = this.shouldUseSheet();
-    this.drawer.classList.toggle('bd-navigator-sheet', sheet);
-    this.drawer.style.width = sheet ? '' : `${this.drawerWidth}px`;
+    if (this.drawer.classList.contains('bd-navigator-embedded')) this.updateEmbeddedHeight();
   }
 
   // ==================== UI ====================
 
   createUI() {
-    if (!this.useSettingsPanel && !this.launcher) this.createLauncher();
     if (!this.drawer) this.createDrawer();
-    if (this.useSettingsPanel) this.syncSettingsIntegration();
+    this.syncSettingsIntegration();
   }
 
   removeUI() {
     this.resetSettingsIntegration({ preserveActive: false });
-    this.launcher?.remove();
-    this.launcher = null;
     this.drawer?.remove();
     this.drawer = null;
     this.transcriptEl = null;
@@ -489,6 +380,80 @@ class NavigatorFeature {
     if (state.wrapper?.isConnected) state.wrapper.className = state.wrapperClass;
   }
 
+  createSettingsTabOverflowControls(tablist) {
+    const directParent = tablist?.parentElement;
+    const host = directParent?.classList?.contains('_dsp_contents')
+      ? directParent.parentElement
+      : directParent;
+    if (!host) return;
+
+    host.classList.add('bd-navigator-settings-tabs-host');
+    const createControl = (direction) => {
+      const control = document.createElement('div');
+      control.className = `css-g5y9jx r-633pao bd-navigator-settings-tabs-arrow bd-navigator-settings-tabs-arrow-${direction}`;
+      control.innerHTML = `
+        <div class="css-g5y9jx r-633pao bd-navigator-settings-tabs-arrow-align">
+          <span class="t_sub_theme t_core9 is_Theme" style="color: var(--color); display: contents;">
+            <div role="button" aria-label="scroll ${direction}" tabindex="0" class="is_Button is_View _bg-0hover-backgroundH3423444 _btc-0hover-borderColor69916956 _brc-0hover-borderColor69916956 _bbc-0hover-borderColor69916956 _blc-0hover-borderColor69916956 _bxsh-0hover-0px0px0pxva926910726 _bg-0active-backgroundP3496915 _btc-0active-borderColor77378595 _brc-0active-borderColor77378595 _bbc-0active-borderColor77378595 _blc-0active-borderColor77378595 _bxsh-0active-0px0px0pxva695599917 _bg-0focus-backgroundF3405682 _btc-0focus-borderColor68052152 _brc-0focus-borderColor68052152 _bbc-0focus-borderColor68052152 _blc-0focus-borderColor68052152 _bxsh-0focus-0px0px0pxva984719650 _cur-pointer _ussel-none _ox-hidden _oy-hidden _pos-relative _jc-center _ai-center _h-t-size-5 _btlr-t-radius-10 _btrr-t-radius-10 _bbrr-t-radius-10 _bblr-t-radius-10 _pr-t-space-0 _pl-t-space-0 _fd-row _bg-background _btc-borderColor _brc-borderColor _bbc-borderColor _blc-borderColor _btw-1px _brw-1px _bbw-1px _blw-1px _gap-t-space-1 _outlineColor-coreA0 _pe-auto _pt-t-space-0 _pb-t-space-0 _w-t-size-4--5 _mah-t-size-4--5 _maw-t-size-5 _bbs-solid _bts-solid _bls-solid _brs-solid _bxsh-0px0px0pxva26674076 bd-navigator-settings-tabs-native-button" style="box-shadow: rgb(0, 0, 0) 0 0 32px;">
+              <div class="is_View _pos-relative _fd-column _t-2--6537 _l-0px _ai-center _jc-center">
+                <span aria-hidden="true" class="is_Text font_icons _col-color _ff-f-family _lh-f-lineHeigh112920 _ls-f-letterSpa1360334204 _mt-0px _mb-0px _fow-500 _ws-break-space115 _pe-none _mr-0px _ml-0px _pt-t-space-0--53 _pb-t-space-0--53 _fos-f-size-1 _zi-1" style="pointer-events: none;">w_arrow_${direction}</span>
+              </div>
+            </div>
+          </span>
+        </div>
+      `;
+      const button = control.querySelector('[role="button"]');
+      const scroll = () => {
+        const distance = Math.max(120, Math.floor(tablist.clientWidth * 0.65));
+        tablist.scrollBy({ left: direction === 'right' ? distance : -distance, behavior: 'smooth' });
+      };
+      button.addEventListener('click', scroll);
+      button.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        scroll();
+      });
+      host.appendChild(control);
+      return control;
+    };
+
+    this.settingsTabsOverflowHost = host;
+    this.settingsTabsLeftButton = createControl('left');
+    this.settingsTabsRightButton = createControl('right');
+    this.boundSettingsTablistScroll = () => this.updateSettingsTabOverflow();
+    tablist.addEventListener('scroll', this.boundSettingsTablistScroll, { passive: true });
+    const schedule = window.requestAnimationFrame || (callback => window.setTimeout(callback, 0));
+    schedule(() => this.updateSettingsTabOverflow());
+  }
+
+  updateSettingsTabOverflow() {
+    const tablist = this.settingsTablist;
+    if (!tablist || !this.settingsTabsLeftButton || !this.settingsTabsRightButton) return;
+    const maxScroll = Math.max(0, tablist.scrollWidth - tablist.clientWidth);
+    const overflowing = maxScroll > 2;
+    const atStart = tablist.scrollLeft <= 2;
+    const atEnd = tablist.scrollLeft >= maxScroll - 2;
+    this.settingsTabsOverflowHost?.classList.toggle('bd-navigator-settings-tabs-overflowing', overflowing);
+    this.settingsTabsLeftButton.hidden = !overflowing || atStart;
+    this.settingsTabsRightButton.hidden = !overflowing || atEnd;
+  }
+
+  removeSettingsTabOverflowControls() {
+    if (this.settingsTablist && this.boundSettingsTablistScroll) {
+      this.settingsTablist.removeEventListener('scroll', this.boundSettingsTablistScroll);
+    }
+    this.settingsTabsLeftButton?.remove();
+    this.settingsTabsRightButton?.remove();
+    this.settingsTabsOverflowHost?.classList.remove(
+      'bd-navigator-settings-tabs-host',
+      'bd-navigator-settings-tabs-overflowing'
+    );
+    this.boundSettingsTablistScroll = null;
+    this.settingsTabsOverflowHost = null;
+    this.settingsTabsLeftButton = null;
+    this.settingsTabsRightButton = null;
+  }
+
   getNativeSettingsContentNodes() {
     if (!this.settingsContentParent || !this.settingsNavigationRoot) return [];
     return [...this.settingsContentParent.children].filter(node => (
@@ -505,7 +470,7 @@ class NavigatorFeature {
   parkNavigatorDrawer() {
     if (!this.drawer) return;
     this.drawer.hidden = true;
-    this.drawer.classList.remove('bd-navigator-embedded', 'bd-navigator-sheet');
+    this.drawer.classList.remove('bd-navigator-embedded');
     this.drawer.style.width = '';
     this.drawer.style.height = '';
     if (document.body && this.drawer.parentElement !== document.body) {
@@ -523,6 +488,7 @@ class NavigatorFeature {
     if (this.settingsTablist && this.boundSettingsTablistClick) {
       this.settingsTablist.removeEventListener('click', this.boundSettingsTablistClick, true);
     }
+    this.removeSettingsTabOverflowControls();
     this.settingsTabWrapper?.remove();
     this.settingsContentPanel?.remove();
 
@@ -618,6 +584,7 @@ class NavigatorFeature {
     this.settingsContentParent = contentParent;
     if (!this.createSettingsTab(tablist, modelsTab)) return false;
     this.createSettingsContentPanel(contentParent, navigationRoot);
+    this.createSettingsTabOverflowControls(tablist);
 
     this.boundSettingsTablistClick = event => {
       const clickedTab = event.target?.closest?.('[role="tab"]');
@@ -629,7 +596,7 @@ class NavigatorFeature {
   }
 
   syncSettingsIntegration() {
-    if (!this.useSettingsPanel || !this.drawer) return false;
+    if (!this.drawer) return false;
     const surface = this.getGameplaySettingsSurface();
     const tablist = this.getSectionTablist(surface);
 
@@ -643,7 +610,9 @@ class NavigatorFeature {
     const integrationMissing = (
       this.settingsTablist !== tablist ||
       !this.settingsTabWrapper?.isConnected ||
-      !this.settingsContentPanel?.isConnected
+      !this.settingsContentPanel?.isConnected ||
+      !this.settingsTabsLeftButton?.isConnected ||
+      !this.settingsTabsRightButton?.isConnected
     );
     if (integrationMissing) {
       const preserveActive = this.settingsTabActive;
@@ -658,6 +627,7 @@ class NavigatorFeature {
       this.settingsContentPanel.hidden = true;
       this.drawer.hidden = true;
     }
+    this.updateSettingsTabOverflow();
     return true;
   }
 
@@ -675,7 +645,6 @@ class NavigatorFeature {
       this.settingsContentPanel.appendChild(this.drawer);
     }
     this.drawer.classList.add('bd-navigator-embedded');
-    this.drawer.classList.remove('bd-navigator-sheet');
     this.drawer.hidden = false;
     this.applyLayout();
     this.scrollToBottom(true);
@@ -713,42 +682,12 @@ class NavigatorFeature {
     if (this.drawer) this.drawer.hidden = true;
   }
 
-  createLauncher() {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'bd-navigator-launcher';
-    button.setAttribute('aria-label', 'Open Navigator');
-    button.title = 'Navigator - drag to reposition';
-    button.innerHTML = '<span class="icon-compass" aria-hidden="true"></span>';
-    button.addEventListener('click', () => {
-      if (this.suppressLauncherClick) {
-        this.suppressLauncherClick = false;
-        return;
-      }
-      this.toggleDrawer();
-    });
-    button.addEventListener('pointerdown', event => this.beginLauncherDrag(event));
-    button.addEventListener('pointermove', event => this.onLauncherDrag(event));
-    button.addEventListener('pointerup', event => this.endLauncherDrag(event));
-    button.addEventListener('pointercancel', event => this.endLauncherDrag(event));
-
-    document.body.appendChild(button);
-    this.launcher = button;
-    this.applyLauncherPosition();
-  }
-
   createDrawer() {
     const drawer = document.createElement('aside');
     drawer.className = 'bd-navigator-drawer';
     drawer.setAttribute('role', 'complementary');
     drawer.setAttribute('aria-label', 'Navigator');
     drawer.hidden = true;
-
-    const resize = document.createElement('div');
-    resize.className = 'bd-navigator-resize';
-    resize.setAttribute('role', 'separator');
-    resize.setAttribute('aria-label', 'Resize Navigator');
-    resize.addEventListener('mousedown', event => this.beginDrag(event));
 
     const header = document.createElement('header');
     header.className = 'bd-navigator-header';
@@ -768,11 +707,6 @@ class NavigatorFeature {
         <button type="button" class="bd-navigator-icon-btn bd-navigator-clear" aria-label="Clear conversation" title="Clear conversation">
           <span class="icon-eraser" aria-hidden="true"></span>
         </button>
-        ${this.useSettingsPanel ? '' : `
-          <button type="button" class="bd-navigator-icon-btn bd-navigator-close" aria-label="Close Navigator" title="Close Navigator">
-            <span class="icon-x" aria-hidden="true"></span>
-          </button>
-        `}
       </div>
     `;
     const settings = document.createElement('section');
@@ -841,7 +775,7 @@ class NavigatorFeature {
       </div>
     `;
 
-    drawer.append(resize, header, settings, inspection, transcript, composer);
+    drawer.append(header, settings, inspection, transcript, composer);
     document.body.appendChild(drawer);
 
     this.drawer = drawer;
@@ -862,7 +796,6 @@ class NavigatorFeature {
       settingsToggle.setAttribute('aria-expanded', String(!settings.hidden));
     };
 
-    header.querySelector('.bd-navigator-close')?.addEventListener('click', () => this.closeDrawer());
     inspectionToggle.addEventListener('click', () => {
       inspection.hidden = !inspection.hidden;
       settings.hidden = true;
@@ -1019,33 +952,10 @@ class NavigatorFeature {
 
   // ==================== OPEN / CLOSE ====================
 
-  toggleDrawer() {
-    if (this.isOpen) this.closeDrawer();
-    else this.openDrawer();
-  }
-
-  openDrawer() {
-    if (!this.drawer) return;
-    if (this.useSettingsPanel) return;
-    this.isOpen = true;
-    this.drawer.hidden = false;
-    this.launcher?.classList.add('bd-navigator-launcher-active');
-    this.applyLayout();
-    this.scrollToBottom(true);
-    this.inputEl?.focus();
-  }
-
   closeDrawer() {
     if (!this.drawer) return;
-    if (this.useSettingsPanel) {
-      this.deactivateSettingsNavigator({ abort: true });
-      document.querySelector('[aria-label="Close settings"]')?.click();
-      return;
-    }
-    if (this.session?.isChatBusy) this.session.abort();
-    this.isOpen = false;
-    this.drawer.hidden = true;
-    this.launcher?.classList.remove('bd-navigator-launcher-active');
+    this.deactivateSettingsNavigator({ abort: true });
+    document.querySelector('[aria-label="Close settings"]')?.click();
   }
 
   handleGlobalKeydown(event) {
@@ -1053,100 +963,6 @@ class NavigatorFeature {
       event.preventDefault();
       this.closeDrawer();
     }
-  }
-
-  // ==================== RESIZE ====================
-
-  applyLauncherPosition() {
-    if (!this.launcher || !this.launcherPosition) return;
-    const rect = this.launcher.getBoundingClientRect();
-    const margin = NavigatorFeature.LAUNCHER_MARGIN;
-    const maxX = Math.max(margin, window.innerWidth - rect.width - margin);
-    const maxY = Math.max(margin, window.innerHeight - rect.height - margin);
-    this.launcherPosition = {
-      x: Math.max(margin, Math.min(maxX, this.launcherPosition.x)),
-      y: Math.max(margin, Math.min(maxY, this.launcherPosition.y))
-    };
-    this.launcher.style.left = `${this.launcherPosition.x}px`;
-    this.launcher.style.top = `${this.launcherPosition.y}px`;
-    this.launcher.style.right = 'auto';
-    this.launcher.style.bottom = 'auto';
-  }
-
-  beginLauncherDrag(event) {
-    if (event.button !== 0 || !this.launcher) return;
-    const rect = this.launcher.getBoundingClientRect();
-    this.launcherDragState = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      originX: rect.left,
-      originY: rect.top,
-      moved: false
-    };
-    this.launcher.classList.add('bd-navigator-launcher-dragging');
-    this.launcher.setPointerCapture?.(event.pointerId);
-  }
-
-  onLauncherDrag(event) {
-    const state = this.launcherDragState;
-    if (!state || state.pointerId !== event.pointerId) return;
-    const deltaX = event.clientX - state.startX;
-    const deltaY = event.clientY - state.startY;
-    if (!state.moved && Math.hypot(deltaX, deltaY) < 4) return;
-    state.moved = true;
-    event.preventDefault();
-    this.launcherPosition = { x: state.originX + deltaX, y: state.originY + deltaY };
-    this.applyLauncherPosition();
-  }
-
-  endLauncherDrag(event) {
-    const state = this.launcherDragState;
-    if (!state || (event && state.pointerId !== event.pointerId)) return;
-    this.launcherDragState = null;
-    this.launcher?.classList.remove('bd-navigator-launcher-dragging');
-    if (event && this.launcher?.hasPointerCapture?.(event.pointerId)) {
-      this.launcher.releasePointerCapture(event.pointerId);
-    }
-    if (state.moved) {
-      this.suppressLauncherClick = true;
-      this.saveLauncherPosition();
-      setTimeout(() => {
-        this.suppressLauncherClick = false;
-      }, 0);
-    }
-  }
-
-  beginDrag(event) {
-    if (this.drawer?.classList.contains('bd-navigator-sheet')) return;
-    event.preventDefault();
-
-    this.dragState = { startX: event.clientX, startWidth: this.drawerWidth };
-    this.boundDragMove = moveEvent => this.onDrag(moveEvent);
-    this.boundDragEnd = () => this.endDrag();
-
-    document.addEventListener('mousemove', this.boundDragMove);
-    document.addEventListener('mouseup', this.boundDragEnd);
-    document.body.classList.add('bd-navigator-resizing');
-  }
-
-  onDrag(event) {
-    if (!this.dragState) return;
-    // The drawer is pinned right, so dragging left widens it.
-    const delta = this.dragState.startX - event.clientX;
-    this.drawerWidth = this.clampWidth(this.dragState.startWidth + delta);
-    this.applyLayout();
-  }
-
-  endDrag() {
-    if (!this.dragState) return;
-    this.dragState = null;
-    if (this.boundDragMove) document.removeEventListener('mousemove', this.boundDragMove);
-    if (this.boundDragEnd) document.removeEventListener('mouseup', this.boundDragEnd);
-    this.boundDragMove = null;
-    this.boundDragEnd = null;
-    document.body.classList.remove('bd-navigator-resizing');
-    this.saveWidth();
   }
 
   // ==================== COMPOSER ====================

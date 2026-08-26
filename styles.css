@@ -3206,9 +3206,7 @@ html.bd-story-card-dock-active > body {
 /* ================================================================
    NAVIGATOR
    ================================================================
-   Adventure-page copilot. Desktop mounts the existing surface inside an
-   injected Gameplay settings subtab. Mobile retains the floating launcher
-   and overlay/sheet presentation for now.
+   Adventure-page copilot mounted inside an injected Gameplay settings subtab.
    ================================================================ */
 
 .bd-navigator-settings-native-hidden {
@@ -3241,85 +3239,87 @@ html.bd-story-card-dock-active > body {
   pointer-events: none;
 }
 
+.bd-navigator-settings-tabs-host {
+  position: relative;
+}
+
+.bd-navigator-settings-tabs-arrow {
+  position: absolute;
+  top: -2px;
+  z-index: 999;
+  width: 60px;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+.bd-navigator-settings-tabs-arrow-left {
+  left: -22px;
+}
+
+.bd-navigator-settings-tabs-arrow-right {
+  right: -22px;
+}
+
+.bd-navigator-settings-tabs-arrow[hidden] {
+  display: none;
+}
+
+.bd-navigator-settings-tabs-host:hover .bd-navigator-settings-tabs-arrow,
+.bd-navigator-settings-tabs-host:focus-within .bd-navigator-settings-tabs-arrow {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bd-navigator-settings-tabs-arrow {
+    transition: none;
+  }
+}
+
+.bd-navigator-settings-tabs-arrow-align {
+  height: 100%;
+  opacity: 1;
+}
+
+.bd-navigator-settings-tabs-arrow-left .bd-navigator-settings-tabs-arrow-align {
+  align-items: flex-start;
+  padding-left: 20px;
+}
+
+.bd-navigator-settings-tabs-arrow-right .bd-navigator-settings-tabs-arrow-align {
+  align-items: flex-end;
+  padding-right: 20px;
+}
+
+.bd-navigator-settings-tabs-native-button {
+  box-sizing: border-box;
+  flex: 0 0 36px;
+  width: 36px;
+  min-width: 36px;
+  max-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+  border-radius: 50%;
+}
+
 #keyboard-field-reveal-scroll-surface-settings-gameplay.bd-navigator-settings-active {
   overflow-y: hidden !important;
   overscroll-behavior-y: none;
 }
 
-.bd-navigator-launcher {
-  position: fixed;
-  right: var(--bd-space-4);
-  bottom: 30%;
-  z-index: var(--bd-z-modal);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 42px;
-  height: 42px;
-  padding: 0;
-  border: 1px solid var(--bd-border-accent);
-  border-radius: var(--bd-radius-full);
-  background: var(--bd-bg-elevated);
-  color: var(--bd-accent-primary);
-  font-size: var(--bd-font-size-xl);
-  cursor: pointer;
-  touch-action: none;
-  user-select: none;
-  box-shadow: var(--bd-shadow-lg);
-  transition: transform var(--bd-transition-fast),
-              background var(--bd-transition-fast),
-              box-shadow var(--bd-transition-fast);
-}
-
-.bd-navigator-launcher:hover:not(.bd-navigator-launcher-dragging) {
-  transform: translateY(-1px);
-  background: var(--bd-bg-active);
-  box-shadow: var(--bd-shadow-xl), var(--bd-shadow-glow);
-}
-
-.bd-navigator-launcher:focus-visible {
-  outline: none;
-  box-shadow: var(--bd-input-focus-ring);
-}
-
-.bd-navigator-launcher-active {
-  background: var(--bd-accent-muted);
-  border-color: var(--bd-accent-primary);
-}
-
-.bd-navigator-launcher:active {
-  cursor: grabbing;
-}
-
-.bd-navigator-launcher-dragging {
-  cursor: grabbing;
-  transform: none;
-}
-
 .bd-navigator-drawer {
-  position: fixed;
-  top: 0;
-  right: 0;
-  z-index: var(--bd-z-modal);
   display: flex;
   flex-direction: column;
-  width: 420px;
-  height: 100vh;
-  border-left: 1px solid var(--bd-border-default);
-  background: var(--bd-bg-secondary);
   color: var(--bd-text-primary);
   font-family: var(--bd-font-family-primary);
   font-size: var(--bd-font-size-md);
-  box-shadow: var(--bd-shadow-2xl);
 }
 
 .bd-navigator-drawer[hidden] {
   display: none;
-}
-
-.bd-navigator-sheet {
-  width: 100vw;
-  border-left: none;
 }
 
 .bd-navigator-drawer.bd-navigator-embedded {
@@ -3335,10 +3335,6 @@ html.bd-story-card-dock-active > body {
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-}
-
-.bd-navigator-drawer.bd-navigator-embedded .bd-navigator-resize {
-  display: none;
 }
 
 .bd-navigator-drawer.bd-navigator-embedded .bd-navigator-header {
@@ -3457,11 +3453,6 @@ html.bd-story-card-dock-active > body {
   padding: var(--bd-space-3) 0;
 }
 
-.bd-navigator-drawer.bd-navigator-embedded.bd-navigator-secondary-open .bd-navigator-empty-icon,
-.bd-navigator-drawer.bd-navigator-embedded.bd-navigator-secondary-open .bd-navigator-empty-text {
-  display: none;
-}
-
 .bd-navigator-drawer.bd-navigator-embedded.bd-navigator-secondary-open .bd-navigator-quick-actions {
   margin-top: 0;
 }
@@ -3488,7 +3479,7 @@ html.bd-story-card-dock-active > body {
 }
 
 .bd-navigator-drawer.bd-navigator-embedded .bd-navigator-composer {
-  padding: 12px 0 0;
+  padding: 6px 0 10px;
   background: transparent;
 }
 
@@ -3498,29 +3489,6 @@ html.bd-story-card-dock-active > body {
   padding-bottom: 12px;
   border-color: transparent;
   background: var(--bd-tag-bg);
-}
-
-.bd-navigator-resize {
-  position: absolute;
-  top: 0;
-  left: -3px;
-  width: 6px;
-  height: 100%;
-  cursor: col-resize;
-  background: transparent;
-}
-
-.bd-navigator-resize:hover {
-  background: var(--bd-accent-muted);
-}
-
-.bd-navigator-sheet .bd-navigator-resize {
-  display: none;
-}
-
-body.bd-navigator-resizing {
-  cursor: col-resize;
-  user-select: none;
 }
 
 .bd-navigator-header {
@@ -4430,7 +4398,6 @@ body.bd-navigator-resizing {
 @media (prefers-reduced-motion: reduce) {
   .bd-navigator-thinking-dots i,
   .bd-navigator-tool-pulse { animation: none; opacity: 0.6; }
-  .bd-navigator-launcher { transition: none; }
 }
 
 .bd-navigator-error {
