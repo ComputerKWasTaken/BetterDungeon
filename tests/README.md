@@ -15,6 +15,7 @@ write paths Navigator relies on. Run an individual suite with:
 - **`ai-compatible-contract.test.js`** - Compatible AI profile and capability behavior, text and JSON requests, Gemini reasoning and rate-limit handling, streaming, cancellation, timeouts, errors, and opaque thought-signature replay across tool rounds.
 - **`apollo-cache-contract.test.js`** - Apollo bridge wiring, operation allowlisting, unavailable and direct-error handling, Adventure denormalization, memo invalidation, relay pairing, and timeout recovery.
 - **`apollo-consumer-contract.test.js`** - Apollo-first Story Card scanning with fallback behavior, Ultrascripts history compatibility, and Auto See warm-tail refresh coordination.
+- **`navigator-chat-qol.test.js`** - Navigator edit/retry history semantics, proposal expiry, retry eligibility, sanitized ordered tool activity, and persisted-transcript privacy.
 
 ## Live Ultrascripts suites
 

@@ -48,7 +48,7 @@ const index = {
 };
 
 (async () => {
-  assert.equal(window.NavigatorPrimer.VERSION, 7);
+  assert.equal(window.NavigatorPrimer.VERSION, 8);
   assert.match(window.NavigatorPrimer.CORE, /CORE EVIDENCE RULES/);
   assert.match(window.NavigatorPrimer.CORE, /CORE PROPOSAL RULES/);
   assert.match(window.NavigatorPrimer.REFERENCE, /PLOT COMPONENT REFERENCE/);

@@ -54,5 +54,15 @@ assert.match(styles, /\.bd-navigator-settings-tabs-arrow \{[^}]*opacity: 0;[^}]*
 assert.match(styles, /\.bd-navigator-settings-tabs-host:hover \.bd-navigator-settings-tabs-arrow/);
 assert.match(styles, /\.bd-navigator-drawer\.bd-navigator-embedded \.bd-navigator-header-actions \{[^}]*margin-left: auto/);
 assert.match(styles, /\.bd-navigator-mark \{[^}]*width: 30px;[^}]*height: 30px;[^}]*border-radius: 50%/);
+assert.match(feature, /class="bd-navigator-edit-banner" hidden/);
+assert.match(feature, /role="alertdialog" aria-modal="true"/);
+assert.match(feature, /renderToolTrail\(toolTrail, message\)/);
+assert.match(feature, /createMessageAction\('Copy', 'icon-copy'/);
+assert.match(feature, /createMessageAction\('Edit', 'icon-pencil'/);
+assert.match(feature, /createMessageAction\('Retry', 'icon-rotate-ccw'/);
+assert.match(feature, /replaceFromUserMessage\?\.\(messageId, text\)/);
+assert.match(styles, /@media \(hover: none\), \(pointer: coarse\)[\s\S]*\.bd-navigator-message-actions/);
+assert.match(styles, /\.bd-navigator-tool-trail-region \{[\s\S]*grid-template-rows: 0fr;[\s\S]*transition: grid-template-rows 180ms ease/);
+assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.bd-navigator-tool-trail-region \{ transition: none; \}/);
 
 console.log('Navigator settings integration contract tests passed');

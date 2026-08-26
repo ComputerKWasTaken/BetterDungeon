@@ -28,6 +28,11 @@ class NavigatorFeature {
     this.readOnlyBadge = null;
     this.settingsPanel = null;
     this.inspectionPanel = null;
+    this.editBanner = null;
+    this.confirmationPanel = null;
+    this.confirmationResolve = null;
+    this.confirmationReturnFocus = null;
+    this.editingMessageId = null;
     this.settingsTablist = null;
     this.settingsSurface = null;
     this.settingsTabWrapper = null;
@@ -264,6 +269,8 @@ class NavigatorFeature {
     } else if (event === 'permissions' || event === 'idle') {
       this.updatePermissionUI();
       this.renderAllProposalStates();
+      this.renderAllMessageActions();
+      if (event === 'idle') this.focusComposer();
     } else if (event === 'settings') {
       this.renderNavigatorSettings();
       this.updatePermissionUI();
@@ -285,6 +292,7 @@ class NavigatorFeature {
   }
 
   removeUI() {
+    if (this.confirmationPanel && !this.confirmationPanel.hidden) this.resolveConfirmation(false);
     this.resetSettingsIntegration({ preserveActive: false });
     this.drawer?.remove();
     this.drawer = null;
@@ -296,6 +304,11 @@ class NavigatorFeature {
     this.readOnlyBadge = null;
     this.settingsPanel = null;
     this.inspectionPanel = null;
+    this.editBanner = null;
+    this.confirmationPanel = null;
+    this.confirmationResolve = null;
+    this.confirmationReturnFocus = null;
+    this.editingMessageId = null;
     this.messageNodes.clear();
     this.isOpen = false;
   }
@@ -772,6 +785,10 @@ class NavigatorFeature {
     const composer = document.createElement('div');
     composer.className = 'bd-navigator-composer';
     composer.innerHTML = `
+      <div class="bd-navigator-edit-banner" hidden>
+        <span><span class="icon-pencil" aria-hidden="true"></span> Editing message</span>
+        <button type="button" class="bd-navigator-edit-cancel">Cancel</button>
+      </div>
       <div class="bd-navigator-input-shell">
         <textarea class="bd-navigator-input" rows="1" placeholder="Ask Navigator..." aria-label="Message Navigator"></textarea>
         <button type="button" class="bd-navigator-stop" aria-label="Stop generating" title="Stop generating" hidden>
@@ -783,7 +800,21 @@ class NavigatorFeature {
       </div>
     `;
 
-    drawer.append(header, settings, inspection, transcript, composer);
+    const confirmation = document.createElement('div');
+    confirmation.className = 'bd-navigator-confirmation-backdrop';
+    confirmation.hidden = true;
+    confirmation.innerHTML = `
+      <section class="bd-navigator-confirmation" role="alertdialog" aria-modal="true" aria-labelledby="bd-navigator-confirmation-title" aria-describedby="bd-navigator-confirmation-message">
+        <h3 id="bd-navigator-confirmation-title">Confirm action</h3>
+        <p id="bd-navigator-confirmation-message"></p>
+        <div class="bd-navigator-confirmation-actions">
+          <button type="button" class="bd-navigator-confirmation-cancel">Cancel</button>
+          <button type="button" class="bd-navigator-confirmation-accept">Confirm</button>
+        </div>
+      </section>
+    `;
+
+    drawer.append(header, settings, inspection, transcript, composer, confirmation);
     document.body.appendChild(drawer);
 
     this.drawer = drawer;
@@ -795,6 +826,8 @@ class NavigatorFeature {
     this.readOnlyBadge = header.querySelector('.bd-navigator-read-only');
     this.settingsPanel = settings;
     this.inspectionPanel = inspection;
+    this.editBanner = composer.querySelector('.bd-navigator-edit-banner');
+    this.confirmationPanel = confirmation;
 
     const inspectionToggle = header.querySelector('.bd-navigator-inspection');
     const settingsToggle = header.querySelector('.bd-navigator-settings');
@@ -838,6 +871,12 @@ class NavigatorFeature {
       });
     });
     this.stopBtn.addEventListener('click', () => this.session?.abort());
+    composer.querySelector('.bd-navigator-edit-cancel').addEventListener('click', () => this.cancelMessageEdit());
+    confirmation.querySelector('.bd-navigator-confirmation-cancel').addEventListener('click', () => this.resolveConfirmation(false));
+    confirmation.querySelector('.bd-navigator-confirmation-accept').addEventListener('click', () => this.resolveConfirmation(true));
+    confirmation.addEventListener('click', event => {
+      if (event.target === confirmation) this.resolveConfirmation(false);
+    });
 
     this.sendBtn.addEventListener('click', () => this.handleSend());
     empty.querySelectorAll('.bd-navigator-quick-actions button').forEach(button => {
@@ -967,6 +1006,27 @@ class NavigatorFeature {
   }
 
   handleGlobalKeydown(event) {
+    if (this.confirmationPanel && !this.confirmationPanel.hidden) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        this.resolveConfirmation(false);
+        return;
+      }
+      if (event.key === 'Tab') {
+        const controls = [...this.confirmationPanel.querySelectorAll('button:not(:disabled)')];
+        if (!controls.length) return;
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (event.shiftKey && (document.activeElement === first || !this.confirmationPanel.contains(document.activeElement))) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || !this.confirmationPanel.contains(document.activeElement))) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+      return;
+    }
     if (event.key === 'Escape' && this.isOpen && this.drawer?.contains(document.activeElement)) {
       event.preventDefault();
       this.closeDrawer();
@@ -981,20 +1041,108 @@ class NavigatorFeature {
     this.inputEl.style.height = `${Math.min(this.inputEl.scrollHeight, 160)}px`;
   }
 
-  handleSend() {
+  focusComposer(force = false) {
+    if (!this.inputEl || !this.settingsTabActive || this.drawer?.hidden) return;
+    if (!this.settingsPanel?.hidden || !this.inspectionPanel?.hidden || !this.confirmationPanel?.hidden) return;
+    const active = document.activeElement;
+    const mayRestore = force
+      || !active
+      || active === document.body
+      || active === this.inputEl
+      || active === this.sendBtn
+      || active === this.stopBtn;
+    if (mayRestore) setTimeout(() => this.inputEl?.focus(), 0);
+  }
+
+  beginMessageEdit(messageId) {
+    if (!this.session || this.session.isBusy || !this.inputEl) return;
+    const message = this.session.findMessage?.(messageId);
+    if (!message || message.role !== 'user') return;
+    this.editingMessageId = messageId;
+    this.inputEl.value = message.content || '';
+    this.inputEl.setAttribute('aria-label', 'Edit message and resend');
+    this.sendBtn?.setAttribute('aria-label', 'Save edit and resend');
+    if (this.editBanner) this.editBanner.hidden = false;
+    this.autosizeInput();
+    this.focusComposer(true);
+  }
+
+  cancelMessageEdit({ focus = true } = {}) {
+    this.editingMessageId = null;
+    if (this.inputEl) {
+      this.inputEl.value = '';
+      this.inputEl.setAttribute('aria-label', 'Message Navigator');
+    }
+    this.sendBtn?.setAttribute('aria-label', 'Send message');
+    if (this.editBanner) this.editBanner.hidden = true;
+    this.autosizeInput();
+    if (focus) this.focusComposer(true);
+  }
+
+  showConfirmation({ title, message, confirmLabel = 'Confirm', danger = false }) {
+    if (!this.confirmationPanel) return Promise.resolve(false);
+    if (this.confirmationResolve) this.resolveConfirmation(false);
+    this.confirmationReturnFocus = document.activeElement;
+    this.confirmationPanel.querySelector('#bd-navigator-confirmation-title').textContent = title;
+    this.confirmationPanel.querySelector('#bd-navigator-confirmation-message').textContent = message;
+    const accept = this.confirmationPanel.querySelector('.bd-navigator-confirmation-accept');
+    accept.textContent = confirmLabel;
+    accept.classList.toggle('bd-navigator-confirmation-danger', danger);
+    this.confirmationPanel.hidden = false;
+    this.confirmationPanel.querySelector('.bd-navigator-confirmation-cancel')?.focus();
+    return new Promise(resolve => {
+      this.confirmationResolve = resolve;
+    });
+  }
+
+  resolveConfirmation(accepted) {
+    if (!this.confirmationPanel || this.confirmationPanel.hidden) return;
+    const resolve = this.confirmationResolve;
+    const returnFocus = this.confirmationReturnFocus;
+    this.confirmationResolve = null;
+    this.confirmationReturnFocus = null;
+    this.confirmationPanel.hidden = true;
+    resolve?.(accepted === true);
+    if (!accepted && returnFocus?.isConnected) setTimeout(() => returnFocus.focus(), 0);
+  }
+
+  async handleSend() {
     if (!this.session || !this.inputEl) return;
     const text = this.inputEl.value;
     if (!text.trim() || this.session.isBusy) return;
 
+    if (this.editingMessageId) {
+      const messageId = this.editingMessageId;
+      const index = this.session.findMessageIndex?.(messageId) ?? -1;
+      const hasLaterTurns = index >= 0 && this.session.getMessages().slice(index + 1)
+        .some(message => message.role === 'user' || message.role === 'assistant');
+      if (hasLaterTurns) {
+        const confirmed = await this.showConfirmation({
+          title: 'Replace later messages?',
+          message: 'Resending this edit will remove every response and message that follows it.',
+          confirmLabel: 'Replace and resend',
+          danger: true,
+        });
+        if (!confirmed) return;
+      }
+      this.cancelMessageEdit({ focus: false });
+      this.autoScroll = true;
+      await this.session.replaceFromUserMessage?.(messageId, text);
+      this.updateComposerState();
+      this.focusComposer(true);
+      return;
+    }
+
     this.inputEl.value = '';
     this.autosizeInput();
     this.autoScroll = true;
-    this.session.send(text);
+    this.session.send(text).finally(() => this.focusComposer());
     this.updateComposerState();
   }
 
   handleQuickAction(prompt) {
     if (!this.inputEl || !prompt || this.session?.isBusy) return;
+    if (this.editingMessageId) this.cancelMessageEdit({ focus: false });
     this.inputEl.value = prompt;
     this.autosizeInput();
     this.handleSend();
@@ -1005,10 +1153,19 @@ class NavigatorFeature {
     if (this.readOnlyBadge) this.readOnlyBadge.hidden = !readOnly;
   }
 
-  handleClear() {
-    if (!this.session) return;
+  async handleClear() {
+    if (!this.session || this.session.isBusy || !this.session.getMessages().length) return;
+    const confirmed = await this.showConfirmation({
+      title: 'Clear conversation?',
+      message: 'This permanently removes this adventure\'s Navigator messages and proposal history.',
+      confirmLabel: 'Clear conversation',
+      danger: true,
+    });
+    if (!confirmed) return;
+    this.cancelMessageEdit({ focus: false });
     this.session.clear();
     this.autoScroll = true;
+    this.focusComposer(true);
   }
 
   updateComposerState() {
@@ -1019,6 +1176,10 @@ class NavigatorFeature {
       this.sendBtn.hidden = chatBusy;
     }
     if (this.stopBtn) this.stopBtn.hidden = !chatBusy;
+    if (this.inputEl) this.inputEl.disabled = busy && !chatBusy;
+    this.editBanner?.querySelector('button')?.toggleAttribute('disabled', busy);
+    const clear = this.drawer?.querySelector('.bd-navigator-clear');
+    if (clear) clear.disabled = busy || !(this.session?.getMessages().length > 0);
     this.emptyEl?.querySelectorAll('.bd-navigator-quick-actions button').forEach(button => {
       button.disabled = busy;
     });
@@ -1057,15 +1218,22 @@ class NavigatorFeature {
     const body = document.createElement('div');
     body.className = 'bd-navigator-message-body';
 
+    const toolTrail = document.createElement('section');
+    toolTrail.className = 'bd-navigator-tool-trail';
+    toolTrail.hidden = true;
+
     const status = document.createElement('div');
     status.className = 'bd-navigator-message-status';
 
     const proposals = document.createElement('div');
     proposals.className = 'bd-navigator-proposals';
 
-    node.append(body, proposals, status);
+    const actions = document.createElement('div');
+    actions.className = 'bd-navigator-message-actions';
+
+    node.append(toolTrail, body, proposals, status, actions);
     this.transcriptEl.appendChild(node);
-    this.messageNodes.set(message.id, { node, body, proposals, status });
+    this.messageNodes.set(message.id, { node, body, toolTrail, proposals, status, actions });
     this.updateMessageNode(message);
   }
 
@@ -1076,30 +1244,26 @@ class NavigatorFeature {
       return;
     }
 
-    const { node, body, proposals, status } = parts;
+    const { node, body, toolTrail, proposals, status, actions } = parts;
     node.dataset.status = message.status;
 
     const isAssistant = message.role === 'assistant';
     body.classList.toggle('bd-navigator-markdown', isAssistant);
     if (isAssistant) this.renderMarkdown(body, message.content || '');
     else this.renderText(body, message.content || '');
+    this.renderToolTrail(toolTrail, message);
     this.renderProposals(proposals, message);
+    this.renderMessageActions(actions, message);
 
-    const readToolActivity = this.getReadToolNames(message.toolActivity?.names);
-    const completedReadTools = this.getReadToolNames(message.meta?.readToolsCompleted);
+    const hasRunningTool = Array.isArray(message.toolActivityTrail)
+      && message.toolActivityTrail.some(activity => activity.status === 'running');
     if (message.status === 'error') {
       status.replaceChildren(this.createErrorNode(message.error));
     } else if (message.status === 'aborted') {
       status.textContent = 'Stopped.';
       status.className = 'bd-navigator-message-status bd-navigator-status-muted';
-    } else if (readToolActivity.length) {
-      status.replaceChildren(this.createToolActivityIndicator(readToolActivity, false));
-      status.className = 'bd-navigator-message-status';
-    } else if (message.status === 'pending') {
+    } else if (message.status === 'pending' && !hasRunningTool) {
       status.replaceChildren(this.createThinkingIndicator());
-      status.className = 'bd-navigator-message-status';
-    } else if (message.status === 'complete' && completedReadTools.length) {
-      status.replaceChildren(this.createToolActivityIndicator(completedReadTools, true));
       status.className = 'bd-navigator-message-status';
     } else {
       status.replaceChildren();
@@ -1112,6 +1276,192 @@ class NavigatorFeature {
       const parts = this.messageNodes.get(message.id);
       if (parts?.proposals) this.renderProposals(parts.proposals, message);
     }
+  }
+
+  renderAllMessageActions() {
+    for (const message of this.session?.getMessages?.() || []) {
+      const parts = this.messageNodes.get(message.id);
+      if (parts?.actions) this.renderMessageActions(parts.actions, message);
+    }
+  }
+
+  toolActivityLabel(name) {
+    const labels = {
+      get_plot_components: 'Read Plot Components',
+      search_story_cards: 'Search Story Cards',
+      get_story_card: 'Read Story Card',
+      search_story_history: 'Search story history',
+      get_story_actions: 'Read story actions',
+      search_memory_bank: 'Search Memory Bank',
+      get_memory: 'Read Memory Bank entry',
+    };
+    return labels[name] || 'Use Navigator tool';
+  }
+
+  toolActivityMeta(activity) {
+    const summary = activity?.summary || {};
+    const parts = [];
+    if (summary.query) parts.push(`“${summary.query}”`);
+    if (summary.target) parts.push(summary.target);
+    if (Number.isFinite(summary.resultCount)) {
+      parts.push(Number.isFinite(summary.resultTotal)
+        ? `${summary.resultCount} of ${summary.resultTotal} results`
+        : `${summary.resultCount} ${summary.resultCount === 1 ? 'result' : 'results'}`);
+    }
+    if (summary.detail) parts.push(summary.detail);
+    if (Number.isFinite(activity?.durationMs)) {
+      parts.push(activity.durationMs < 1000 ? `${activity.durationMs} ms` : `${(activity.durationMs / 1000).toFixed(1)} s`);
+    }
+    return parts.join(' · ');
+  }
+
+  renderToolTrail(container, message) {
+    if (!container) return;
+    const activities = Array.isArray(message.toolActivityTrail)
+      ? message.toolActivityTrail.filter(activity => activity && !String(activity.name || '').startsWith('propose_'))
+      : [];
+    if (!activities.length) {
+      container.hidden = true;
+      container.replaceChildren();
+      return;
+    }
+
+    const wasLive = container.dataset.live === 'true';
+    const isLive = activities.some(activity => activity.status === 'running');
+    const failures = activities.filter(activity => activity.status === 'error').length;
+    container.hidden = false;
+    container.dataset.live = String(isLive);
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'bd-navigator-tool-trail-toggle';
+    const summary = document.createElement('span');
+    summary.className = 'bd-navigator-tool-trail-summary';
+    summary.textContent = isLive
+      ? `Using ${activities.length} ${activities.length === 1 ? 'tool' : 'tools'}`
+      : `Used ${activities.length} ${activities.length === 1 ? 'tool' : 'tools'}${failures ? ` · ${failures} failed` : ''}`;
+    const chevron = document.createElement('span');
+    chevron.className = 'icon-chevron-down bd-navigator-tool-trail-chevron';
+    chevron.setAttribute('aria-hidden', 'true');
+    toggle.append(summary, chevron);
+
+    const region = document.createElement('div');
+    region.className = 'bd-navigator-tool-trail-region';
+    const list = document.createElement('ol');
+    list.className = 'bd-navigator-tool-steps';
+    for (const activity of activities) {
+      const item = document.createElement('li');
+      item.className = 'bd-navigator-tool-step';
+      item.dataset.status = activity.status || 'error';
+      const icon = document.createElement('span');
+      icon.className = activity.status === 'running'
+        ? 'bd-navigator-tool-step-icon bd-navigator-tool-step-running'
+        : activity.status === 'success'
+          ? 'icon-circle-check bd-navigator-tool-step-icon'
+          : 'icon-triangle-alert bd-navigator-tool-step-icon';
+      icon.setAttribute('aria-hidden', 'true');
+      const text = document.createElement('span');
+      text.className = 'bd-navigator-tool-step-text';
+      const label = document.createElement('strong');
+      label.textContent = this.toolActivityLabel(activity.name);
+      text.appendChild(label);
+      const metaText = this.toolActivityMeta(activity);
+      if (metaText) {
+        const meta = document.createElement('small');
+        meta.textContent = metaText;
+        text.appendChild(meta);
+      }
+      item.append(icon, text);
+      list.appendChild(item);
+    }
+    region.appendChild(list);
+    container.replaceChildren(toggle, region);
+
+    const setExpanded = expanded => {
+      container.dataset.expanded = String(expanded);
+      toggle.setAttribute('aria-expanded', String(expanded));
+    };
+    if (isLive) {
+      delete container.dataset.manuallyToggled;
+      setExpanded(true);
+    } else if (wasLive) {
+      setExpanded(true);
+      requestAnimationFrame(() => {
+        if (container.isConnected && container.dataset.live === 'false') setExpanded(false);
+      });
+    } else if (container.dataset.manuallyToggled !== 'true') {
+      setExpanded(false);
+    } else {
+      setExpanded(container.dataset.expanded === 'true');
+    }
+    toggle.addEventListener('click', () => {
+      container.dataset.manuallyToggled = 'true';
+      setExpanded(container.dataset.expanded !== 'true');
+    });
+  }
+
+  createMessageAction(label, iconClass, onClick) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'bd-navigator-message-action';
+    button.setAttribute('aria-label', label);
+    button.title = label;
+    const icon = document.createElement('span');
+    icon.className = iconClass;
+    icon.setAttribute('aria-hidden', 'true');
+    const text = document.createElement('span');
+    text.textContent = label;
+    button.append(icon, text);
+    button.addEventListener('click', onClick);
+    return button;
+  }
+
+  renderMessageActions(container, message) {
+    if (!container) return;
+    container.replaceChildren();
+    const state = this.session?.getMessageActionState?.(message.id) || { busy: false };
+    if (message.role === 'assistant' && message.content) {
+      const copy = this.createMessageAction('Copy', 'icon-copy', () => this.copyAssistantMessage(message.id, copy));
+      container.appendChild(copy);
+    }
+    if (message.role === 'user' && state.editable) {
+      const edit = this.createMessageAction('Edit', 'icon-pencil', () => this.beginMessageEdit(message.id));
+      edit.disabled = state.busy;
+      container.appendChild(edit);
+    }
+    if (message.role === 'assistant' && state.retryable) {
+      const retry = this.createMessageAction('Retry', 'icon-rotate-ccw', () => this.retryMessage(message.id));
+      retry.disabled = state.busy;
+      container.appendChild(retry);
+    }
+  }
+
+  async copyAssistantMessage(messageId, button) {
+    const message = this.session?.findMessage?.(messageId);
+    if (!message?.content || !button) return;
+    const original = button.querySelector('span:last-child')?.textContent || 'Copy';
+    try {
+      await navigator.clipboard.writeText(message.content);
+      button.querySelector('span:last-child').textContent = 'Copied';
+      button.setAttribute('aria-label', 'Copied');
+    } catch {
+      button.querySelector('span:last-child').textContent = 'Copy unavailable';
+      button.setAttribute('aria-label', 'Copy unavailable');
+    }
+    setTimeout(() => {
+      if (!button.isConnected) return;
+      button.querySelector('span:last-child').textContent = original;
+      button.setAttribute('aria-label', original);
+    }, 1600);
+  }
+
+  async retryMessage(messageId) {
+    if (!this.session || this.session.isBusy) return;
+    this.cancelMessageEdit({ focus: false });
+    this.autoScroll = true;
+    await this.session.retryAssistantMessage?.(messageId);
+    this.updateComposerState();
+    this.focusComposer(true);
   }
 
   renderProposals(container, message) {
@@ -1695,55 +2045,6 @@ class NavigatorFeature {
       dots.appendChild(document.createElement('i'));
     }
     wrap.appendChild(dots);
-    return wrap;
-  }
-
-  getReadToolNames(names) {
-    if (!Array.isArray(names)) return [];
-    return Array.from(new Set(names.filter(name => (
-      typeof name === 'string' && !name.startsWith('propose_')
-    ))));
-  }
-
-  createToolActivityIndicator(names, complete) {
-    const wrap = document.createElement('span');
-    wrap.className = `bd-navigator-tool-activity${complete ? ' bd-navigator-tool-complete' : ''}`;
-
-    const tools = Array.from(new Set(Array.isArray(names) ? names : []));
-    const storyCardTools = new Set(['search_story_cards', 'get_story_card']);
-    const memoryBankTools = new Set(['search_memory_bank', 'get_memory']);
-    const historyTools = new Set(['search_story_history', 'get_story_actions']);
-    const category = tools.length > 0 && tools.every(name => storyCardTools.has(name))
-      ? 'story_cards'
-      : (tools.length > 0 && tools.every(name => memoryBankTools.has(name))
-        ? 'memory_bank'
-        : (tools.length > 0 && tools.every(name => historyTools.has(name)) ? 'history' : 'mixed'));
-    const icon = document.createElement('span');
-    const onlySearch = tools.length === 1 && tools[0].startsWith('search_');
-    const onlyRead = tools.length === 1 && tools[0].startsWith('get_');
-    icon.className = onlySearch ? 'icon-search' : (onlyRead && category === 'story_cards' ? 'icon-book-open-text' : 'icon-wand-sparkles');
-    icon.setAttribute('aria-hidden', 'true');
-
-    const label = document.createElement('span');
-    const action = complete ? 'Searched' : 'Searching';
-    if (tools.length === 1 && tools[0] === 'search_story_cards') label.textContent = `${action} Story Cards`;
-    else if (tools.length === 1 && tools[0] === 'get_story_card') label.textContent = complete ? 'Read Story Card' : 'Reading Story Card';
-    else if (tools.length === 1 && tools[0] === 'search_memory_bank') label.textContent = `${action} Memory Bank`;
-    else if (tools.length === 1 && tools[0] === 'get_memory') label.textContent = complete ? 'Read Memory Bank entry' : 'Reading Memory Bank entry';
-    else if (tools.length === 1 && tools[0] === 'search_story_history') label.textContent = `${action} story history`;
-    else if (tools.length === 1 && tools[0] === 'get_story_actions') label.textContent = complete ? 'Read story actions' : 'Reading story actions';
-    else if (category === 'story_cards') label.textContent = complete ? `Used ${tools.length} Story Card tools` : `Using ${tools.length} Story Card tools`;
-    else if (category === 'memory_bank') label.textContent = complete ? `Used ${tools.length} Memory Bank tools` : `Using ${tools.length} Memory Bank tools`;
-    else if (category === 'history') label.textContent = complete ? `Used ${tools.length} story history tools` : `Using ${tools.length} story history tools`;
-    else label.textContent = complete ? `Used ${tools.length} Navigator read tools` : `Using ${tools.length} Navigator read tools`;
-
-    wrap.append(icon, label);
-    if (!complete) {
-      const pulse = document.createElement('i');
-      pulse.className = 'bd-navigator-tool-pulse';
-      pulse.setAttribute('aria-hidden', 'true');
-      wrap.appendChild(pulse);
-    }
     return wrap;
   }
 
