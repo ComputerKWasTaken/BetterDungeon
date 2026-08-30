@@ -48,9 +48,9 @@ const index = {
 };
 
 (async () => {
-  assert.equal(window.NavigatorPrimer.VERSION, 8);
+  assert.equal(window.NavigatorPrimer.VERSION, 9);
   assert.match(window.NavigatorPrimer.CORE, /CORE EVIDENCE RULES/);
-  assert.match(window.NavigatorPrimer.CORE, /CORE PROPOSAL RULES/);
+  assert.match(window.NavigatorPrimer.CORE, /CORE CHANGE RULES/);
   assert.match(window.NavigatorPrimer.REFERENCE, /PLOT COMPONENT REFERENCE/);
   assert.equal(window.NavigatorPrimer.TEXT, `${window.NavigatorPrimer.CORE}\n\n${window.NavigatorPrimer.REFERENCE}`);
 

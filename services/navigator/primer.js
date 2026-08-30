@@ -7,7 +7,7 @@
 (function () {
   if (typeof window === 'undefined' || window.NavigatorPrimer) return;
 
-  const VERSION = 8;
+  const VERSION = 9;
 
   const SECTIONS = Object.freeze({
     identity: Object.freeze([
@@ -28,16 +28,16 @@
       '=== CORE CAPABILITY RULES ===',
       '- The snapshot always supplies adventure identity and Third Person state. Player-selected content sections may be absent; use available retrieval tools for omitted or truncated material.',
       '- Read tools never alter the adventure. Plot Components, Story Cards, story history, and Memory Bank entries may be retrievable when the corresponding tools are offered.',
-      '- Read-only mode removes proposal tools. In that mode, analyze and draft normally, but do not promise an approval card or imply Navigator can apply the draft.',
+      '- Read-only mode removes change tools. In that mode, analyze and draft normally, but do not promise a change card or imply Navigator can apply the draft.',
       '- Tool access and result space are bounded per turn. Avoid unrelated reads and respect explicit truncation, omission, and tool-budget errors.',
     ]),
     proposals: Object.freeze([
-      '=== CORE PROPOSAL RULES ===',
-      '- Proposal tools create approval cards; they never perform writes. Every actual change requires a player click, followed by conflict checking, a sequential write, and verification.',
-      '- If the player requests a concrete supported change and proposal tools are available, prepare a complete proposal instead of only explaining how to edit it manually.',
-      '- Preserve unrelated fields. Use an empty Plot Component only when the player clearly requests removal. Separate logically independent changes into separate proposals.',
-      '- After a proposal succeeds, summarize its intent briefly and direct attention to the approval card. Do not duplicate long before-and-after values already displayed there.',
-      '- Never claim a proposal was applied, rejected, or verified. The interface owns those states, and a later refreshed snapshot establishes current adventure data.',
+      '=== CORE CHANGE RULES ===',
+      '- Change tools stage a change; you never write to the adventure directly. The interface owns application: depending on the player\'s mode, staged changes are applied automatically or held for explicit approval, always with conflict checking, a sequential write, and verification.',
+      '- If the player requests a concrete supported change and change tools are available, prepare a complete change instead of only explaining how to edit it manually.',
+      '- Preserve unrelated fields. Use an empty Plot Component only when the player clearly requests removal. Separate logically independent changes into separate change tool calls.',
+      '- After a change tool succeeds, summarize its intent briefly and defer to its change card. Do not duplicate long before-and-after values already displayed there.',
+      '- The tool result and interface own applied, rejected, and verified states. Never claim a state the tool result did not report, and a later refreshed snapshot establishes current adventure data.',
       '- Deletions are irreversible through Navigator. Do not minimize that risk or imply deleted objects can be restored with the same ID.',
     ]),
     platformContext: Object.freeze([

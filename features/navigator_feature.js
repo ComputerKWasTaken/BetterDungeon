@@ -52,6 +52,7 @@ class NavigatorFeature {
     this.settingsTabsRightButton = null;
     this.inspectionRound = 0;
     this.messageNodes = new Map();
+    this.proposalExpansion = new Map();
 
     this.isOpen = false;
     this.autoScroll = true;
@@ -310,6 +311,7 @@ class NavigatorFeature {
     this.confirmationReturnFocus = null;
     this.editingMessageId = null;
     this.messageNodes.clear();
+    this.proposalExpansion.clear();
     this.isOpen = false;
   }
 
@@ -741,6 +743,12 @@ class NavigatorFeature {
           <input type="range" min="0" max="0" step="1" value="0" data-nav-setting="thinkingLevel" aria-label="Thinking level">
           <span class="bd-navigator-thinking-value" aria-live="polite"></span>
         </label>
+        <label class="bd-navigator-select-control">Changes
+          <select data-nav-setting="applyMode" aria-label="How Navigator changes are applied">
+            <option value="auto">Auto — apply immediately</option>
+            <option value="review">Review — approve each change</option>
+          </select>
+        </label>
         <label class="bd-navigator-toggle-control">Read-only
           <input type="checkbox" data-nav-setting="readOnly" aria-label="Read-only mode">
         </label>
@@ -935,6 +943,12 @@ class NavigatorFeature {
     }
     const readOnly = this.settingsPanel.querySelector('[data-nav-setting="readOnly"]');
     if (readOnly) readOnly.checked = settings.readOnly === true;
+    const applyMode = this.settingsPanel.querySelector('[data-nav-setting="applyMode"]');
+    if (applyMode) {
+      applyMode.value = settings.applyMode === 'review' ? 'review' : 'auto';
+      applyMode.disabled = settings.readOnly === true;
+      applyMode.title = settings.readOnly === true ? 'Read-only mode disables all Navigator changes.' : '';
+    }
     const selectedSections = Array.isArray(settings.contextSections)
       ? settings.contextSections
       : ['plot', 'history', 'memory', 'cards'];
@@ -1481,28 +1495,43 @@ class NavigatorFeature {
     card.className = 'bd-navigator-proposal';
     card.dataset.status = proposal.status;
 
-    const header = document.createElement('div');
-    header.className = 'bd-navigator-proposal-header';
-    const heading = document.createElement('div');
-    heading.className = 'bd-navigator-proposal-heading';
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'bd-navigator-proposal-toggle';
     const action = document.createElement('span');
     action.className = 'bd-navigator-proposal-action';
     action.textContent = this.proposalActionLabel(proposal);
     const target = document.createElement('strong');
     target.className = 'bd-navigator-proposal-target';
-    target.textContent = proposal.targetLabel || 'Proposed change';
-    heading.append(action, target);
+    target.textContent = proposal.targetLabel || 'Change';
+    toggle.append(action, target);
+    if (proposal.irreversible) {
+      const flag = document.createElement('span');
+      flag.className = 'bd-navigator-proposal-flag';
+      flag.textContent = 'Permanent';
+      toggle.appendChild(flag);
+    }
     const status = document.createElement('span');
     status.className = 'bd-navigator-proposal-status';
     status.textContent = this.proposalStatusLabel(proposal.status);
-    header.append(heading, status);
-    card.appendChild(header);
+    const chevron = document.createElement('span');
+    chevron.className = 'icon-chevron-down bd-navigator-proposal-chevron';
+    chevron.setAttribute('aria-hidden', 'true');
+    toggle.append(status, chevron);
+    card.appendChild(toggle);
+
+    const region = document.createElement('div');
+    region.className = 'bd-navigator-proposal-region';
+    const details = document.createElement('div');
+    details.className = 'bd-navigator-proposal-details';
+    region.appendChild(details);
+    card.appendChild(region);
 
     if (proposal.reason) {
       const reason = document.createElement('p');
       reason.className = 'bd-navigator-proposal-reason';
       reason.textContent = proposal.reason;
-      card.appendChild(reason);
+      details.appendChild(reason);
     }
 
     const changes = document.createElement('div');
@@ -1510,26 +1539,26 @@ class NavigatorFeature {
     for (const change of proposal.changes || []) {
       changes.appendChild(this.createProposalChange(change));
     }
-    card.appendChild(changes);
+    details.appendChild(changes);
 
     if (proposal.irreversible) {
       const warning = document.createElement('p');
       warning.className = 'bd-navigator-proposal-warning';
       warning.textContent = 'Deletion is permanent. Navigator cannot undo this action.';
-      card.appendChild(warning);
+      details.appendChild(warning);
     }
 
     if (proposal.error?.message) {
       const error = document.createElement('p');
       error.className = 'bd-navigator-proposal-error';
       error.textContent = proposal.error.message;
-      card.appendChild(error);
+      details.appendChild(error);
     }
     if (proposal.updatedAtDrift) {
       const drift = document.createElement('p');
       drift.className = 'bd-navigator-proposal-note';
       drift.textContent = 'The card had an unrelated timestamp update while Navigator applied this change.';
-      card.appendChild(drift);
+      details.appendChild(drift);
     }
     const hasPlotUILimitation = proposal.kind === 'plot_component' && (
       proposal.field === 'memory'
@@ -1548,31 +1577,48 @@ class NavigatorFeature {
       refresh.setAttribute('aria-label', 'Refresh AI Dungeon to show the applied Plot changes');
       refresh.addEventListener('click', () => window.location.reload());
       limitation.appendChild(refresh);
-      card.appendChild(limitation);
+      details.appendChild(limitation);
     }
-    if (proposal.status !== 'pending') return card;
-    const actions = document.createElement('div');
-    actions.className = 'bd-navigator-proposal-buttons';
-    const reject = document.createElement('button');
-    reject.type = 'button';
-    reject.className = 'bd-navigator-proposal-reject';
-    reject.textContent = 'Reject';
-    const apply = document.createElement('button');
-    apply.type = 'button';
-    const destructive = proposal.irreversible === true || proposal.action === 'delete';
-    apply.className = destructive
-      ? 'bd-navigator-proposal-apply bd-navigator-proposal-delete'
-      : 'bd-navigator-proposal-apply';
-    apply.textContent = destructive ? 'Delete' : 'Apply';
 
-    reject.disabled = state.chatBusy;
-    apply.disabled = state.chatBusy || state.readOnly;
-    if (state.readOnly) apply.title = 'Read-only mode is enabled.';
-    else if (state.chatBusy) apply.title = 'Wait for Navigator to finish this response.';
-    reject.addEventListener('click', () => this.session?.rejectProposal(messageId, proposal.id));
-    apply.addEventListener('click', () => this.session?.applyProposal(messageId, proposal.id));
-    actions.append(reject, apply);
-    card.appendChild(actions);
+    if (proposal.status === 'pending') {
+      const actions = document.createElement('div');
+      actions.className = 'bd-navigator-proposal-buttons';
+      const reject = document.createElement('button');
+      reject.type = 'button';
+      reject.className = 'bd-navigator-proposal-reject';
+      reject.textContent = 'Reject';
+      const apply = document.createElement('button');
+      apply.type = 'button';
+      const destructive = proposal.irreversible === true || proposal.action === 'delete';
+      apply.className = destructive
+        ? 'bd-navigator-proposal-apply bd-navigator-proposal-delete'
+        : 'bd-navigator-proposal-apply';
+      apply.textContent = destructive ? 'Delete' : 'Apply';
+
+      reject.disabled = state.chatBusy;
+      apply.disabled = state.chatBusy || state.readOnly;
+      if (state.readOnly) apply.title = 'Read-only mode is enabled.';
+      else if (state.chatBusy) apply.title = 'Wait for Navigator to finish this response.';
+      reject.addEventListener('click', () => this.session?.rejectProposal(messageId, proposal.id));
+      apply.addEventListener('click', () => this.session?.applyProposal(messageId, proposal.id));
+      actions.append(reject, apply);
+      details.appendChild(actions);
+    }
+
+    const defaultExpanded = proposal.status === 'pending'
+      || proposal.status === 'conflict'
+      || proposal.status === 'error';
+    const stored = this.proposalExpansion.get(proposal.id);
+    const setExpanded = expanded => {
+      card.dataset.expanded = String(expanded);
+      toggle.setAttribute('aria-expanded', String(expanded));
+    };
+    setExpanded(typeof stored === 'boolean' ? stored : defaultExpanded);
+    toggle.addEventListener('click', () => {
+      const expanded = card.dataset.expanded !== 'true';
+      this.proposalExpansion.set(proposal.id, expanded);
+      setExpanded(expanded);
+    });
     return card;
   }
 
@@ -1620,7 +1666,7 @@ class NavigatorFeature {
   proposalStatusLabel(status) {
     const labels = {
       pending: 'Needs approval',
-      queued: 'Queued',
+      queued: 'Applying…',
       applying: 'Applying…',
       applied: 'Applied',
       rejected: 'Rejected',
