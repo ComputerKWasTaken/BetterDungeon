@@ -24,8 +24,7 @@ The current release is **BetterDungeon v2.1.0**. Its headline addition is Naviga
 ### What's new in v2.1.0
 
 - **Meet Navigator** — Work with an AI agent designed to help you improve and modify your adventures. Navigator understands your Plot Components and recent story, can research your complete Story Card collection, and remembers the conversation across multiple turns.
-- **You approve every change** — Navigator can propose useful adventure edits, but never applies them without direct approval. Live conflict checks and server verification keep approved changes safe, while Read-only mode disables proposals entirely.
-- **Coming later: Artisan** — Meet Navigator's future counterpart for helping creators build, organize, and polish AI Dungeon scenarios. Artisan is not part of V2.1.
+- **Changes applied for you** — Navigator applies useful adventure edits automatically and reports each one on a compact change card so you can course correct. Live conflict checks and server verification keep every change safe, Review mode restores per-change approval, and Read-only mode disables changes entirely.
 - **Simpler AI setup** — Gemini, OpenRouter, and custom HTTPS services share one clear profile system with validation, connection testing, and explicit provider selection.
 - **Stronger Ultrascripts** — V2.1 improves connection reliability, adds synthesized audio, simplifies safe web requests, and upgrades AI responses while preserving the existing script contract.
 - **Native feature cleanup** — BetterDungeon's Markdown feature was removed on PC and Mobile now that AI Dungeon supports it natively. Text-to-speech was removed on PC but remains on Mobile because AI Dungeon's native speech does not work inside the app's WebView.

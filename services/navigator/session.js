@@ -34,8 +34,11 @@
   const NAVIGATOR_ADVENTURE_SETTINGS_PREFIX = 'betterDungeon_navigator_adventure_';
   const THINKING_LEVELS = ['minimal', 'low', 'medium', 'high'];
   const CONTEXT_SECTION_KEYS = ['plot', 'history', 'memory', 'cards'];
+  const APPLY_MODES = ['auto', 'review'];
+  const DEFAULT_APPLY_MODE = 'auto';
   const DEFAULT_NAVIGATOR_SETTINGS = Object.freeze({
     contextSections: Object.freeze([...CONTEXT_SECTION_KEYS]),
+    applyMode: DEFAULT_APPLY_MODE,
   });
   const TOOL_DROP_GUIDANCE = 'Tool access was reduced for this turn because the provider input budget was nearly exhausted. Do not attempt lookups that are not represented by the tools below.';
   const READ_ONLY_GUIDANCE = [
@@ -174,6 +177,7 @@
       this.applyController = null;
       this.mutationQueue = Promise.resolve();
       this.readOnly = false;
+      this.applyMode = DEFAULT_APPLY_MODE;
       this.thinkingLevel = 'low';
       this.providerStatus = null;
       this.hasLoadedSettings = false;
@@ -544,6 +548,7 @@
       }
       if (THINKING_LEVELS.includes(value?.thinkingLevel)) result.thinkingLevel = value.thinkingLevel;
       if (typeof value?.readOnly === 'boolean') result.readOnly = value.readOnly;
+      if (APPLY_MODES.includes(value?.applyMode)) result.applyMode = value.applyMode;
       return result;
     }
 
@@ -608,10 +613,12 @@
           ? this.adventureSettings.readOnly
           : globalReadOnly,
         thinkingLevel: this.adventureSettings.thinkingLevel || this.fallbackSettings.thinkingLevel || 'low',
+        applyMode: this.adventureSettings.applyMode || this.fallbackSettings.applyMode || DEFAULT_APPLY_MODE,
       };
       this.effectiveSettings = effective;
       this.hasLoadedSettings = true;
       this.thinkingLevel = effective.thinkingLevel;
+      this.applyMode = effective.applyMode;
       this.setReadOnlyMode(effective.readOnly);
       return effective;
     }
@@ -679,7 +686,7 @@
     }
 
     getPermissionState() {
-      return { readOnly: this.readOnly };
+      return { readOnly: this.readOnly, applyMode: this.applyMode };
     }
 
     // Debounced so streaming deltas do not thrash extension storage.
@@ -857,13 +864,22 @@
         ].filter(line => line !== null).join('\n'));
       }
       if (proposalTools.length) {
+        const modeLines = this.applyMode === 'auto'
+          ? [
+            'Auto mode is enabled: each validated change is applied to the adventure immediately, then verified against the server before the tool returns.',
+            'The tool result reports whether the change was actually applied. Only describe a change as applied when the result says so; on conflict or error, tell the player plainly and do not silently retry.',
+            'After a change applies, summarize it in one or two short sentences. A compact change card already shows the player the details, so never duplicate long before-and-after values.',
+          ]
+          : [
+            'Review mode is enabled: proposal tools never write to the adventure. Use a proposal tool when the player asks you to make a concrete change, then briefly explain it and let the player use the approval card.',
+            'Never claim a proposal was applied. Only a direct player click can apply it, and the UI reports the verified result.',
+          ];
         sections.push([
           '',
-          '=== NAVIGATOR CHANGE PROPOSALS ===',
-          'You may propose Plot Components, Third Person, Story Cards, and Memory Bank edits/deletes. Proposal tools never write to the adventure.',
-          'Use a proposal tool when the player asks you to make a concrete change. After the tool succeeds, briefly explain the proposal and let the player use the approval card.',
-          'Never claim a proposal was applied. Only a direct player click can apply it, and the UI reports the verified result.',
-          'Story Card proposals use stable card IDs; Memory Bank proposals use stable memory IDs. Navigator can edit/delete memories but cannot create them.',
+          '=== NAVIGATOR CHANGES ===',
+          'You may change Plot Components, Third Person, Story Cards, and Memory Bank edits/deletes through the change tools.',
+          ...modeLines,
+          'Story Card changes use stable card IDs; Memory Bank changes use stable memory IDs. Navigator can edit/delete memories but cannot create them.',
         ].join('\n'));
       }
       if (options.dropped) sections.push(`\n=== NAVIGATOR TOOL ACCESS ===\n${TOOL_DROP_GUIDANCE}`);
@@ -1132,17 +1148,39 @@
               index: snapshot?.index || null,
               signal,
             });
-            proposalToRegister = proposal;
-            envelope = {
-              callId: call.id,
-              name: call.name,
-              isError: false,
-              result: {
-                ok: true,
-                tool: call.name,
-                data: { proposalId: proposal.id, status: 'pending_approval' },
-              },
-            };
+            if (this.applyMode === 'auto') {
+              this.registerProposal(messageId, proposal);
+              await this.applyProposal(messageId, proposal.id);
+              const settled = this.findProposal(messageId, proposal.id).proposal;
+              const applied = settled?.status === 'applied';
+              envelope = {
+                callId: call.id,
+                name: call.name,
+                isError: !applied,
+                result: applied
+                  ? { ok: true, tool: call.name, data: { proposalId: proposal.id, status: 'applied' } }
+                  : {
+                    ok: false,
+                    tool: call.name,
+                    error: {
+                      code: settled?.error?.code || settled?.status || 'mutation_failed',
+                      message: settled?.error?.message || 'Navigator could not apply this change. The change card reports the details.',
+                    },
+                  },
+              };
+            } else {
+              proposalToRegister = proposal;
+              envelope = {
+                callId: call.id,
+                name: call.name,
+                isError: false,
+                result: {
+                  ok: true,
+                  tool: call.name,
+                  data: { proposalId: proposal.id, status: 'pending_approval' },
+                },
+              };
+            }
           } else {
             const result = await this.tools.execute(call.name, call.arguments, {
               signal,
