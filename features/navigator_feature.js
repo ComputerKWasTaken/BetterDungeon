@@ -26,7 +26,6 @@ class NavigatorFeature {
     this.sendBtn = null;
     this.stopBtn = null;
     this.emptyEl = null;
-    this.changeModeBadge = null;
     this.settingsPanel = null;
     this.inspectionPanel = null;
     this.inspectionToggle = null;
@@ -269,12 +268,10 @@ class NavigatorFeature {
     } else if (event === 'inspection') {
       if (this.inspectionPanel && !this.inspectionPanel.hidden) this.renderRequestInspection(payload);
     } else if (event === 'permissions' || event === 'idle') {
-      this.updatePermissionUI();
       this.renderAllProposalStates();
       if (event === 'idle') this.focusComposer();
     } else if (event === 'settings') {
       this.renderNavigatorSettings();
-      this.updatePermissionUI();
     }
 
     this.updateComposerState();
@@ -303,7 +300,6 @@ class NavigatorFeature {
     this.sendBtn = null;
     this.stopBtn = null;
     this.emptyEl = null;
-    this.changeModeBadge = null;
     this.settingsPanel = null;
     this.inspectionPanel = null;
     this.inspectionToggle = null;
@@ -721,7 +717,6 @@ class NavigatorFeature {
         <h2 class="bd-navigator-title">Navigator</h2>
       </div>
       <div class="bd-navigator-header-actions">
-        <span class="bd-navigator-change-mode-badge" data-mode="automatic">Automatic</span>
         <button type="button" class="bd-navigator-icon-btn bd-navigator-inspection" aria-label="Open Inspector" title="Open Inspector" aria-controls="bd-navigator-inspection-panel" aria-expanded="false">
           <span class="icon-file-braces" aria-hidden="true"></span>
         </button>
@@ -753,7 +748,6 @@ class NavigatorFeature {
             <span>Changes</span>
             <span class="bd-navigator-change-value" aria-live="polite">Automatic</span>
           </span>
-          <span class="bd-navigator-setting-description">Apply edits now; approve deletions</span>
           <div class="bd-navigator-change-toggle" role="radiogroup" aria-label="How Navigator changes are applied">
             <label class="bd-navigator-change-option" title="Automatic — apply edits immediately (Recommended)">
               <input type="radio" name="bd-navigator-change-mode" value="automatic" data-nav-setting="changeMode" aria-label="Automatic — apply edits immediately (Recommended)">
@@ -859,7 +853,6 @@ class NavigatorFeature {
     this.inputEl = composer.querySelector('.bd-navigator-input');
     this.sendBtn = composer.querySelector('.bd-navigator-send');
     this.stopBtn = composer.querySelector('.bd-navigator-stop');
-    this.changeModeBadge = header.querySelector('.bd-navigator-change-mode-badge');
     this.settingsPanel = settings;
     this.inspectionPanel = inspection;
     this.confirmationPanel = confirmation;
@@ -920,7 +913,6 @@ class NavigatorFeature {
     });
 
     this.applyLayout();
-    this.updatePermissionUI();
     this.updateComposerState();
     this.renderTranscript();
   }
@@ -961,15 +953,9 @@ class NavigatorFeature {
     this.settingsPanel.querySelectorAll('input[data-nav-setting="changeMode"]').forEach(control => {
       control.checked = control.value === changeMode;
     });
-    const modeCopy = {
-      automatic: ['Automatic', 'Apply edits now; approve deletions'],
-      proposed: ['Approval', 'Approve every change'],
-      none: ['No changes', 'Change tools disabled'],
-    };
+    const modeLabels = { automatic: 'Automatic', proposed: 'Approval', none: 'No changes' };
     const changeValue = this.settingsPanel.querySelector('.bd-navigator-change-value');
-    const changeDescription = this.settingsPanel.querySelector('.bd-navigator-setting-description');
-    if (changeValue) changeValue.textContent = modeCopy[changeMode][0];
-    if (changeDescription) changeDescription.textContent = modeCopy[changeMode][1];
+    if (changeValue) changeValue.textContent = modeLabels[changeMode];
   }
 
   updateThinkingLevelLabel(index) {
@@ -1395,21 +1381,6 @@ class NavigatorFeature {
     this.inputEl.value = prompt;
     this.autosizeInput();
     this.handleSend();
-  }
-
-  updatePermissionUI() {
-    if (!this.changeModeBadge) return;
-    const mode = this.session?.getPermissionState?.().changeMode;
-    const normalized = ['automatic', 'proposed', 'none'].includes(mode) ? mode : 'automatic';
-    const labels = { automatic: 'Automatic', proposed: 'Approval', none: 'No changes' };
-    const descriptions = {
-      automatic: 'Navigator applies verified non-deletion edits immediately.',
-      proposed: 'Navigator waits for approval before applying each change.',
-      none: 'Navigator cannot make changes.',
-    };
-    this.changeModeBadge.dataset.mode = normalized;
-    this.changeModeBadge.textContent = labels[normalized];
-    this.changeModeBadge.title = descriptions[normalized];
   }
 
   async handleClear() {

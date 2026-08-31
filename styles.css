@@ -3652,14 +3652,6 @@ html.bd-story-card-dock-active > body {
   font-size: var(--bd-font-size-xs);
 }
 
-.bd-navigator-setting-description {
-  display: block;
-  min-height: 16px;
-  color: var(--bd-text-muted);
-  font-size: 11px;
-  line-height: var(--bd-line-height-normal);
-}
-
 .bd-navigator-change-toggle {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3736,31 +3728,6 @@ html.bd-story-card-dock-active > body {
   align-items: center;
   flex-shrink: 0;
   gap: 4px;
-}
-
-.bd-navigator-change-mode-badge {
-  flex-shrink: 0;
-  padding: 2px var(--bd-space-2);
-  border: 1px solid var(--bd-border-accent);
-  border-radius: var(--bd-radius-full);
-  background: var(--bd-accent-muted);
-  color: var(--bd-accent-light);
-  font-size: var(--bd-font-size-xs);
-  font-weight: var(--bd-font-weight-medium);
-  line-height: var(--bd-line-height-normal);
-  white-space: nowrap;
-}
-
-.bd-navigator-change-mode-badge[data-mode="proposed"] {
-  border-color: var(--bd-info-border);
-  background: var(--bd-info-bg);
-  color: var(--bd-info-light);
-}
-
-.bd-navigator-change-mode-badge[data-mode="none"] {
-  border-color: var(--bd-warning-border);
-  background: var(--bd-warning-bg);
-  color: var(--bd-warning-light);
 }
 
 .bd-navigator-icon-btn {
