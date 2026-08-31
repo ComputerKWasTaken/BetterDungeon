@@ -14,31 +14,7 @@
   const MAX_ACTION_WINDOW_CHARS = 8000;
   const MAX_ACTION_RESULT_CHARS = 10000;
   const MAX_MEMORY_CHARS = 4000;
-  const MAX_PLOT_COMPONENT_CHARS = 6000;
-  const MAX_PLOT_RESULT_CHARS = 30000;
-  const PLOT_COMPONENTS = Object.freeze({
-    ai_instructions: { label: 'AI Instructions', field: 'instructions' },
-    plot_essentials: { label: 'Plot Essentials', field: 'memory' },
-    authors_note: { label: "Author's Note", field: 'authorsNote' },
-    story_summary: { label: 'Story Summary', field: 'storySummary' },
-  });
-
   const DEFINITIONS = Object.freeze([
-    {
-      name: 'get_plot_components',
-      description: 'Read current Plot Components from the turn-bound authoritative snapshot. Supply an optional component list; by default all four are returned. Every returned component reports its original size and whether its content was truncated. This tool never changes the adventure.',
-      parameters: {
-        type: 'object',
-        properties: {
-          components: {
-            type: 'array',
-            items: { type: 'string', enum: Object.keys(PLOT_COMPONENTS) },
-            description: 'Optional Plot Components to read. Defaults to AI Instructions, Plot Essentials, Author\'s Note, and Story Summary.',
-          },
-        },
-        additionalProperties: false,
-      },
-    },
     {
       name: 'get_story_card',
       description: 'Read one current Story Card selected by stable ID from the supplied directory or search results. Returns bounded values for all five player-facing fields, with explicit source sizes and truncation flags for every field. This tool never changes the card.',
@@ -354,47 +330,6 @@
     return index;
   }
 
-  function getPlotComponents(shortId, args, index) {
-    const snapshot = currentIndex(index);
-    if (!snapshot.adventure) {
-      throw { code: 'unavailable', message: 'Plot Components are unavailable in the current Navigator snapshot.' };
-    }
-    const requested = args.components === undefined ? Object.keys(PLOT_COMPONENTS) : args.components;
-    if (!Array.isArray(requested) || !requested.length || requested.some(name => !PLOT_COMPONENTS[name])) {
-      throw {
-        code: 'invalid_tool_args',
-        message: `components must contain one or more of: ${Object.keys(PLOT_COMPONENTS).join(', ')}. Accepted keys: components.`,
-      };
-    }
-    const unique = [...new Set(requested)];
-    const perComponentLimit = Math.min(
-      MAX_PLOT_COMPONENT_CHARS,
-      Math.max(1000, Math.floor(12000 / unique.length))
-    );
-    const provenance = snapshot.provenance?.plot || {};
-    return {
-      source: snapshot.source || 'unknown',
-      adventureId: snapshot.adventureId || null,
-      shortId: snapshot.shortId || shortId,
-      capturedAtIso: snapshot.capturedAtIso || null,
-      requested: unique,
-      components: unique.map(component => {
-        const config = PLOT_COMPONENTS[component];
-        const bounded = boundedText(snapshot.adventure[config.field], perComponentLimit);
-        return {
-          component,
-          label: config.label,
-          content: bounded.text,
-          sourceChars: bounded.sourceChars,
-          returnedChars: bounded.text.length,
-          truncated: bounded.truncated,
-          populated: bounded.sourceChars > 0,
-          provenance: provenance[config.field] || provenance.instructions || 'unknown',
-        };
-      }),
-    };
-  }
-
   function cardField(card, field) {
     if (field === 'title') return card.title;
     if (field === 'triggers') return card.triggers.join(' ');
@@ -680,7 +615,6 @@
       const args = assertArgs(rawArgs, definition);
       let result;
       switch (name) {
-        case 'get_plot_components': result = getPlotComponents(this.shortId, args, options.index); break;
         case 'get_story_card': result = getStoryCard(this.shortId, args, options.index); break;
         case 'search_story_cards': result = searchStoryCards(this.shortId, args, options.index); break;
         case 'search_story_history': result = searchStoryHistory(this.shortId, args, options.index); break;
@@ -695,9 +629,7 @@
         capturedAtIso: options.index?.capturedAtIso || new Date().toISOString(),
         data: result,
       };
-      const resultLimit = name === 'get_plot_components'
-        ? MAX_PLOT_RESULT_CHARS
-        : name === 'search_story_cards'
+      const resultLimit = name === 'search_story_cards'
         ? MAX_SEARCH_RESULT_CHARS
         : name === 'get_story_card'
           ? MAX_CARD_RESULT_CHARS
@@ -713,7 +645,6 @@
   NavigatorTools.DEFINITIONS = DEFINITIONS;
   NavigatorTools.MAX_CARD_RESULT_CHARS = MAX_CARD_RESULT_CHARS;
   NavigatorTools.MAX_SEARCH_RESULT_CHARS = MAX_SEARCH_RESULT_CHARS;
-  NavigatorTools.MAX_PLOT_RESULT_CHARS = MAX_PLOT_RESULT_CHARS;
   window.NavigatorTools = NavigatorTools;
 
   if (typeof module !== 'undefined' && module.exports) module.exports = NavigatorTools;

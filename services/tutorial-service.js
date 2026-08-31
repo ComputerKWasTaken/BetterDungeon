@@ -104,7 +104,7 @@ class TutorialService {
         type: 'spotlight',
         target: '[data-feature="navigator"] .feature-hints',
         title: 'You remain in control',
-        content: 'Navigator can recommend edits to Plot Components and Story Cards, but recommendations are not applied immediately. You review the proposed changes first and explicitly approve them, so a conversation cannot silently rewrite your adventure.',
+        content: 'Automatic mode applies verified non-deletion edits immediately and reports each one. Permanent Story Card and Memory Bank deletions always require explicit approval. Choose Proposed changes to approve every edit or No changes to remove Navigator\'s mutation tools.',
         icon: 'icon-badge-check',
         position: 'bottom',
         action: 'switchTab',

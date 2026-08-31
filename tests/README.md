@@ -15,7 +15,11 @@ write paths Navigator relies on. Run an individual suite with:
 - **`ai-compatible-contract.test.js`** - Compatible AI profile and capability behavior, text and JSON requests, Gemini reasoning and rate-limit handling, streaming, cancellation, timeouts, errors, and opaque thought-signature replay across tool rounds.
 - **`apollo-cache-contract.test.js`** - Apollo bridge wiring, operation allowlisting, unavailable and direct-error handling, Adventure denormalization, memo invalidation, relay pairing, and timeout recovery.
 - **`apollo-consumer-contract.test.js`** - Apollo-first Story Card scanning with fallback behavior, Ultrascripts history compatibility, and Auto See warm-tail refresh coordination.
-- **`navigator-chat-qol.test.js`** - Navigator edit/retry history semantics, proposal expiry, retry eligibility, sanitized ordered tool activity, and persisted-transcript privacy.
+- **`navigator-chat-qol.test.js`** - Navigator mode migration and tool exposure, Automatic versus Proposed changes behavior, approval-gated permanent deletions, sanitized ordered tool activity, Inspector lifecycle, and persisted-transcript privacy.
+- **`navigator-change-mode-contract.test.js`** - Canonical mode precedence, legacy Read-only fallbacks, and the independent fail-closed storage gate immediately before writes.
+- **`navigator-context-contract.test.js`** - Always-attempted Plot Components, recent story, Memory Bank, and Story Card context plus exact Inspector-to-system-instruction section parity.
+- **`navigator-settings-contract.test.js`** - PC controls and Inspector structure, including the absence of Context selectors, message action rows, Edit/Retry state, and clipboard access.
+- **`navigator-tools-contract.test.js`** - Bounded retrieval tools and the intentional absence of the former Plot Components retrieval tool.
 
 ## Live Ultrascripts suites
 

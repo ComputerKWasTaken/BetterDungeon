@@ -1,8 +1,8 @@
 // BetterDungeon - Navigator Mutation Proposals
 //
-// Model-facing functions in this registry only create proposals. GraphQL writes
-// are reachable exclusively through apply(), which the Navigator UI calls after
-// an explicit player action.
+// Model-facing functions in this registry only create staged changes. GraphQL
+// writes are reachable exclusively through apply(), which Navigator invokes
+// according to the current player-selected change mode.
 
 (function () {
   if (typeof window === 'undefined' || window.NavigatorMutations) return;
@@ -48,7 +48,7 @@
   const DEFINITIONS = Object.freeze([
     {
       name: 'propose_plot_component_change',
-      description: 'Prepare a player-approved change to AI Instructions, Plot Essentials, Author\'s Note, or Story Summary. An empty content string proposes removing that component. This function never applies the change.',
+      description: 'Prepare a change to AI Instructions, Plot Essentials, Author\'s Note, or Story Summary. An empty content string removes that component. Navigator applies or stages the validated change according to the player\'s mode.',
       parameters: {
         type: 'object',
         properties: {
@@ -66,7 +66,7 @@
     },
     {
       name: 'propose_third_person_change',
-      description: 'Prepare a player-approved change to the adventure Third Person setting. This function never applies the change.',
+      description: 'Prepare a change to the adventure Third Person setting. Navigator applies or stages the validated change according to the player\'s mode.',
       parameters: {
         type: 'object',
         properties: {
@@ -79,7 +79,7 @@
     },
     {
       name: 'propose_story_card_create',
-      description: 'Prepare a new Story Card for player approval. Supply all five player-facing fields. This function never creates the card.',
+      description: 'Prepare a new Story Card. Supply all five player-facing fields. Navigator creates it immediately or stages it according to the player\'s mode.',
       parameters: {
         type: 'object',
         properties: {
@@ -96,7 +96,7 @@
     },
     {
       name: 'propose_story_card_update',
-      description: 'Prepare player-approved changes to an existing Story Card selected by stable ID. Include only fields that should change. This function never updates the card.',
+      description: 'Prepare changes to an existing Story Card selected by stable ID. Include only fields that should change. Navigator applies or stages the validated change according to the player\'s mode.',
       parameters: {
         type: 'object',
         properties: {
@@ -133,7 +133,7 @@
     },
     {
       name: 'propose_memory_update',
-      description: 'Prepare a player-approved replacement for one existing Memory Bank entry selected by stable memory ID. This function never updates the memory.',
+      description: 'Prepare a replacement for one existing Memory Bank entry selected by stable memory ID. Navigator applies or stages the validated change according to the player\'s mode.',
       parameters: {
         type: 'object',
         properties: {
@@ -266,7 +266,7 @@
       return cloneJson(DEFINITIONS);
     }
 
-    async readOnlyEnabled() {
+    async changesDisabled() {
       if (!isExtensionContextValid()) {
         throw {
           code: 'extension_context_invalid',
@@ -289,9 +289,13 @@
           pending -= 1;
           if (pending > 0) return;
           const localSettings = localResult?.[adventureKey];
-          finish(typeof localSettings?.readOnly === 'boolean'
-            ? localSettings.readOnly
-            : syncResult?.[READ_ONLY_STORAGE_KEY] === true);
+          finish(
+            ['automatic', 'proposed', 'none'].includes(localSettings?.changeMode)
+              ? localSettings.changeMode === 'none'
+              : typeof localSettings?.readOnly === 'boolean'
+                ? localSettings.readOnly
+                : syncResult?.[READ_ONLY_STORAGE_KEY] === true
+          );
         };
         const fail = () => finish(true);
         const timer = setTimeout(() => finish(true), 2000);
@@ -568,8 +572,8 @@
       if (!proposal || proposal.status !== 'applying') {
         throw { code: 'invalid_proposal', message: 'This proposal is not ready to apply.' };
       }
-      if (await this.readOnlyEnabled()) {
-        throw { code: 'read_only', message: 'Navigator Read-only mode is enabled.' };
+      if (await this.changesDisabled()) {
+        throw { code: 'changes_disabled', message: 'Navigator No changes mode is enabled.' };
       }
       const liveShortId = window.Ultrascripts?.ws?.getAdventureShortId?.();
       if (liveShortId && String(liveShortId) !== String(proposal.shortId)) {

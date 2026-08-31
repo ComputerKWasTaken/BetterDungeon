@@ -48,25 +48,14 @@ const index = {
 };
 
 (async () => {
-  assert.equal(window.NavigatorPrimer.VERSION, 9);
+  assert.equal(window.NavigatorPrimer.VERSION, 10);
   assert.match(window.NavigatorPrimer.CORE, /CORE EVIDENCE RULES/);
   assert.match(window.NavigatorPrimer.CORE, /CORE CHANGE RULES/);
   assert.match(window.NavigatorPrimer.REFERENCE, /PLOT COMPONENT REFERENCE/);
   assert.equal(window.NavigatorPrimer.TEXT, `${window.NavigatorPrimer.CORE}\n\n${window.NavigatorPrimer.REFERENCE}`);
 
   const tools = new window.NavigatorTools('demo');
-  assert.equal(tools.definitions()[0].name, 'get_plot_components');
-
-  const plot = await tools.execute(
-    'get_plot_components',
-    { components: ['ai_instructions', 'authors_note'] },
-    { index }
-  );
-  assert.deepEqual(plot.data.requested, ['ai_instructions', 'authors_note']);
-  assert.equal(plot.data.components[0].truncated, true);
-  assert.ok(plot.data.components[0].sourceChars > plot.data.components[0].returnedChars);
-  assert.equal(plot.data.components[0].provenance, 'graphql');
-  assert.equal(plot.data.components[1].truncated, false);
+  assert.doesNotMatch(JSON.stringify(tools.definitions()), /get_plot_components/);
 
   const card = await tools.execute('get_story_card', { id: 'long-card' }, { index });
   for (const field of ['type', 'title', 'keys', 'triggers', 'notes', 'entry']) {
@@ -80,7 +69,7 @@ const index = {
 
   await assert.rejects(
     tools.execute('get_plot_components', { components: [] }, { index }),
-    error => error?.code === 'invalid_tool_args'
+    error => error?.code === 'unknown_tool'
   );
 
   console.log('Navigator tool and primer contract tests passed');

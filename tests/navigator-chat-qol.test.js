@@ -7,6 +7,7 @@ const vm = require('node:vm');
 
 const ROOT = path.resolve(__dirname, '..');
 const stored = {};
+const syncStored = {};
 let lastPersisted = null;
 
 global.window = global;
@@ -28,7 +29,13 @@ global.chrome = {
       },
     },
     sync: {
-      get(_key, callback) { callback({}); },
+      get(key, callback) {
+        if (Array.isArray(key)) {
+          callback(Object.fromEntries(key.filter(item => item in syncStored).map(item => [item, syncStored[item]])));
+          return;
+        }
+        callback(typeof key === 'string' && key in syncStored ? { [key]: syncStored[key] } : {});
+      },
       set(_value, callback) { callback?.(); },
     },
     onChanged: {
@@ -46,33 +53,8 @@ vm.runInThisContext(
 (async () => {
   const session = new window.NavigatorSession('qol-test');
   await session.settingsReady;
-
-  const user = session.addMessage({ role: 'user', content: 'Original question' });
-  const assistant = session.addMessage({
-    role: 'assistant',
-    status: 'aborted',
-    content: 'Partial answer',
-    proposals: [{ id: 'proposal-1', status: 'pending' }],
-  });
-  assert.equal(session.getMessageActionState(user.id).editable, true);
-  assert.equal(session.getMessageActionState(assistant.id).retryable, true);
-
-  let retried = null;
-  session.runTurn = async (text, options) => { retried = { text, options }; };
-  assert.equal(await session.retryAssistantMessage(assistant.id), true);
-  assert.deepEqual(retried, { text: 'Original question', options: { addUserMessage: false } });
-  assert.equal(session.getMessages().length, 1);
-  assert.equal(session.getMessages()[0].id, user.id);
-  assert.equal(assistant.proposals[0].status, 'expired');
-
-  const laterAssistant = session.addMessage({ role: 'assistant', content: 'Old answer' });
-  const laterUser = session.addMessage({ role: 'user', content: 'Follow-up' });
-  session.addMessage({ role: 'assistant', content: 'Follow-up answer' });
-  let replacement = null;
-  session.send = async text => { replacement = text; };
-  assert.equal(await session.replaceFromUserMessage(laterUser.id, 'Edited follow-up'), true);
-  assert.equal(replacement, 'Edited follow-up');
-  assert.deepEqual(session.getMessages().map(message => message.id), [user.id, laterAssistant.id]);
+  assert.equal(session.getSettings().changeMode, 'automatic');
+  assert.equal(session.getPermissionState().changeMode, 'automatic');
 
   session.messages = [];
   const trailOwner = session.addMessage({ role: 'assistant', status: 'pending', content: '' });
@@ -127,16 +109,8 @@ vm.runInThisContext(
   assert.doesNotMatch(persistedJson, /RAW_ARGUMENT_SECRET|SECOND_ARGUMENT_SECRET|RESULT_CONTENT_SECRET|RESULT_BODY_SECRET|MEMORY_BODY_SECRET|ERROR_DETAIL_SECRET/);
   assert.match(persistedJson, /toolActivityTrail/);
 
-  const blocked = session.addMessage({
-    role: 'assistant',
-    status: 'error',
-    error: { code: 'safety_blocked', message: 'Blocked' },
-  });
-  assert.equal(session.getMessageActionState(blocked.id).retryable, false);
-
   session.tools = {
     definitions: () => [
-      { name: 'get_plot_components' },
       { name: 'search_story_cards' },
       { name: 'get_story_card' },
       { name: 'search_story_history' },
@@ -146,32 +120,110 @@ vm.runInThisContext(
     ],
   };
   session.mutations = { definitions: () => [{ name: 'propose_plot_component_change' }] };
-  session.readOnly = false;
-  session.effectiveSettings.contextSections = ['plot'];
-  const fullPlotSnapshot = {
-    segments: { plotComponents: { truncated: false, sourceChars: 120, includedChars: 120 } },
-  };
+  session.setChangeMode('automatic');
   assert.deepEqual(
-    session.getToolDefinitions(fullPlotSnapshot).map(tool => tool.name),
-    ['propose_plot_component_change']
+    session.getToolDefinitions().map(tool => tool.name),
+    ['search_story_cards', 'get_story_card', 'search_story_history', 'get_story_actions', 'search_memory_bank', 'get_memory', 'propose_plot_component_change']
   );
-  const truncatedPlotSnapshot = {
-    segments: { plotComponents: { truncated: true, sourceChars: 120, includedChars: 60 } },
-  };
+  session.setChangeMode('none');
   assert.deepEqual(
-    session.getToolDefinitions(truncatedPlotSnapshot).map(tool => tool.name),
-    ['get_plot_components', 'propose_plot_component_change']
+    session.getToolDefinitions().map(tool => tool.name),
+    ['search_story_cards', 'get_story_card', 'search_story_history', 'get_story_actions', 'search_memory_bank', 'get_memory']
   );
-  session.effectiveSettings.contextSections = [];
-  assert.deepEqual(
-    session.getToolDefinitions(truncatedPlotSnapshot).map(tool => tool.name),
-    ['propose_plot_component_change']
-  );
+  session.setChangeMode('automatic');
   const fullPlotGuidance = session.buildToolGuidance([
     { name: 'search_story_cards' },
   ]);
   assert.match(fullPlotGuidance, /Do not call a read tool/);
   assert.doesNotMatch(fullPlotGuidance, /get_plot_components/);
+
+  let applyCalls = 0;
+  let proposalCounter = 0;
+  session.refreshContext = async () => null;
+  session.mutations = {
+    definitions: () => [{ name: 'propose_plot_component_change' }, { name: 'propose_story_card_delete' }],
+    async createProposal(name) {
+      proposalCounter += 1;
+      return {
+        id: `proposal-${proposalCounter}`,
+        status: 'pending',
+        kind: name.includes('delete') ? 'story_card_delete' : 'plot_component',
+        action: name.includes('delete') ? 'delete' : 'modify',
+        irreversible: name.includes('delete'),
+        targetLabel: 'Test target',
+        changes: [],
+      };
+    },
+    async apply() {
+      applyCalls += 1;
+      return { appliedAtIso: '2026-08-30T00:00:00.000Z' };
+    },
+  };
+  session.messages = [];
+  const mutationOwner = session.addMessage({ role: 'assistant', status: 'pending', content: '' });
+  const snapshot = { index: { shortId: 'qol-test' } };
+  const signal = new AbortController().signal;
+
+  const automaticEdit = await session.executeToolCalls(
+    [{ id: 'change-1', name: 'propose_plot_component_change', arguments: {} }],
+    signal, 50000, mutationOwner.id, snapshot, new Map(), 1
+  );
+  assert.equal(automaticEdit.results[0].result.data.status, 'applied');
+  assert.equal(applyCalls, 1);
+
+  const automaticDelete = await session.executeToolCalls(
+    [{ id: 'change-2', name: 'propose_story_card_delete', arguments: {} }],
+    signal, 50000, mutationOwner.id, snapshot, new Map(), 2
+  );
+  assert.equal(automaticDelete.results[0].result.data.status, 'pending_approval');
+  assert.equal(applyCalls, 1, 'Automatic mode must not apply permanent deletion');
+
+  session.setChangeMode('proposed');
+  const proposedEdit = await session.executeToolCalls(
+    [{ id: 'change-3', name: 'propose_plot_component_change', arguments: {} }],
+    signal, 50000, mutationOwner.id, snapshot, new Map(), 3
+  );
+  assert.equal(proposedEdit.results[0].result.data.status, 'pending_approval');
+  assert.equal(applyCalls, 1);
+
+  session.beginRequestInspection();
+  session.lastRequestInspection.snapshot = { partial: false, warnings: [], sections: { coverage: 'Complete' } };
+  session.lastRequestInspection.conversation = { messages: [{ role: 'user', content: 'Inspect me' }], truncated: false, omittedMessages: 0 };
+  const inspectedRound = session.retainInspectionRound({
+    round: 0,
+    systemInstruction: 'SYSTEM',
+    messages: [{ role: 'user', content: 'Inspect me' }],
+    tools: [{ name: 'search_story_cards' }],
+    projectedInputChars: 100,
+  });
+  session.updateInspectionRound(inspectedRound, {
+    activity: [{ name: 'search_story_cards', status: 'success', summary: { resultCount: 1 } }],
+    responseMeta: { outputTruncated: false },
+  });
+  session.finishRequestInspection({ peakInputChars: 100, toolRounds: 1, toolsDropped: false }, null);
+  const inspection = session.getLastRequestInspection();
+  assert.equal(inspection.status, 'complete');
+  assert.equal(inspection.rounds[0].activity[0].name, 'search_story_cards');
+  assert.equal(inspection.conversation.messages[0].content, 'Inspect me');
+
+  stored[`betterDungeon_navigator_adventure_${encodeURIComponent('legacy-none')}`] = { readOnly: true, applyMode: 'auto' };
+  const legacyNone = new window.NavigatorSession('legacy-none');
+  await legacyNone.settingsReady;
+  assert.equal(legacyNone.getSettings().changeMode, 'none');
+  legacyNone.destroy();
+
+  stored[`betterDungeon_navigator_adventure_${encodeURIComponent('legacy-review')}`] = { readOnly: false, applyMode: 'review' };
+  const legacyReview = new window.NavigatorSession('legacy-review');
+  await legacyReview.settingsReady;
+  assert.equal(legacyReview.getSettings().changeMode, 'proposed');
+  legacyReview.destroy();
+
+  syncStored.betterDungeon_navigator_defaults = { changeMode: 'proposed' };
+  const inheritedDefault = new window.NavigatorSession('inherited-default');
+  await inheritedDefault.settingsReady;
+  assert.equal(inheritedDefault.getSettings().changeMode, 'proposed', 'adventures without a local mode must inherit canonical defaults');
+  assert.equal(stored[`betterDungeon_navigator_adventure_${encodeURIComponent('inherited-default')}`]?.changeMode, undefined);
+  inheritedDefault.destroy();
 
   session.destroy();
   console.log('Navigator chat quality-of-life tests passed');

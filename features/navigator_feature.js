@@ -22,17 +22,18 @@ class NavigatorFeature {
     this.drawer = null;
     this.transcriptEl = null;
     this.inputEl = null;
+    this.composerEl = null;
     this.sendBtn = null;
     this.stopBtn = null;
     this.emptyEl = null;
-    this.readOnlyBadge = null;
+    this.changeModeBadge = null;
     this.settingsPanel = null;
     this.inspectionPanel = null;
-    this.editBanner = null;
+    this.inspectionToggle = null;
+    this.inspectionReturnFocus = null;
     this.confirmationPanel = null;
     this.confirmationResolve = null;
     this.confirmationReturnFocus = null;
-    this.editingMessageId = null;
     this.settingsTablist = null;
     this.settingsSurface = null;
     this.settingsTabWrapper = null;
@@ -270,7 +271,6 @@ class NavigatorFeature {
     } else if (event === 'permissions' || event === 'idle') {
       this.updatePermissionUI();
       this.renderAllProposalStates();
-      this.renderAllMessageActions();
       if (event === 'idle') this.focusComposer();
     } else if (event === 'settings') {
       this.renderNavigatorSettings();
@@ -299,17 +299,18 @@ class NavigatorFeature {
     this.drawer = null;
     this.transcriptEl = null;
     this.inputEl = null;
+    this.composerEl = null;
     this.sendBtn = null;
     this.stopBtn = null;
     this.emptyEl = null;
-    this.readOnlyBadge = null;
+    this.changeModeBadge = null;
     this.settingsPanel = null;
     this.inspectionPanel = null;
-    this.editBanner = null;
+    this.inspectionToggle = null;
+    this.inspectionReturnFocus = null;
     this.confirmationPanel = null;
     this.confirmationResolve = null;
     this.confirmationReturnFocus = null;
-    this.editingMessageId = null;
     this.messageNodes.clear();
     this.proposalExpansion.clear();
     this.isOpen = false;
@@ -720,8 +721,8 @@ class NavigatorFeature {
         <h2 class="bd-navigator-title">Navigator</h2>
       </div>
       <div class="bd-navigator-header-actions">
-        <span class="bd-navigator-read-only" hidden>Read-only</span>
-        <button type="button" class="bd-navigator-icon-btn bd-navigator-inspection" aria-label="View last request context" title="View last request context" aria-controls="bd-navigator-inspection-panel" aria-expanded="false">
+        <span class="bd-navigator-change-mode-badge" data-mode="automatic">Automatic</span>
+        <button type="button" class="bd-navigator-icon-btn bd-navigator-inspection" aria-label="Open Inspector" title="Open Inspector" aria-controls="bd-navigator-inspection-panel" aria-expanded="false">
           <span class="icon-file-braces" aria-hidden="true"></span>
         </button>
         <button type="button" class="bd-navigator-icon-btn bd-navigator-settings" aria-label="Navigator settings" title="Navigator settings" aria-controls="bd-navigator-settings-panel" aria-expanded="false">
@@ -739,25 +740,43 @@ class NavigatorFeature {
     settings.setAttribute('aria-label', 'Navigator adventure settings');
     settings.innerHTML = `
       <div class="bd-navigator-settings-grid">
-        <label class="bd-navigator-thinking-control">Thinking level
+        <label class="bd-navigator-setting-control bd-navigator-thinking-control">
+          <span class="bd-navigator-setting-heading">
+            <span>Thinking level</span>
+            <span class="bd-navigator-thinking-value" aria-live="polite"></span>
+          </span>
           <input type="range" min="0" max="0" step="1" value="0" data-nav-setting="thinkingLevel" aria-label="Thinking level">
-          <span class="bd-navigator-thinking-value" aria-live="polite"></span>
         </label>
-        <label class="bd-navigator-select-control">Changes
-          <select data-nav-setting="applyMode" aria-label="How Navigator changes are applied">
-            <option value="auto">Auto — apply immediately</option>
-            <option value="review">Review — approve each change</option>
-          </select>
-        </label>
-        <label class="bd-navigator-toggle-control">Read-only
-          <input type="checkbox" data-nav-setting="readOnly" aria-label="Read-only mode">
-        </label>
-        <fieldset class="bd-navigator-context-sections">
-          <legend>Context sections</legend>
-          <label><input type="checkbox" data-nav-context-section="plot"> Plot Components</label>
-          <label><input type="checkbox" data-nav-context-section="history"> Recent story actions</label>
-          <label><input type="checkbox" data-nav-context-section="memory"> Memory Bank</label>
-          <label><input type="checkbox" data-nav-context-section="cards"> Story Card directory</label>
+        <fieldset class="bd-navigator-setting-control bd-navigator-change-control">
+          <legend class="bd-navigator-sr-only">Changes</legend>
+          <span class="bd-navigator-setting-heading">
+            <span>Changes</span>
+            <span class="bd-navigator-change-value" aria-live="polite">Automatic</span>
+          </span>
+          <span class="bd-navigator-setting-description">Apply edits now; approve deletions</span>
+          <div class="bd-navigator-change-toggle" role="radiogroup" aria-label="How Navigator changes are applied">
+            <label class="bd-navigator-change-option" title="Automatic — apply edits immediately (Recommended)">
+              <input type="radio" name="bd-navigator-change-mode" value="automatic" data-nav-setting="changeMode" aria-label="Automatic — apply edits immediately (Recommended)">
+              <span class="bd-navigator-change-segment">
+                <span class="icon-zap" aria-hidden="true"></span>
+                <span class="bd-navigator-sr-only">Automatic</span>
+              </span>
+            </label>
+            <label class="bd-navigator-change-option" title="Proposed changes — approve each change">
+              <input type="radio" name="bd-navigator-change-mode" value="proposed" data-nav-setting="changeMode" aria-label="Proposed changes — approve each change">
+              <span class="bd-navigator-change-segment">
+                <span class="icon-badge-check" aria-hidden="true"></span>
+                <span class="bd-navigator-sr-only">Proposed changes</span>
+              </span>
+            </label>
+            <label class="bd-navigator-change-option" title="No changes — Navigator cannot make changes">
+              <input type="radio" name="bd-navigator-change-mode" value="none" data-nav-setting="changeMode" aria-label="No changes — Navigator cannot make changes">
+              <span class="bd-navigator-change-segment">
+                <span class="icon-ban" aria-hidden="true"></span>
+                <span class="bd-navigator-sr-only">No changes</span>
+              </span>
+            </label>
+          </div>
         </fieldset>
       </div>
     `;
@@ -766,8 +785,20 @@ class NavigatorFeature {
     inspection.className = 'bd-navigator-inspection-panel';
     inspection.id = 'bd-navigator-inspection-panel';
     inspection.hidden = true;
-    inspection.setAttribute('aria-label', 'Last request context');
-    inspection.innerHTML = '<div class="bd-navigator-inspection-summary"></div><div class="bd-navigator-inspection-toolbar"></div><div class="bd-navigator-inspection-body"></div>';
+    inspection.setAttribute('aria-labelledby', 'bd-navigator-inspection-title');
+    inspection.innerHTML = `
+      <div class="bd-navigator-inspection-header">
+        <button type="button" class="bd-navigator-inspection-back" aria-label="Back to chat">
+          <span class="icon-arrow-left" aria-hidden="true"></span>
+          <span>Back to chat</span>
+        </button>
+        <div>
+          <h3 id="bd-navigator-inspection-title">Inspector</h3>
+          <p>Last request only · replaced on the next request or page reload</p>
+        </div>
+      </div>
+      <div class="bd-navigator-inspection-content"></div>
+    `;
 
     const transcript = document.createElement('div');
     transcript.className = 'bd-navigator-transcript';
@@ -793,10 +824,6 @@ class NavigatorFeature {
     const composer = document.createElement('div');
     composer.className = 'bd-navigator-composer';
     composer.innerHTML = `
-      <div class="bd-navigator-edit-banner" hidden>
-        <span><span class="icon-pencil" aria-hidden="true"></span> Editing message</span>
-        <button type="button" class="bd-navigator-edit-cancel">Cancel</button>
-      </div>
       <div class="bd-navigator-input-shell">
         <textarea class="bd-navigator-input" rows="1" placeholder="Ask Navigator..." aria-label="Message Navigator"></textarea>
         <button type="button" class="bd-navigator-stop" aria-label="Stop generating" title="Stop generating" hidden>
@@ -827,43 +854,38 @@ class NavigatorFeature {
 
     this.drawer = drawer;
     this.transcriptEl = transcript;
+    this.composerEl = composer;
     this.emptyEl = empty;
     this.inputEl = composer.querySelector('.bd-navigator-input');
     this.sendBtn = composer.querySelector('.bd-navigator-send');
     this.stopBtn = composer.querySelector('.bd-navigator-stop');
-    this.readOnlyBadge = header.querySelector('.bd-navigator-read-only');
+    this.changeModeBadge = header.querySelector('.bd-navigator-change-mode-badge');
     this.settingsPanel = settings;
     this.inspectionPanel = inspection;
-    this.editBanner = composer.querySelector('.bd-navigator-edit-banner');
     this.confirmationPanel = confirmation;
 
     const inspectionToggle = header.querySelector('.bd-navigator-inspection');
+    this.inspectionToggle = inspectionToggle;
     const settingsToggle = header.querySelector('.bd-navigator-settings');
-    const syncDisclosureState = () => {
-      drawer.classList.toggle('bd-navigator-secondary-open', !inspection.hidden || !settings.hidden);
-      inspectionToggle.setAttribute('aria-expanded', String(!inspection.hidden));
-      settingsToggle.setAttribute('aria-expanded', String(!settings.hidden));
-    };
 
     inspectionToggle.addEventListener('click', () => {
-      inspection.hidden = !inspection.hidden;
-      settings.hidden = true;
-      syncDisclosureState();
-      if (!inspection.hidden) this.renderRequestInspection();
+      this.setInspectorOpen(inspection.hidden);
     });
+    inspection.querySelector('.bd-navigator-inspection-back')?.addEventListener('click', () => this.setInspectorOpen(false));
     header.querySelector('.bd-navigator-clear').addEventListener('click', () => this.handleClear());
     settingsToggle.addEventListener('click', () => {
+      this.setInspectorOpen(false, { focus: false });
       settings.hidden = !settings.hidden;
-      inspection.hidden = true;
-      syncDisclosureState();
+      drawer.classList.toggle('bd-navigator-secondary-open', !settings.hidden);
+      settingsToggle.setAttribute('aria-expanded', String(!settings.hidden));
       if (!settings.hidden) {
         this.renderNavigatorSettings();
         this.session?.checkReady?.().then(() => this.renderNavigatorSettings());
       }
     });
     settings.querySelectorAll('[data-nav-setting]').forEach(control => {
-      if (control.tagName === 'FIELDSET') return;
       control.addEventListener('change', () => {
+        if (control.type === 'radio' && !control.checked) return;
         const value = control.type === 'checkbox' ? control.checked : control.value;
         this.saveNavigatorSetting(control.dataset.navSetting, value);
       });
@@ -871,15 +893,7 @@ class NavigatorFeature {
     settings.querySelector('[data-nav-setting="thinkingLevel"]')?.addEventListener('input', event => {
       this.updateThinkingLevelLabel(Number(event.target.value));
     });
-    settings.querySelectorAll('[data-nav-context-section]').forEach(control => {
-      control.addEventListener('change', () => {
-        const contextSections = [...settings.querySelectorAll('[data-nav-context-section]:checked')]
-          .map(input => input.dataset.navContextSection);
-        this.saveNavigatorSetting('contextSections', contextSections);
-      });
-    });
     this.stopBtn.addEventListener('click', () => this.session?.abort());
-    composer.querySelector('.bd-navigator-edit-cancel').addEventListener('click', () => this.cancelMessageEdit());
     confirmation.querySelector('.bd-navigator-confirmation-cancel').addEventListener('click', () => this.resolveConfirmation(false));
     confirmation.querySelector('.bd-navigator-confirmation-accept').addEventListener('click', () => this.resolveConfirmation(true));
     confirmation.addEventListener('click', event => {
@@ -941,20 +955,21 @@ class NavigatorFeature {
         : 'The configured provider advertises no thinking-level support.';
       this.updateThinkingLevelLabel(nearestIndex);
     }
-    const readOnly = this.settingsPanel.querySelector('[data-nav-setting="readOnly"]');
-    if (readOnly) readOnly.checked = settings.readOnly === true;
-    const applyMode = this.settingsPanel.querySelector('[data-nav-setting="applyMode"]');
-    if (applyMode) {
-      applyMode.value = settings.applyMode === 'review' ? 'review' : 'auto';
-      applyMode.disabled = settings.readOnly === true;
-      applyMode.title = settings.readOnly === true ? 'Read-only mode disables all Navigator changes.' : '';
-    }
-    const selectedSections = Array.isArray(settings.contextSections)
-      ? settings.contextSections
-      : ['plot', 'history', 'memory', 'cards'];
-    for (const control of this.settingsPanel.querySelectorAll('[data-nav-context-section]')) {
-      control.checked = selectedSections.includes(control.dataset.navContextSection);
-    }
+    const changeMode = ['automatic', 'proposed', 'none'].includes(settings.changeMode)
+      ? settings.changeMode
+      : 'automatic';
+    this.settingsPanel.querySelectorAll('input[data-nav-setting="changeMode"]').forEach(control => {
+      control.checked = control.value === changeMode;
+    });
+    const modeCopy = {
+      automatic: ['Automatic', 'Apply edits now; approve deletions'],
+      proposed: ['Approval', 'Approve every change'],
+      none: ['No changes', 'Change tools disabled'],
+    };
+    const changeValue = this.settingsPanel.querySelector('.bd-navigator-change-value');
+    const changeDescription = this.settingsPanel.querySelector('.bd-navigator-setting-description');
+    if (changeValue) changeValue.textContent = modeCopy[changeMode][0];
+    if (changeDescription) changeDescription.textContent = modeCopy[changeMode][1];
   }
 
   updateThinkingLevelLabel(index) {
@@ -966,7 +981,6 @@ class NavigatorFeature {
 
   async saveNavigatorSetting(key, rawValue) {
     if (!this.session) return;
-    const value = key === 'readOnly' ? rawValue === true : rawValue;
     if (key === 'thinkingLevel') {
       const supported = this.session.getSettings?.().providerThinkingLevels || [];
       const selected = supported[Number(rawValue)];
@@ -975,46 +989,310 @@ class NavigatorFeature {
       this.renderNavigatorSettings();
       return;
     }
-    await this.session.saveSettings({ [key]: value });
+    await this.session.saveSettings({ [key]: rawValue });
     this.renderNavigatorSettings();
   }
 
+  setInspectorOpen(open, { focus = true } = {}) {
+    if (!this.inspectionPanel || !this.transcriptEl || !this.composerEl) return;
+    const nextOpen = open === true;
+    if (nextOpen) this.inspectionReturnFocus = document.activeElement;
+    this.inspectionPanel.hidden = !nextOpen;
+    this.transcriptEl.hidden = nextOpen;
+    this.composerEl.hidden = nextOpen;
+    this.drawer?.classList.toggle('bd-navigator-inspector-active', nextOpen);
+    this.inspectionToggle?.setAttribute('aria-expanded', String(nextOpen));
+    if (this.inspectionToggle) {
+      this.inspectionToggle.title = nextOpen ? 'Back to chat' : 'Open Inspector';
+      this.inspectionToggle.setAttribute('aria-label', nextOpen ? 'Back to chat' : 'Open Inspector');
+    }
+    if (nextOpen) {
+      if (this.settingsPanel) this.settingsPanel.hidden = true;
+      this.drawer?.classList.remove('bd-navigator-secondary-open');
+      this.drawer?.querySelector('.bd-navigator-settings')?.setAttribute('aria-expanded', 'false');
+      this.renderRequestInspection();
+      if (focus) setTimeout(() => this.inspectionPanel?.querySelector('.bd-navigator-inspection-back')?.focus(), 0);
+    } else if (focus) {
+      const returnFocus = this.inspectionReturnFocus;
+      this.inspectionReturnFocus = null;
+      if (returnFocus?.isConnected && returnFocus !== this.inspectionToggle) {
+        setTimeout(() => returnFocus.focus(), 0);
+      } else {
+        this.focusComposer(true);
+      }
+    }
+  }
+
+  createInspectionDisclosure(title, { open = false, meta = '', className = '', icon = '' } = {}) {
+    const details = document.createElement('details');
+    details.className = `bd-navigator-inspection-disclosure ${className}`.trim();
+    details.open = open;
+    const summary = document.createElement('summary');
+    const heading = document.createElement('span');
+    heading.className = 'bd-navigator-inspection-disclosure-heading';
+    if (icon) {
+      const iconEl = document.createElement('span');
+      iconEl.className = icon;
+      iconEl.setAttribute('aria-hidden', 'true');
+      heading.appendChild(iconEl);
+    }
+    const label = document.createElement('strong');
+    label.textContent = title;
+    heading.appendChild(label);
+    summary.appendChild(heading);
+    if (meta) {
+      const description = document.createElement('span');
+      description.className = 'bd-navigator-inspection-disclosure-meta';
+      description.textContent = meta;
+      summary.appendChild(description);
+    }
+    details.appendChild(summary);
+    return details;
+  }
+
+  createInspectionPre(value, fallback = '(Nothing was sent.)') {
+    const pre = document.createElement('pre');
+    pre.textContent = value === undefined || value === null || value === ''
+      ? fallback
+      : typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+    return pre;
+  }
+
+  inspectionWarnings(inspection) {
+    const warnings = [...(inspection.snapshot?.warnings || [])];
+    const meta = inspection.meta || {};
+    if (inspection.snapshot?.partial && !warnings.length) warnings.push('Some adventure context was reduced or unavailable for this request.');
+    if (inspection.conversation?.truncated) warnings.push(`${inspection.conversation.omittedMessages || 0} older conversation messages were omitted to fit the provider input limit.`);
+    if (meta.toolsDropped) warnings.push('Some tool definitions were removed because the request was close to the provider input limit.');
+    if (Number(meta.toolResultsOmitted || 0) > 0) warnings.push(`${meta.toolResultsOmitted} tool result${meta.toolResultsOmitted === 1 ? ' was' : 's were'} omitted from a later round to stay within the input limit.`);
+    if (meta.inputLimitReached) warnings.push('Navigator reached the provider input limit before it could complete the final response.');
+    if (meta.toolLimitReached) warnings.push('Navigator reached its tool-round limit before it could complete the final response.');
+    if (meta.outputTruncated) warnings.push('The provider stopped output at its token limit.');
+    if (inspection.error?.message) warnings.push(inspection.error.message);
+    return [...new Set(warnings.filter(Boolean))];
+  }
+
   renderRequestInspection(inspection = this.session?.getLastRequestInspection?.()) {
-    if (!this.inspectionPanel) return;
-    const summary = this.inspectionPanel.querySelector('.bd-navigator-inspection-summary');
-    const toolbar = this.inspectionPanel.querySelector('.bd-navigator-inspection-toolbar');
-    const body = this.inspectionPanel.querySelector('.bd-navigator-inspection-body');
-    summary.replaceChildren(); toolbar.replaceChildren(); body.replaceChildren();
-    if (!inspection) { summary.textContent = 'Nothing has been captured yet in this page session. This inspection is not saved across reloads.'; return; }
-    const flags = ['toolsDropped', 'inputLimitReached', 'toolLimitReached', 'toolResultsOmitted'].filter(key => inspection.meta?.[key]);
-    const charsPerToken = Number(NavigatorSession.CHARS_PER_TOKEN);
-    const formatCapacity = value => {
+    const content = this.inspectionPanel?.querySelector('.bd-navigator-inspection-content');
+    if (!content) return;
+    content.replaceChildren();
+    if (!inspection) {
+      const empty = document.createElement('div');
+      empty.className = 'bd-navigator-inspection-empty';
+      empty.innerHTML = '<span class="icon-file-braces" aria-hidden="true"></span><strong>No request captured yet</strong><p>Send Navigator a message to see exactly what context and tools were used. Inspector data stays only in this page session.</p>';
+      content.appendChild(empty);
+      return;
+    }
+
+    const charsPerToken = Number(NavigatorSession.CHARS_PER_TOKEN) || 3;
+    const formatChars = value => {
       const chars = Number(value);
       return Number.isFinite(chars) && chars >= 0
-        ? `${value} chars (~${Math.round(chars / charsPerToken)} tokens)`
-        : 'unknown';
+        ? `${chars.toLocaleString()} chars · ~${Math.round(chars / charsPerToken).toLocaleString()} tokens`
+        : 'Unknown';
     };
-    summary.textContent = `Captured ${inspection.capturedAt || 'unknown time'} | ${inspection.model || 'model unknown'} | thinking ${inspection.thinkingLevel || 'unknown'} | input cap ${formatCapacity(inspection.inputCap)} | peak ${formatCapacity(inspection.meta?.peakInputChars || 0)} | tool rounds ${inspection.meta?.toolRounds || 0}${flags.length ? ` | ${flags.join(', ')}` : ''}`;
-    if (inspection.error) summary.appendChild(document.createTextNode(` | Error: ${inspection.error.message}`));
+    const status = ['running', 'complete', 'attention', 'error'].includes(inspection.status)
+      ? inspection.status
+      : inspection.error ? 'error' : inspection.meta ? 'complete' : 'running';
+    const warnings = this.inspectionWarnings(inspection);
     const rounds = Array.isArray(inspection.rounds) ? inspection.rounds : [];
-    if (!rounds.length) { body.textContent = 'No executor round was captured. Nothing is saved across reloads.'; return; }
-    if (rounds.length > 1) {
-      const label = document.createElement('label'); label.textContent = 'Round ';
-      const select = document.createElement('select'); select.className = 'bd-navigator-inspection-round';
-      rounds.forEach((round, index) => { const option = document.createElement('option'); option.value = String(index); option.textContent = round.omitted ? `${round.round + 1} (text omitted)` : String(round.round + 1); select.appendChild(option); });
-      select.value = String(Math.min(this.inspectionRound, rounds.length - 1));
-      select.addEventListener('change', () => { this.inspectionRound = Number(select.value); this.renderRequestInspection(inspection); }); label.appendChild(select); toolbar.appendChild(label);
+    const activities = rounds.flatMap(round => Array.isArray(round.activity) ? round.activity : []);
+    const peak = Number(inspection.meta?.peakInputChars || 0);
+    const cap = Number(inspection.inputCap || 0);
+    const usage = cap > 0 ? Math.min(100, Math.round(peak / cap * 100)) : null;
+
+    const overview = document.createElement('section');
+    overview.className = 'bd-navigator-inspection-overview';
+    const statusLine = document.createElement('div');
+    statusLine.className = 'bd-navigator-inspection-status-line';
+    const statusBadge = document.createElement('span');
+    statusBadge.className = 'bd-navigator-inspection-status';
+    statusBadge.dataset.status = status;
+    statusBadge.textContent = status[0].toUpperCase() + status.slice(1);
+    const captured = document.createElement('span');
+    const capturedDate = new Date(inspection.capturedAt);
+    captured.textContent = Number.isNaN(capturedDate.getTime()) ? 'Capture time unavailable' : capturedDate.toLocaleString();
+    statusLine.append(statusBadge, captured);
+    overview.appendChild(statusLine);
+
+    const metrics = document.createElement('div');
+    metrics.className = 'bd-navigator-inspection-metrics';
+    const contextHealth = !inspection.snapshot
+      ? 'Loading'
+      : inspection.snapshot.partial ? 'Reduced' : 'Complete';
+    const metricValues = [
+      ['Model', inspection.model || 'Unknown', 'Provider model'],
+      ['Thinking', inspection.thinkingLevel || 'Unknown', 'Reasoning level'],
+      ['Input usage', usage === null ? 'Unknown' : `${usage}%`, `${formatChars(peak)} of ${formatChars(cap)}`],
+      ['Context health', contextHealth, `${warnings.length} ${warnings.length === 1 ? 'notice' : 'notices'}`],
+      ['Tool activity', `${activities.length} ${activities.length === 1 ? 'call' : 'calls'}`, `${rounds.length} provider ${rounds.length === 1 ? 'round' : 'rounds'}`],
+    ];
+    for (const [labelText, valueText, detailText] of metricValues) {
+      const card = document.createElement('div');
+      card.className = 'bd-navigator-inspection-metric';
+      const label = document.createElement('span'); label.textContent = labelText;
+      const value = document.createElement('strong'); value.textContent = valueText;
+      const detail = document.createElement('small'); detail.textContent = detailText;
+      card.append(label, value, detail);
+      metrics.appendChild(card);
     }
-    const round = rounds[Math.min(this.inspectionRound, rounds.length - 1)];
-    if (round.omitted && !round.truncated) { body.textContent = round.omissionReason || 'Intermediate round text omitted due to the inspection retention limit.'; return; }
-    const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = 'Copy round JSON'; copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(JSON.stringify(round, null, 2)); copy.textContent = 'Copied'; } catch { copy.textContent = 'Copy unavailable'; } }); toolbar.appendChild(copy);
-    for (const [title, value] of [['System instruction', round.systemInstruction], ['Messages', round.messages], ['Tool schemas', round.tools], ['Tool results', round.toolResults], ['Round budget', { budget: round.budget, thinking: round.thinking, continuationPresent: round.continuationPresent, projectedInputChars: round.projectedInputChars }]]) { const heading = document.createElement('h4'); heading.textContent = title; body.appendChild(heading); const pre = document.createElement('pre'); pre.textContent = value === undefined ? '(nothing was sent)' : typeof value === 'string' ? value : JSON.stringify(value, null, 2); body.appendChild(pre); }
+    overview.appendChild(metrics);
+
+    if (warnings.length) {
+      const notice = document.createElement('div');
+      notice.className = 'bd-navigator-inspection-warnings';
+      const heading = document.createElement('strong');
+      heading.textContent = 'What needs attention';
+      const list = document.createElement('ul');
+      warnings.forEach(message => { const item = document.createElement('li'); item.textContent = message; list.appendChild(item); });
+      notice.append(heading, list);
+      overview.appendChild(notice);
+    }
+    const privacy = document.createElement('p');
+    privacy.className = 'bd-navigator-inspection-privacy';
+    privacy.textContent = 'Inspector contains adventure and conversation text sent to the model. It is kept only until the next request or page reload and is never stored with the transcript.';
+    overview.appendChild(privacy);
+    content.appendChild(overview);
+
+    const contextDetails = this.createInspectionDisclosure('Context sent', {
+      open: true,
+      icon: 'icon-book-open-text',
+      meta: !inspection.snapshot
+        ? 'Preparing bounded snapshot'
+        : inspection.snapshot.partial ? 'Reduced or partially unavailable' : 'Complete bounded snapshot',
+      className: 'bd-navigator-inspection-section',
+    });
+    const contextBody = document.createElement('div');
+    contextBody.className = 'bd-navigator-inspection-section-body';
+    const sections = inspection.snapshot?.sections || {};
+    const coverage = document.createElement('div');
+    coverage.className = 'bd-navigator-inspection-coverage';
+    const coverageLabel = document.createElement('strong'); coverageLabel.textContent = 'Coverage';
+    coverage.append(coverageLabel, this.createInspectionPre(sections.coverage, 'Coverage was not captured.'));
+    contextBody.appendChild(coverage);
+    const segmentMap = [
+      ['identity', 'Adventure identity', inspection.snapshot?.segments?.identity],
+      ['plotComponents', 'Plot Components', inspection.snapshot?.segments?.plotComponents],
+      ['recentActions', 'Recent story', inspection.snapshot?.segments?.recentActions],
+      ['memoryBank', 'Memory Bank', inspection.snapshot?.segments?.memoryBank],
+      ['storyCardDirectory', 'Story Card directory', inspection.snapshot?.segments?.storyCardDirectory],
+    ];
+    for (const [key, label, segment] of segmentMap) {
+      const reduced = segment?.truncated === true || segment?.dropped === true || Number(segment?.omitted || 0) > 0;
+      const unavailable = segment?.unavailable === true || segment?.available === false;
+      const state = unavailable ? 'Unavailable' : reduced ? 'Reduced' : 'Complete';
+      const sizes = Number.isFinite(segment?.includedChars) && Number.isFinite(segment?.sourceChars)
+        ? `${state} · ${Number(segment.includedChars).toLocaleString()} of ${Number(segment.sourceChars).toLocaleString()} chars`
+        : state;
+      const detail = this.createInspectionDisclosure(label, { meta: sizes, className: 'bd-navigator-inspection-context-item' });
+      detail.appendChild(this.createInspectionPre(sections[key], unavailable ? '(Unavailable for this request.)' : '(Not sent due to the request budget.)'));
+      contextBody.appendChild(detail);
+    }
+    contextDetails.appendChild(contextBody);
+    content.appendChild(contextDetails);
+
+    const conversation = inspection.conversation || {};
+    const sentMessages = Array.isArray(conversation.messages) ? conversation.messages : [];
+    const conversationDetails = this.createInspectionDisclosure('Conversation sent', {
+      icon: 'icon-messages-square',
+      meta: `${sentMessages.length} ${sentMessages.length === 1 ? 'message' : 'messages'}${conversation.omittedMessages ? ` · ${conversation.omittedMessages} omitted` : ''}`,
+      className: 'bd-navigator-inspection-section',
+    });
+    const conversationBody = document.createElement('div');
+    conversationBody.className = 'bd-navigator-inspection-conversation';
+    if (!sentMessages.length) conversationBody.appendChild(this.createInspectionPre(null, '(No conversation history was sent.)'));
+    sentMessages.forEach(message => {
+      const item = document.createElement('article');
+      item.className = 'bd-navigator-inspection-message';
+      const role = document.createElement('strong'); role.textContent = message.role === 'assistant' ? 'Navigator' : message.role === 'user' ? 'You' : message.role;
+      const text = document.createElement('pre'); text.textContent = message.content || '(empty message)';
+      item.append(role, text);
+      conversationBody.appendChild(item);
+    });
+    conversationDetails.appendChild(conversationBody);
+    content.appendChild(conversationDetails);
+
+    const toolErrors = activities.filter(activity => activity.status === 'error').length;
+    const toolsDetails = this.createInspectionDisclosure('Tool activity', {
+      open: activities.length > 0 || toolErrors > 0,
+      icon: 'icon-wrench',
+      meta: activities.length ? `${activities.length} calls${toolErrors ? ` · ${toolErrors} failed` : ''}` : 'No tools called',
+      className: 'bd-navigator-inspection-section',
+    });
+    const toolsBody = document.createElement('div');
+    toolsBody.className = 'bd-navigator-inspection-tools';
+    if (!activities.length) toolsBody.appendChild(this.createInspectionPre(null, '(Navigator answered without calling a tool.)'));
+    rounds.forEach(round => {
+      if (!round.activity?.length) return;
+      const roundGroup = document.createElement('div');
+      roundGroup.className = 'bd-navigator-inspection-tool-round';
+      const heading = document.createElement('strong'); heading.textContent = `Round ${Number(round.round || 0) + 1}`;
+      const list = document.createElement('ul');
+      round.activity.forEach(activity => {
+        const item = document.createElement('li'); item.dataset.status = activity.status || 'error';
+        const label = document.createElement('strong'); label.textContent = this.toolActivityLabel(activity.name);
+        const detail = document.createElement('span'); detail.textContent = this.toolActivityMeta(activity) || (activity.status === 'error' ? activity.errorCode || 'Failed' : 'Completed');
+        item.append(label, detail); list.appendChild(item);
+      });
+      roundGroup.append(heading, list); toolsBody.appendChild(roundGroup);
+    });
+    toolsDetails.appendChild(toolsBody);
+    content.appendChild(toolsDetails);
+
+    const technical = this.createInspectionDisclosure('Technical details', {
+      icon: 'icon-file-braces',
+      meta: 'Exact request payloads · no clipboard export',
+      className: 'bd-navigator-inspection-section bd-navigator-inspection-technical',
+    });
+    const technicalBody = document.createElement('div');
+    technicalBody.className = 'bd-navigator-inspection-technical-body';
+    if (!rounds.length) {
+      technicalBody.appendChild(this.createInspectionPre(null, '(No provider round was captured.)'));
+    } else {
+      const roundLabel = document.createElement('label');
+      roundLabel.textContent = 'Provider round';
+      const select = document.createElement('select');
+      select.className = 'bd-navigator-inspection-round';
+      rounds.forEach((round, index) => {
+        const option = document.createElement('option'); option.value = String(index);
+        option.textContent = `${Number(round.round || 0) + 1}${round.omitted ? ' · raw text omitted' : ''}`;
+        select.appendChild(option);
+      });
+      const selectedIndex = Math.min(this.inspectionRound, rounds.length - 1);
+      select.value = String(selectedIndex);
+      select.addEventListener('change', () => { this.inspectionRound = Number(select.value); this.renderRequestInspection(inspection); });
+      roundLabel.appendChild(select);
+      technicalBody.appendChild(roundLabel);
+      const round = rounds[selectedIndex];
+      if (round.omitted && !round.truncated) {
+        technicalBody.appendChild(this.createInspectionPre(round.omissionReason));
+      } else {
+        const rawBlocks = [
+          ['System instruction', round.systemInstruction],
+          ['Messages', round.messages],
+          ['Tool schemas', round.tools],
+          ['Tool results sent', round.toolResults],
+          ['Provider tool calls', round.toolCalls],
+          ['Tool execution results', round.executionResults],
+          ['Round budget', { budget: round.budget, thinking: round.thinking, continuationPresent: round.continuationPresent, projectedInputChars: round.projectedInputChars }],
+          ['Response metadata', round.responseMeta],
+        ];
+        rawBlocks.forEach(([title, value]) => {
+          const block = this.createInspectionDisclosure(title, { className: 'bd-navigator-inspection-raw-block' });
+          block.appendChild(this.createInspectionPre(value));
+          technicalBody.appendChild(block);
+        });
+      }
+    }
+    technical.appendChild(technicalBody);
+    content.appendChild(technical);
   }
 
   // ==================== OPEN / CLOSE ====================
 
   closeDrawer() {
     if (!this.drawer) return;
+    this.setInspectorOpen(false, { focus: false });
     this.deactivateSettingsNavigator({ abort: true, preservePreference: true });
     document.querySelector('[aria-label="Close settings"]')?.click();
   }
@@ -1039,6 +1317,11 @@ class NavigatorFeature {
           first.focus();
         }
       }
+      return;
+    }
+    if (event.key === 'Escape' && this.inspectionPanel && !this.inspectionPanel.hidden) {
+      event.preventDefault();
+      this.setInspectorOpen(false);
       return;
     }
     if (event.key === 'Escape' && this.isOpen && this.drawer?.contains(document.activeElement)) {
@@ -1066,31 +1349,6 @@ class NavigatorFeature {
       || active === this.sendBtn
       || active === this.stopBtn;
     if (mayRestore) setTimeout(() => this.inputEl?.focus(), 0);
-  }
-
-  beginMessageEdit(messageId) {
-    if (!this.session || this.session.isBusy || !this.inputEl) return;
-    const message = this.session.findMessage?.(messageId);
-    if (!message || message.role !== 'user') return;
-    this.editingMessageId = messageId;
-    this.inputEl.value = message.content || '';
-    this.inputEl.setAttribute('aria-label', 'Edit message and resend');
-    this.sendBtn?.setAttribute('aria-label', 'Save edit and resend');
-    if (this.editBanner) this.editBanner.hidden = false;
-    this.autosizeInput();
-    this.focusComposer(true);
-  }
-
-  cancelMessageEdit({ focus = true } = {}) {
-    this.editingMessageId = null;
-    if (this.inputEl) {
-      this.inputEl.value = '';
-      this.inputEl.setAttribute('aria-label', 'Message Navigator');
-    }
-    this.sendBtn?.setAttribute('aria-label', 'Send message');
-    if (this.editBanner) this.editBanner.hidden = true;
-    this.autosizeInput();
-    if (focus) this.focusComposer(true);
   }
 
   showConfirmation({ title, message, confirmLabel = 'Confirm', danger = false }) {
@@ -1125,28 +1383,6 @@ class NavigatorFeature {
     const text = this.inputEl.value;
     if (!text.trim() || this.session.isBusy) return;
 
-    if (this.editingMessageId) {
-      const messageId = this.editingMessageId;
-      const index = this.session.findMessageIndex?.(messageId) ?? -1;
-      const hasLaterTurns = index >= 0 && this.session.getMessages().slice(index + 1)
-        .some(message => message.role === 'user' || message.role === 'assistant');
-      if (hasLaterTurns) {
-        const confirmed = await this.showConfirmation({
-          title: 'Replace later messages?',
-          message: 'Resending this edit will remove every response and message that follows it.',
-          confirmLabel: 'Replace and resend',
-          danger: true,
-        });
-        if (!confirmed) return;
-      }
-      this.cancelMessageEdit({ focus: false });
-      this.autoScroll = true;
-      await this.session.replaceFromUserMessage?.(messageId, text);
-      this.updateComposerState();
-      this.focusComposer(true);
-      return;
-    }
-
     this.inputEl.value = '';
     this.autosizeInput();
     this.autoScroll = true;
@@ -1156,15 +1392,24 @@ class NavigatorFeature {
 
   handleQuickAction(prompt) {
     if (!this.inputEl || !prompt || this.session?.isBusy) return;
-    if (this.editingMessageId) this.cancelMessageEdit({ focus: false });
     this.inputEl.value = prompt;
     this.autosizeInput();
     this.handleSend();
   }
 
   updatePermissionUI() {
-    const readOnly = this.session?.getPermissionState?.().readOnly === true;
-    if (this.readOnlyBadge) this.readOnlyBadge.hidden = !readOnly;
+    if (!this.changeModeBadge) return;
+    const mode = this.session?.getPermissionState?.().changeMode;
+    const normalized = ['automatic', 'proposed', 'none'].includes(mode) ? mode : 'automatic';
+    const labels = { automatic: 'Automatic', proposed: 'Approval', none: 'No changes' };
+    const descriptions = {
+      automatic: 'Navigator applies verified non-deletion edits immediately.',
+      proposed: 'Navigator waits for approval before applying each change.',
+      none: 'Navigator cannot make changes.',
+    };
+    this.changeModeBadge.dataset.mode = normalized;
+    this.changeModeBadge.textContent = labels[normalized];
+    this.changeModeBadge.title = descriptions[normalized];
   }
 
   async handleClear() {
@@ -1176,7 +1421,6 @@ class NavigatorFeature {
       danger: true,
     });
     if (!confirmed) return;
-    this.cancelMessageEdit({ focus: false });
     this.session.clear();
     this.autoScroll = true;
     this.focusComposer(true);
@@ -1191,7 +1435,6 @@ class NavigatorFeature {
     }
     if (this.stopBtn) this.stopBtn.hidden = !chatBusy;
     if (this.inputEl) this.inputEl.disabled = busy && !chatBusy;
-    this.editBanner?.querySelector('button')?.toggleAttribute('disabled', busy);
     const clear = this.drawer?.querySelector?.('.bd-navigator-clear');
     if (clear) clear.disabled = busy || !(this.session?.getMessages().length > 0);
     this.emptyEl?.querySelectorAll('.bd-navigator-quick-actions button').forEach(button => {
@@ -1242,12 +1485,9 @@ class NavigatorFeature {
     const proposals = document.createElement('div');
     proposals.className = 'bd-navigator-proposals';
 
-    const actions = document.createElement('div');
-    actions.className = 'bd-navigator-message-actions';
-
-    node.append(toolTrail, body, proposals, status, actions);
+    node.append(toolTrail, body, proposals, status);
     this.transcriptEl.appendChild(node);
-    this.messageNodes.set(message.id, { node, body, toolTrail, proposals, status, actions });
+    this.messageNodes.set(message.id, { node, body, toolTrail, proposals, status });
     this.updateMessageNode(message);
   }
 
@@ -1258,7 +1498,7 @@ class NavigatorFeature {
       return;
     }
 
-    const { node, body, toolTrail, proposals, status, actions } = parts;
+    const { node, body, toolTrail, proposals, status } = parts;
     node.dataset.status = message.status;
 
     const isAssistant = message.role === 'assistant';
@@ -1267,7 +1507,6 @@ class NavigatorFeature {
     else this.renderText(body, message.content || '');
     this.renderToolTrail(toolTrail, message);
     this.renderProposals(proposals, message);
-    this.renderMessageActions(actions, message);
 
     const hasRunningTool = Array.isArray(message.toolActivityTrail)
       && message.toolActivityTrail.some(activity => activity.status === 'running');
@@ -1292,22 +1531,21 @@ class NavigatorFeature {
     }
   }
 
-  renderAllMessageActions() {
-    for (const message of this.session?.getMessages?.() || []) {
-      const parts = this.messageNodes.get(message.id);
-      if (parts?.actions) this.renderMessageActions(parts.actions, message);
-    }
-  }
-
   toolActivityLabel(name) {
     const labels = {
-      get_plot_components: 'Read Plot Components',
       search_story_cards: 'Search Story Cards',
       get_story_card: 'Read Story Card',
       search_story_history: 'Search story history',
       get_story_actions: 'Read story actions',
       search_memory_bank: 'Search Memory Bank',
       get_memory: 'Read Memory Bank entry',
+      propose_plot_component_change: 'Change Plot Component',
+      propose_third_person_change: 'Change Third Person setting',
+      propose_story_card_create: 'Create Story Card',
+      propose_story_card_update: 'Update Story Card',
+      propose_story_card_delete: 'Delete Story Card',
+      propose_memory_update: 'Update Memory Bank entry',
+      propose_memory_delete: 'Delete Memory Bank entry',
     };
     return labels[name] || 'Use Navigator tool';
   }
@@ -1414,79 +1652,15 @@ class NavigatorFeature {
     });
   }
 
-  createMessageAction(label, iconClass, onClick) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'bd-navigator-message-action';
-    button.setAttribute('aria-label', label);
-    button.title = label;
-    const icon = document.createElement('span');
-    icon.className = iconClass;
-    icon.setAttribute('aria-hidden', 'true');
-    const text = document.createElement('span');
-    text.textContent = label;
-    button.append(icon, text);
-    button.addEventListener('click', onClick);
-    return button;
-  }
-
-  renderMessageActions(container, message) {
-    if (!container) return;
-    container.replaceChildren();
-    const state = this.session?.getMessageActionState?.(message.id) || { busy: false };
-    if (message.role === 'assistant' && message.content) {
-      const copy = this.createMessageAction('Copy', 'icon-copy', () => this.copyAssistantMessage(message.id, copy));
-      container.appendChild(copy);
-    }
-    if (message.role === 'user' && state.editable) {
-      const edit = this.createMessageAction('Edit', 'icon-pencil', () => this.beginMessageEdit(message.id));
-      edit.disabled = state.busy;
-      container.appendChild(edit);
-    }
-    if (message.role === 'assistant' && state.retryable) {
-      const retry = this.createMessageAction('Retry', 'icon-rotate-ccw', () => this.retryMessage(message.id));
-      retry.disabled = state.busy;
-      container.appendChild(retry);
-    }
-  }
-
-  async copyAssistantMessage(messageId, button) {
-    const message = this.session?.findMessage?.(messageId);
-    if (!message?.content || !button) return;
-    const original = button.querySelector('span:last-child')?.textContent || 'Copy';
-    try {
-      await navigator.clipboard.writeText(message.content);
-      button.querySelector('span:last-child').textContent = 'Copied';
-      button.setAttribute('aria-label', 'Copied');
-    } catch {
-      button.querySelector('span:last-child').textContent = 'Copy unavailable';
-      button.setAttribute('aria-label', 'Copy unavailable');
-    }
-    setTimeout(() => {
-      if (!button.isConnected) return;
-      button.querySelector('span:last-child').textContent = original;
-      button.setAttribute('aria-label', original);
-    }, 1600);
-  }
-
-  async retryMessage(messageId) {
-    if (!this.session || this.session.isBusy) return;
-    this.cancelMessageEdit({ focus: false });
-    this.autoScroll = true;
-    await this.session.retryAssistantMessage?.(messageId);
-    this.updateComposerState();
-    this.focusComposer(true);
-  }
-
   renderProposals(container, message) {
     container.replaceChildren();
     const proposals = Array.isArray(message.proposals) ? message.proposals : [];
     if (!proposals.length) return;
 
-    const readOnly = this.session?.getPermissionState?.().readOnly === true;
+    const changesDisabled = this.session?.getPermissionState?.().changeMode === 'none';
     const chatBusy = this.session?.isBusy === true;
     for (const proposal of proposals) {
-      container.appendChild(this.createProposalCard(message.id, proposal, { readOnly, chatBusy }));
+      container.appendChild(this.createProposalCard(message.id, proposal, { changesDisabled, chatBusy }));
     }
   }
 
@@ -1596,8 +1770,8 @@ class NavigatorFeature {
       apply.textContent = destructive ? 'Delete' : 'Apply';
 
       reject.disabled = state.chatBusy;
-      apply.disabled = state.chatBusy || state.readOnly;
-      if (state.readOnly) apply.title = 'Read-only mode is enabled.';
+      apply.disabled = state.chatBusy || state.changesDisabled;
+      if (state.changesDisabled) apply.title = 'Navigator No changes mode is enabled.';
       else if (state.chatBusy) apply.title = 'Wait for Navigator to finish this response.';
       reject.addEventListener('click', () => this.session?.rejectProposal(messageId, proposal.id));
       apply.addEventListener('click', () => this.session?.applyProposal(messageId, proposal.id));
