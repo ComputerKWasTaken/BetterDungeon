@@ -15,6 +15,7 @@ write paths Navigator relies on. Run an individual suite with:
 - **`ai-compatible-contract.test.js`** - Compatible AI profile and capability behavior, text and JSON requests, Gemini reasoning and rate-limit handling, streaming, cancellation, timeouts, errors, and opaque thought-signature replay across tool rounds.
 - **`apollo-cache-contract.test.js`** - Apollo bridge wiring, operation allowlisting, unavailable and direct-error handling, Adventure denormalization, memo invalidation, relay pairing, and timeout recovery.
 - **`apollo-consumer-contract.test.js`** - Apollo-first Story Card scanning with fallback behavior, Ultrascripts history compatibility, and Auto See warm-tail refresh coordination.
+- **`brainiac-prototype-contract.test.js`** - Brainiac's cache-compatible context suffix, two-card controls, one-query async loop, late-result and player-edit behavior, prompt bounds, and unavailable/error paths.
 - **`navigator-chat-qol.test.js`** - Navigator mode migration and tool exposure, Automatic versus Proposed changes behavior, approval-gated permanent deletions, sanitized ordered tool activity, Inspector lifecycle, and persisted-transcript privacy.
 - **`navigator-change-mode-contract.test.js`** - Canonical mode precedence, legacy Read-only fallbacks, and the independent fail-closed storage gate immediately before writes.
 - **`navigator-context-contract.test.js`** - Always-attempted Plot Components, recent story, Memory Bank, and Story Card context plus exact Inspector-to-system-instruction section parity.
