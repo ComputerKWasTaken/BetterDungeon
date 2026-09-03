@@ -12,9 +12,12 @@ that brain to later story generations.
 - the Ultrascripts `ai` module enabled
 - a configured AI provider and API key in BetterDungeon
 
-The adventure stops with a setup message when the Ultrascripts runtime itself
-is missing or stale. If only the AI module or provider is unavailable, normal
-AI Dungeon play continues without Brainiac guidance.
+When Brainiac cannot find a live heartbeat, it stops the adventure and tells
+the player to download BetterDungeon or enable Ultrascripts in BetterDungeon.
+If Ultrascripts is live but the AI module is disabled or unconfigured,
+Brainiac tells the player to enable the module and configure its provider,
+model, and API key. Normal AI Dungeon play continues without Brainiac guidance
+in the latter case.
 
 ## Installation
 
@@ -28,7 +31,8 @@ Paste each file into its matching AI Dungeon script pane:
 The script creates two Story Cards:
 
 - `Configure Brainiac` exposes `Enabled: true` and the current status. Change
-  only `true` to `false` to pause Brainiac without deleting its brain.
+  only `true` to `false` to pause Brainiac without deleting its brain. When
+  setup is incomplete, the card also displays the appropriate next step.
 - `Brainiac Brain` is the authoritative freeform editorial memory. You may edit
   it at any time to correct Brainiac or guide the story. A result already in
   flight will be discarded rather than overwrite a newer manual edit.

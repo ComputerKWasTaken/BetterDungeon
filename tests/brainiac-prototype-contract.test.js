@@ -152,8 +152,10 @@ assert.match(readmeSource, /at most one `ai\.query` request at a time/i);
   const result = api.call('input', 'You walk onward.');
   assert.equal(result.text, null);
   assert.equal(result.stop, true);
-  assert.match(api.sandbox.state.message, /requires BetterDungeon with Ultrascripts/i);
+  assert.match(api.sandbox.state.message, /download and install BetterDungeon/i);
+  assert.match(api.sandbox.state.message, /enable Ultrascripts/i);
   assert.match(api.cardText(CONFIG_CARD), /Status: Waiting for Ultrascripts/);
+  assert.match(api.cardText(CONFIG_CARD), /Next step:.*BetterDungeon.*enable Ultrascripts/i);
   assert.ok(api.card(BRAIN_CARD), 'Brainiac should create its Brain Card during setup');
 }
 
@@ -167,6 +169,8 @@ assert.match(readmeSource, /at most one `ai\.query` request at a time/i);
   assert.equal(input.stop, undefined);
   assert.equal(api.call('context', 'NO AI MODULE CONTEXT').text, 'NO AI MODULE CONTEXT');
   assert.match(api.cardText(CONFIG_CARD), /Status: AI unavailable/);
+  assert.match(api.cardText(CONFIG_CARD), /enable the Ultrascripts AI module/i);
+  assert.match(api.sandbox.state.message, /configure its provider, model, and API key/i);
 }
 
 {
@@ -189,6 +193,8 @@ assert.match(readmeSource, /at most one `ai\.query` request at a time/i);
   const context = api.call('context', unchanged);
   assert.equal(context.text, unchanged, 'AI outage must continue without injected guidance');
   assert.match(api.cardText(CONFIG_CARD), /Status: AI unavailable/);
+  assert.match(api.cardText(CONFIG_CARD), /configure its provider, model, and API key/i);
+  assert.match(api.sandbox.state.message, /AI module is not ready/i);
   api.setInbox({});
   api.call('output', 'The telescope remains dark.');
   assert.equal(api.requests('query').length, 0, 'AI outage must not queue an analysis');

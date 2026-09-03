@@ -33,6 +33,7 @@ globalThis.Brainiac = function Brainiac(hook, inputText) {
 
   if (!aiPresent) {
     runtime.aiReady = false;
+    runtime.aiStatusKnown = true;
     runtime.statusRequestId = null;
     runtime.query = null;
   }
@@ -42,7 +43,7 @@ globalThis.Brainiac = function Brainiac(hook, inputText) {
 
   if (hook === 'input' && !runtimeOnline) {
     brainiacWriteConfig(us, enabled, 'Waiting for Ultrascripts');
-    state.message = 'Brainiac requires BetterDungeon with Ultrascripts enabled before this adventure can continue.';
+    state.message = brainiacSetupHelp('Waiting for Ultrascripts');
     us.commit();
     return { text: null, stop: true };
   }
@@ -77,6 +78,7 @@ globalThis.Brainiac = function Brainiac(hook, inputText) {
   }
 
   var status = brainiacStatus(runtimeOnline, aiPresent, enabled, runtime);
+  brainiacNotifyAiSetup(runtime, enabled, aiPresent, status);
   brainiacWriteConfig(us, enabled, status);
   us.commit();
   return { text: text };
@@ -84,6 +86,7 @@ globalThis.Brainiac = function Brainiac(hook, inputText) {
 
 function brainiacInitializeState(runtime) {
   if (typeof runtime.aiReady !== 'boolean') runtime.aiReady = false;
+  if (typeof runtime.aiStatusKnown !== 'boolean') runtime.aiStatusKnown = false;
   if (typeof runtime.statusRequestId !== 'string') runtime.statusRequestId = null;
   if (!runtime.query || typeof runtime.query !== 'object') runtime.query = null;
   if (typeof runtime.capturedContext !== 'string') runtime.capturedContext = '';
@@ -110,12 +113,15 @@ function brainiacReadBrain(us) {
 }
 
 function brainiacConfigText(enabled, status) {
-  return [
+  var lines = [
     'Brainiac uses the Ultrascripts AI module to maintain a rolling editorial memory for this adventure.',
     '',
     'Enabled: ' + (enabled ? 'true' : 'false'),
     'Status: ' + status
-  ].join('\n');
+  ];
+  var help = brainiacSetupHelp(status);
+  if (help) lines.push('', 'Next step: ' + help);
+  return lines.join('\n');
 }
 
 function brainiacWriteConfig(us, enabled, status) {
@@ -132,6 +138,27 @@ function brainiacStatus(runtimeOnline, aiPresent, enabled, runtime) {
   return 'Ready';
 }
 
+function brainiacSetupHelp(status) {
+  if (status === 'Waiting for Ultrascripts') {
+    return 'Download and install BetterDungeon if you do not have it, or open BetterDungeon and enable Ultrascripts.';
+  }
+  if (status === 'AI unavailable') {
+    return 'Open BetterDungeon, enable the Ultrascripts AI module, and configure its provider, model, and API key.';
+  }
+  return '';
+}
+
+function brainiacNotifyAiSetup(runtime, enabled, aiPresent, status) {
+  var provenUnavailable = !aiPresent || (runtime.aiStatusKnown && !runtime.aiReady);
+  if (!enabled || status !== 'AI unavailable' || !provenUnavailable) {
+    if (status === 'Ready' || !enabled) runtime.lastSetupNotice = null;
+    return;
+  }
+  if (runtime.lastSetupNotice === 'AI unavailable') return;
+  state.message = 'Brainiac found Ultrascripts, but the AI module is not ready. ' + brainiacSetupHelp('AI unavailable') + ' Normal AI Dungeon play will continue without Brainiac until it is ready.';
+  runtime.lastSetupNotice = 'AI unavailable';
+}
+
 function brainiacMaybeRequestStatus(us, runtime) {
   if (runtime.aiReady || runtime.statusRequestId) return;
   if (us.liveCount() < Number(runtime.nextStatusLiveCount || 0)) return;
@@ -146,6 +173,7 @@ function brainiacConsumeStatusResponse(us, runtime) {
   runtime.statusRequestId = null;
   var data = response.status === 'ok' ? response.data : null;
   runtime.aiReady = !!(data && data.ready === true && data.supports && data.supports.text === true);
+  runtime.aiStatusKnown = true;
   runtime.nextStatusLiveCount = runtime.aiReady
     ? 0
     : us.liveCount() + BRAINIAC_STATUS_RETRY_TURNS;
@@ -163,6 +191,7 @@ function brainiacConsumeQueryResponse(us, runtime, enabled) {
 
   if (response.status !== 'ok') {
     runtime.aiReady = false;
+    runtime.aiStatusKnown = true;
     runtime.nextStatusLiveCount = us.liveCount() + BRAINIAC_STATUS_RETRY_TURNS;
     return;
   }

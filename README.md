@@ -24,11 +24,11 @@ The current release is **BetterDungeon v2.1.0**. Its headline addition is Naviga
 ### What's new in v2.1.0
 
 - **Meet Navigator** — Work with an AI agent designed to help you improve and modify your adventures. Navigator understands your Plot Components and recent story, can research your complete Story Card collection, and remembers the conversation across multiple turns.
-- **Changes applied for you** — Navigator applies verified non-deletion edits automatically and reports each one on a compact change card so you can course correct. Permanent Story Card and Memory Bank deletions always require explicit approval. Proposed changes restores per-change approval, while No changes disables mutation tools entirely.
+- **Changes applied for you** — Navigator applies verified non-deletion edits automatically and reports each one on a compact change card so you can course correct. Permanent Story Card and Memory Bank deletions always require explicit approval. Proposed changes mode restores per-change approval, while No changes disables mutation tools entirely.
 - **Simpler AI setup** — Gemini, OpenRouter, and custom HTTPS services share one clear profile system with validation, connection testing, and explicit provider selection.
-- **Stronger Ultrascripts** — V2.1 improves connection reliability, adds synthesized audio, simplifies safe web requests, and upgrades AI responses while preserving the existing script contract.
+- **Stronger Ultrascripts** — v2.1 improves connection reliability, adds synthesized audio, simplifies safe web requests, and upgrades AI responses while preserving the existing script contract.
 - **Native feature cleanup** — BetterDungeon's Markdown feature was removed on PC and Mobile now that AI Dungeon supports it natively. Text-to-speech was removed on PC but remains on Mobile because AI Dungeon's native speech does not work inside the app's WebView.
-- **Built for PC and Android** — Navigator includes streaming responses, cancellation, and interfaces tailored for desktop and touch devices. On PC, the dedicated Inspector explains the exact bounded context, conversation, and tool activity sent for the latest request.
+- **Built for PC and Android** — Navigator includes streaming responses, cancellation, interfaces tailored for desktop and touch devices, and a dedicated Inspector that explains the exact bounded context, conversation, and tool activity sent for the latest request.
 
 Previous release notes remain available from the version switcher in BetterDungeon's What's New panel.
 
