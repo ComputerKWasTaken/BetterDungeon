@@ -7,6 +7,7 @@ BetterDungeon's browser extension and Android app are developed from this reposi
 - `dev` is the default branch and normal workspace for contributors and agents.
 - `stable` contains tested, release-ready commits.
 - The manual **Promote stable** workflow validates an exact commit already contained in `dev`, confirms the update is a fast-forward, runs the complete quality gate, and then advances `stable`.
+- A dedicated write-enabled deploy key is available only to the promotion workflow; normal CI remains read-only and receives no repository secrets.
 - Version tags and GitHub Releases are created manually after promotion. Chrome Web Store submission and signed Android releases remain manual.
 
 The migration started from these recorded commits:
