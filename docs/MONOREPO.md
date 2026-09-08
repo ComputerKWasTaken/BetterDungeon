@@ -10,13 +10,9 @@ BetterDungeon's browser extension and Android app are developed from this reposi
 - A dedicated write-enabled deploy key is available only to the promotion workflow; normal CI remains read-only and receives no repository secrets.
 - Version tags and GitHub Releases are created manually after promotion. Chrome Web Store submission and signed Android releases remain manual.
 
-The migration started from these recorded commits:
-
-- BetterDungeon PC: `00c5c76315b2410bcee8b0f0e9a6416a78cf13ba`
-- BetterDungeon Mobile: `352b7b1323d34e876d64318f06541a528e8cd78b`
-- Mobile safety branch: `migration/monorepo-snapshot-2026-09-08`
-
-The former BetterDungeon-Mobile repository remains the historical record and should be archived only after the first successful unified stable release.
+This repository is the authoritative development and release history for both
+surfaces. There is no separate Android source mirror or migration branch to
+keep synchronized.
 
 ## Source layout
 
