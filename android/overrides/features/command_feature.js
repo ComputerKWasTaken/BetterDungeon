@@ -760,8 +760,9 @@ class CommandFeature {
     bar.id = 'bd-command-submode-bar';
     bar.style.cssText = `
       position: relative;
-      flex: 0 0 100%;
+      flex: 0 0 auto;
       width: 100%;
+      box-sizing: border-box;
       display: inline-flex;
       align-items: center;
       gap: 4px;
