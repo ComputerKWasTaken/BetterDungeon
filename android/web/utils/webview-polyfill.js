@@ -358,7 +358,6 @@
     autoSee: false,
     notes: true,
     inputHistory: true,
-    textToSpeech: false,
     customDynamic: false,
     navigator: true
   };

@@ -37,7 +37,6 @@ class BetterDungeonBridge(private val context: Context) {
     var popupWebView: WebView? = null
     var onClosePopup: (() -> Unit)? = null
     var onShowPopup: (() -> Unit)? = null
-    var ttsManager: TextToSpeechManager? = null
 
     // ── Storage ───────────────────────────────────────────────────────
 
@@ -270,49 +269,6 @@ class BetterDungeonBridge(private val context: Context) {
     @JavascriptInterface
     fun log(message: String) {
         android.util.Log.d("BetterDungeon", message)
-    }
-
-    // ── Text-To-Speech ────────────────────────────────────────────────
-    //
-    // Android WebView's `speechSynthesis.getVoices()` returns an empty list on
-    // virtually every device, so we route TTS through the native
-    // android.speech.tts.TextToSpeech engine. The JS side calls these methods
-    // via window.BetterDungeonBridge and falls back to the Web Speech API only
-    // when this bridge is absent (e.g. on PC).
-
-    @JavascriptInterface
-    fun ttsIsAvailable(): Boolean {
-        return ttsManager?.isAvailable() == true
-    }
-
-    @JavascriptInterface
-    fun ttsGetVoices(): String {
-        return ttsManager?.getVoicesJson() ?: "[]"
-    }
-
-    @JavascriptInterface
-    fun ttsSpeak(
-        text: String,
-        voiceId: String,
-        rate: Double,
-        pitch: Double,
-        volume: Double,
-        interrupt: Boolean
-    ): Boolean {
-        val manager = ttsManager ?: return false
-        return manager.speak(
-            text = text,
-            voiceId = voiceId,
-            rate = rate.toFloat(),
-            pitch = pitch.toFloat(),
-            volume = volume.toFloat(),
-            interrupt = interrupt
-        )
-    }
-
-    @JavascriptInterface
-    fun ttsStop() {
-        ttsManager?.stop()
     }
 
     // ── Private helpers ───────────────────────────────────────────────

@@ -149,7 +149,7 @@
                   <span class="whats-new-highlight-icon whats-new-highlight-icon-native icon-sparkles" aria-hidden="true"></span>
                   <div>
                     <h4>Native feature cleanup</h4>
-                    <p>AI Dungeon now handles Markdown natively, so BetterDungeon no longer duplicates it. Mobile text-to-speech remains because AI Dungeon's speech does not work inside the app's WebView, and the app now remembers your selected Production, Beta, or Alpha branch.</p>
+                    <p>AI Dungeon now handles Markdown natively. BetterDungeon's text-to-speech feature has been removed on both platforms, and the Android app remembers your selected Production, Beta, or Alpha branch.</p>
                   </div>
                 </article>
               </div>
@@ -294,7 +294,7 @@
                 <div class="syntax-row"><span>Subtle</span><code>[## Your Command:]</code></div>
                 <div class="syntax-row"><span>OOC</span><code>((OOC ... | User: Your Question?))</code></div>
               </div>
-              <p class="feature-hint"><span class="icon-lightbulb"></span> Use <strong>&#x2191;&#x2193; arrow keys</strong> while in Command mode to switch between Standard, Subtle, and OOC sub-modes.</p>
+              <p class="feature-hint"><span class="icon-lightbulb"></span> Tap the previous and next buttons above the input while in Command mode to switch between Standard, Subtle, and OOC.</p>
               <p class="feature-hint"><span class="icon-terminal"></span> <strong>Standard</strong> &mdash; direct story instructions. <strong>Subtle</strong> &mdash; indirect guidance via brackets. <strong>OOC</strong> &mdash; ask the AI a direct question.</p>
             </div>
           </article>
@@ -352,7 +352,7 @@
                   </span>
                   <h3 class="feature-title">Input History</h3>
                 </div>
-                <p class="feature-desc">Cycle through past inputs with arrow keys</p>
+                <p class="feature-desc">Browse sent inputs with the history buttons</p>
               </div>
               <label class="toggle">
                 <input type="checkbox" id="feature-inputHistory" checked>
@@ -612,77 +612,6 @@
               <div class="alert alert-warning alert-compact">
                 <span class="icon-triangle-alert"></span>
                 <span>Uses Credits per trigger if using a premium image model</span>
-              </div>
-            </div>
-          </article>
-
-          <!-- Text To Speech -->
-          <article class="feature-card" data-feature="textToSpeech">
-            <div class="feature-row">
-              <div class="feature-info">
-                <div class="feature-title-row">
-                  <span class="feature-icon" style="color: var(--accent);">
-                    <span class="icon-volume-2"></span>
-                  </span>
-                  <h3 class="feature-title">Text To Speech</h3>
-                </div>
-                <p class="feature-desc">Narrate the latest AI adventure text</p>
-              </div>
-              <label class="toggle">
-                <input type="checkbox" id="feature-textToSpeech">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="feature-details">
-              <div class="automation-info">
-                <p>Reads new story output aloud after it settles. User action text is skipped.</p>
-              </div>
-
-              <div class="feature-option-inline">
-                <span class="option-label-inline">Voice</span>
-                <select class="form-select form-select-sm" id="tts-voice-select">
-                  <option value="auto">Auto natural voice</option>
-                </select>
-              </div>
-
-              <div class="feature-option-inline">
-                <span class="option-label-inline">Rate</span>
-                <div class="interval-control">
-                  <input type="range" class="slider slider-sm" id="tts-rate" min="0.65" max="1.35" step="0.01" value="0.96">
-                  <span class="interval-value" id="tts-rate-value">0.96</span>
-                </div>
-              </div>
-
-              <div class="feature-option-inline">
-                <span class="option-label-inline">Pitch</span>
-                <div class="interval-control">
-                  <input type="range" class="slider slider-sm" id="tts-pitch" min="0.75" max="1.35" step="0.01" value="1.00">
-                  <span class="interval-value" id="tts-pitch-value">1.00</span>
-                </div>
-              </div>
-
-              <div class="feature-option-inline">
-                <span class="option-label-inline">Volume</span>
-                <div class="interval-control">
-                  <input type="range" class="slider slider-sm" id="tts-volume" min="0" max="1" step="0.01" value="1.00">
-                  <span class="interval-value" id="tts-volume-value">100%</span>
-                </div>
-              </div>
-
-              <div class="tts-actions">
-                <button class="btn btn-action tts-action-btn" id="tts-test-voice">
-                  <span class="icon-speech"></span>
-                  Test Voice
-                </button>
-                <button class="btn btn-action tts-action-btn" id="tts-stop">
-                  <span class="icon-volume-x"></span>
-                  Stop
-                </button>
-              </div>
-
-              <div class="alert alert-info alert-compact">
-                <span class="icon-sparkles"></span>
-                <span>Uses Android's on-device Text-to-Speech voices when available.</span>
               </div>
             </div>
           </article>

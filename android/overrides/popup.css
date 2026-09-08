@@ -668,16 +668,6 @@ body.mobile {
   text-align: center;
 }
 
-.tts-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.tts-action-btn {
-  margin-top: 8px;
-}
-
 .alert-compact {
   padding: 8px 10px;
   font-size: 11px;
@@ -2913,14 +2903,16 @@ body.mobile {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 0;
+  padding: 10px 12px;
   border: 0;
   background: transparent;
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  transition: background var(--transition-fast);
 }
 
 .whats-new-compact:focus-visible {
@@ -2958,11 +2950,11 @@ body.mobile {
   display: block;
   font-size: 10px;
   color: var(--text-muted);
-  white-space: nowrap;
+  white-space: normal;
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1.3;
-  margin-top: 1px;
+  margin-top: 4px;
 }
 
 .whats-new-compact-right {
@@ -2994,13 +2986,15 @@ body.mobile {
 .whats-new-expandable {
   max-height: 0;
   overflow: hidden;
-  transition: max-height 0.3s ease, padding 0.3s ease;
+  opacity: 0;
+  transition: max-height 0.25s ease, padding 0.25s ease, opacity 0.2s ease;
   padding: 0;
 }
 
 .whats-new-expandable.expanded {
   max-height: 400px;
-  padding-top: 10px;
+  padding: 12px;
+  opacity: 1;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--border-hover) transparent;
@@ -3008,6 +3002,10 @@ body.mobile {
 
 .whats-new-expandable.expanded::-webkit-scrollbar {
   width: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .whats-new-expandable, .whats-new-chevron { transition: none; }
 }
 
 .whats-new-expandable.expanded::-webkit-scrollbar-track {
@@ -3095,7 +3093,7 @@ body.mobile {
   height: 34px;
   border-radius: 10px;
   background: var(--accent-muted);
-  color: #f59e0b;
+  color: var(--accent);
   font-size: 16px;
 }
 

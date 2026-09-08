@@ -409,12 +409,7 @@ class InputHistoryFeature {
     // Only care if the target is the text input
     if (!e.target || e.target.id !== 'game-text-input') return;
 
-    // Save on Enter (without Shift)
-    if (e.key === 'Enter' && !e.shiftKey) {
-      // Execute save synchronously before React clears the input
-      this.saveCurrentInput();
-      return;
-    }
+    // Android Enter/IME keys can insert a newline. Only the submit control records history.
 
     // Handle history navigation
     if ((e.ctrlKey || e.metaKey) && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
@@ -446,8 +441,8 @@ class InputHistoryFeature {
 
   handleClick(e) {
     // See if we clicked the submit button
-    const submitBtn = e.target.closest(this.submitButtonSelector);
-    if (submitBtn) {
+    const submitBtn = e.target?.closest?.(this.submitButtonSelector);
+    if (submitBtn && !submitBtn.disabled && submitBtn.getAttribute('aria-disabled') !== 'true') {
       this.saveCurrentInput();
     }
   }

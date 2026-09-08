@@ -367,14 +367,10 @@ class NotesFeature {
   buildNotesCardMarkup() {
     return `
       <div class="bd-notes-card-header">
-        <div class="bd-notes-card-title">
-          <span class="bd-notes-icon icon-notebook-pen"></span>
-          <span>Notes</span>
-        </div>
+        <span class="bd-notes-card-title" role="heading" aria-level="2">Notes</span>
       </div>
       <div class="bd-notes-card-body">
-        <div class="bd-notes-helper">Private to you - not sent to the AI.</div>
-        <textarea class="bd-notes-textarea" placeholder="Write your notes here..."></textarea>
+        <textarea class="bd-notes-textarea" aria-label="Private adventure notes" placeholder="Write your notes here. Private to you — not sent to the AI."></textarea>
       </div>
     `;
   }
@@ -424,6 +420,7 @@ class NotesFeature {
     this.notesCard.className = 'bd-notes-card';
     this.notesCard.setAttribute('data-bd-notes-card', 'true');
     this.notesCard.innerHTML = this.buildNotesCardMarkup();
+    this.matchNativePlotStyles();
 
     this.notesCardWrapper.appendChild(this.notesCard);
 
@@ -436,6 +433,27 @@ class NotesFeature {
     this.textarea = this.notesCard.querySelector('.bd-notes-textarea');
 
     this.textarea?.addEventListener('input', () => this.debouncedSave());
+  }
+
+  matchNativePlotStyles() {
+    // Reuse the live Plot Component classes so native themes and typography apply.
+    // Copy presentation only: never copy native editor IDs, values, or undo bindings.
+    const editor = document.querySelector('[data-block-gameplay-undo-redo="plot"] textarea');
+    const body = editor?.parentElement;
+    const card = body?.parentElement;
+    const heading = card?.querySelector('[role="heading"]');
+    const header = card?.firstElementChild;
+    if (!editor || !heading || !header || header === body) return;
+    const pairs = [
+      [this.notesCard, card],
+      [this.notesCard.querySelector('.bd-notes-card-header'), header],
+      [this.notesCard.querySelector('.bd-notes-card-title'), heading],
+      [this.notesCard.querySelector('.bd-notes-card-body'), body],
+      [this.notesCard.querySelector('.bd-notes-textarea'), editor]
+    ];
+    for (const [target, source] of pairs) {
+      for (const name of source.classList) target.classList.add(name);
+    }
   }
 
   removeUI() {

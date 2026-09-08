@@ -61,7 +61,6 @@
     "features/story_card_analytics_feature.js",
     "features/notes_feature.js",
     "features/input_history_feature.js",
-    "features/text_to_speeech_feature.js",
     "features/custom_dynamic_feature.js",
     "features/mobile/mobile_settings_layer.js",
     "features/mobile/mobile_login_warning.js",
@@ -79,7 +78,6 @@
     "icons"
   ],
   "mobileFiles": [
-    "features/text_to_speeech_feature.js",
     "features/mobile/mobile_design_layer.js",
     "features/mobile/mobile_login_warning.js",
     "features/mobile/mobile_settings_layer.js",

@@ -2295,6 +2295,7 @@ function initWhatsNew() {
   const setExpanded = (isExpanded) => {
     toggleBtn?.setAttribute('aria-expanded', String(isExpanded));
     expandable?.setAttribute('aria-hidden', String(!isExpanded));
+    if (expandable) expandable.inert = !isExpanded;
     expandable?.classList.toggle('expanded', isExpanded);
   };
 
@@ -2314,6 +2315,7 @@ function initWhatsNew() {
     if (expandable) expandable.scrollTop = 0;
   };
 
+  setExpanded(false);
   chrome.storage.local.get(storageKey, (result) => {
     if (chrome.runtime.lastError) return;
     setExpanded(result?.[storageKey] === true);

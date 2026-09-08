@@ -1014,79 +1014,48 @@
   box-sizing: border-box;
 }
 
-.bd-notes-card {
-  background: linear-gradient(180deg, rgba(30, 30, 40, 0.98) 0%, rgba(20, 20, 28, 0.99) 100%);
-  border: 1px solid var(--bd-border-default);
-  border-radius: var(--bd-radius-xl);
-  box-shadow: var(--bd-shadow-md);
+/* Low-specificity defaults let the native Plot Component classes take precedence. */
+:where(.bd-notes-card) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
   width: 100%;
-  max-width: 100%;
-  flex: 0 0 auto;
-  box-sizing: border-box;
-  font-family: var(--bd-font-family-primary);
+  border-radius: 8px;
+  background: var(--coreA0, #181a1b);
 }
-
-.bd-notes-card-header {
+:where(.bd-notes-card-header) {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border-bottom: 1px solid var(--bd-border-subtle);
+  min-height: 48px;
+  padding: 0 16px;
+  background: var(--coreA1, #25282a);
 }
-
-.bd-notes-card-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--bd-text-primary);
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
+:where(.bd-notes-card-title) {
+  font: inherit;
+  font-weight: 500;
+  color: inherit;
 }
-
-.bd-notes-icon {
-  font-size: 14px;
-  color: var(--bd-accent-light);
-}
-
-.bd-notes-card-body {
-  padding: 12px;
+:where(.bd-notes-card-body) {
   display: flex;
   flex-direction: column;
-  gap: 8px;
 }
-
-.bd-notes-helper {
-  font-size: 12px;
-  color: var(--bd-text-muted);
-}
-
-.bd-notes-textarea {
+:where(.bd-notes-textarea) {
+  box-sizing: border-box;
   width: 100%;
-  min-height: 160px;
-  max-height: 320px;
+  min-height: 192px;
+  max-height: 438px;
   overflow-y: auto;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid var(--bd-border-subtle);
-  border-radius: var(--bd-radius-md);
-  color: var(--bd-text-primary);
-  font-family: var(--bd-font-family-primary);
-  font-size: 13px;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 0;
+  background: var(--coreA0, #181a1b);
+  color: inherit;
+  font: inherit;
   line-height: 1.5;
-  padding: 10px 12px;
-  resize: none;
-  outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  resize: vertical;
 }
-
-.bd-notes-textarea::placeholder {
-  color: var(--bd-text-muted);
-}
+:where(.bd-notes-textarea)::placeholder { color: var(--coreA7, #888); }
+:where(.bd-notes-textarea):focus-visible { outline: 2px solid var(--primary, #b69cff); outline-offset: -2px; }
 
 .bd-story-card-dock-modal {
   position: fixed !important;
@@ -1122,16 +1091,6 @@ html.bd-story-card-dock-active > body {
   background-color: transparent !important;
   opacity: 0 !important;
   pointer-events: none !important;
-}
-
-@media (max-width: 480px) {
-  .bd-notes-card {
-    border-radius: var(--bd-radius-lg);
-  }
-
-  .bd-notes-textarea {
-    min-height: 140px;
-  }
 }
 
 /* ============================================

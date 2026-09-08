@@ -128,6 +128,9 @@ class CommandFeature {
   setupObserver() {
     this.observer = new MutationObserver((mutations) => {
       this.injectCommandButton();
+      if (this.isCommandMode && !document.getElementById('bd-command-submode-bar')) {
+        this.injectSubModeBar();
+      }
     });
 
     this.observer.observe(document.body, {
@@ -751,14 +754,14 @@ class CommandFeature {
     if (!textarea) return;
 
     const inputRow = textarea.parentElement;
-    if (!inputRow) return;
+    if (!inputRow?.parentElement) return;
 
     const bar = document.createElement('div');
     bar.id = 'bd-command-submode-bar';
     bar.style.cssText = `
-      position: absolute;
-      bottom: calc(100% + 32px);
-      left: 8px;
+      position: relative;
+      flex: 0 0 100%;
+      width: 100%;
       display: inline-flex;
       align-items: center;
       gap: 4px;
@@ -768,9 +771,10 @@ class CommandFeature {
       -webkit-backdrop-filter: blur(8px);
       border-radius: 10px;
       font-family: var(--bd-font-family-primary, 'IBM Plex Sans', sans-serif);
-      font-size: 9px;
+      font-size: 12px;
       color: rgba(255, 255, 255, 0.5);
       z-index: 2;
+      pointer-events: auto;
       user-select: none;
     `;
 
@@ -778,7 +782,7 @@ class CommandFeature {
     const btnStyle = `
       pointer-events:auto; cursor:pointer; user-select:none;
       display:flex; align-items:center; justify-content:center;
-      min-width:22px; min-height:18px;
+      min-width:44px; min-height:44px; border:0; font:inherit;
       font-size:12px; font-weight:700; color:rgba(255,255,255,0.7);
       padding:1px 4px; line-height:1;
       border-radius:4px;
@@ -789,39 +793,28 @@ class CommandFeature {
     `.replace(/\n\s*/g, ' ');
 
     bar.innerHTML = `
-      <span id="bd-submode-prev" role="button" aria-label="Previous command sub-mode" style="${btnStyle}">\u2039</span>
-      <span id="bd-submode-pill"></span>
-      <span id="bd-submode-next" role="button" aria-label="Next command sub-mode" style="${btnStyle}">\u203A</span>
+      <button type="button" id="bd-submode-prev" aria-label="Previous command sub-mode" style="${btnStyle}">\u2039</button>
+      <span id="bd-submode-pill" aria-live="polite"></span>
+      <button type="button" id="bd-submode-next" aria-label="Next command sub-mode" style="${btnStyle}">\u203A</button>
     `;
 
-    // Wire up touch AND click handlers on the prev/next buttons,
-    // following the same pattern as Try feature's success bar buttons.
+    // Native buttons synthesize one click for touch, mouse, and keyboard activation.
     const wireButton = (el, direction) => {
       if (!el) return;
       const addPress = () => { el.style.background = 'rgba(255,255,255,0.22)'; el.style.transform = 'scale(0.92)'; };
       const removePress = () => { el.style.background = 'rgba(255,255,255,0.08)'; el.style.transform = ''; };
 
-      el.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        addPress();
-        this.cycleSubMode(direction);
-      }, { passive: false });
-      el.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        removePress();
-      }, { passive: false });
-      el.addEventListener('touchcancel', removePress);
-      // Desktop fallback
       el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); this.cycleSubMode(direction); });
-      el.addEventListener('mousedown', addPress);
-      el.addEventListener('mouseup', removePress);
-      el.addEventListener('mouseleave', removePress);
+      el.addEventListener('pointerdown', addPress);
+      el.addEventListener('pointerup', removePress);
+      el.addEventListener('pointercancel', removePress);
+      el.addEventListener('pointerleave', removePress);
     };
     wireButton(bar.querySelector('#bd-submode-prev'), -1);
     wireButton(bar.querySelector('#bd-submode-next'), 1);
 
-    inputRow.appendChild(bar);
+    // Keep controls in normal flow, outside the input row's clipped overlays.
+    inputRow.parentElement.insertBefore(bar, inputRow);
     this.subModeBar = bar;
     this.updateSubModeBar();
   }
