@@ -5,6 +5,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { composeAndroidRuntime, readConfig, resolveRuntimeSource } = require('../harness/android-runtime');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const ASSETS = fs.existsSync(path.join(REPO_ROOT, 'app', 'src', 'main', 'assets', 'betterdungeon'))
@@ -275,31 +276,14 @@ async function testLatestActionRefreshCoordination() {
 
 function testWiringAndMirror() {
   const relative = 'services/adventure-read-service.js';
-  const runningMobile = ASSETS !== REPO_ROOT;
-  const firstExisting = candidates => candidates.find(candidate => candidate && fs.existsSync(candidate));
-  const desktop = runningMobile
-    ? firstExisting([
-        process.env.BETTERDUNGEON_DESKTOP_ROOT && path.join(process.env.BETTERDUNGEON_DESKTOP_ROOT, relative),
-        path.resolve(REPO_ROOT, '..', '..', 'Web Dev', 'BetterEcosystem', 'BetterDungeon', relative),
-      ])
-    : path.join(REPO_ROOT, relative);
-  const mobile = runningMobile
-    ? path.join(ASSETS, relative)
-    : firstExisting([
-        process.env.BETTERDUNGEON_MOBILE_ROOT && path.join(process.env.BETTERDUNGEON_MOBILE_ROOT, 'app', 'src', 'main', 'assets', 'betterdungeon', relative),
-        path.resolve(REPO_ROOT, '..', '..', '..', 'MobileDev', 'BetterDungeon', 'app', 'src', 'main', 'assets', 'betterdungeon', relative),
-        path.resolve(REPO_ROOT, '..', 'BetterDungeon-Mobile', 'app', 'src', 'main', 'assets', 'betterdungeon', relative),
-      ]);
-  assert.ok(desktop && mobile, 'desktop and Mobile BetterDungeon repositories must be locatable');
+  const desktop = path.join(REPO_ROOT, relative);
+  const config = readConfig();
+  assert.equal(resolveRuntimeSource(relative, config), desktop, 'Android must resolve the reader from shared root code');
+  const mobile = path.join(composeAndroidRuntime(), relative);
   const hash = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-  assert.equal(hash(desktop), hash(mobile), 'desktop and Mobile reader files must match');
-  if (ASSETS === REPO_ROOT) {
-    const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'manifest.json'), 'utf8'));
-    assert.ok(manifest.content_scripts.some(entry => entry.js.includes(relative)));
-  } else {
-    const injection = fs.readFileSync(path.join(REPO_ROOT, 'app', 'src', 'main', 'java', 'com', 'computerk', 'betterdungeon', 'InjectionEngine.kt'), 'utf8');
-    assert.match(injection, /"services\/apollo-cache-service\.js",\s*"services\/adventure-read-service\.js"/s);
-  }
+  assert.equal(hash(desktop), hash(mobile), 'the composed Android reader must match shared root code');
+  const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'manifest.json'), 'utf8'));
+  assert.ok(manifest.content_scripts.some(entry => entry.js.includes(relative)));
 }
 
 async function main() {
