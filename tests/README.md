@@ -3,12 +3,20 @@
 Test artifacts for BetterDungeon. Keep this directory free of production
 code - anything here is for verifying behavior, not for shipping.
 
-## Node contract suites
+## Automated Node suites
 
-These dependency-free Node suites protect shared extension services and the
-write paths Navigator relies on. Run an individual suite with:
+These dependency-free Node suites protect shared extension services, Android
+composition, Ultrascripts transport behavior, and the write paths Navigator
+relies on. Run the complete suite with `./build.ps1 test`, or an individual
+suite with:
 
-`node tests/<name>.test.js`
+`node --test tests/contracts/<name>.test.js`
+
+- `contracts/` contains shared public behavior and compatibility checks.
+- `unit/` contains focused service, harness, package-policy, and repository-policy checks.
+- `platform/android/` contains WebView, native transport, override, and Mobile behavior checks.
+- `harness/` contains reusable Chrome, AI Dungeon, Android composition, and Ultrascripts simulators.
+- `fixtures/` contains deterministic provider and AI Dungeon-shaped data.
 
 - **`adventure-read-contract.test.js`** - Apollo-first adventure reads, GraphQL and WebSocket fallback merging, provenance and coverage diagnostics, post-write memory bypasses, action refresh coordination, and Desktop/Mobile reader wiring.
 - **`adventure-write-hydration-contract.test.js`** - Verified Plot, Story Card, and Memory Bank hydration, refetch diagnostics, unsupported routing, and guarded Plot editor hydration with mounted-sibling checks and the outstanding-field ledger.
@@ -22,7 +30,9 @@ write paths Navigator relies on. Run an individual suite with:
 - **`navigator-settings-contract.test.js`** - PC controls and Inspector structure, including required desktop tab-overflow arrows and the absence of Context selectors, message action rows, Edit/Retry state, and clipboard access.
 - **`navigator-tools-contract.test.js`** - Bounded retrieval tools and the intentional absence of the former Plot Components retrieval tool.
 
-## Live Ultrascripts suites
+## Manual AI Dungeon script material
+
+The following AI Dungeon-side scripts are retained as development material, but normal CI does not run them or contact AI Dungeon or an AI provider. Their public module and operation catalog, permission outcomes, response failures, timeouts, cancellation, reload, serialization, and secret boundaries are exercised offline by `unit/ultrascripts-harness.test.js`.
 
 - **`aid-scripts/ai-module/`** - Live suite for the Ultrascripts AI module. It verifies heartbeat capabilities, readiness, text and schema-backed JSON, metadata, thinking, missing-key, schema-guard, and thinking-guard paths. See its `README.md` for setup and trace-card guidance.
 - **`aid-scripts/sdk-module/`** - End-to-end suite for the Ultrascripts SDK module, covering `version` and `config` operations.

@@ -1,0 +1,1445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>BetterDungeon</title>
+  <link rel="stylesheet" href="fonts/lucide/lucide.css">
+  <link rel="stylesheet" href="core/theme-variables.css">
+  <link rel="stylesheet" href="popup.css">
+  <link rel="stylesheet" href="utils/android-editable-scroll-fix.css">
+</head>
+<body class="mobile">
+  <!-- Header -->
+  <header class="header">
+    <div class="header-brand">
+      <img src="icons/icon48.png" alt="" class="header-logo">
+      <div class="header-title">
+        <span class="header-name">BetterDungeon</span>
+        <span class="header-version"><span id="app-version">v2.1.0</span> <span class="header-badge android">Android</span></span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <a href="https://ko-fi.com/computerk" target="_blank" rel="noopener noreferrer" class="header-action" aria-label="Support computerK on Ko-fi" title="Support on Ko-fi">
+        <span class="icon-coffee"></span>
+      </a>
+      <button class="header-action" id="tutorial-help-btn" aria-label="Start Tutorial" title="Help">
+        <span class="icon-circle-question-mark"></span>
+      </button>
+      <button class="header-action" id="app-settings-btn" aria-label="Open BetterDungeon settings" title="Settings">
+        <span class="icon-settings"></span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <button class="nav-item active" data-tab="features">
+      <span class="nav-icon icon-sparkles"></span>
+      <span class="nav-label">Features</span>
+    </button>
+    <button class="nav-item" data-tab="ultrascripts">
+      <span class="nav-icon icon-radio-tower"></span>
+      <span class="nav-label">Ultrascripts</span>
+    </button>
+    <button class="nav-item" data-tab="presets">
+      <span class="nav-icon icon-bookmark"></span>
+      <span class="nav-label">Presets</span>
+    </button>
+  </nav>
+
+  <!-- Fading Glow Divider Bar -->
+  <div class="accent-bar"></div>
+
+  <!-- Main Content -->
+  <main class="main">
+    
+    <!-- Features Tab -->
+    <section class="tab-panel active" id="tab-features">
+
+      <!-- What's New Section -->
+      <div class="section whats-new-section" id="whats-new-banner">
+        <button class="whats-new-compact" id="whats-new-toggle" type="button" aria-expanded="false" aria-controls="whats-new-expandable">
+          <span class="whats-new-compact-left">
+            <span class="whats-new-compact-icon icon-sparkles"></span>
+            <span class="whats-new-compact-text">
+              <strong id="whats-new-title">What's New</strong>
+              <span class="whats-new-compact-summary">Navigator &middot; Grounded chat &middot; Auto-applied changes</span>
+            </span>
+          </span>
+          <span class="whats-new-compact-right">
+            <span class="whats-new-badge">Latest</span>
+            <span class="whats-new-chevron icon-chevron-down" aria-hidden="true"></span>
+          </span>
+        </button>
+        <div class="whats-new-expandable" id="whats-new-expandable" aria-hidden="true">
+          <div class="whats-new-version-tabs" role="tablist" aria-label="Release notes versions">
+            <button class="whats-new-version-tab active" id="whats-new-tab-210" type="button" role="tab" aria-selected="true" aria-controls="whats-new-release-210" data-whats-new-version="2.1.0">
+              v2.1.0 <span>Current</span>
+            </button>
+            <button class="whats-new-version-tab" id="whats-new-tab-202" type="button" role="tab" aria-selected="false" aria-controls="whats-new-release-202" data-whats-new-version="2.0.2" tabindex="-1">
+              v2.0.2
+            </button>
+            <button class="whats-new-version-tab" id="whats-new-tab-200" type="button" role="tab" aria-selected="false" aria-controls="whats-new-release-200" data-whats-new-version="2.0.0" tabindex="-1">
+              v2.0.0
+            </button>
+          </div>
+
+          <div class="whats-new-release-panels">
+            <section class="whats-new-release" id="whats-new-release-210" role="tabpanel" aria-labelledby="whats-new-tab-210" data-whats-new-panel="2.1.0">
+              <div class="whats-new-release-hero">
+                <span class="whats-new-release-icon icon-compass" aria-hidden="true"></span>
+                <div>
+                  <span class="whats-new-eyebrow">Headline feature</span>
+                  <h3>Meet Navigator</h3>
+                  <p>An AI agent designed to help you improve and modify your adventures.</p>
+                </div>
+              </div>
+
+              <div class="whats-new-navigator-features">
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-navigator icon-book-open-text" aria-hidden="true"></span>
+                  <div>
+                    <h4>Understands your adventure</h4>
+                    <p>Navigator always attempts a bounded snapshot of your Plot Components, recent story, Memory Bank, and Story Cards, then researches omitted details when needed.</p>
+                    <span class="whats-new-detail">Multi-turn chat &middot; Always-on grounding &middot; Story Card and Memory research</span>
+                  </div>
+                </article>
+
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-navigator icon-shield-check" aria-hidden="true"></span>
+                  <div>
+                    <h4>Keeps you in the know</h4>
+                    <p>Automatic mode applies verified non-deletion edits immediately. Permanent Story Card and Memory Bank deletions still require approval; choose Proposed changes to approve every edit or No changes to disable mutation tools.</p>
+                    <span class="whats-new-detail">Automatic by default &middot; Deletion approval &middot; Conflict checks &middot; Server verification</span>
+                  </div>
+                </article>
+              </div>
+
+              <!-- Artisan teaser hidden while the product decision is pending. -->
+              <aside class="whats-new-teaser" hidden>
+                <span class="whats-new-teaser-icon icon-paintbrush" aria-hidden="true"></span>
+                <div>
+                  <span class="whats-new-eyebrow">Coming later</span>
+                  <strong>Artisan</strong>
+                  <p>Navigator's future counterpart for helping creators build, organize, and polish AI Dungeon scenarios.</p>
+                </div>
+              </aside>
+
+              <div class="whats-new-section-label">Also in V2.1</div>
+
+              <div class="whats-new-highlight-list">
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-ai icon-brain-circuit" aria-hidden="true"></span>
+                  <div>
+                    <h4>Simpler AI setup</h4>
+                    <p>Gemini, OpenRouter, and custom HTTPS services now use one clear profile system with validation, connection testing, explicit provider selection, and native Android streaming.</p>
+                  </div>
+                </article>
+
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-ultrascripts icon-radio-tower" aria-hidden="true"></span>
+                  <div>
+                    <h4>Stronger Ultrascripts</h4>
+                    <p>V2.1 improves connection reliability, adds synthesized audio, simplifies safe web requests, and upgrades AI responses without changing the public script contract.</p>
+                  </div>
+                </article>
+
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-native icon-sparkles" aria-hidden="true"></span>
+                  <div>
+                    <h4>Native feature cleanup</h4>
+                    <p>AI Dungeon now handles Markdown natively, so BetterDungeon no longer duplicates it. Mobile text-to-speech remains because AI Dungeon's speech does not work inside the app's WebView, and the app now remembers your selected Production, Beta, or Alpha branch.</p>
+                  </div>
+                </article>
+              </div>
+            </section>
+
+            <section class="whats-new-release whats-new-release-archive" id="whats-new-release-202" role="tabpanel" aria-labelledby="whats-new-tab-202" data-whats-new-panel="2.0.2" hidden>
+              <div class="whats-new-archive-list">
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-route" style="color: #a855f7;"></span>
+                  <div>
+                    <div><strong>Improved Custom Dynamic</strong>: Added current AI Dungeon models, model-version selection, configurable 1–20 turn switching, simpler settings, and a clear enabled indicator.</div>
+                  </div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-history" style="color: #06b6d4;"></span>
+                  <div><strong>Release History</strong>: What's New now keeps previous release notes available through a version switcher.</div>
+                </div>
+              </div>
+            </section>
+
+            <section class="whats-new-release whats-new-release-archive" id="whats-new-release-200" role="tabpanel" aria-labelledby="whats-new-tab-200" data-whats-new-panel="2.0.0" hidden>
+              <div class="whats-new-archive-list">
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-radio-tower" style="color: #a855f7;"></span>
+                  <div><strong>Ultrascripts</strong>: Introduced direct two-way communication between AI Dungeon scripts and BetterDungeon, enabling widgets, AI requests, web access, weather, device information, and more without story-context tricks or page manipulation.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-smartphone" style="color: #22c55e;"></span>
+                  <div><strong>More Platforms</strong>: Added the Android app and officially brought BetterDungeon to Firefox.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-route" style="color: #f59e0b;"></span>
+                  <div><strong>Custom Dynamic</strong>: Added customizable model pools and automatic model switching inspired by Zoocata's PRISM extension.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-activity" style="color: #14b8a6;"></span>
+                  <div><strong>Faster Story Tools</strong>: Rebuilt Story Card scanning, trigger highlighting, and analytics around direct adventure data for quicker, less disruptive results.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-user" style="color: #3b82f6;"></span>
+                  <div><strong>Smarter Character Prefill</strong>: Rebuilt Character Presets with Ultrascripts AI to help answer large sets of scenario questions.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-eye" style="color: #6366f1;"></span>
+                  <div><strong>More Reliable Auto See</strong>: Reworked adventure integration made automatic See actions more natural and less disruptive.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-palette" style="color: #06b6d4;"></span>
+                  <div><strong>Redesigned Interface</strong>: Simplified the popup and feature controls with clearer navigation and less clutter.</div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Agents -->
+      <div class="section section-collapsible" data-section="ai-agents">
+        <button class="section-header section-header-collapsible" data-collapse="ai-agents" aria-expanded="true">
+          <span class="section-icon icon-bot" style="color: var(--bd-cyan);"></span>
+          <h2 class="section-title">AI Agents</h2>
+          <span class="section-chevron icon-chevron-down"></span>
+        </button>
+        <div class="section-body" id="collapse-ai-agents">
+
+          <article class="feature-card" data-feature="navigator">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-icon-navigator);">
+                    <span class="icon-compass"></span>
+                  </span>
+                  <h3 class="feature-title">Navigator</h3>
+                </div>
+                <p class="feature-desc">An AI agent designed to help you improve and modify your adventures.</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-navigator">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feature-details">
+              <p>Navigator is an AI agent designed to help you improve and modify your adventures. It uses always-on bounded adventure context, answers grounded questions, and applies verified non-deletion changes automatically — with a change card for every edit so you stay in the know.</p>
+              <div class="feature-hints">
+                <p class="feature-hint"><span class="icon-lightbulb"></span> Open Navigator from <strong>Game Menu &gt; Gameplay &gt; Navigator</strong>.</p>
+                <p class="feature-hint"><span class="icon-triangle-alert"></span> Automatic is recommended and selected by default. Permanent deletions always require approval; use Proposed changes to approve every edit or No changes to disable changes. Navigator uses the AI provider configured under <strong>Ultrascripts &gt; AI</strong>.</p>
+              </div>
+            </div>
+          </article>
+
+          <!-- Artisan teaser hidden while the product decision is pending. -->
+          <article class="feature-card static-card" data-feature="artisan" hidden>
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-pink);">
+                    <span class="icon-paintbrush"></span>
+                  </span>
+                  <h3 class="feature-title">Artisan</h3>
+                </div>
+                <p class="feature-desc">Your future AI agent for creating and polishing scenarios</p>
+              </div>
+              <span class="teaser">Teaser</span>
+            </div>
+          </article>
+
+        </div>
+      </div>
+
+      <!-- Input Modes -->
+      <div class="section section-collapsible" data-section="input-modes">
+        <button class="section-header section-header-collapsible" data-collapse="input-modes" aria-expanded="true">
+          <span class="section-icon icon-message-square" style="color: var(--bd-section-input-modes);"></span>
+          <h2 class="section-title">Input Modes</h2>
+          <span class="section-chevron icon-chevron-down"></span>
+        </button>
+        <div class="section-body" id="collapse-input-modes">
+
+          <!-- Command Mode -->
+          <article class="feature-card" data-feature="command">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-mode-command);">
+                    <span class="icon-terminal"></span>
+                  </span>
+                  <h3 class="feature-title">Command Mode</h3>
+                </div>
+                <p class="feature-desc">Send narrative commands to the AI</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-command" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feature-details">
+              <p>Adds a <strong>Command</strong> button to the input menu. Text is formatted as <code>## Your Command:</code> for direct AI instructions.</p>
+              <p class="feature-hint"><span class="icon-lightbulb"></span> Great for time skips, scene changes, and guiding story direction.</p>
+
+              <div class="syntax-box">
+                <div class="syntax-row"><span>Standard</span><code>## Your Command:</code></div>
+                <div class="syntax-row"><span>Subtle</span><code>[## Your Command:]</code></div>
+                <div class="syntax-row"><span>OOC</span><code>((OOC ... | User: Your Question?))</code></div>
+              </div>
+              <p class="feature-hint"><span class="icon-lightbulb"></span> Use <strong>&#x2191;&#x2193; arrow keys</strong> while in Command mode to switch between Standard, Subtle, and OOC sub-modes.</p>
+              <p class="feature-hint"><span class="icon-terminal"></span> <strong>Standard</strong> &mdash; direct story instructions. <strong>Subtle</strong> &mdash; indirect guidance via brackets. <strong>OOC</strong> &mdash; ask the AI a direct question.</p>
+            </div>
+          </article>
+
+          <!-- Try Mode -->
+          <article class="feature-card" data-feature="try">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-mode-try);">
+                    <span class="icon-dice-5"></span>
+                  </span>
+                  <h3 class="feature-title">Try Mode</h3>
+                </div>
+                <p class="feature-desc">Roll for action success or failure</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-try" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feature-details">
+              <p>RNG determines if actions succeed or fail. Formats as: <code>You try to [action], you [result].</code></p>
+              <p class="feature-hint"><span class="icon-dice-5"></span> Outcomes: critically fail, fail, succeed, critically succeed.</p>
+              <div class="feature-option">
+                <div class="option-label">
+                  <span>Critical Chance</span>
+                  <span class="option-value" id="critical-chance-value">5%</span>
+                </div>
+                <input type="range" class="slider" id="critical-chance" min="0" max="20" value="5">
+              </div>
+            </div>
+          </article>
+
+        </div>
+      </div>
+
+      <!-- Controls & Navigation -->
+      <div class="section section-collapsible" data-section="controls">
+        <button class="section-header section-header-collapsible" data-collapse="controls" aria-expanded="true">
+          <span class="section-icon icon-gamepad-2" style="color: var(--bd-section-tools);"></span>
+          <h2 class="section-title">Controls &amp; Navigation</h2>
+          <span class="section-chevron icon-chevron-down"></span>
+        </button>
+        <div class="section-body" id="collapse-controls">
+
+
+          <!-- Input History -->
+          <article class="feature-card" data-feature="inputHistory">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--accent);">
+                    <span class="icon-history"></span>
+                  </span>
+                  <h3 class="feature-title">Input History</h3>
+                </div>
+                <p class="feature-desc">Cycle through past inputs with arrow keys</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-inputHistory" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feature-details">
+              <p>Use the touch-friendly history controls beside the action input to cycle through recently sent inputs for the current adventure.</p>
+              <p class="feature-hint"><span class="icon-history"></span> Remembers up to 50 of your recent actions and their respective input modes.</p>
+            </div>
+          </article>
+
+          <!-- Input Mode Colors -->
+          <article class="feature-card" data-feature="inputModeColor">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-icon-palette);">
+                    <span class="icon-palette"></span>
+                  </span>
+                  <h3 class="feature-title">Input Mode Colors</h3>
+                </div>
+                <p class="feature-desc">Color-code the input box by mode</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-inputModeColor" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feature-details">
+              <div class="color-grid" id="mode-color-display">
+                <div class="color-chip" data-mode="do" style="--chip-color: #3b82f6"><span>Do</span></div>
+                <div class="color-chip" data-mode="try" style="--chip-color: #a855f7"><span>Try</span></div>
+                <div class="color-chip" data-mode="say" style="--chip-color: #22c55e"><span>Say</span></div>
+                <div class="color-chip" data-mode="story" style="--chip-color: #fbbf24"><span>Story</span></div>
+                <div class="color-chip" data-mode="guide" style="--chip-color: #ec4899"><span>Guide</span></div>
+                <div class="color-chip" data-mode="see" style="--chip-color: #06b6d4"><span>See</span></div>
+                <div class="color-chip" data-mode="command" style="--chip-color: #f97316"><span>Command</span></div>
+              </div>
+              <button class="btn btn-action" id="customize-colors-btn">
+                <span class="icon-palette"></span>
+                Customize Colors
+              </button>
+            </div>
+          </article>
+
+        </div>
+      </div>
+
+      <!-- Writing & Formatting -->
+      <div class="section section-collapsible" data-section="writing">
+        <button class="section-header section-header-collapsible" data-collapse="writing" aria-expanded="true">
+          <span class="section-icon icon-type" style="color: var(--bd-section-formatting);"></span>
+          <h2 class="section-title">Writing &amp; Formatting</h2>
+          <span class="section-chevron icon-chevron-down"></span>
+        </button>
+        <div class="section-body" id="collapse-writing">
+
+          <!-- Adventure Notes -->
+          <article class="feature-card" data-feature="notes">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-icon-notes);">
+                    <span class="icon-notebook-pen"></span>
+                  </span>
+                  <h3 class="feature-title">Adventure Notes</h3>
+                </div>
+                <p class="feature-desc">Write and save notes per adventure</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-notes" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feature-details">
+              <p>An embedded Plot Components notes card that saves per adventure. Notes are <strong>saved per adventure</strong>.</p>
+              <p class="feature-hint"><span class="icon-lightbulb"></span> Notes appear at the bottom of the Plot Components section when enabled.</p>
+            </div>
+          </article>
+
+        </div>
+      </div>
+
+      <!-- Scenario Building -->
+      <div class="section section-collapsible" data-section="scenario">
+        <button class="section-header section-header-collapsible" data-collapse="scenario" aria-expanded="true">
+          <span class="section-icon icon-wrench" style="color: var(--bd-section-tools);"></span>
+          <h2 class="section-title">Scenario Building</h2>
+          <span class="section-chevron icon-chevron-down"></span>
+        </button>
+        <div class="section-body" id="collapse-scenario">
+
+          <!-- Trigger Highlighting -->
+          <article class="feature-card" data-feature="triggerHighlight">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-icon-trigger);">
+                    <span class="icon-sparkle"></span>
+                  </span>
+                  <h3 class="feature-title">Trigger Highlighting</h3>
+                </div>
+                <p class="feature-desc">Highlight story card triggers in context</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-triggerHighlight" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feature-details">
+              <p>Highlights story card triggers in View Context. Story cards load automatically when the context viewer opens.</p>
+              <p class="feature-hint"><span class="icon-sparkle"></span> Suggested triggers appear in cyan with dashed underlines.</p>
+            </div>
+          </article>
+
+          <!-- Story Card Analytics -->
+          <article class="feature-card" data-feature="storyCardAnalytics">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-icon-analytics);">
+                    <span class="icon-chart-bar"></span>
+                  </span>
+                  <h3 class="feature-title">Story Card Analytics</h3>
+                </div>
+                <p class="feature-desc">Analyze story cards for scenario building</p>
+              </div>
+            </div>
+            <div class="feature-details">
+              <p>Dashboard for scenario creators showing card statistics, trigger overlaps, coverage analysis, and potential issues. Story cards load instantly when the dashboard opens.</p>
+              <p class="feature-hint"><span class="icon-lightbulb"></span> Helps identify missing triggers, empty cards, and optimization opportunities.</p>
+              
+              <button class="btn btn-action" id="open-analytics-btn">
+                <span class="icon-chart-bar"></span>
+                Open Analytics Dashboard
+              </button>
+            </div>
+          </article>
+
+
+        </div>
+      </div>
+
+      <!-- Automations -->
+      <div class="section section-collapsible" data-section="automations">
+        <button class="section-header section-header-collapsible" data-collapse="automations" aria-expanded="true">
+          <span class="section-icon icon-zap" style="color: var(--bd-section-automations);"></span>
+          <h2 class="section-title">Automations</h2>
+          <span class="section-chevron icon-chevron-down"></span>
+        </button>
+        <div class="section-body" id="collapse-automations">
+
+          <!-- Custom Dynamic -->
+          <article class="feature-card" data-feature="customDynamic">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-section-automations);">
+                    <span class="icon-route"></span>
+                  </span>
+                  <h3 class="feature-title">Custom Dynamic</h3>
+                </div>
+                <p class="feature-desc">Route generations through your own model pool</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-customDynamic">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feature-details custom-dynamic-details">
+              <p class="feature-hint"><span class="icon-route"></span> Uses weighted random selection to route Take a Turn, Continue, Retry, and similar generations through your model pool.</p>
+
+              <div class="custom-dynamic-setting">
+                <label class="option-label-inline" for="custom-dynamic-turn-interval">Switch every</label>
+                <div class="custom-dynamic-control">
+                  <div class="interval-control">
+                    <input type="range" class="slider slider-sm" id="custom-dynamic-turn-interval" min="1" max="20" value="1">
+                    <span class="interval-value custom-dynamic-interval-value" id="custom-dynamic-turn-interval-value">Every turn</span>
+                  </div>
+                  <p>The selected model stays active for this many generation turns before another weighted pick.</p>
+                </div>
+              </div>
+
+              <div class="custom-dynamic-pool-header">
+                <span>Pool</span>
+                <span id="custom-dynamic-pool-summary">0 models</span>
+              </div>
+              <div class="custom-dynamic-pool-labels">
+                <span>On</span>
+                <span>Model family</span>
+                <span>Version</span>
+                <span>Chance</span>
+              </div>
+              <div class="custom-dynamic-model-list" id="custom-dynamic-model-list"></div>
+
+              <div class="custom-dynamic-add-row">
+                <select class="form-select form-select-sm" id="custom-dynamic-model-select"></select>
+                <button class="btn btn-icon btn-ghost" id="custom-dynamic-refresh-models" type="button" aria-label="Refresh AI Dungeon models" title="Refresh models">
+                  <span class="icon-refresh-cw"></span>
+                </button>
+                <button class="btn btn-ghost" id="custom-dynamic-add-model" type="button">
+                  <span class="icon-list-plus"></span>
+                  Add
+                </button>
+              </div>
+
+              <div class="custom-dynamic-actions">
+                <span class="option-value" id="custom-dynamic-status">Changes stay local to this device.</span>
+                <button class="btn btn-action" id="custom-dynamic-save" type="button">
+                  <span class="icon-save"></span>
+                  Save
+                </button>
+              </div>
+              <p class="feature-credit">Inspired by <a href="https://play.aidungeon.com/profile/Zoocata_" target="_blank" rel="noopener noreferrer">Zoocata's PRISM</a></p>
+            </div>
+          </article>
+
+          <!-- Auto See -->
+          <article class="feature-card" data-feature="autoSee">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-mode-see);">
+                    <span class="icon-eye"></span>
+                  </span>
+                  <h3 class="feature-title">Auto See</h3>
+                </div>
+                <p class="feature-desc">Generate scene images after AI responses</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-autoSee">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feature-details">
+              <div class="automation-info">
+                <p>Submits a background <strong>See</strong> action after AI output without changing your input mode.</p>
+              </div>
+
+              <div class="feature-option-inline">
+                <span class="option-label-inline">Frequency</span>
+                <select class="form-select form-select-sm" id="auto-see-trigger-mode">
+                  <option value="everyTurn">Every turn</option>
+                  <option value="afterNTurns">Every N turns</option>
+                </select>
+              </div>
+
+              <div class="feature-option-inline" id="auto-see-interval-option" style="display: none;">
+                <span class="option-label-inline">Interval</span>
+                <div class="interval-control">
+                  <input type="range" class="slider slider-sm" id="auto-see-interval" min="2" max="10" value="2">
+                  <span class="interval-value" id="auto-see-interval-value">2</span>
+                </div>
+              </div>
+
+              <div class="alert alert-warning alert-compact">
+                <span class="icon-triangle-alert"></span>
+                <span>Uses Credits per trigger if using a premium image model</span>
+              </div>
+            </div>
+          </article>
+
+          <!-- Text To Speech -->
+          <article class="feature-card" data-feature="textToSpeech">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--accent);">
+                    <span class="icon-volume-2"></span>
+                  </span>
+                  <h3 class="feature-title">Text To Speech</h3>
+                </div>
+                <p class="feature-desc">Narrate the latest AI adventure text</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-textToSpeech">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feature-details">
+              <div class="automation-info">
+                <p>Reads new story output aloud after it settles. User action text is skipped.</p>
+              </div>
+
+              <div class="feature-option-inline">
+                <span class="option-label-inline">Voice</span>
+                <select class="form-select form-select-sm" id="tts-voice-select">
+                  <option value="auto">Auto natural voice</option>
+                </select>
+              </div>
+
+              <div class="feature-option-inline">
+                <span class="option-label-inline">Rate</span>
+                <div class="interval-control">
+                  <input type="range" class="slider slider-sm" id="tts-rate" min="0.65" max="1.35" step="0.01" value="0.96">
+                  <span class="interval-value" id="tts-rate-value">0.96</span>
+                </div>
+              </div>
+
+              <div class="feature-option-inline">
+                <span class="option-label-inline">Pitch</span>
+                <div class="interval-control">
+                  <input type="range" class="slider slider-sm" id="tts-pitch" min="0.75" max="1.35" step="0.01" value="1.00">
+                  <span class="interval-value" id="tts-pitch-value">1.00</span>
+                </div>
+              </div>
+
+              <div class="feature-option-inline">
+                <span class="option-label-inline">Volume</span>
+                <div class="interval-control">
+                  <input type="range" class="slider slider-sm" id="tts-volume" min="0" max="1" step="0.01" value="1.00">
+                  <span class="interval-value" id="tts-volume-value">100%</span>
+                </div>
+              </div>
+
+              <div class="tts-actions">
+                <button class="btn btn-action tts-action-btn" id="tts-test-voice">
+                  <span class="icon-speech"></span>
+                  Test Voice
+                </button>
+                <button class="btn btn-action tts-action-btn" id="tts-stop">
+                  <span class="icon-volume-x"></span>
+                  Stop
+                </button>
+              </div>
+
+              <div class="alert alert-info alert-compact">
+                <span class="icon-sparkles"></span>
+                <span>Uses Android's on-device Text-to-Speech voices when available.</span>
+              </div>
+            </div>
+          </article>
+
+        </div>
+      </div>
+
+
+
+    </section>
+
+    <!-- Ultrascripts Tab -->
+    <section class="tab-panel" id="tab-ultrascripts">
+      <div class="section">
+        <div class="section-header">
+          <span class="section-icon icon-activity" style="color: var(--bd-icon-scripts);"></span>
+          <h2 class="section-title">Runtime</h2>
+        </div>
+        <div class="section-body">
+          <article class="feature-card expanded ultrascripts-card" data-feature="ultrascripts">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-icon-scripts);">
+                    <span class="icon-radio-tower"></span>
+                  </span>
+                  <h3 class="feature-title">Ultrascripts</h3>
+                </div>
+                <p class="feature-desc">Two-way script modules and live capabilities</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-ultrascripts" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feature-details">
+              <div class="ultrascripts-status-panel" id="ultrascripts-status-panel">
+                <span class="ultrascripts-status-dot" id="ultrascripts-status-dot"></span>
+                <div>
+                  <strong id="ultrascripts-status-label">Checking Ultrascripts</strong>
+                  <span id="ultrascripts-status-detail">Open AI Dungeon to inspect live module state.</span>
+                </div>
+                <button class="btn btn-icon btn-ghost" id="ultrascripts-refresh" aria-label="Refresh Ultrascripts status" title="Refresh">
+                  <span class="icon-refresh-cw"></span>
+                </button>
+              </div>
+              <div class="feature-option ultrascripts-debug-option">
+                <span class="option-label"><span class="icon-bug"></span> Ultrascripts Debug</span>
+                <label class="toggle sm">
+                  <input type="checkbox" id="ultrascripts-debug">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
+          <span class="section-icon icon-layers" style="color: var(--bd-section-formatting);"></span>
+          <h2 class="section-title">Script Surface</h2>
+        </div>
+        <div class="section-body">
+          <div class="ultrascripts-module-list">
+            <article class="feature-card ultrascripts-module-card" data-ultrascripts-module-card="widget">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-icon-scripts);">
+                      <span class="icon-book-open-text"></span>
+                    </span>
+                    <h3 class="feature-title">Widget</h3>
+                  </div>
+                  <p class="feature-desc">Live visual UI for script-driven displays</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-ultrascripts-module-toggle="widget" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>The Widget module lets adventure scripts render interface elements outside the story text, including stat bars, counters, panels, status readouts, and custom HTML widgets.</p>
+                <p class="feature-hint"><span class="icon-book-open-text"></span> Useful for RPG HUDs, relationship meters, timers, inventory panels, and scenario-specific dashboards.</p>
+              </div>
+            </article>
+
+            <article class="feature-card ultrascripts-module-card" data-ultrascripts-module-card="audio">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-pink);">
+                      <span class="icon-volume-2"></span>
+                    </span>
+                    <h3 class="feature-title">Audio</h3>
+                  </div>
+                  <p class="feature-desc">Synthesized sound effects for scripts</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-ultrascripts-module-toggle="audio" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>Audio lets scripts play bounded oscillator and generated-noise effects through a simple state card.</p>
+                <p class="feature-hint"><span class="icon-volume-2"></span> Supports tones, pitch sweeps, noise, and volume envelopes. Disabling this module immediately stops playback.</p>
+              </div>
+            </article>
+
+            <article class="feature-card ultrascripts-module-card" data-ultrascripts-module-card="webfetch">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-blue);">
+                      <span class="icon-globe-lock"></span>
+                    </span>
+                    <h3 class="feature-title">WebFetch</h3>
+                  </div>
+                  <p class="feature-desc">Bounded public HTTPS reads</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-ultrascripts-module-toggle="webfetch" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>WebFetch lets scripts read bounded text, JSON, HTML, and XML from public HTTPS resources. It never sends browser cookies or credentials.</p>
+                <p class="feature-hint"><span class="icon-globe-lock"></span> Enabling this module permits safe GET and HEAD requests. Disable it at any time to stop script web access.</p>
+              </div>
+            </article>
+
+            <article class="feature-card ultrascripts-module-card" data-ultrascripts-module-card="clock">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-mode-story);">
+                      <span class="icon-clock"></span>
+                    </span>
+                    <h3 class="feature-title">Clock</h3>
+                  </div>
+                  <p class="feature-desc">Reliable time, time zones, and formatting</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-ultrascripts-module-toggle="clock" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>Clock gives scripts the user's current local time, IANA time-zone conversion, ISO timestamps, offsets, and deterministic formatted dates.</p>
+                <p class="feature-hint"><span class="icon-clock"></span> Useful for daily events, timed encounters, schedules, cooldowns, holidays, and world clocks.</p>
+              </div>
+            </article>
+
+            <article class="feature-card ultrascripts-module-card" data-ultrascripts-module-card="sdk">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--accent);">
+                      <span class="icon-layers"></span>
+                    </span>
+                    <h3 class="feature-title">SDK</h3>
+                  </div>
+                  <p class="feature-desc">Version and configuration context for scripts</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-ultrascripts-module-toggle="sdk" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>SDK gives scripts curated BetterDungeon metadata that complements heartbeat without duplicating Ultrascripts discovery, including version info and safe configuration context.</p>
+                <p class="feature-hint"><span class="icon-layers"></span> Useful when a script needs to react to how the player has BetterDungeon configured while leaving heartbeat as the one module/ops truth.</p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
+          <span class="section-icon icon-brain-circuit" style="color: var(--bd-indigo);"></span>
+          <h2 class="section-title">AI</h2>
+        </div>
+        <div class="section-body">
+          <div class="ultrascripts-module-list">
+            <article class="feature-card ultrascripts-module-card" id="ai-settings-card" data-ultrascripts-module-card="ai">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-indigo);">
+                      <span class="icon-bot-message-square"></span>
+                    </span>
+                    <h3 class="feature-title">AI</h3>
+                  </div>
+                  <p class="feature-desc">Asynchronous LLM queries for scripts</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-ultrascripts-module-toggle="ai" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>All remote services use one OpenAI-compatible Chat Completions backend. The selected service is activated when you save; BetterDungeon never falls back across services.</p>
+
+                <section class="ai-provider-panel" id="ai-endpoint-panel" data-provider="openai-compatible">
+                  <div class="ai-provider-panel-header">
+                    <div>
+                      <h4>OpenAI-compatible endpoint</h4>
+                      <p>Gemini is the default; OpenRouter and remote custom HTTPS endpoints (including Mistral-compatible URLs) use the same protocol.</p>
+                    </div>
+                    <span class="ai-provider-badge" id="ai-endpoint-status" data-state="pending">Checking</span>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="ai-endpoint-service">Service</label>
+                    <select class="form-input" id="ai-endpoint-service">
+                      <option value="gemini">Google Gemini</option>
+                      <option value="openrouter">OpenRouter</option>
+                      <option value="custom">Custom endpoint</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="ai-endpoint-base-url">Base URL</label>
+                    <input type="url" class="form-input" id="ai-endpoint-base-url" aria-describedby="ai-endpoint-base-url-help ai-endpoint-validation" spellcheck="false">
+                    <p class="form-help" id="ai-endpoint-base-url-help">Gemini and OpenRouter use their official locked URL. Custom endpoints must use HTTPS; BetterDungeon adds <code>/chat/completions</code>.</p>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="ai-endpoint-api-key">API key <span class="form-label-optional" id="ai-endpoint-key-optional"></span></label>
+                    <input type="password" class="form-input" id="ai-endpoint-api-key" placeholder="Paste a key" autocomplete="off" spellcheck="false">
+                  </div>
+                  <div class="form-group" id="ai-endpoint-model-mode-group">
+                    <label class="form-label" for="ai-endpoint-model-mode">Model selection</label>
+                    <select class="form-input" id="ai-endpoint-model-mode">
+                      <option value="auto">Best available (429 stepdown)</option>
+                      <option value="manual">Manual model</option>
+                    </select>
+                  </div>
+                  <div class="form-group" id="ai-endpoint-model-group">
+                    <label class="form-label" for="ai-endpoint-model">Model ID</label>
+                    <input type="text" class="form-input" id="ai-endpoint-model" placeholder="gemini-3.5-flash-lite" aria-describedby="ai-endpoint-model-help ai-endpoint-validation" spellcheck="false">
+                    <p class="form-help" id="ai-endpoint-model-help">Use the exact model identifier accepted by the selected service.</p>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="ai-endpoint-max-input-tokens">Input cap</label>
+                    <select class="form-input" id="ai-endpoint-max-input-tokens">
+                      <option value="32000">32k</option>
+                      <option value="64000">64k</option>
+                      <option value="128000">128k</option>
+                      <option value="256000">256k</option>
+                      <option value="1000000">1M</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                    <input type="text" inputmode="numeric" class="form-input" id="ai-endpoint-max-input-custom" placeholder="4000" hidden>
+                    <p class="form-help">Absolute input-token cap used by all BetterDungeon AI module requests.</p>
+                  </div>
+                  <p class="feature-hint" id="ai-endpoint-gemini-help"><span class="icon-key-round"></span> Get a Gemini key from <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer">Google AI Studio</a>.</p>
+                  <div class="ai-provider-validation" id="ai-endpoint-validation" role="status" aria-live="polite"></div>
+                  <div class="ai-provider-status-card" id="ai-endpoint-status-card" data-state="pending">
+                    <span class="ai-provider-status-dot" aria-hidden="true"></span>
+                    <div>
+                      <strong id="ai-endpoint-status-title">Checking configuration</strong>
+                      <span id="ai-endpoint-status-detail">Reading locally saved settings...</span>
+                    </div>
+                  </div>
+                  <div class="btn-row">
+                    <button class="btn btn-action" id="ai-endpoint-save" type="button">
+                      <span class="icon-save"></span>
+                      Save
+                    </button>
+                    <button class="btn btn-ghost" id="ai-endpoint-test" type="button">
+                      <span class="icon-circle-check"></span>
+                      Save &amp; test
+                    </button>
+                    <button class="btn btn-ghost" id="ai-endpoint-clear-key" type="button">
+                      <span class="icon-eraser"></span>
+                      Clear key
+                    </button>
+                  </div>
+                </section>
+              </div>
+            </article>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
+          <span class="section-icon icon-map" style="color: var(--bd-section-tools);"></span>
+          <h2 class="section-title">World &amp; Device Context</h2>
+        </div>
+        <div class="section-body">
+          <div class="ultrascripts-module-list">
+            <article class="feature-card ultrascripts-module-card" data-ultrascripts-module-card="weather">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-cyan);">
+                      <span class="icon-cloud-sun"></span>
+                    </span>
+                    <h3 class="feature-title">Weather</h3>
+                  </div>
+                  <p class="feature-desc">Current conditions and forecast lookup</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-ultrascripts-module-toggle="weather" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>Weather gives scripts a focused weather path without general web scraping, using place names or coordinates to return current conditions and short forecasts.</p>
+                <p class="feature-hint"><span class="icon-cloud-sun"></span> Useful for atmospheric scenes, survival mechanics, travel planning, seasonal events, and grounded local flavor.</p>
+              </div>
+            </article>
+
+            <article class="feature-card ultrascripts-module-card" data-ultrascripts-module-card="network">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-green);">
+                      <span class="icon-wifi"></span>
+                    </span>
+                    <h3 class="feature-title">Network</h3>
+                  </div>
+                  <p class="feature-desc">Connection status and quality hints</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-ultrascripts-module-toggle="network" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>Network reports online status and browser connection hints like effective type, round-trip time, downlink estimate, and data-saver preference when available.</p>
+                <p class="feature-hint"><span class="icon-wifi"></span> Useful for scripts that can choose lighter requests, avoid live lookups, or explain degraded behavior cleanly.</p>
+              </div>
+            </article>
+
+            <article class="feature-card ultrascripts-module-card" data-ultrascripts-module-card="system">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-orange);">
+                      <span class="icon-cpu"></span>
+                    </span>
+                    <h3 class="feature-title">System</h3>
+                  </div>
+                  <p class="feature-desc">Device, browser, display, and power context</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-ultrascripts-module-toggle="system" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>System exposes broad environment details such as device class, platform family, locale, screen size, touch support, browser family, and battery state when supported.</p>
+                <p class="feature-hint"><span class="icon-cpu"></span> Useful for adapting script UI, reducing work on mobile or low-power devices, and tailoring experiences by device context.</p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <a href="https://better-repository.netlify.app/scripts" target="_blank" rel="noopener noreferrer" class="btn btn-action">
+          <span class="icon-external-link"></span>
+          View Example Scripts
+        </a>
+      </div>
+    </section>
+
+    <!-- Presets Tab -->
+    <section class="tab-panel" id="tab-presets">
+      
+      <div class="preset-view-tabs" role="tablist" aria-label="Preset type">
+        <button class="preset-view-tab active" id="preset-view-tab-characters" type="button" role="tab" aria-selected="true" aria-controls="preset-view-characters" data-preset-view="characters">
+          <span class="icon-users" aria-hidden="true"></span>
+          Characters
+        </button>
+        <button class="preset-view-tab" id="preset-view-tab-plot" type="button" role="tab" aria-selected="false" aria-controls="preset-view-plot" data-preset-view="plot" tabindex="-1">
+          <span class="icon-star" aria-hidden="true"></span>
+          Plot Presets
+        </button>
+      </div>
+
+      <!-- Character Presets -->
+      <section class="preset-view-panel" id="preset-view-characters" role="tabpanel" aria-labelledby="preset-view-tab-characters" data-preset-panel="characters">
+        <div class="section-header preset-panel-heading">
+          <span class="section-icon icon-user" style="color: var(--bd-accent-primary);" aria-hidden="true"></span>
+          <div class="preset-panel-copy">
+            <h2 class="section-title">Character Presets</h2>
+            <p>Save reusable characters and choose which one should answer scenario-start questions.</p>
+          </div>
+          <label class="character-prefill-toggle" title="Enable Character Prefill">
+            <span>Prefill</span>
+            <span class="toggle sm">
+              <input type="checkbox" id="feature-characterPreset" checked aria-label="Enable Character Prefill">
+              <span class="toggle-slider"></span>
+            </span>
+          </label>
+        </div>
+
+        <button class="btn btn-full" id="create-character-btn" type="button">
+          <span class="icon-user-plus"></span>
+          New Character
+        </button>
+
+        <div class="character-list-heading">
+          <h3>Saved characters</h3>
+          <span id="character-count">0 saved</span>
+        </div>
+
+        <div class="character-list" id="character-list">
+          <div class="empty-state character-empty-state" id="character-empty">
+            <span class="empty-icon icon-user-plus"></span>
+            <p class="empty-title">No characters yet</p>
+            <p class="empty-desc">Create a character, then select it for automatic scenario prefill.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Plot Presets -->
+      <section class="preset-view-panel" id="preset-view-plot" role="tabpanel" aria-labelledby="preset-view-tab-plot" data-preset-panel="plot" hidden>
+        <div class="section-header preset-panel-heading">
+          <span class="section-icon icon-star" style="color: var(--bd-accent-primary);" aria-hidden="true"></span>
+          <div class="preset-panel-copy">
+            <h2 class="section-title">Plot Presets</h2>
+            <p>Save your current Plot Components and reuse them in another adventure.</p>
+          </div>
+        </div>
+
+        <button class="btn btn-full" id="save-current-preset-btn" type="button">
+          <span class="icon-plus"></span>
+          Save Current Plot
+        </button>
+
+        <button class="btn btn-ghost" id="undo-preset-btn" type="button" style="display: none;">
+          <span class="icon-undo-2"></span>
+          Undo Last Apply
+        </button>
+
+        <div class="preset-list" id="preset-list">
+          <div class="empty-state" id="preset-empty">
+            <span class="empty-icon icon-clipboard"></span>
+            <p class="empty-title">No plot presets yet</p>
+            <p class="empty-desc">Save the current plot configuration to reuse it later.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- BetterRepository Link -->
+      <div class="section section-compact">
+        <a href="https://better-repository.netlify.app" target="_blank" rel="noopener noreferrer" class="ecosystem-link">
+          <img src="icons/betterrepository_logo.png" alt="" class="ecosystem-link-logo">
+          <div class="ecosystem-link-content">
+            <span class="ecosystem-link-title">BetterRepository</span>
+            <span class="ecosystem-link-desc">Find AI Instructions, Plot Components & Scripts</span>
+          </div>
+          <span class="icon-external-link ecosystem-link-arrow"></span>
+        </a>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Preset Preview/Edit Modal -->
+  <div class="modal-backdrop" id="preset-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-title">Edit Preset</h3>
+        <button class="modal-close" id="modal-close" aria-label="Close">
+          <span class="icon-x"></span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Preset Name</label>
+          <input type="text" class="form-input" id="modal-preset-name" placeholder="My Preset">
+        </div>
+        <div class="form-group">
+          <label class="form-label form-label-check">
+            <input type="checkbox" id="modal-check-ai" checked>
+            AI Instructions
+          </label>
+          <textarea class="form-textarea" id="modal-ai-instructions" placeholder="No AI Instructions saved"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label form-label-check">
+            <input type="checkbox" id="modal-check-essentials" checked>
+            Plot Essentials
+          </label>
+          <textarea class="form-textarea" id="modal-plot-essentials" placeholder="No Plot Essentials saved"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label form-label-check">
+            <input type="checkbox" id="modal-check-note" checked>
+            Author's Note
+          </label>
+          <textarea class="form-textarea" id="modal-authors-note" placeholder="No Author's Note saved"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="modal-cancel">Cancel</button>
+        <button class="btn btn-primary" id="modal-save">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Save Preset Modal -->
+  <div class="modal-backdrop" id="save-modal">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h3 class="modal-title">Save New Preset</h3>
+        <button class="modal-close" id="save-modal-close" aria-label="Close">
+          <span class="icon-x"></span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Preset Name</label>
+          <input type="text" class="form-input" id="save-preset-name" placeholder="My Preset">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Components to Save</label>
+          <div class="checkbox-group">
+            <label class="checkbox-item">
+              <input type="checkbox" id="save-check-ai" checked>
+              <span>AI Instructions</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" id="save-check-essentials" checked>
+              <span>Plot Essentials</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" id="save-check-note" checked>
+              <span>Author's Note</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="save-modal-cancel">Cancel</button>
+        <button class="btn btn-primary" id="save-modal-confirm">Save Preset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Character Edit Modal -->
+  <div class="modal-backdrop" id="character-modal">
+    <div class="modal modal-character">
+      <div class="modal-header">
+        <h3 class="modal-title" id="character-modal-title">Edit Character</h3>
+        <button class="modal-close" id="character-modal-close" aria-label="Close">
+          <span class="icon-x"></span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="character-modal-intro">Describe the character once. Character Prefill uses this profile to answer scenario-start questions.</p>
+        <div class="form-group">
+          <label class="form-label" for="character-name-input">Name</label>
+          <input type="text" class="form-input" id="character-name-input" placeholder="Character name" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="character-description-input">Character profile</label>
+          <p class="form-help">Write naturally. Include appearance, personality, background, role, abilities, relationships, or any details the AI should preserve.</p>
+          <textarea class="form-textarea character-description-textarea" id="character-description-input" placeholder="Example: Mara is a cautious elven cartographer with a dry sense of humor. She carries an enchanted compass and is searching for her missing mentor."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-danger" id="character-delete-btn">Delete Character</button>
+        <div class="modal-footer-spacer"></div>
+        <button class="btn btn-ghost" id="character-modal-cancel">Cancel</button>
+        <button class="btn btn-primary" id="character-modal-save">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Color Customization Modal -->
+  <div class="modal-backdrop" id="color-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Customize Mode Colors</h3>
+        <button class="modal-close" id="color-modal-close" aria-label="Close">
+          <span class="icon-x"></span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="color-modal-desc">Click on a color to change it. Changes apply instantly.</p>
+        
+        <div class="color-editor-list" id="color-editor-list">
+          <div class="color-editor-item" data-mode="do">
+            <span class="color-editor-label">Do</span>
+            <input type="color" class="color-editor-input" data-mode="do" value="#3b82f6">
+          </div>
+          <div class="color-editor-item" data-mode="try">
+            <span class="color-editor-label">Try</span>
+            <input type="color" class="color-editor-input" data-mode="try" value="#a855f7">
+          </div>
+          <div class="color-editor-item" data-mode="say">
+            <span class="color-editor-label">Say</span>
+            <input type="color" class="color-editor-input" data-mode="say" value="#22c55e">
+          </div>
+          <div class="color-editor-item" data-mode="story">
+            <span class="color-editor-label">Story</span>
+            <input type="color" class="color-editor-input" data-mode="story" value="#fbbf24">
+          </div>
+          <div class="color-editor-item" data-mode="guide">
+            <span class="color-editor-label">Guide</span>
+            <input type="color" class="color-editor-input" data-mode="guide" value="#ec4899">
+          </div>
+          <div class="color-editor-item" data-mode="see">
+            <span class="color-editor-label">See</span>
+            <input type="color" class="color-editor-input" data-mode="see" value="#06b6d4">
+          </div>
+          <div class="color-editor-item" data-mode="command">
+            <span class="color-editor-label">Command</span>
+            <input type="color" class="color-editor-input" data-mode="command" value="#f97316">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-danger" id="color-reset-btn">
+          <span class="icon-rotate-ccw"></span>
+          Reset to Defaults
+        </button>
+        <div class="modal-footer-spacer"></div>
+        <button class="btn btn-primary" id="color-modal-done">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BetterDungeon App Settings Modal -->
+  <div class="modal-backdrop" id="app-settings-modal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="app-settings-title">
+      <div class="modal-header">
+        <h3 class="modal-title" id="app-settings-title">Settings</h3>
+        <button class="modal-close" id="app-settings-close" aria-label="Close settings">
+          <span class="icon-x"></span>
+        </button>
+      </div>
+      <div class="modal-body app-settings-body">
+        <article class="feature-card expanded app-settings-feature-card">
+          <div class="feature-row">
+            <div class="feature-info">
+              <div class="feature-title-row">
+                <span class="feature-icon app-settings-feature-icon">
+                  <span class="icon-text-cursor-input"></span>
+                </span>
+                <h3 class="feature-title">Caret scroll stabilization</h3>
+              </div>
+              <p class="feature-desc">Reduce snapping in tall WebView text editors</p>
+            </div>
+            <label class="toggle" for="caret-scroll-fix-toggle">
+              <input id="caret-scroll-fix-toggle" type="checkbox" role="switch">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="feature-details">
+            <p>Experimental WebView workaround. A small visual correction may still be noticeable while editing.</p>
+          </div>
+        </article>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tutorial Welcome Banner -->
+  <div class="tutorial-banner hidden" id="tutorial-welcome-banner">
+    <div class="tutorial-banner-icon">
+      <span class="icon-wand-sparkles"></span>
+    </div>
+    <div class="tutorial-banner-content">
+      <strong>Welcome to BetterDungeon!</strong>
+      <span>Learn what BetterDungeon is and what it can do.</span>
+    </div>
+    <div class="tutorial-banner-actions">
+      <button class="btn btn-ghost btn-sm" id="tutorial-banner-dismiss">Later</button>
+      <button class="btn btn-primary btn-sm" id="tutorial-banner-start">Start Tutorial</button>
+    </div>
+  </div>
+
+  <!-- Tutorial Overlay System -->
+  <div class="tutorial-overlay" id="tutorial-overlay">
+    <div class="tutorial-spotlight" id="tutorial-spotlight"></div>
+  </div>
+
+  <!-- Tutorial Tooltip -->
+  <div class="tutorial-tooltip" id="tutorial-tooltip" data-position="bottom" role="dialog" aria-modal="true" aria-labelledby="tutorial-tooltip-title" tabindex="-1">
+    <div class="tutorial-tooltip-arrow"></div>
+    <div class="tutorial-tooltip-header">
+      <div class="tutorial-tooltip-icon">
+        <span class="icon-lightbulb" id="tutorial-tooltip-icon"></span>
+      </div>
+      <h4 class="tutorial-tooltip-title" id="tutorial-tooltip-title">Feature Title</h4>
+      <button class="btn btn-icon btn-ghost tutorial-topic-toggle" id="tutorial-topics" type="button" aria-label="Browse tutorial topics" aria-expanded="false" aria-controls="tutorial-topic-panel" title="Topics">
+        <span class="icon-list"></span>
+      </button>
+    </div>
+    <div class="tutorial-tooltip-body">
+      <p class="tutorial-tooltip-content" id="tutorial-tooltip-content">Description goes here.</p>
+      <div class="tutorial-topic-panel hidden" id="tutorial-topic-panel"></div>
+    </div>
+    <div class="tutorial-tooltip-footer">
+      <div class="tutorial-progress">
+        <div class="tutorial-progress-bar" role="progressbar" aria-label="Tutorial progress" aria-valuemin="1" aria-valuenow="1" aria-valuemax="5">
+          <div class="tutorial-progress-fill" id="tutorial-progress-fill"></div>
+        </div>
+        <span class="tutorial-progress-text" id="tutorial-progress-text">Step 1 of 5</span>
+      </div>
+      <div class="tutorial-nav">
+        <button class="btn btn-ghost btn-sm" id="tutorial-skip">Exit Tutorial</button>
+        <button class="btn btn-ghost btn-sm" id="tutorial-prev">Back</button>
+        <button class="btn btn-primary btn-sm" id="tutorial-next">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tutorial Modal -->
+  <div class="tutorial-modal" id="tutorial-modal" role="dialog" aria-modal="true" aria-labelledby="tutorial-modal-title">
+    <div class="tutorial-modal-content">
+      <div class="tutorial-modal-icon" id="tutorial-modal-icon">
+        <span class="icon-wand-sparkles"></span>
+      </div>
+      <h3 class="tutorial-modal-title" id="tutorial-modal-title">Welcome to BetterDungeon!</h3>
+      <p class="tutorial-modal-text" id="tutorial-modal-text">This tutorial will introduce you to BetterDungeon.</p>
+      <div class="tutorial-modal-topics" id="tutorial-modal-topics"></div>
+      <div class="tutorial-modal-actions">
+        <button class="btn btn-primary" id="tutorial-modal-primary">Start Premise</button>
+        <button class="btn btn-ghost" id="tutorial-modal-secondary">Not Now</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reusable Dialog Modal (replaces alert/confirm/prompt) -->
+  <div class="modal-backdrop" id="dialog-modal">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h3 class="modal-title" id="dialog-title">Confirm</h3>
+      </div>
+      <div class="modal-body">
+        <p id="dialog-message" style="margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.5;"></p>
+        <input type="text" id="dialog-input" class="form-input" style="display: none; margin-top: 12px;" placeholder="">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost btn-sm" id="dialog-cancel">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="dialog-confirm">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="utils/android-editable-scroll-fix.js"></script>
+  <script src="utils/browser-polyfill.js"></script>
+  <script src="services/tutorial-service.js"></script>
+  <script src="utils/webview-polyfill.js"></script>
+  <script src="popup-ai-endpoint.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

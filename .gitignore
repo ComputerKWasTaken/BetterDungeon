@@ -1,0 +1,15 @@
+/.build/
+/dist/
+/android/.gradle/
+/android/.idea/
+/android/.kotlin/
+/android/build/
+/android/local.properties
+/android/app/build/
+/android/app/release/
+*.apk
+*.aab
+*.jks
+*.keystore
+*.iml
+.DS_Store

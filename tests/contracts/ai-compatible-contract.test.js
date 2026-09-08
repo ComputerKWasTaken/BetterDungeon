@@ -1,0 +1,588 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+const ROOT = path.resolve(__dirname, '..', '..');
+const local = new Map([
+  ['ultrascripts_ai_gemini_api_key', 'legacy-gemini'],
+  ['ultrascripts_ai_openai_model', 'legacy-model'],
+]);
+const sync = new Map([['ultrascripts_ai_default_provider', 'openai']]);
+const messageListeners = [];
+const connectListeners = [];
+const pageListeners = new Map();
+const requests = [];
+let holdStream = false;
+let holdDiscovery = false;
+let discoveryRequests = 0;
+
+global.window = global;
+const realSetTimeout = global.setTimeout;
+global.setTimeout = (callback, delay, ...args) => realSetTimeout(callback, delay === 120000 ? 40 : delay, ...args);
+global.location = { protocol: 'https:', href: 'https://play.aidungeon.com/adventure/test' };
+global.addEventListener = (type, listener) => {
+  const list = pageListeners.get(type) || [];
+  list.push(listener);
+  pageListeners.set(type, list);
+};
+global.removeEventListener = (type, listener) => {
+  pageListeners.set(type, (pageListeners.get(type) || []).filter(candidate => candidate !== listener));
+};
+
+function storageArea(store) {
+  return {
+    get(keys, callback) {
+      const names = Array.isArray(keys) ? keys : typeof keys === 'string' ? [keys] : Object.keys(keys || {});
+      const result = {};
+      names.forEach(key => {
+        if (store.has(key)) result[key] = JSON.parse(store.get(key));
+      });
+      callback?.(result);
+      return Promise.resolve(result);
+    },
+    set(values, callback) {
+      Object.entries(values || {}).forEach(([key, value]) => store.set(key, JSON.stringify(value)));
+      callback?.();
+      return Promise.resolve();
+    },
+    remove(keys, callback) {
+      (Array.isArray(keys) ? keys : [keys]).forEach(key => store.delete(key));
+      callback?.();
+      return Promise.resolve();
+    },
+  };
+}
+
+function event(list) {
+  return {
+    addListener(listener) { list.push(listener); },
+    removeListener(listener) {
+      const index = list.indexOf(listener);
+      if (index >= 0) list.splice(index, 1);
+    },
+  };
+}
+
+function createPortPair(name) {
+  const clientMessages = [];
+  const runtimeMessages = [];
+  const clientDisconnects = [];
+  const runtimeDisconnects = [];
+  let closed = false;
+  const dispatch = (listeners, value, port) => queueMicrotask(() => listeners.slice().forEach(listener => listener(value, port)));
+  const disconnect = () => {
+    if (closed) return;
+    closed = true;
+    dispatch(clientDisconnects, client, client);
+    dispatch(runtimeDisconnects, server, server);
+  };
+  const client = {
+    name,
+    onMessage: event(clientMessages),
+    onDisconnect: event(clientDisconnects),
+    postMessage(value) { if (!closed) dispatch(runtimeMessages, value, server); },
+    disconnect,
+  };
+  const server = {
+    name,
+    sender: { id: 'betterdungeon-test' },
+    onMessage: event(runtimeMessages),
+    onDisconnect: event(runtimeDisconnects),
+    postMessage(value) { if (!closed) dispatch(clientMessages, value, client); },
+    disconnect,
+  };
+  queueMicrotask(() => connectListeners.slice().forEach(listener => listener(server)));
+  return client;
+}
+
+function dispatchMessage(message, callback) {
+  let handled = false;
+  for (const listener of messageListeners) {
+    const result = listener(message, { id: 'betterdungeon-test' }, response => callback?.(response));
+    if (result === true) { handled = true; break; }
+  }
+  if (!handled) callback?.();
+}
+
+global.chrome = {
+  runtime: {
+    id: 'betterdungeon-test',
+    lastError: null,
+    onMessage: event(messageListeners),
+    onConnect: event(connectListeners),
+    sendMessage(message, callback) {
+      dispatchMessage(message, callback);
+    },
+    connect({ name }) { return createPortPair(name); },
+  },
+  storage: {
+    local: storageArea(local),
+    sync: storageArea(sync),
+  },
+};
+
+function jsonResponse(status, data, headers = {}) {
+  return new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json', ...headers } });
+}
+
+function streamResponse(frames) {
+  const encoder = new TextEncoder();
+  return new Response(new ReadableStream({
+    start(controller) {
+      if (holdStream) {
+        holdStream = false;
+        setTimeout(() => controller.close(), 80);
+        return;
+      }
+      frames.forEach(frame => controller.enqueue(encoder.encode(frame)));
+      controller.close();
+    },
+    cancel() {},
+  }), { status: 200, headers: { 'content-type': 'text/event-stream' } });
+}
+
+function sse(events) {
+  return events.map(event => `data: ${typeof event === 'string' ? event : JSON.stringify(event)}\n\n`);
+}
+
+const SIGNATURE_ONE = 'sig-one+/=byte-for-byte';
+const SIGNATURE_TWO = 'sig-two+/=byte-for-byte';
+
+global.fetch = async (url, init) => {
+  if (init?.method === 'GET') {
+    discoveryRequests += 1;
+    requests.push({ url, payload: null, headers: init.headers });
+    if (holdDiscovery) return new Promise(resolve => setTimeout(() => resolve(jsonResponse(200, [])), 1500));
+    if (String(url).includes('/models')) {
+      const fixture = String(url).includes('openrouter')
+        ? 'openrouter-models.json'
+        : String(url).includes('provider.example')
+          ? 'custom-models.json'
+          : 'gemini-models.json';
+      return jsonResponse(200, JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', fixture), 'utf8')));
+    }
+  }
+  const payload = JSON.parse(init.body);
+  requests.push({ url, payload, headers: init.headers });
+  const prompt = payload.messages?.map(message => message.content || '').join(' ') || '';
+
+  if (prompt.includes('auth-error')) return jsonResponse(401, { error: { message: 'bad key' } });
+  if (prompt.includes('safety-error')) return jsonResponse(400, { error: { status: 'PROHIBITED_CONTENT', message: 'blocked' } });
+  if (prompt.includes('malformed-response')) return new Response('{nope', { status: 200 });
+  if (prompt.includes('output-length')) {
+    return jsonResponse(200, {
+      model: `${payload.model}-provider`,
+      choices: [{ message: { content: 'partial answer' }, finish_reason: 'length' }],
+      usage: { total_tokens: 7 },
+    });
+  }
+  if (prompt.includes('fallback-test') && payload.model === 'gemini-3.5-flash-lite') {
+    return jsonResponse(429, { error: { message: 'quota' } }, { 'retry-after': '1' });
+  }
+  if (prompt.includes('manual-rate-limit') || prompt.includes('openrouter-rate-limit')) {
+    return jsonResponse(429, { error: { message: 'quota' } });
+  }
+  if (!payload.stream) {
+    const content = payload.response_format ? JSON.stringify({ ok: true }) : `answer:${payload.model}`;
+    return jsonResponse(200, { model: `${payload.model}-provider`, choices: [{ message: { content } }], usage: { total_tokens: 7 } });
+  }
+  if (prompt.includes('hold-open')) {
+    holdStream = true;
+    return streamResponse([]);
+  }
+  if (prompt.includes('malformed-stream')) return streamResponse(['data: {not-json\n\n']);
+  if (prompt.includes('tool-round-one')) {
+    return streamResponse(sse([
+      { model: payload.model, choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_read', type: 'function', function: { name: 'read_card', arguments: '{"id":' }, extra_content: { google: { thought_signature: SIGNATURE_ONE } } }, { index: 1, id: 'call_plot', type: 'function', function: { name: 'read_plot', arguments: '{}' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '"card-1"}' } }] }, finish_reason: 'tool_calls' }] },
+      '[DONE]',
+    ]));
+  }
+  if (prompt.includes('tool-complete-no-index')) {
+    return streamResponse(sse([
+      { choices: [{ delta: { tool_calls: [{ id: 'call_alpha', type: 'function', function: { name: 'lookup', arguments: '{"name":"alpha"}' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ id: 'call_paris', type: 'function', function: { name: 'weather', arguments: '{"city":"Paris"}' } }] }, finish_reason: 'tool_calls' }] },
+      '[DONE]',
+    ]));
+  }
+  if (prompt.includes('tool-repeated-complete')) {
+    return streamResponse(sse([
+      { choices: [{ delta: { tool_calls: [{ id: 'call_repeat', type: 'function', function: { name: 'lookup', arguments: '{"name":"alpha"}' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ id: 'call_repeat', function: { arguments: '{"name":"alpha"}' } }] }, finish_reason: 'tool_calls' }] },
+      '[DONE]',
+    ]));
+  }
+  if (prompt.includes('tool-incremental-number')) {
+    return streamResponse(sse([
+      { choices: [{ delta: { tool_calls: [{ id: 'call_limit', index: 0, function: { name: 'lookup', arguments: '{"limit": ' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '1' } }] } }] },
+      { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '}' } }] }, finish_reason: 'tool_calls' }] },
+      '[DONE]',
+    ]));
+  }
+  if (prompt.includes('tool-invalid-args')) {
+    return streamResponse(sse([
+      { choices: [{ delta: { tool_calls: [{ id: 'call_bad', type: 'function', function: { name: 'lookup', arguments: '{"name":' } }] }, finish_reason: 'tool_calls' }] },
+      '[DONE]',
+    ]));
+  }
+  if (prompt.includes('tool-output-truncated')) {
+    return streamResponse(sse([
+      { choices: [{ delta: { tool_calls: [{ id: 'call_truncated', type: 'function', function: { name: 'propose_story_card_create', arguments: '{"name":"partial"}' } }] }, finish_reason: 'length' }] },
+      '[DONE]',
+    ]));
+  }
+  if (prompt.includes('tool-nonobject-args')) {
+    return streamResponse(sse([
+      { choices: [{ delta: { tool_calls: [{ id: 'call_array', type: 'function', function: { name: 'lookup', arguments: '["alpha"]' } }] }, finish_reason: 'tool_calls' }] },
+      '[DONE]',
+    ]));
+  }
+  if (prompt.includes('tool-round-two')) {
+    const replay = payload.messages.find(message => message.role === 'assistant' && message.tool_calls?.[0]?.id === 'call_read');
+    assert.equal(replay.tool_calls[0].extra_content.google.thought_signature, SIGNATURE_ONE);
+    return streamResponse(sse([
+      { choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_next', type: 'function', function: { name: 'read_card', arguments: '{"id":"card-2"}' }, extra_content: { google: { thought_signature: SIGNATURE_TWO } } }] }, finish_reason: 'tool_calls' }] },
+      '[DONE]',
+    ]));
+  }
+  if (prompt.includes('tool-round-three')) {
+    const assistants = payload.messages.filter(message => message.role === 'assistant' && message.tool_calls);
+    assert.equal(assistants[0].tool_calls[0].extra_content.google.thought_signature, SIGNATURE_ONE);
+    assert.equal(assistants[1].tool_calls[0].extra_content.google.thought_signature, SIGNATURE_TWO);
+  }
+  return streamResponse(sse([
+    { model: payload.model, choices: [{ delta: { content: 'Hello ' } }] },
+    { choices: [{ delta: { content: 'world' }, finish_reason: 'stop' }], usage: { total_tokens: 9 } },
+    '[DONE]',
+  ]));
+};
+
+function load(relative) {
+  const filename = path.join(ROOT, relative);
+  vm.runInThisContext(fs.readFileSync(filename, 'utf8'), { filename });
+}
+
+load('background-ai-openai-compatible.js');
+load('modules/ai/executor.js');
+load('modules/ai/openai-compatible-backend.js');
+
+function raw(request) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ type: 'ULTRASCRIPTS_AI_OPENAI_COMPATIBLE', request }, response => {
+      if (response?.ok) resolve(response.data);
+      else reject(response?.error || new Error('missing response'));
+    });
+  });
+}
+
+function chatArgs(content, extra = {}) {
+  return {
+    messages: [{ role: 'user', content }],
+    systemInstruction: 'Answer briefly.',
+    budget: { maxInputChars: 12000, maxOutputTokens: 256 },
+    thinking: { level: 'low' },
+    tools: [],
+    ...extra,
+  };
+}
+
+async function configure(service, profile) {
+  const { maxInputTokens, inputCapTokens, ...profileFields } = profile;
+  const result = await raw({ op: 'settings:set', config: {
+    version: 1, activeService: service,
+    ...(inputCapTokens !== undefined || maxInputTokens !== undefined
+      ? { inputCapTokens: inputCapTokens ?? maxInputTokens } : {}),
+    profiles: { [service]: profileFields },
+  } });
+  await window.UltrascriptsAIExecutor.refreshStatus();
+  return result;
+}
+
+(async () => {
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(local.has('ultrascripts_ai_gemini_api_key'), false);
+  assert.equal(local.has('ultrascripts_ai_openai_model'), false);
+  assert.equal(sync.has('ultrascripts_ai_default_provider'), false);
+  const initial = await raw({ op: 'status' });
+  assert.equal(initial.service, 'gemini');
+  assert.equal(initial.ready, false);
+  assert.equal(discoveryRequests, 0);
+  const aiRuntimeSource = fs.readFileSync(path.join(ROOT, 'background-ai-openai-compatible.js'), 'utf8');
+  assert.doesNotMatch(aiRuntimeSource, /TOKEN_SAFETY_FACTOR|user-capped|profile\?\.maxOutputTokens/);
+  assert.doesNotMatch(aiRuntimeSource, /Math\.min\([^)]*maxInput/);
+  const endpointSource = fs.readFileSync(path.join(ROOT, 'popup-ai-endpoint.js'), 'utf8');
+  assert.match(endpointSource, /AI_INPUT_CAP_PRESETS/);
+  assert.match(endpointSource, /ai-endpoint-max-input-custom/);
+  assert.match(endpointSource, /AI_INPUT_CAP_CEILING = 2000000/);
+  assert.match(endpointSource, /function parseInputCap/);
+  assert.match(endpointSource, /profiles: profileValid \|\| clearKey/);
+  assert.match(endpointSource, /if \(!saved\.profileValid\) return;/);
+  assert.match(endpointSource, /aiEndpointCapDirty = true;\s*\n\s*const custom/);
+  const parserSource = endpointSource.slice(
+    endpointSource.indexOf('function parseInputCap'),
+    endpointSource.indexOf('function renderInputCap'),
+  );
+  const parserContext = {
+    Number, String, Math, Object, AI_INPUT_CAP_FLOOR: 4000, AI_INPUT_CAP_CEILING: 2000000,
+  };
+  vm.runInNewContext(`${parserSource}\nthis.parseInputCap = parseInputCap;`, parserContext);
+  const parseInputCap = parserContext.parseInputCap;
+  for (const [input, expected] of [['128000', 128000], ['128,000', 128000], ['128k', 128000], ['1m', 1000000], ['  256000  ', 256000]]) {
+    assert.equal(parseInputCap(input).value, expected);
+  }
+  for (const input of ['garbage', '3999', '2000001']) {
+    assert.match(parseInputCap(input).error, /Input cap/);
+  }
+  assert.doesNotMatch(endpointSource, /maxOutputTokens|ai-endpoint-max-output-tokens/);
+  local.set('ultrascripts_ai_endpoint_config_v1', JSON.stringify({
+    version: 1, activeService: 'openrouter',
+    profiles: {
+      gemini: { apiKey: '', modelMode: 'auto', model: '', maxInputTokens: 64000 },
+      openrouter: { apiKey: '', model: '', maxInputTokens: 256000 },
+      custom: { baseUrl: '', apiKey: '', model: '', maxInputTokens: 32000 },
+    },
+  }));
+  const migrated = await raw({ op: 'status' });
+  assert.equal(migrated.config.inputCapTokens, 256000);
+  const migratedStored = JSON.parse(local.get('ultrascripts_ai_endpoint_config_v1'));
+  assert.equal(migratedStored.inputCapTokens, 256000);
+  assert.equal(Object.values(migratedStored.profiles).some(profile => 'maxInputTokens' in profile), false);
+  await configure('gemini', { inputCapTokens: 0, apiKey: '', modelMode: 'auto', model: '' });
+  local.set('ultrascripts_ai_capability_cache_v1', JSON.stringify({
+    gemini: {
+      entries: {
+        'gemini-3.5-flash-lite': {
+          inputTokens: 131072,
+          outputTokens: 8192,
+          inputDiscovered: true,
+          outputDiscovered: true,
+          thinking: true,
+        },
+      },
+      fetchedAtMs: Date.now(),
+      fetchedAtIso: new Date().toISOString(),
+    },
+  }));
+  const persistedFirstStatus = await configure('gemini', {
+    apiKey: 'test-gemini', modelMode: 'manual', model: 'gemini-3.5-flash-lite',
+  });
+  assert.equal(persistedFirstStatus.limits.source, 'discovered', JSON.stringify(persistedFirstStatus.limits));
+  assert.equal(persistedFirstStatus.limits.resolution, 'settled');
+  assert.equal(discoveryRequests, 0);
+  local.delete('ultrascripts_ai_capability_cache_v1');
+  assert.equal((await configure('gemini', { apiKey: 'test-gemini', modelMode: 'manual', model: '' })).ready, false);
+  assert.equal((await configure('openrouter', { apiKey: '', model: 'router-model' })).ready, false);
+  await configure('gemini', { apiKey: '', modelMode: 'auto', model: 'gemini-3.5-flash-lite' });
+
+  const inspected = window.UltrascriptsAIExecutor.inspect();
+  assert.equal(inspected.providers.length, 1);
+  assert.equal(inspected.defaultProvider, 'openai-compatible');
+  assert.deepEqual(inspected.supports, { text: true, json: true, thinking: true });
+
+  await configure('gemini', { apiKey: 'test-gemini', modelMode: 'auto', model: 'gemini-3.5-flash-lite' });
+  const autoStatus = window.UltrascriptsAIExecutor.status();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const discoveredStatus = await raw({ op: 'status' });
+  assert.ok(discoveryRequests > 0);
+  const discoveryRequest = requests.find(request => String(request.url).includes('/models'));
+  assert.ok(discoveryRequest);
+  assert.equal(String(discoveryRequest.url).includes('key='), false);
+  assert.equal(discoveryRequest.headers['x-goog-api-key'], 'test-gemini');
+  assert.equal(discoveredStatus.limits.maxInputTokens, 128000);
+  assert.equal(discoveredStatus.limits.maxInputChars, 128000 * 3);
+  assert.equal(discoveredStatus.limits.maxOutputTokens, 8192);
+  assert.equal(discoveredStatus.limits.model, 'gemini-3.5-flash-lite');
+  assert.equal(discoveredStatus.limits.source, 'discovered');
+  await configure('gemini', {
+    apiKey: 'test-gemini', modelMode: 'auto', model: 'gemini-3.5-flash-lite',
+    maxInputTokens: 32000, maxOutputTokens: 1000,
+  });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const cappedStatus = await raw({ op: 'status' });
+  assert.equal(cappedStatus.limits.source, 'discovered');
+  assert.equal(cappedStatus.limits.maxInputTokens, 32000);
+  assert.equal(cappedStatus.limits.maxInputChars, 32000 * 3);
+  assert.equal(cappedStatus.limits.maxOutputTokens, 8192);
+  for (const cap of [32000, 64000, 128000, 256000, 1000000]) {
+    await configure('gemini', {
+      apiKey: 'test-gemini', modelMode: 'auto', model: 'gemini-3.5-flash-lite',
+      maxInputTokens: cap,
+    });
+    const presetStatus = await raw({ op: 'status' });
+    assert.equal(presetStatus.limits.maxInputTokens, cap);
+    assert.equal(presetStatus.limits.maxInputChars, cap * 3);
+  }
+  await configure('gemini', {
+    apiKey: 'test-gemini', modelMode: 'auto', model: 'gemini-3.5-flash-lite',
+    maxInputTokens: 2000, maxOutputTokens: 99999999,
+  });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const uncappedStatus = await raw({ op: 'status' });
+  assert.equal(uncappedStatus.limits.maxInputTokens, 4000);
+  assert.equal(uncappedStatus.limits.maxInputChars, 4000 * 3);
+  assert.equal(uncappedStatus.limits.maxOutputTokens, 8192);
+  local.delete('ultrascripts_ai_capability_cache_v1');
+  holdDiscovery = true;
+  const pendingStatus = await configure('custom', {
+    apiKey: 'test-custom', baseUrl: 'https://provider.example/v1', model: 'custom-model',
+  });
+  assert.equal(pendingStatus.limits.source, 'default');
+  assert.equal(pendingStatus.limits.resolution, 'pending');
+  assert.equal(pendingStatus.limits.resolved, false);
+  holdDiscovery = false;
+  await new Promise(resolve => setTimeout(resolve, 600));
+  await configure('gemini', { apiKey: 'test-gemini', modelMode: 'auto', model: 'gemini-3.5-flash-lite' });
+  assert.deepEqual(autoStatus.config.limits, autoStatus.limits);
+  const text = await window.UltrascriptsAIExecutor.query({ prompt: 'plain query', thinking: { level: 'high' } });
+  assert.equal(text.meta.provider, 'openai-compatible');
+  assert.equal(text.meta.backend, 'openai-compatible');
+  assert.equal(text.meta.service, 'gemini');
+  assert.equal(requests.at(-1).payload.reasoning_effort, 'high');
+
+  const structured = await window.UltrascriptsAIExecutor.query({
+    prompt: 'structured query',
+    thinking: { level: 'low' },
+    output: { type: 'json', schema: { type: 'object', properties: { ok: { type: 'boolean' } }, required: ['ok'], additionalProperties: false } },
+  });
+  assert.deepEqual(structured.json, { ok: true });
+  assert.equal(requests.at(-1).payload.response_format.type, 'json_schema');
+  assert.deepEqual(requests.at(-1).payload.response_format.json_schema.schema.required, ['ok']);
+
+  const fallback = await window.UltrascriptsAIExecutor.query({ prompt: 'fallback-test' });
+  assert.equal(fallback.meta.model, 'gemini-3.1-flash-lite');
+  assert.deepEqual(fallback.meta.fallback.attemptedModels, ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite']);
+
+  await configure('gemini', { modelMode: 'manual', model: 'gemini-manual' });
+  const beforeManual = requests.length;
+  await assert.rejects(() => window.UltrascriptsAIExecutor.query({ prompt: 'manual-rate-limit' }), error => error.code === 'rate_limit');
+  assert.equal(requests.length, beforeManual + 1);
+
+  await configure('gemini', { modelMode: 'manual', model: 'gemma-4-31b-it' });
+  await window.UltrascriptsAIExecutor.query({ prompt: 'gemma high', thinking: { level: 'high' } });
+  assert.equal(requests.at(-1).payload.extra_body.google.thinking_config.thinking_level, 'high');
+  assert.equal(requests.at(-1).payload.reasoning_effort, undefined);
+  await window.UltrascriptsAIExecutor.query({ prompt: 'gemma minimal', thinking: { level: 'minimal' } });
+  assert.equal(requests.at(-1).payload.extra_body, undefined);
+
+  await configure('openrouter', { apiKey: 'test-openrouter', model: 'router-model' });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const routerStatus = await raw({ op: 'status' });
+  assert.equal(routerStatus.limits.source, 'default');
+  assert.deepEqual(window.UltrascriptsAIExecutor.status().supports, { text: true, json: true, thinking: false });
+  await configure('openrouter', { apiKey: 'test-openrouter', model: 'router-reasoning-no-limit' });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const reasoningFallbackStatus = await raw({ op: 'status' });
+  assert.equal(reasoningFallbackStatus.limits.maxOutputTokens, 2048);
+  assert.equal(reasoningFallbackStatus.limits.source, 'partial');
+  assert.equal(reasoningFallbackStatus.supports.thinking, true);
+  await configure('openrouter', { apiKey: 'test-openrouter', model: 'google/gemini-3.7-flash' });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal((await raw({ op: 'status' })).supports.thinking, true);
+  await configure('openrouter', { apiKey: 'test-openrouter', model: 'router-model' });
+  await window.UltrascriptsAIExecutor.query({
+    prompt: 'router json',
+    output: { type: 'json', schema: { type: 'object' } },
+  });
+  assert.equal(requests.at(-1).payload.response_format.type, 'json_object');
+  assert.equal(requests.at(-1).payload.reasoning_effort, undefined);
+  assert.match(requests.at(-1).payload.messages[0].content, /JSON schema/);
+  const beforeRouter = requests.length;
+  await assert.rejects(() => window.UltrascriptsAIExecutor.query({ prompt: 'openrouter-rate-limit' }), error => error.code === 'rate_limit');
+  assert.equal(requests.length, beforeRouter + 1);
+
+  const customBad = await configure('custom', { baseUrl: 'http://localhost:1234/v1', model: 'local' });
+  assert.equal(customBad.ready, false);
+  local.delete('ultrascripts_ai_capability_cache_v1');
+  const customGood = await configure('custom', { baseUrl: 'https://provider.example/v1', model: 'custom-model' });
+  assert.equal(customGood.ready, true);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const customStatus = await raw({ op: 'status' });
+  assert.equal(customStatus.limits.source, 'default');
+
+  await configure('gemini', { modelMode: 'manual', model: 'gemini-tool-model' });
+  const deltas = [];
+  const streamed = await window.UltrascriptsAIExecutor.chat(chatArgs('stream text'), { onDelta: delta => deltas.push(delta.text) });
+  assert.equal(streamed.text, 'Hello world');
+  assert.deepEqual(deltas, ['Hello ', 'world']);
+  const outputLength = await window.UltrascriptsAIExecutor.query({ prompt: 'output-length' });
+  assert.equal(outputLength.meta.finishReason, 'length');
+  assert.equal(outputLength.meta.outputTruncated, true);
+
+  const tools = [
+    { name: 'read_card', description: 'Read one card.', parameters: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
+    { name: 'read_plot', description: 'Read the plot.', parameters: { type: 'object', properties: {} } },
+  ];
+  const roundOne = await window.UltrascriptsAIExecutor.chat(chatArgs('tool-round-one', { tools }));
+  assert.equal(roundOne.toolCalls.length, 2);
+  assert.equal(roundOne.continuation.service, 'gemini');
+  assert.equal(roundOne.continuation.messages[0].tool_calls[0].extra_content.google.thought_signature, SIGNATURE_ONE);
+  const roundTwo = await window.UltrascriptsAIExecutor.chat(chatArgs('tool-round-two', {
+    tools,
+    continuation: roundOne.continuation,
+    toolResults: roundOne.toolCalls.map(call => ({ callId: call.id, name: call.name, result: { ok: true } })),
+  }));
+  assert.equal(roundTwo.continuation.messages.at(-1).tool_calls[0].extra_content.google.thought_signature, SIGNATURE_TWO);
+  await window.UltrascriptsAIExecutor.chat(chatArgs('tool-round-three', {
+    tools,
+    continuation: roundTwo.continuation,
+    toolResults: roundTwo.toolCalls.map(call => ({ callId: call.id, name: call.name, result: { ok: true } })),
+  }));
+  const completeNoIndex = await window.UltrascriptsAIExecutor.chat(chatArgs('tool-complete-no-index', { tools }));
+  assert.deepEqual(
+    completeNoIndex.toolCalls.map(call => call.arguments),
+    [{ name: 'alpha' }, { city: 'Paris' }],
+  );
+  const repeatedComplete = await window.UltrascriptsAIExecutor.chat(chatArgs('tool-repeated-complete', { tools }));
+  assert.deepEqual(repeatedComplete.toolCalls.map(call => call.arguments), [{ name: 'alpha' }]);
+  const incrementalNumber = await window.UltrascriptsAIExecutor.chat(chatArgs('tool-incremental-number', { tools }));
+  assert.deepEqual(incrementalNumber.toolCalls.map(call => call.arguments), [{ limit: 1 }]);
+  await assert.rejects(
+    () => window.UltrascriptsAIExecutor.chat(chatArgs('tool-invalid-args', { tools })),
+    error => error.code === 'invalid_response' && error.retryable === true,
+  );
+  await assert.rejects(
+    () => window.UltrascriptsAIExecutor.chat(chatArgs('tool-nonobject-args', { tools })),
+    error => error.code === 'invalid_response'
+      && error.retryable === false
+      && /malformed tool call/.test(error.message),
+  );
+  const truncated = await window.UltrascriptsAIExecutor.chat(chatArgs('tool-output-truncated', { tools }));
+  assert.equal(truncated.meta.finishReason, 'length');
+  assert.equal(truncated.meta.outputTruncated, true);
+  assert.equal(truncated.toolCalls[0].name, 'propose_story_card_create');
+
+  await configure('openrouter', { model: 'router-model' });
+  await assert.rejects(() => window.UltrascriptsAIExecutor.chat(chatArgs('wrong service', {
+    tools,
+    continuation: roundOne.continuation,
+    toolResults: roundOne.toolCalls.map(call => ({ callId: call.id, name: call.name, result: {} })),
+  })), error => error.code === 'invalid_args');
+
+  await assert.rejects(() => window.UltrascriptsAIExecutor.query({ prompt: 'auth-error' }), error => error.code === 'auth_failed');
+  await assert.rejects(() => window.UltrascriptsAIExecutor.query({ prompt: 'safety-error' }), error => error.code === 'prohibited_content');
+  await assert.rejects(() => window.UltrascriptsAIExecutor.query({ prompt: 'malformed-response' }), error => error.code === 'invalid_response');
+
+  await configure('custom', { baseUrl: 'https://provider.example/v1', model: 'custom-model' });
+  await assert.rejects(
+    () => window.UltrascriptsAIExecutor.chat(chatArgs('malformed-stream')),
+    error => error.code === 'invalid_response',
+  );
+  const controller = new AbortController();
+  const pending = window.UltrascriptsAIExecutor.chat(chatArgs('hold-open'), { signal: controller.signal });
+  setTimeout(() => controller.abort(), 5);
+  await assert.rejects(pending, error => error.code === 'aborted');
+
+  await assert.rejects(
+    () => window.UltrascriptsAIExecutor.chat(chatArgs('hold-open')),
+    error => error.code === 'timeout',
+  );
+
+  console.log('Desktop OpenAI-compatible AI contract tests passed');
+})().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});

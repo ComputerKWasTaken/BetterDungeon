@@ -9,12 +9,16 @@ This project is a little unusual compared to a normal web app: the extension run
 You will need:
 
 - Git
+- Node.js 24 LTS for the automated contract suites
 - A Chromium-based browser for primary testing
 - Firefox 109 or newer if you are testing the Firefox port
+- Android Studio with JDK 21 and the Android SDK when changing Mobile
 - A basic understanding of JavaScript, browser extensions, and DOM-based interfaces
 - An AI Dungeon account for testing features in a real adventure
 
-There is currently no package manager, build tool, or dependency installation step for the extension itself. The repository can be loaded directly as an unpacked extension.
+The test stack has no npm dependencies. The repository root can still be loaded directly as an unpacked extension.
+
+Start normal work from `dev`. The `stable` branch is release-ready and is advanced only by the **Promote stable** GitHub Actions workflow after the complete quality gate passes.
 
 ## Run BetterDungeon locally
 
@@ -53,7 +57,10 @@ BetterDungeon/
 ├── modules/                   Permission-gated Ultrascripts modules
 ├── utils/                     Storage, DOM, and browser helpers
 ├── examples/                  Ultrascripts starter templates and examples
-├── tests/                     Dependency-free Node contract suites and Ultrascripts verification material
+├── android/                   Android Studio project, Mobile files, and declared overrides
+├── build/                     Checked-in extension packaging allowlist
+├── tests/                     Node contracts, unit tests, platform tests, harnesses, and fixtures
+├── build.ps1                  Unified test and artifact entry point
 ├── icons/                     Extension icons
 └── fonts/                     Local fonts and icon assets
 ```
@@ -87,7 +94,9 @@ If a feature adds an observer, event listener, timer, or injected element, it sh
 
 ## Automated contract suites
 
-The `tests/*.test.js` files are dependency-free Node contract suites. Run an individual suite with `node tests/<name>.test.js`. When changing shared Navigator or Apollo files, mirror the corresponding changes into the mobile repository and keep those shared files byte-identical.
+Run the complete zero-dependency suite with `./build.ps1 test`. Tests are organized into shared contracts, focused units, Android platform contracts, reusable harnesses, and deterministic fixtures under `tests/`. Add shared behavior tests once under `tests/contracts/`; Android-only behavior belongs under `tests/platform/android/`.
+
+Every push and pull request runs the Node suite, verifies the extension ZIP, runs Android unit tests, and builds a debug APK. Successful workflow runs retain both downloadable artifacts for 14 days. Tests must use mocks and fixtures rather than real AI providers or AI Dungeon requests.
 
 ## Adding a feature
 
@@ -132,7 +141,7 @@ Before opening a pull request, please check the parts relevant to your change:
 - [ ] No API keys, tokens, personal data, or generated secrets are committed.
 - [ ] Documentation and examples are updated when behavior or public APIs change.
 
-There is no build step for the extension at the moment, so manual browser testing is especially important.
+Before submitting work, run `./build.ps1 all`. Manual browser or device testing is still important for UI behavior that the contract suites cannot observe.
 
 ## Pull requests
 

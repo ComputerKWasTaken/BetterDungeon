@@ -119,7 +119,18 @@ The WebFetch module toggle controls access to bounded public HTTPS reads. Reques
 
 BetterDungeon is open source, and contributions are welcome. If you want to work on a feature, fix compatibility with AI Dungeon, or build an Ultrascripts example, start with the [contributing guide](CONTRIBUTING.md).
 
-The project is intentionally dependency-light: there is no build step or package installation required for the extension itself. Load the repository as an unpacked extension, make your changes, and reload it in the browser.
+This is the development home for both the browser extension and Android app. The root remains directly loadable as an unpacked extension, while `android/` opens as a complete Android Studio project. Shared web code lives once at the root; declared mobile-only files and overrides live beside the Android project.
+
+Daily work happens on `dev`. The protected `stable` branch contains tested, release-ready commits and is updated through the manual **Promote stable** workflow. The common local commands are:
+
+```powershell
+.\build.ps1 test       # Run every Node contract and policy test
+.\build.ps1 extension  # Create the extension ZIP
+.\build.ps1 android    # Create a debug APK
+.\build.ps1 all        # Test and create both artifacts
+```
+
+Build output is written to `dist/` and is never committed. See the [monorepo guide](docs/MONOREPO.md) for source composition, branches, and CI/CD details.
 
 ## Support and feedback
 

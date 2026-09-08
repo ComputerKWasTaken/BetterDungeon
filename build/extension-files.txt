@@ -1,0 +1,17 @@
+manifest.json
+background.js
+background-ai-openai-compatible.js
+main.js
+popup.html
+popup.css
+popup.js
+popup-ai-endpoint.js
+styles.css
+core
+features
+fonts
+icons
+modules
+services
+utils
+LICENSE

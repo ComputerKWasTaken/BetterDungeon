@@ -1,0 +1,32 @@
+/*
+ * Android WebView can rerun Blink's focused-editable zoom/scroll pass when
+ * showSoftInput() reports that the keyboard was already visible. For an
+ * editable taller than the viewport, Blink derives the target page scroll from
+ * the caret's depth in that editable.
+ *
+ * Blink skips that auto-zoom pass when pinch zoom is not an effective touch
+ * action for the focused element. Keep both pan axes enabled so editing and
+ * normal one-finger scrolling are unchanged; pinch zoom can still begin
+ * anywhere outside an editable.
+ */
+html:not(.bd-caret-scroll-fix-disabled) :where(
+  textarea,
+  input:not(
+    [type="button"],
+    [type="checkbox"],
+    [type="color"],
+    [type="file"],
+    [type="hidden"],
+    [type="image"],
+    [type="radio"],
+    [type="range"],
+    [type="reset"],
+    [type="submit"]
+  ),
+  [contenteditable=""],
+  [contenteditable="true"],
+  [contenteditable="plaintext-only"],
+  [role="textbox"]
+) {
+  touch-action: pan-x pan-y !important;
+}

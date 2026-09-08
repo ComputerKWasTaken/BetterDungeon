@@ -1,0 +1,78 @@
+name: Promote stable
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Optional commit from dev; defaults to the current dev head
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  resolve-target:
+    name: Resolve promotion target
+    runs-on: ubuntu-latest
+    outputs:
+      target_sha: ${{ steps.resolve.outputs.target_sha }}
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Resolve and validate target
+        id: resolve
+        env:
+          REQUESTED_SHA: ${{ inputs.target_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin dev stable
+          target="${REQUESTED_SHA:-$(git rev-parse origin/dev)}"
+          target="$(git rev-parse "${target}^{commit}")"
+          git merge-base --is-ancestor "$target" origin/dev || {
+            echo "Target $target is not contained in dev." >&2
+            exit 1
+          }
+          git merge-base --is-ancestor origin/stable "$target" || {
+            echo "Target $target would rewind or diverge stable." >&2
+            exit 1
+          }
+          echo "Promoting exact commit: $target"
+          echo "target_sha=$target" >> "$GITHUB_OUTPUT"
+          echo "### Stable promotion target" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`$target\`" >> "$GITHUB_STEP_SUMMARY"
+
+  quality-gate:
+    name: Validate exact target
+    needs: resolve-target
+    uses: ./.github/workflows/quality-gate.yml
+    with:
+      target_sha: ${{ needs.resolve-target.outputs.target_sha }}
+    permissions:
+      contents: read
+
+  promote:
+    name: Fast-forward stable
+    needs:
+      - resolve-target
+      - quality-gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Atomically fast-forward stable
+        env:
+          TARGET_SHA: ${{ needs.resolve-target.outputs.target_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin dev stable
+          test "$(git rev-parse "${TARGET_SHA}^{commit}")" = "$TARGET_SHA"
+          git merge-base --is-ancestor "$TARGET_SHA" origin/dev
+          git merge-base --is-ancestor origin/stable "$TARGET_SHA"
+          git push --atomic origin "$TARGET_SHA:refs/heads/stable"

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <!-- Do not cloud-back up BetterDungeon settings, user content, or API keys. -->
+        <exclude domain="sharedpref" path="betterdungeon_storage.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <!-- Keep API keys and local BetterDungeon data on the originating device. -->
+        <exclude domain="sharedpref" path="betterdungeon_storage.xml" />
+    </device-transfer>
+</data-extraction-rules>
