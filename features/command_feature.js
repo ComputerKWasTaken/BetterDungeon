@@ -128,6 +128,9 @@ class CommandFeature {
   setupObserver() {
     this.observer = new MutationObserver((mutations) => {
       this.injectCommandButton();
+      if (this.isCommandMode && !document.getElementById('bd-command-submode-bar')) {
+        this.injectSubModeBar();
+      }
     });
 
     this.observer.observe(document.body, {
@@ -177,9 +180,10 @@ class CommandFeature {
     // Check if we already added the button
     const existingButton = menu.querySelector('[aria-label="Set to \'Command\' mode"]');
     if (existingButton) {
-      // Verify it's in the correct position (should be after See, at the end)
-      // Correct position: seeButton -> commandButton (last)
-      if (seeButton && existingButton.previousElementSibling === seeButton && !existingButton.nextElementSibling) {
+      // Verify it's in the correct position (after See). Platform UI may add
+      // a scroll affordance after the final input-mode button.
+      if (seeButton && existingButton.previousElementSibling === seeButton) {
+        this.markModeMenuScrollable(menu);
         return; // Already in correct position
       }
       // Wrong position - remove and re-add
@@ -229,6 +233,7 @@ class CommandFeature {
     }
 
     this.commandButton = cleanButton;
+    this.markModeMenuScrollable(menu);
 
     // Apply sprite theming for non-Dynamic themes
     // Command uses See's end-cap structure, and we convert See to middle button
@@ -238,6 +243,13 @@ class CommandFeature {
     if (seeButton) {
       this.convertToMiddleButton(seeButton, storyButton);
     }
+  }
+
+  markModeMenuScrollable(menu) {
+    if (!menu || !window.BetterDungeonPlatform?.has('touchControls')) return;
+    menu.setAttribute('data-bd-mode-menu', 'true');
+    const menuLeft = parseFloat(menu.style.left) || Math.max(8, Math.round(menu.getBoundingClientRect().left || 12));
+    menu.style.setProperty('--bd-menu-left', `${menuLeft}px`);
   }
 
   // Convert an end-cap button (3-part sprite) to a middle button (single viewport).
@@ -556,7 +568,18 @@ class CommandFeature {
     this.setupSubmitButtonListener();
   }
 
+  _setTextareaValue(textarea, value) {
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype, 'value'
+    )?.set;
+    if (setter) setter.call(textarea, value);
+    else textarea.value = value;
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    textarea.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
   setupKeyboardListener() {
+    if (window.BetterDungeonPlatform?.has('touchControls')) return;
     const handleKeyDown = (e) => {
       if (!this.isCommandMode) {
         document.removeEventListener('keydown', handleKeyDown, true);
@@ -572,10 +595,7 @@ class CommandFeature {
           if (content.trim()) {
             // Format the content as a command header
             const formattedContent = this.formatAsCommand(content);
-            textarea.value = formattedContent;
-            
-            // Trigger input event so React picks up the change
-            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            this._setTextareaValue(textarea, formattedContent);
             
             // Schedule deletion if auto-delete is enabled
             this.scheduleCommandDeletion(formattedContent.trim());
@@ -609,10 +629,7 @@ class CommandFeature {
         if (content.trim()) {
           // Format the content as a command header
           const formattedContent = this.formatAsCommand(content);
-          textarea.value = formattedContent;
-          
-          // Trigger input event so React picks up the change
-          textarea.dispatchEvent(new Event('input', { bubbles: true }));
+          this._setTextareaValue(textarea, formattedContent);
           
           // Schedule deletion if auto-delete is enabled
           this.scheduleCommandDeletion(formattedContent.trim());
@@ -734,6 +751,11 @@ class CommandFeature {
     const inputRow = textarea.parentElement;
     if (!inputRow) return;
 
+    if (window.BetterDungeonPlatform?.has('touchControls')) {
+      this.injectTouchSubModeBar(inputRow);
+      return;
+    }
+
     const bar = document.createElement('div');
     bar.id = 'bd-command-submode-bar';
     bar.style.cssText = `
@@ -759,6 +781,76 @@ class CommandFeature {
     bar.innerHTML = `<span id="bd-submode-pill"></span><span style="opacity:0.3; font-size:8px;">\u2191\u2193</span>`;
 
     inputRow.appendChild(bar);
+    this.subModeBar = bar;
+    this.updateSubModeBar();
+  }
+
+  injectTouchSubModeBar(inputRow) {
+    if (!inputRow?.parentElement) return;
+
+    const bar = document.createElement('div');
+    bar.id = 'bd-command-submode-bar';
+    bar.style.cssText = `
+      position: relative;
+      flex: 0 0 auto;
+      width: 100%;
+      box-sizing: border-box;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-radius: 10px;
+      font-family: var(--bd-font-family-primary, 'IBM Plex Sans', sans-serif);
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.5);
+      z-index: 2;
+      pointer-events: auto;
+      user-select: none;
+    `;
+    const buttonStyle = `
+      pointer-events:auto; cursor:pointer; user-select:none;
+      display:flex; align-items:center; justify-content:center;
+      min-width:44px; min-height:44px; border:0; font:inherit;
+      font-size:12px; font-weight:700; color:rgba(255,255,255,0.7);
+      padding:1px 4px; line-height:1; border-radius:4px;
+      background:rgba(255,255,255,0.08); touch-action:manipulation;
+      -webkit-tap-highlight-color:transparent;
+      transition:background .15s, transform .1s;
+    `.replace(/\n\s*/g, ' ');
+
+    bar.innerHTML = `
+      <button type="button" id="bd-submode-prev" aria-label="Previous command sub-mode" style="${buttonStyle}">‹</button>
+      <span id="bd-submode-pill" aria-live="polite"></span>
+      <button type="button" id="bd-submode-next" aria-label="Next command sub-mode" style="${buttonStyle}">›</button>
+    `;
+
+    const wireButton = (element, direction) => {
+      if (!element) return;
+      const press = () => {
+        element.style.background = 'rgba(255,255,255,0.22)';
+        element.style.transform = 'scale(0.92)';
+      };
+      const release = () => {
+        element.style.background = 'rgba(255,255,255,0.08)';
+        element.style.transform = '';
+      };
+      element.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.cycleSubMode(direction);
+      });
+      element.addEventListener('pointerdown', press);
+      element.addEventListener('pointerup', release);
+      element.addEventListener('pointercancel', release);
+      element.addEventListener('pointerleave', release);
+    };
+
+    wireButton(bar.querySelector('#bd-submode-prev'), -1);
+    wireButton(bar.querySelector('#bd-submode-next'), 1);
+    inputRow.parentElement.insertBefore(bar, inputRow);
     this.subModeBar = bar;
     this.updateSubModeBar();
   }

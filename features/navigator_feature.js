@@ -59,12 +59,16 @@ class NavigatorFeature {
 
     this.boundUrlChange = null;
     this.boundResize = null;
+    this.boundVisualViewportChange = null;
     this.boundKeydown = null;
     this.adventureObserver = null;
     this.detectionDebounce = null;
     this.originalPushState = null;
     this.originalReplaceState = null;
-
+    this.visualViewportFrame = null;
+    this.settingsSyncFrame = null;
+    this.androidBackHandler = null;
+    this.inputComposing = false;
   }
 
   log(message, ...args) {
@@ -84,10 +88,70 @@ class NavigatorFeature {
     );
   }
 
+  installNativeBackHandler() {
+    if (!window.BetterDungeonPlatform?.has('physicalBack')) return;
+    this.androidBackHandler = () => this.handleNativeBack();
+    window.__bdNavigatorHandleBack = this.androidBackHandler;
+  }
+
+  uninstallNativeBackHandler() {
+    if (window.__bdNavigatorHandleBack === this.androidBackHandler) {
+      delete window.__bdNavigatorHandleBack;
+    }
+    this.androidBackHandler = null;
+  }
+
+  handleNativeBack() {
+    if (!this.isOpen) return false;
+    if (this.confirmationPanel && !this.confirmationPanel.hidden) {
+      this.resolveConfirmation(false);
+      return true;
+    }
+    if (this.inspectionPanel && !this.inspectionPanel.hidden) {
+      this.setInspectorOpen(false, { focus: false });
+      return true;
+    }
+    this.closeDrawer();
+    return true;
+  }
+
+  scheduleVisualViewportSync() {
+    if (!window.BetterDungeonPlatform?.has('imeViewportHandling')) return;
+    if (this.visualViewportFrame !== null) {
+      window.cancelAnimationFrame?.(this.visualViewportFrame);
+      window.clearTimeout?.(this.visualViewportFrame);
+    }
+    const schedule = window.requestAnimationFrame || (callback => window.setTimeout(callback, 0));
+    this.visualViewportFrame = schedule(() => {
+      this.visualViewportFrame = null;
+      this.syncVisualViewport();
+    });
+  }
+
+  syncVisualViewport() {
+    if (!this.drawer) return;
+    const viewport = window.visualViewport;
+    const height = Math.max(1, Number(viewport?.height) || window.innerHeight);
+    this.drawer.style.setProperty('--bd-navigator-viewport-height', `${height}px`);
+    this.drawer.classList.toggle('bd-navigator-ime-visible', height < window.innerHeight - 96);
+    this.updateEmbeddedHeight();
+    if (this.isOpen && document.activeElement === this.inputEl) this.scrollToBottom(true);
+  }
+
+  scheduleSettingsIntegrationSync() {
+    if (this.settingsSyncFrame !== null) return;
+    const schedule = window.requestAnimationFrame || (callback => window.setTimeout(callback, 0));
+    this.settingsSyncFrame = schedule(() => {
+      this.settingsSyncFrame = null;
+      if (this.currentAdventureId && this.drawer) this.syncSettingsIntegration();
+    });
+  }
+
   // ==================== LIFECYCLE ====================
 
   async init() {
     console.log('[Navigator] Initializing Navigator feature...');
+    this.installNativeBackHandler();
     this.detectCurrentAdventure();
     this.startAdventureChangeDetection();
     console.log('[Navigator] Initialization complete');
@@ -98,6 +162,7 @@ class NavigatorFeature {
     this.stopAdventureChangeDetection();
     this.teardownSession();
     this.removeUI();
+    this.uninstallNativeBackHandler();
     console.log('[Navigator] Cleanup complete');
   }
 
@@ -162,17 +227,25 @@ class NavigatorFeature {
     // into adventure detection.
     this.adventureObserver = new MutationObserver((mutations) => {
       if (mutations.every(mutation => this.isOwnNode(mutation.target))) return;
+      this.scheduleSettingsIntegrationSync();
       if (this.detectionDebounce) clearTimeout(this.detectionDebounce);
       this.detectionDebounce = setTimeout(() => this.detectCurrentAdventure(), 150);
     });
     this.adventureObserver.observe(document.body, { childList: true, subtree: true });
 
     this.boundResize = () => {
+      this.scheduleVisualViewportSync();
       this.applyLayout();
       this.syncSettingsIntegration();
       this.updateSettingsTabOverflow();
     };
     window.addEventListener('resize', this.boundResize);
+
+    if (window.BetterDungeonPlatform?.has('imeViewportHandling')) {
+      this.boundVisualViewportChange = () => this.scheduleVisualViewportSync();
+      window.visualViewport?.addEventListener('resize', this.boundVisualViewportChange);
+      window.visualViewport?.addEventListener('scroll', this.boundVisualViewportChange);
+    }
 
     this.boundKeydown = (event) => this.handleGlobalKeydown(event);
     document.addEventListener('keydown', this.boundKeydown);
@@ -202,6 +275,21 @@ class NavigatorFeature {
     if (this.boundResize) {
       window.removeEventListener('resize', this.boundResize);
       this.boundResize = null;
+    }
+    if (this.boundVisualViewportChange) {
+      window.visualViewport?.removeEventListener('resize', this.boundVisualViewportChange);
+      window.visualViewport?.removeEventListener('scroll', this.boundVisualViewportChange);
+      this.boundVisualViewportChange = null;
+    }
+    if (this.visualViewportFrame !== null) {
+      window.cancelAnimationFrame?.(this.visualViewportFrame);
+      window.clearTimeout?.(this.visualViewportFrame);
+      this.visualViewportFrame = null;
+    }
+    if (this.settingsSyncFrame !== null) {
+      window.cancelAnimationFrame?.(this.settingsSyncFrame);
+      window.clearTimeout?.(this.settingsSyncFrame);
+      this.settingsSyncFrame = null;
     }
     if (this.boundKeydown) {
       document.removeEventListener('keydown', this.boundKeydown);
@@ -291,6 +379,7 @@ class NavigatorFeature {
 
   removeUI() {
     if (this.confirmationPanel && !this.confirmationPanel.hidden) this.resolveConfirmation(false);
+    this.inputEl?.blur();
     this.resetSettingsIntegration({ preserveActive: false });
     this.drawer?.remove();
     this.drawer = null;
@@ -310,14 +399,34 @@ class NavigatorFeature {
     this.messageNodes.clear();
     this.proposalExpansion.clear();
     this.isOpen = false;
+    this.inputComposing = false;
   }
 
   getGameplaySettingsSurface() {
-    return document.getElementById(NavigatorFeature.GAMEPLAY_SETTINGS_SURFACE_ID);
+    const direct = document.getElementById(NavigatorFeature.GAMEPLAY_SETTINGS_SURFACE_ID);
+    if (direct) return direct;
+
+    const tablist = [...document.querySelectorAll('[role="tablist"][aria-label="Section Tabs" i]')]
+      .find(candidate => this.findModelsTab(candidate));
+    if (!tablist) return null;
+
+    let settingsPanel = null;
+    let current = tablist.parentElement;
+    while (current && current !== document.body) {
+      if (/settings-gameplay/i.test(current.id || '')) return current;
+      if (current.getAttribute?.('role') === 'tabpanel') settingsPanel = current;
+      if (current.classList?.contains('is_ScrollView')) return current;
+      current = current.parentElement;
+    }
+    return settingsPanel;
   }
 
   getSectionTablist(surface = this.getGameplaySettingsSurface()) {
-    return surface?.querySelector('[role="tablist"][aria-label="Section Tabs" i]') || null;
+    const selector = '[role="tablist"][aria-label="Section Tabs" i]';
+    return surface?.querySelector(selector)
+      || document.querySelector(`[role="tabpanel"][aria-label="Settings"] ${selector}`)
+      || document.querySelector(selector)
+      || null;
   }
 
   getNativeSectionTabs(tablist = this.settingsTablist) {
@@ -494,6 +603,7 @@ class NavigatorFeature {
   resetSettingsIntegration({ preserveActive = false } = {}) {
     const wasActive = this.settingsTabActive;
     this.settingsSurface?.classList.remove('bd-navigator-settings-active');
+    this.settingsSurface?.classList.remove('bd-navigator-settings-surface');
     this.restoreNativeSelectedTab();
     this.setNativeSettingsContentHidden(false);
     this.parkNavigatorDrawer();
@@ -540,6 +650,7 @@ class NavigatorFeature {
     tab.setAttribute('aria-label', 'Tab navigator');
     tab.setAttribute('aria-selected', 'false');
     tab.setAttribute('tabindex', '0');
+    tab.setAttribute('aria-controls', 'bd-navigator-settings-content');
 
     const icon = tab.querySelector('[aria-hidden="true"]');
     if (icon) {
@@ -555,13 +666,13 @@ class NavigatorFeature {
     tab.addEventListener('click', event => {
       event.preventDefault();
       event.stopPropagation();
-      this.activateSettingsNavigator({ focus: true });
+      this.activateSettingsNavigator({ focus: !window.BetterDungeonPlatform?.has('touchControls') });
     });
     tab.addEventListener('keydown', event => {
       if (event.key !== 'Enter' && event.key !== ' ') return;
       event.preventDefault();
       event.stopPropagation();
-      this.activateSettingsNavigator({ focus: true });
+      this.activateSettingsNavigator({ focus: !window.BetterDungeonPlatform?.has('touchControls') });
     });
 
     modelsTab.parentElement.parentElement.insertBefore(wrapper, modelsTab.parentElement);
@@ -573,6 +684,7 @@ class NavigatorFeature {
   createSettingsContentPanel(contentParent, navigationRoot) {
     const panel = document.createElement('section');
     panel.className = 'bd-navigator-settings-content';
+    panel.id = 'bd-navigator-settings-content';
     panel.setAttribute('role', 'tabpanel');
     panel.setAttribute('aria-label', 'Navigator');
     panel.hidden = true;
@@ -593,11 +705,14 @@ class NavigatorFeature {
 
     this.settingsTablist = tablist;
     this.settingsSurface = surface;
+    surface.classList.add('bd-navigator-settings-surface');
     this.settingsNavigationRoot = navigationRoot;
     this.settingsContentParent = contentParent;
     if (!this.createSettingsTab(tablist, modelsTab)) return false;
     this.createSettingsContentPanel(contentParent, navigationRoot);
-    this.createSettingsTabOverflowControls(tablist);
+    if (!window.BetterDungeonPlatform?.has('touchControls')) {
+      this.createSettingsTabOverflowControls(tablist);
+    }
 
     this.boundSettingsTablistClick = event => {
       const clickedTab = event.target?.closest?.('[role="tab"]');
@@ -620,12 +735,13 @@ class NavigatorFeature {
       return false;
     }
 
+    const needsOverflowControls = !window.BetterDungeonPlatform?.has('touchControls');
     const integrationMissing = (
       this.settingsTablist !== tablist ||
       !this.settingsTabWrapper?.isConnected ||
       !this.settingsContentPanel?.isConnected ||
-      !this.settingsTabsLeftButton?.isConnected ||
-      !this.settingsTabsRightButton?.isConnected
+      (needsOverflowControls && !this.settingsTabsLeftButton?.isConnected) ||
+      (needsOverflowControls && !this.settingsTabsRightButton?.isConnected)
     );
     if (integrationMissing) {
       const preserveActive = this.settingsTabActive;
@@ -899,8 +1015,14 @@ class NavigatorFeature {
     });
 
     this.inputEl.addEventListener('input', () => this.autosizeInput());
+    this.inputEl.addEventListener('compositionstart', () => {
+      this.inputComposing = true;
+    });
+    this.inputEl.addEventListener('compositionend', () => {
+      this.inputComposing = false;
+    });
     this.inputEl.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' && !event.shiftKey) {
+      if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && !this.inputComposing) {
         event.preventDefault();
         this.handleSend();
       }
@@ -1279,6 +1401,8 @@ class NavigatorFeature {
   closeDrawer() {
     if (!this.drawer) return;
     this.setInspectorOpen(false, { focus: false });
+    this.inputEl?.blur();
+    this.inputComposing = false;
     this.deactivateSettingsNavigator({ abort: true, preservePreference: true });
     document.querySelector('[aria-label="Close settings"]')?.click();
   }
@@ -1341,6 +1465,8 @@ class NavigatorFeature {
     if (!this.confirmationPanel) return Promise.resolve(false);
     if (this.confirmationResolve) this.resolveConfirmation(false);
     this.confirmationReturnFocus = document.activeElement;
+    this.inputEl?.blur();
+    this.inputComposing = false;
     this.confirmationPanel.querySelector('#bd-navigator-confirmation-title').textContent = title;
     this.confirmationPanel.querySelector('#bd-navigator-confirmation-message').textContent = message;
     const accept = this.confirmationPanel.querySelector('.bd-navigator-confirmation-accept');
@@ -1366,6 +1492,7 @@ class NavigatorFeature {
 
   async handleSend() {
     if (!this.session || !this.inputEl) return;
+    if (this.inputComposing) return;
     const text = this.inputEl.value;
     if (!text.trim() || this.session.isBusy) return;
 

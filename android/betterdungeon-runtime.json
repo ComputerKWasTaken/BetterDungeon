@@ -88,25 +88,10 @@
     "utils/webview-polyfill.js"
   ],
   "overrides": [
-    "main.js",
     "popup-ai-endpoint.js",
     "popup.css",
     "popup.html",
     "popup.js",
-    "styles.css",
-    "core/feature-manager.js",
-    "core/theme-variables.css",
-    "features/auto_see_feature.js",
-    "features/character_preset_feature.js",
-    "features/command_feature.js",
-    "features/input_history_feature.js",
-    "features/navigator_feature.js",
-    "features/notes_feature.js",
-    "features/plot_presets_feature.js",
-    "features/try_feature.js",
-    "modules/sdk/module.js",
-    "modules/widget/renderer.js",
-    "services/custom-dynamic-router.js",
-    "services/ultrascripts/ws-interceptor.js"
+    "styles.css"
   ]
 }

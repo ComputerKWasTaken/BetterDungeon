@@ -483,7 +483,12 @@
 
   function normalizeIndicatorLogoUrl(value) {
     try {
-      const url = new URL(String(value || ''));
+      const raw = String(value || '');
+      if (
+        window.BetterDungeonPlatform?.has('nativeAssetDataUri')
+        && /^data:image\/(?:png|jpe?g|gif|svg\+xml|webp|x-icon);base64,/i.test(raw)
+      ) return raw;
+      const url = new URL(raw);
       return ['chrome-extension:', 'moz-extension:'].includes(url.protocol) ? url.href : '';
     } catch {
       return '';

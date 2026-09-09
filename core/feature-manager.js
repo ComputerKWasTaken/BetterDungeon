@@ -84,6 +84,13 @@ class FeatureManager {
     if (typeof NavigatorFeature !== 'undefined') {
       this.featureClasses.set('navigator', NavigatorFeature);
     }
+
+    const platform = window.BetterDungeonPlatform;
+    if (platform?.supportsFeature) {
+      for (const id of this.featureClasses.keys()) {
+        if (!platform.supportsFeature(id)) this.featureClasses.delete(id);
+      }
+    }
   }
 
   async loadFeaturesFromStorage() {

@@ -28,12 +28,15 @@
     notes: true,
     storyCardModalDock: true,
     inputHistory: true,
+    customDynamic: false,
+    navigator: true,
   };
   const ULTRASCRIPTS_MODULES = [
     'widget',
     'webfetch',
     'clock',
     'sdk',
+    'audio',
     'weather',
     'network',
     'system',
@@ -158,7 +161,14 @@
   }
 
   function normalizeFeatures(raw) {
-    return { ...DEFAULT_FEATURES, ...(raw && typeof raw === 'object' ? raw : {}) };
+    const features = { ...DEFAULT_FEATURES, ...(raw && typeof raw === 'object' ? raw : {}) };
+    const platform = window.BetterDungeonPlatform;
+    if (platform?.supportsFeature) {
+      for (const feature of Object.keys(features)) {
+        if (!platform.supportsFeature(feature)) features[feature] = false;
+      }
+    }
+    return features;
   }
 
   function normalizeUltrascriptsModules(raw) {

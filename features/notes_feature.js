@@ -313,7 +313,10 @@ class NotesFeature {
         // and often has a max-width or width of 100%.
         if (isColumn) {
           const style = window.getComputedStyle(current);
-          const hasWidthConstraint = parseInt(style.maxWidth) > 500 || parseInt(style.width) > 500 || style.width === '100%';
+          const width = parseInt(style.width) || current.getBoundingClientRect().width || 0;
+          const maxWidth = parseInt(style.maxWidth) || 0;
+          const narrowFullWidth = window.innerWidth <= 401 && width >= window.innerWidth - 80;
+          const hasWidthConstraint = maxWidth > 500 || width > 500 || style.width === '100%' || narrowFullWidth;
           
           if (hasWidthConstraint || className.includes('_w-10037') /* common 100% class */) {
             targetContainer = current;

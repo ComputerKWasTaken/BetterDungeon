@@ -54,7 +54,9 @@ class PlotPresetsFeature {
 
           if (syncPresets.length > 0) {
             chrome.storage.local.set({ [this.storageKey]: syncPresets }, () => {
-              chrome.storage.sync.remove(this.storageKey);
+              if (!window.BetterDungeonPlatform?.has('storageAreasAliased')) {
+                chrome.storage.sync.remove(this.storageKey);
+              }
               this.log('[PlotPresets] Migrated presets from sync to local storage');
             });
           }
@@ -146,6 +148,9 @@ class PlotPresetsFeature {
    * This is used to navigate to the Plot settings tab when needed.
    */
   getAIDungeonService() {
+    if (typeof window !== 'undefined' && window.betterDungeonInstance?.aiDungeonService) {
+      return window.betterDungeonInstance.aiDungeonService;
+    }
     if (typeof betterDungeonInstance !== 'undefined' && betterDungeonInstance?.aiDungeonService) {
       return betterDungeonInstance.aiDungeonService;
     }

@@ -27,40 +27,68 @@ class TryFeature {
         'achieve it perfectly',
         'pull it off with incredible style',
         'succeed spectacularly',
-        'masterfully succeed'
+        'masterfully succeed',
+        'accomplish it with flair',
+        'execute it flawlessly',
+        'triumph with brilliance',
+        'excel beyond measure',
+        'perform with extraordinary skill'
       ],
       success: [
         'manage to do it',
         'are successful',
         'pull it off',
         'succeed',
-        'make it happen'
+        'make it happen',
+        'get it done',
+        'accomplish the task',
+        'achieve your goal',
+        'bring it to fruition',
+        'complete it successfully'
       ],
       failure: [
         'can\'t quite manage it',
         'fall short',
         'don\'t succeed',
         'fail',
-        'falter'
+        'falter',
+        'miss the mark',
+        'come up empty',
+        'are unable to do it',
+        'fall short of success',
+        'don\'t make the cut'
       ],
       crit_fail: [
         'fail catastrophically',
         'make a complete mess of it',
         'fail in the worst way possible',
         'fail miserably',
-        'suffer a disastrous failure'
+        'suffer a disastrous failure',
+        'botch it completely',
+        'fail spectacularly',
+        'suffer a total collapse',
+        'fail beyond all hope',
+        'end in utter disaster'
       ]
     };
 
     // Sentence templates for variety
     // {action} = the user's action
-    // {outcome} = the result phrase (usually bolded)
+    // {outcome} = the result phrase
     // {connector} = 'and' or 'but'
     this.templates = [
       'try to {action}, {connector} you {outcome}.',
       'In an attempt to {action}, you {outcome}.',
       'You {outcome} in your attempt to {action}.',
-      '{action}... you {outcome}.'
+      '{action}... you {outcome}.',
+      'Attempting to {action}, you {outcome}.',
+      'You try to {action}, {connector} you {outcome}.',
+      'As you try to {action}, you {outcome}.',
+      'While trying to {action}, you {outcome}.',
+      'You make an attempt to {action} {connector} {outcome}.',
+      'When you try to {action}, you {outcome}.',
+      'Your attempt to {action} results in you {outcome}.',
+      'You set out to {action}, {connector} you {outcome}.'
     ];
   }
 
@@ -182,6 +210,7 @@ class TryFeature {
       // Verify it's in the correct position (should be between Do and Say)
       // Correct position: doButton -> tryButton -> sayButton
       if (existingButton.previousElementSibling === doButton) {
+        this.markModeMenuScrollable(menu);
         return; // Already in correct position
       }
       // Wrong position - remove and re-add
@@ -226,10 +255,18 @@ class TryFeature {
     }
 
     this.tryButton = cleanButton;
+    this.markModeMenuScrollable(menu);
 
     // Scale sprite viewport if a sprite theme is active (pass Do as reference
     // in case the clone was created before AI Dungeon populated the sprite)
     this.applySpriteTheming(cleanButton, doButton);
+  }
+
+  markModeMenuScrollable(menu) {
+    if (!menu || !window.BetterDungeonPlatform?.has('touchControls')) return;
+    menu.setAttribute('data-bd-mode-menu', 'true');
+    const menuLeft = parseFloat(menu.style.left) || Math.max(8, Math.round(menu.getBoundingClientRect().left || 12));
+    menu.style.setProperty('--bd-menu-left', `${menuLeft}px`);
   }
 
   // Scale the cloned button's sprite viewport to match its rendered width,
@@ -430,6 +467,11 @@ class TryFeature {
     const inputRow = textarea.parentElement;
     if (!inputRow) return;
 
+    if (window.BetterDungeonPlatform?.has('touchControls')) {
+      this.injectTouchSuccessBar(inputRow);
+      return;
+    }
+
     const bar = document.createElement('div');
     bar.id = 'bd-success-bar-container';
     bar.style.cssText = `
@@ -461,6 +503,80 @@ class TryFeature {
       <span id="bd-success-percent" style="min-width:28px; text-align:right; font-weight:700; font-size:12px; font-variant-numeric:tabular-nums; transition:color .3s;"></span>
       <span style="opacity:0.3; font-size:9px;">↑↓</span>
     `;
+
+    inputRow.appendChild(bar);
+    this.successBar = bar;
+    this.updateSuccessBar();
+  }
+
+  injectTouchSuccessBar(inputRow) {
+    const bar = document.createElement('div');
+    bar.id = 'bd-success-bar-container';
+    bar.style.cssText = `
+      position: absolute;
+      bottom: calc(100% + 32px);
+      left: 8px;
+      right: 8px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      font-family: var(--bd-font-family-primary, 'IBM Plex Sans', sans-serif);
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.45);
+      z-index: 2;
+      pointer-events: none;
+      box-sizing: border-box;
+      height: 22px;
+    `;
+    const buttonStyle = `
+      pointer-events:auto; cursor:pointer; user-select:none;
+      display:flex; align-items:center; justify-content:center;
+      min-width:28px; min-height:20px; border:0;
+      font-size:14px; font-weight:700; color:rgba(255,255,255,0.7);
+      padding:1px 6px; line-height:1; border-radius:4px;
+      background:rgba(255,255,255,0.08); touch-action:manipulation;
+      -webkit-tap-highlight-color:transparent;
+      transition:background .15s, transform .1s;
+    `.replace(/\n\s*/g, ' ');
+
+    bar.innerHTML = `
+      <span style="white-space:nowrap; font-weight:600; font-size:9px; letter-spacing:0.3px; text-transform:uppercase;">Success</span>
+      <button type="button" id="bd-weight-down" aria-label="Decrease success chance" style="${buttonStyle}">−</button>
+      <div style="flex:1; height:3px; background:rgba(255,255,255,0.08); border-radius:2px; overflow:hidden;">
+        <div id="bd-success-bar-fill" style="height:100%; border-radius:2px; transition:width .3s cubic-bezier(.4,0,.2,1), background .3s;"></div>
+      </div>
+      <span id="bd-success-percent" style="min-width:24px; text-align:center; font-weight:700; font-size:10px; font-variant-numeric:tabular-nums; transition:color .3s;"></span>
+      <button type="button" id="bd-weight-up" aria-label="Increase success chance" style="${buttonStyle}">+</button>
+    `;
+
+    const wireButton = (element, delta) => {
+      if (!element) return;
+      const press = () => {
+        element.style.background = 'rgba(255,255,255,0.22)';
+        element.style.transform = 'scale(0.92)';
+      };
+      const release = () => {
+        element.style.background = 'rgba(255,255,255,0.08)';
+        element.style.transform = '';
+      };
+      element.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.adjustWeight(delta);
+      });
+      element.addEventListener('pointerdown', press);
+      element.addEventListener('pointerup', release);
+      element.addEventListener('pointercancel', release);
+      element.addEventListener('pointerleave', release);
+    };
+    wireButton(bar.querySelector('#bd-weight-down'), -1);
+    wireButton(bar.querySelector('#bd-weight-up'), 1);
 
     inputRow.appendChild(bar);
     this.successBar = bar;
@@ -606,7 +722,18 @@ class TryFeature {
     this.setupSubmitButtonListener();
   }
 
+  _setTextareaValue(textarea, value) {
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype, 'value'
+    )?.set;
+    if (setter) setter.call(textarea, value);
+    else textarea.value = value;
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    textarea.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
   setupKeyboardListener() {
+    if (window.BetterDungeonPlatform?.has('touchControls')) return;
     const handleKeyDown = (e) => {
       if (!this.isTryMode) {
         document.removeEventListener('keydown', handleKeyDown, true);
@@ -622,10 +749,7 @@ class TryFeature {
           if (content.trim()) {
             // Format the content as a try with RNG result
             const formattedContent = this.formatAsTry(content);
-            textarea.value = formattedContent;
-            
-            // Trigger input event so React picks up the change
-            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            this._setTextareaValue(textarea, formattedContent);
             
             // Watch for the new action element to appear and update its icon
             this.watchForTryAction(formattedContent);
@@ -659,10 +783,7 @@ class TryFeature {
         if (content.trim()) {
           // Format the content as a try with RNG result
           const formattedContent = this.formatAsTry(content);
-          textarea.value = formattedContent;
-          
-          // Trigger input event so React picks up the change
-          textarea.dispatchEvent(new Event('input', { bubbles: true }));
+          this._setTextareaValue(textarea, formattedContent);
           
           // Watch for the new action element to appear and update its icon
           this.watchForTryAction(formattedContent);
@@ -766,7 +887,7 @@ class TryFeature {
       status,
       succeeded,
       isCrit,
-      phrase: `**${phrase}**` // Apply Markdown bolding (we use standard because we aren't actually formatting)
+      phrase
     };
   }
 

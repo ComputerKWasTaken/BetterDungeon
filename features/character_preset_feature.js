@@ -19,13 +19,13 @@ class CharacterPresetFeature {
     this.latestScenarioStart = null;
     this.latestScenarioStartRootShortId = null;
     this.lastAttemptedCharacterId = null;
-    this.generationRouteShortId = null;
 
     this.status = 'idle';
     this.statusMessage = '';
     this.currentFieldLabel = null;
     this.currentFieldKey = null;
     this.panelElement = null;
+    this.lastPanelRenderKey = null;
     this.manualDismissedQuestions = new Set();
     this.sessionDismissed = false;
     this.observer = null;
@@ -33,6 +33,7 @@ class CharacterPresetFeature {
     this._checkDebounceTimer = null;
     this._fieldGraceTimer = null;
     this._handleToken = 0;
+    this.generationRouteShortId = null;
     this.isApplying = false;
     this.debug = false;
     this.boundScenarioStartHandler = (event) => this.handleScenarioStartEvent(event);
@@ -162,8 +163,10 @@ class CharacterPresetFeature {
   }
 
   async clearLegacyStorage() {
-    await this._chromeRemove('sync', this.storageKey);
-    await this._chromeRemove('sync', this.activePresetKey);
+    if (!window.BetterDungeonPlatform?.has('storageAreasAliased')) {
+      await this._chromeRemove('sync', this.storageKey);
+      await this._chromeRemove('sync', this.activePresetKey);
+    }
     await this._chromeRemove('local', 'betterDungeon_sessionCharacter');
     await this._chromeRemove('local', 'betterDungeon_scenarioSession');
     await this._chromeRemove('local', 'betterDungeon_characterPresetGenerationInstructions');
@@ -216,6 +219,18 @@ class CharacterPresetFeature {
       session.answers &&
       typeof session.answers === 'object'
     );
+  }
+
+  isReadyRouteSession(session) {
+    if (!this.isValidSession(session) || session.status !== 'ready') return false;
+    const routeShortId = this.parseScenarioShortIdFromUrl();
+    if (!routeShortId) return false;
+    return !session.routeShortId || session.routeShortId === routeShortId;
+  }
+
+  isGeneratingForCurrentRoute() {
+    const routeShortId = this.parseScenarioShortIdFromUrl();
+    return !!(routeShortId && this.status === 'generating' && this.generationRouteShortId === routeShortId);
   }
 
   createId() {
@@ -295,6 +310,7 @@ class CharacterPresetFeature {
     this.observer = new MutationObserver((mutations) => {
       if (this.isApplying) return;
       for (const mutation of mutations) {
+        if (this.isOwnPanelMutation(mutation)) continue;
         if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
           this.debouncedCheck();
           break;
@@ -306,6 +322,21 @@ class CharacterPresetFeature {
       childList: true,
       subtree: true,
     });
+  }
+
+  isOwnPanelMutation(mutation) {
+    if (mutation.target?.closest?.('.bd-character-ai-panel')) return true;
+    for (const node of mutation.addedNodes || []) {
+      if (node.nodeType === Node.ELEMENT_NODE && (node.matches?.('.bd-character-ai-panel') || node.closest?.('.bd-character-ai-panel'))) {
+        return true;
+      }
+    }
+    for (const node of mutation.removedNodes || []) {
+      if (node.nodeType === Node.ELEMENT_NODE && (node.matches?.('.bd-character-ai-panel') || node.closest?.('.bd-character-ai-panel'))) {
+        return true;
+      }
+    }
+    return false;
   }
 
   startPolling() {
@@ -340,12 +371,32 @@ class CharacterPresetFeature {
       }
     }
 
+    const visibleQuestion = this.normalizeFieldText(questionText);
+    const inputQuestion = this.normalizeFieldText(ariaLabel);
+    const question = visibleQuestion || inputQuestion;
+    const fieldId = this.stableFieldId(question, inputQuestion);
+
     return {
       input,
       label: questionText,
       ariaLabel,
-      question: ariaLabel.trim(),
+      question,
+      fieldId,
     };
+  }
+
+  normalizeFieldText(value) {
+    return String(value || '')
+      .replace(/\s+/g, ' ')
+      .replace(/^\s*(?:question|prompt|answer)\s*[:#-]?\s*/i, '')
+      .trim();
+  }
+
+  stableFieldId(questionText, inputText) {
+    const primary = this.normalizeFieldText(questionText);
+    const fallback = this.normalizeFieldText(inputText);
+    const value = primary || fallback || 'scenario-prefill-field';
+    return value.toLowerCase();
   }
 
   getFieldContainer(field) {
@@ -369,12 +420,13 @@ class CharacterPresetFeature {
     const field = this.findScenarioEntryField();
 
     if (field) {
+      this.reconcileFieldWithScenario(field);
       if (this._fieldGraceTimer) {
         clearTimeout(this._fieldGraceTimer);
         this._fieldGraceTimer = null;
       }
 
-      const fieldId = field.ariaLabel;
+      const fieldId = field.fieldId || field.ariaLabel;
       if (this.currentFieldLabel !== fieldId || !this.panelElement?.isConnected) {
         this.currentFieldLabel = fieldId;
         this.currentFieldKey = field.question;
@@ -384,14 +436,18 @@ class CharacterPresetFeature {
     }
 
     if (this.currentFieldLabel !== null && !this._fieldGraceTimer) {
+      // Android WebView can briefly detach/rebuild the scenario field during
+      // React transitions; wait long enough to avoid flickering the panel.
       this._fieldGraceTimer = setTimeout(() => {
         this._fieldGraceTimer = null;
         if (!this.findScenarioEntryField()) {
-          this.currentFieldLabel = null;
-          this.currentFieldKey = null;
-          this.removePanel();
+          if (!this.parseScenarioShortIdFromUrl()) {
+            this.currentFieldLabel = null;
+            this.currentFieldKey = null;
+            this.removePanel();
+          }
         }
-      }, 400);
+      }, window.BetterDungeonPlatform?.has('longWebViewTransitions') ? 800 : 400);
     }
   }
 
@@ -409,11 +465,12 @@ class CharacterPresetFeature {
     if (!this.isScenarioStartShape(scenario)) return;
     const routeShortId = this.parseScenarioShortIdFromUrl();
     if (!routeShortId) return;
+    const keepCurrentWorkflow = this.isReadyRouteSession(this.session) || this.isGeneratingForCurrentRoute();
 
     // Multiple-choice starts keep the root URL while fetching selected child nodes.
     this.latestScenarioStart = scenario;
     this.latestScenarioStartRootShortId = routeShortId;
-    if (this.scenarioShortId && this.scenarioShortId !== scenario.shortId) {
+    if (this.scenarioShortId && this.scenarioShortId !== scenario.shortId && !keepCurrentWorkflow) {
       this.scenario = null;
       this.scenarioSignature = null;
       this.scenarioShortId = null;
@@ -499,6 +556,7 @@ class CharacterPresetFeature {
     try {
       await this.prepareScenarioState();
       if (token !== this._handleToken) return;
+      this.reconcileFieldWithScenario(field);
 
       if (this.status === 'ready') {
         this.showAnswerPanel(field);
@@ -526,6 +584,25 @@ class CharacterPresetFeature {
       return;
     }
 
+    if (this.isGeneratingForCurrentRoute()) {
+      this.status = 'generating';
+      this.statusMessage = '';
+      return;
+    }
+
+    await this.loadPresets();
+    await this.loadActivePreset();
+
+    if (this.isReadyRouteSession(this.session)) {
+      const character = this.presets.find(p => p.id === this.session.characterId);
+      if (character) {
+        this.status = 'ready';
+        this.statusMessage = '';
+        return;
+      }
+      this.clearSession();
+    }
+
     if (!this.scenario || this.scenarioShortId !== shortId) {
       await this.loadScenario(shortId);
     }
@@ -535,9 +612,6 @@ class CharacterPresetFeature {
       this.statusMessage = 'This scenario has no placeholder questions to prefill.';
       return;
     }
-
-    await this.loadPresets();
-    await this.loadActivePreset();
 
     if (this.sessionMatchesScenario(this.session)) {
       const character = this.presets.find(p => p.id === this.session.characterId);
@@ -566,6 +640,36 @@ class CharacterPresetFeature {
     this.statusMessage = '';
   }
 
+  reconcileFieldWithScenario(field) {
+    if (!field || !this.scenario?.placeholders?.length) return field;
+    const match = this.findPlaceholderMatch([
+      field.question,
+      field.ariaLabel,
+      field.label,
+    ]);
+    if (match) {
+      field.question = match;
+      field.fieldId = this.stableFieldId(match, field.ariaLabel);
+    }
+    return field;
+  }
+
+  findPlaceholderMatch(candidates = []) {
+    const placeholders = this.scenario?.placeholders || [];
+    if (!placeholders.length) return null;
+
+    const normalizedCandidates = candidates
+      .map(value => this.normalizeFieldText(value).toLowerCase())
+      .filter(Boolean);
+
+    for (const placeholder of placeholders) {
+      const normalized = this.normalizeFieldText(placeholder).toLowerCase();
+      if (normalizedCandidates.includes(normalized)) return placeholder;
+    }
+
+    return null;
+  }
+
   async loadScenario(shortId) {
     const gql = window.BetterDungeonGQL;
     if (!gql?.getScenarioStart) {
@@ -577,6 +681,9 @@ class CharacterPresetFeature {
       : await gql.getScenarioStart(shortId, { timeoutMs: 30000, viewPublished: true });
     const placeholders = this.extractPlaceholders(scenario);
     const signature = this.computeScenarioSignature(scenario, placeholders);
+    const nextScenarioShortId = scenario.shortId || shortId;
+    const preserveReadySession = this.isReadyRouteSession(this.session);
+    const preserveDismissals = this.scenarioShortId === nextScenarioShortId && this.scenarioSignature === signature;
 
     this.scenario = {
       raw: scenario,
@@ -584,9 +691,9 @@ class CharacterPresetFeature {
       signature,
     };
     this.scenarioSignature = signature;
-    this.scenarioShortId = scenario.shortId || shortId;
-    this.session = null;
-    this.manualDismissedQuestions.clear();
+    this.scenarioShortId = nextScenarioShortId;
+    if (!preserveReadySession) this.session = null;
+    if (!preserveDismissals) this.manualDismissedQuestions.clear();
   }
 
   sessionMatchesScenario(session) {
@@ -697,9 +804,8 @@ class CharacterPresetFeature {
     }
 
     this.lastAttemptedCharacterId = characterId;
-    const generationRouteShortId = this.parseScenarioShortIdFromUrl();
-    this.generationRouteShortId = generationRouteShortId;
     this.status = 'generating';
+    this.generationRouteShortId = this.parseScenarioShortIdFromUrl();
     this.showGeneratingPanel(field);
 
     try {
@@ -715,10 +821,12 @@ class CharacterPresetFeature {
         consumer: 'character-presets',
       });
 
-      if (
-        this.generationRouteShortId !== generationRouteShortId
-        || this.parseScenarioShortIdFromUrl() !== generationRouteShortId
-      ) return;
+      if (this.generationRouteShortId && this.generationRouteShortId !== this.parseScenarioShortIdFromUrl()) {
+        this.status = 'idle';
+        this.statusMessage = '';
+        return;
+      }
+
       this.session = this.normalizeAISession(character, result?.json);
       this.manualDismissedQuestions.clear();
       this.status = 'ready';
@@ -731,6 +839,8 @@ class CharacterPresetFeature {
       this.status = presentation.retryable ? 'error' : 'blocked';
       this.statusMessage = presentation.message;
       this.showBlockedPanel(field, presentation.message, presentation);
+    } finally {
+      this.generationRouteShortId = null;
     }
   }
 
@@ -846,6 +956,7 @@ class CharacterPresetFeature {
     }
 
     return {
+      routeShortId: this.parseScenarioShortIdFromUrl(),
       scenarioShortId: this.scenarioShortId,
       scenarioSignature: this.scenarioSignature,
       characterId: character.id,
@@ -859,16 +970,40 @@ class CharacterPresetFeature {
   // UI
   // ============================================
 
-  renderPanel(field, html) {
+  renderPanel(field, html, renderKey = null) {
     const container = document.body;
     if (!container) return null;
 
-    this.removePanel();
+    const fieldId = field?.fieldId || field?.ariaLabel || field?.question || '';
+    const htmlSignature = String(this.hashString(html));
+    const stableRenderKey = renderKey || `${fieldId}:${htmlSignature}`;
+    if (this.panelElement?.isConnected) {
+      if (this.panelElement.dataset.renderKey === stableRenderKey) {
+        this.panelElement.__bdCharacterPanelReused = true;
+        return this.panelElement;
+      }
+
+      this.panelElement.__bdCharacterPanelReused = false;
+      this.panelElement.innerHTML = html;
+      this.panelElement.dataset.fieldId = fieldId;
+      this.panelElement.dataset.htmlSignature = htmlSignature;
+      this.panelElement.dataset.renderKey = stableRenderKey;
+      this.panelElement.classList.add('bd-character-ai-panel-visible');
+      this.lastPanelRenderKey = stableRenderKey;
+      return this.panelElement;
+    }
+
+    document.querySelectorAll('.bd-character-ai-panel').forEach(el => el.remove());
     const panel = document.createElement('div');
     panel.className = 'bd-character-ai-panel';
+    panel.dataset.fieldId = fieldId;
+    panel.dataset.htmlSignature = htmlSignature;
+    panel.dataset.renderKey = stableRenderKey;
+    panel.__bdCharacterPanelReused = false;
     panel.innerHTML = html;
     container.appendChild(panel);
     this.panelElement = panel;
+    this.lastPanelRenderKey = stableRenderKey;
     requestAnimationFrame(() => panel.classList.add('bd-character-ai-panel-visible'));
     return panel;
   }
@@ -876,6 +1011,7 @@ class CharacterPresetFeature {
   removePanel() {
     const current = this.panelElement;
     this.panelElement = null;
+    this.lastPanelRenderKey = null;
     if (current) {
       current.classList.remove('bd-character-ai-panel-visible');
       setTimeout(() => current.remove(), 200);
@@ -886,7 +1022,7 @@ class CharacterPresetFeature {
   }
 
   showCharacterPicker(field) {
-    const sessionCharacterId = this.sessionMatchesScenario(this.session) && this.presets.some(p => p.id === this.session.characterId)
+    const sessionCharacterId = (this.sessionMatchesScenario(this.session) || this.isReadyRouteSession(this.session)) && this.presets.some(p => p.id === this.session.characterId)
       ? this.session.characterId
       : null;
     const selectedId = sessionCharacterId || (this.activePresetId && this.presets.some(p => p.id === this.activePresetId)
@@ -901,6 +1037,15 @@ class CharacterPresetFeature {
     const preview = selectedCharacter
       ? (selectedCharacter.description || selectedCharacter.name)
       : '';
+
+    const pickerKey = [
+      'picker',
+      field.fieldId || field.question,
+      selectedId || '',
+      this.activePresetId || '',
+      this.presets.map(character => `${character.id}:${character.updatedAt || 0}`).join('|'),
+      this.scenario?.placeholders?.length || 0,
+    ].join(':');
 
     const panel = this.renderPanel(field, `
       <div class="bd-character-ai-header">
@@ -925,8 +1070,8 @@ class CharacterPresetFeature {
           ${this.escapeHtml(preview)}
         </div>
       </div>
-    `);
-    if (!panel) return;
+    `, pickerKey);
+    if (!panel || panel.__bdCharacterPanelReused) return;
     this.bindCloseButton(panel);
 
     const select = panel.querySelector('#bd-character-ai-select');
@@ -969,8 +1114,8 @@ class CharacterPresetFeature {
           <div class="bd-character-ai-spinner"></div>
         </div>
       </div>
-    `);
-    if (genPanel) this.bindCloseButton(genPanel);
+    `, `generating:${field.fieldId || field.question}`);
+    if (genPanel && !genPanel.__bdCharacterPanelReused) this.bindCloseButton(genPanel);
   }
 
   showBlockedPanel(field, message, options = {}) {
@@ -994,9 +1139,9 @@ class CharacterPresetFeature {
           <button id="bd-character-ai-retry" class="bd-character-ai-btn bd-character-ai-btn-primary">Retry</button>
         </div>
       ` : ''}
-    `);
-    if (!blockedPanel) return;
-    this.bindCloseButton(blockedPanel);
+    `, `blocked:${field.fieldId || field.question}:${message || ''}:${retryable}`);
+    if (blockedPanel && !blockedPanel.__bdCharacterPanelReused) this.bindCloseButton(blockedPanel);
+    if (!blockedPanel || blockedPanel.__bdCharacterPanelReused) return;
     blockedPanel.querySelector('#bd-character-ai-retry')?.addEventListener('click', async (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -1042,7 +1187,8 @@ class CharacterPresetFeature {
         <div class="bd-character-ai-actions">
           <button id="bd-character-ai-manual" class="bd-character-ai-btn bd-character-ai-btn-secondary">Answer Manually</button>
         </div>
-      `);
+      `, `manual:${field.fieldId || field.question}:${answer?.confidence || ''}:${answer?.reason || ''}:${ideas.join('|')}`);
+      if (!panel || panel.__bdCharacterPanelReused) return;
       this.bindCloseButton(panel);
       panel?.querySelector('#bd-character-ai-manual')?.addEventListener('click', (event) => {
         event.preventDefault();
@@ -1088,8 +1234,8 @@ class CharacterPresetFeature {
         <button id="bd-character-ai-reroll" class="bd-character-ai-btn bd-character-ai-btn-secondary">Reroll</button>
         <button id="bd-character-ai-use" class="bd-character-ai-btn ${tentative ? 'bd-character-ai-btn-secondary' : 'bd-character-ai-btn-primary'}">Use</button>
       </div>
-    `);
-    if (!panel) return;
+    `, `answer:${field.fieldId || field.question}:${question}:${answer.answer}:${answer.confidence || ''}:${answer.reason || ''}:${(answer.ideas || []).join('|')}:${character?.id || ''}`);
+    if (!panel || panel.__bdCharacterPanelReused) return;
     this.bindCloseButton(panel);
 
     panel.querySelector('#bd-character-ai-use')?.addEventListener('click', async (event) => {
@@ -1136,9 +1282,7 @@ class CharacterPresetFeature {
     `;
     panel.querySelector('.bd-character-ai-reroll-controls')?.remove();
     panel.querySelector('.bd-character-ai-actions')?.before(controls);
-    panel.querySelector('#bd-character-ai-reroll-cancel')?.addEventListener('click', () => {
-      controls.remove();
-    });
+    panel.querySelector('#bd-character-ai-reroll-cancel')?.addEventListener('click', () => controls.remove());
     panel.querySelector('#bd-character-ai-reroll-submit')?.addEventListener('click', async () => {
       const request = panel.querySelector('#bd-character-ai-reroll-request')?.value?.trim() || '';
       await this.rerollAnswer(field, question, answer, request, panel);
@@ -1205,10 +1349,7 @@ class CharacterPresetFeature {
         requestId: `character-prefill-reroll-${this.scenarioShortId}-${Date.now()}`,
         consumer: 'character-presets',
       });
-      if (
-        this.generationRouteShortId !== routeShortId
-        || this.parseScenarioShortIdFromUrl() !== routeShortId
-      ) return;
+      if (this.generationRouteShortId && this.generationRouteShortId !== this.parseScenarioShortIdFromUrl()) return;
       const item = result?.json || {};
       const confidence = ['confident', 'tentative', 'not_applicable'].includes(item.confidence)
         ? item.confidence
@@ -1225,7 +1366,10 @@ class CharacterPresetFeature {
     } catch (error) {
       console.error('[CharacterPreset] AI reroll failed:', error);
       this.showToast(this.describeAIGenerationError(error).message, 'error');
+      this.removePanel();
       this.showAnswerPanel(field);
+    } finally {
+      this.generationRouteShortId = null;
     }
   }
 
@@ -1245,8 +1389,8 @@ class CharacterPresetFeature {
         <button id="bd-character-ai-cancel" class="bd-character-ai-btn bd-character-ai-btn-secondary">Cancel</button>
         <button id="bd-character-ai-use-edit" class="bd-character-ai-btn bd-character-ai-btn-primary">Use Edited</button>
       </div>
-    `);
-    if (!panel) return;
+    `, `edit:${field.fieldId || field.question}:${question}:${value}`);
+    if (!panel || panel.__bdCharacterPanelReused) return;
     this.bindCloseButton(panel);
 
     const textarea = panel.querySelector('#bd-character-ai-edit-text');

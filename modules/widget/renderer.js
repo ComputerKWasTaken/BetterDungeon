@@ -9,6 +9,7 @@
 
   const validators = () => window.UltrascriptsWidgetValidators;
   const MINIMIZED_STORAGE_KEY = 'bd.widget.minimized';
+  const MINIMIZE_POSITION_STORAGE_KEY = 'bd.widget.minimizePosition';
   const ACKED_VALUE_TTL_MS = 30000;
 
   function cloneForCompare(value) {
@@ -53,6 +54,9 @@
       this.gameTextMaskObserver = null;
       this.cachedLayout = null;
       this.isMinimized = this.loadMinimizedPreference();
+      this.minimizeButtonPosition = this.loadMinimizeButtonPosition();
+      this.minimizeButtonDrag = null;
+      this.suppressMinimizeClick = false;
       this._densityRafId = null;
       this._lastLayoutLogKey = '';
       this._lastDensityLogKey = '';
@@ -254,6 +258,91 @@
       } catch { /* storage may be unavailable in hardened contexts */ }
     }
 
+    loadMinimizeButtonPosition() {
+      if (!window.BetterDungeonPlatform?.has('draggableWidgetControl')) return null;
+      try {
+        const position = JSON.parse(window.localStorage?.getItem(MINIMIZE_POSITION_STORAGE_KEY));
+        if (Number.isFinite(position?.x) && Number.isFinite(position?.y)) return position;
+      } catch { /* storage may be unavailable in hardened contexts */ }
+      return null;
+    }
+
+    saveMinimizeButtonPosition() {
+      if (!this.minimizeButtonPosition) return;
+      try {
+        window.localStorage?.setItem(MINIMIZE_POSITION_STORAGE_KEY, JSON.stringify(this.minimizeButtonPosition));
+      } catch { /* storage may be unavailable in hardened contexts */ }
+    }
+
+    applyMinimizeButtonPosition() {
+      if (!window.BetterDungeonPlatform?.has('draggableWidgetControl')) return;
+      if (!this.minimizeButton || !this.minimizeButtonPosition) return;
+
+      this.minimizeButton.style.transform = '';
+      const rect = this.minimizeButton.getBoundingClientRect();
+      const viewportPadding = 8;
+      const x = Math.max(viewportPadding, Math.min(
+        this.minimizeButtonPosition.x,
+        Math.max(viewportPadding, window.innerWidth - rect.width - viewportPadding)
+      ));
+      const y = Math.max(viewportPadding, Math.min(
+        this.minimizeButtonPosition.y,
+        Math.max(viewportPadding, window.innerHeight - rect.height - viewportPadding)
+      ));
+
+      this.minimizeButtonPosition = { x, y };
+      this.minimizeButton.style.transform = `translate(${x - rect.left}px, ${y - rect.top}px)`;
+    }
+
+    setupMinimizeButtonDragging(button) {
+      if (!window.BetterDungeonPlatform?.has('draggableWidgetControl')) return;
+      button.style.touchAction = 'none';
+
+      button.addEventListener('pointerdown', event => {
+        if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return;
+        const rect = button.getBoundingClientRect();
+        this.minimizeButtonDrag = {
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+          buttonX: rect.left,
+          buttonY: rect.top,
+          moved: false
+        };
+        button.setPointerCapture?.(event.pointerId);
+        event.stopPropagation();
+      });
+
+      button.addEventListener('pointermove', event => {
+        const drag = this.minimizeButtonDrag;
+        if (!drag || drag.pointerId !== event.pointerId) return;
+        const deltaX = event.clientX - drag.startX;
+        const deltaY = event.clientY - drag.startY;
+        if (!drag.moved && Math.hypot(deltaX, deltaY) < 6) return;
+        drag.moved = true;
+        this.minimizeButtonPosition = { x: drag.buttonX + deltaX, y: drag.buttonY + deltaY };
+        this.applyMinimizeButtonPosition();
+        event.preventDefault();
+        event.stopPropagation();
+      });
+
+      const finishDrag = event => {
+        const drag = this.minimizeButtonDrag;
+        if (!drag || drag.pointerId !== event.pointerId) return;
+        this.minimizeButtonDrag = null;
+        if (button.hasPointerCapture?.(event.pointerId)) button.releasePointerCapture(event.pointerId);
+        if (!drag.moved) return;
+        this.suppressMinimizeClick = true;
+        this.saveMinimizeButtonPosition();
+        event.preventDefault();
+        event.stopPropagation();
+        setTimeout(() => { this.suppressMinimizeClick = false; }, 0);
+      };
+
+      button.addEventListener('pointerup', finishDrag);
+      button.addEventListener('pointercancel', finishDrag);
+    }
+
     setMinimized(minimized) {
       this.isMinimized = !!minimized;
       this.saveMinimizedPreference();
@@ -304,6 +393,7 @@
       this.minimizeButton.title = `${actionLabel} (${countLabel}${pendingSuffix})`;
       this.minimizeButton.setAttribute('aria-label', `${actionLabel} (${countLabel}${pendingSuffix})`);
       this.minimizeButton.setAttribute('aria-expanded', String(!minimized));
+      this.applyMinimizeButtonPosition();
     }
 
     syncWrapperState() {
@@ -419,8 +509,10 @@
       minimizeButton.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
+        if (this.suppressMinimizeClick) return;
         this.setMinimized(!this.isMinimized);
       });
+      this.setupMinimizeButtonDragging(minimizeButton);
       controls.appendChild(minimizeButton);
       this.minimizeButton = minimizeButton;
 
