@@ -38,6 +38,10 @@ class BetterDungeonBridge(private val context: Context) {
     var onClosePopup: (() -> Unit)? = null
     var onShowPopup: (() -> Unit)? = null
 
+    /** Return the immutable capability contract consumed by shared web code. */
+    @JavascriptInterface
+    fun getPlatformConfig(): String = BetterDungeonPlatformConfig.toJson()
+
     // ── Storage ───────────────────────────────────────────────────────
 
     @JavascriptInterface

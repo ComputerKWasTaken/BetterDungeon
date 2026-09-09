@@ -1,5 +1,6 @@
 {
   "earlyScripts": [
+    "utils/platform.js",
     "services/apollo-bridge.js",
     "services/ultrascripts/ws-interceptor.js",
     "services/custom-dynamic-router.js"

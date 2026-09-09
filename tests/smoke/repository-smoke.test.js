@@ -5,6 +5,7 @@ const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
+const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '..', '..');
 const androidRoot = path.join(root, 'android');
@@ -14,6 +15,27 @@ const packageEntries = fs.readFileSync(path.join(root, 'build', 'extension-files
   .split(/\r?\n/)
   .map(value => value.trim())
   .filter(value => value && !value.startsWith('#'));
+const platformSource = fs.readFileSync(path.join(root, 'utils', 'platform.js'), 'utf8');
+
+function loadPlatform(overrides = {}) {
+  const listeners = new Map();
+  const documentElement = { dataset: {} };
+  const context = {
+    console,
+    Promise,
+    Error,
+    Set,
+    location: { protocol: 'https:' },
+    document: { documentElement },
+    addEventListener(type, listener) {
+      listeners.set(type, listener);
+    },
+    ...overrides
+  };
+  context.globalThis = context;
+  vm.runInNewContext(platformSource, context, { filename: 'utils/platform.js' });
+  return { context, listeners, platform: context.BetterDungeonPlatform };
+}
 
 function includedByPackage(relativePath) {
   return packageEntries.some(entry => relativePath === entry || relativePath.startsWith(entry + '/'));
@@ -24,6 +46,37 @@ test('browser and Android release versions match', () => {
   const versionName = gradle.match(/versionName\s*=\s*"([^"]+)"/)?.[1];
   assert.ok(versionName, 'Android versionName must be declared');
   assert.equal(versionName, manifest.version);
+});
+
+test('platform contract uses browser defaults and native Android capabilities', async () => {
+  const browser = loadPlatform().platform;
+  assert.equal(browser.kind, 'browser');
+  assert.equal(browser.formFactor, 'desktop');
+  assert.equal(browser.has('nativeBridge'), false);
+  assert.equal(browser.supportsFeature('hotkey'), true);
+
+  const nativeConfig = {
+    kind: 'android-webview',
+    capabilities: { popupBridge: true, nativeBridge: true },
+    supportedFeatures: ['command']
+  };
+  const android = loadPlatform({
+    location: { protocol: 'file:' },
+    BetterDungeonBridge: { getPlatformConfig: () => JSON.stringify(nativeConfig) }
+  });
+  assert.equal(android.platform.kind, 'android-webview');
+  assert.equal(android.platform.formFactor, 'mobile');
+  assert.equal(android.platform.has('nativeBridge'), true);
+  assert.equal(android.platform.supportsFeature('command'), true);
+  assert.equal(android.platform.supportsFeature('hotkey'), false);
+
+  let ready = false;
+  const pending = android.platform.whenReady().then(() => { ready = true; });
+  await Promise.resolve();
+  assert.equal(ready, false);
+  android.listeners.get('betterdungeon:popup-bridge-ready')();
+  await pending;
+  assert.equal(ready, true);
 });
 
 test('extension manifest files exist and stay inside the package allowlist', () => {

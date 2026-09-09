@@ -99,16 +99,23 @@ class InjectionEngine(private val context: Context) {
     fun injectEarly(webView: WebView) {
         Log.i(TAG, "Injecting WebSocket interceptor early...")
         val files = runtimeManifest().earlyScripts
+        val combined = StringBuilder()
+        combined.append("window.__betterDungeonNativePlatformConfig = ")
+        combined.append(BetterDungeonPlatformConfig.toJson())
+        combined.append(";\n")
         for (file in files) {
             val js = readAsset("$ASSET_BASE/$file")
             if (js != null) {
-                // Evaluate immediately for document-start style hooks.
-                webView.evaluateJavascript(js, null)
+                combined.append("// === $file ===\n")
+                combined.append(js)
+                combined.append("\n")
                 Log.d(TAG, "Early script injected: $file")
             } else {
                 Log.w(TAG, "Failed to load early script: $file")
             }
         }
+        // One payload guarantees platform configuration precedes every early script.
+        webView.evaluateJavascript(combined.toString(), null)
     }
 
     /**
