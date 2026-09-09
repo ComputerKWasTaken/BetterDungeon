@@ -124,7 +124,7 @@ This is the development home for both the browser extension and Android app. The
 Daily work happens on `dev`. The protected `stable` branch contains tested, release-ready commits and is updated through the manual **Promote stable** workflow. The common local commands are:
 
 ```powershell
-.\build.ps1 test       # Run every Node contract and policy test
+.\build.ps1 test       # Run repository smoke checks
 .\build.ps1 extension  # Create the extension ZIP
 .\build.ps1 android    # Create a debug APK
 .\build.ps1 all        # Test and create both artifacts

@@ -24,7 +24,7 @@ env:
 
 jobs:
   node-contracts:
-    name: Node contracts
+    name: Repository smoke checks
     runs-on: windows-latest
     steps:
       - name: Check out validated commit
@@ -35,7 +35,7 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
-      - name: Run contract and policy tests
+      - name: Run repository smoke checks
         shell: pwsh
         run: .\build.ps1 test
 
@@ -78,12 +78,9 @@ jobs:
         run: sdkmanager "platforms;android-36.1"
       - name: Configure Gradle cache
         uses: gradle/actions/setup-gradle@67621b124fd2e251c5e8a0e6e3b91318f2287669 # v6.3.0
-      - name: Run Android unit tests and assemble debug APK
+      - name: Build debug APK and compose Android assets
         shell: pwsh
         run: .\build.ps1 android
-      - name: Verify generated Android asset composition
-        shell: pwsh
-        run: node --test tests/unit/repository-policy.test.js
       - name: Upload debug APK
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

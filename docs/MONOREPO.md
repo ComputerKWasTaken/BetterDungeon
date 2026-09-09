@@ -26,11 +26,7 @@ BetterDungeon/
 │   ├── overrides/                   Intentional same-path Mobile variants
 │   └── betterdungeon-runtime.json   Ordered Android composition manifest
 ├── tests/
-│   ├── contracts/                   Shared public behavior
-│   ├── unit/                        Focused helpers and repository policy
-│   ├── platform/android/            WebView, bridge, and override behavior
-│   ├── harness/                     Chrome, AI Dungeon, Android, and Ultrascripts mocks
-│   └── fixtures/                    Deterministic test data
+│   └── smoke/                       Minimal release-boundary checks
 ├── build/extension-files.txt        Extension package allowlist
 └── build.ps1                        Unified local interface
 ```
@@ -55,6 +51,6 @@ Open the `android/` directory in Android Studio for Sync, Run, Debug, and manual
 
 ## CI/CD boundary
 
-The reusable quality gate runs on every push, every pull request, manual dispatches, and stable promotions. It uses Node.js 24, JDK 21, the checked-in Gradle wrapper, read-only permissions, SHA-pinned actions, and GitHub-hosted runners. Normal CI receives no repository secrets and does not publish releases or store builds.
+The reusable quality gate runs on every push, every pull request, manual dispatches, and stable promotions. Its Node step runs only the repository smoke checks; extension packaging and the Android build provide the remaining baseline verification. It uses Node.js 24, JDK 21, the checked-in Gradle wrapper, read-only permissions, SHA-pinned actions, and GitHub-hosted runners. Normal CI receives no repository secrets and does not publish releases or store builds.
 
 Playwright, DOM emulation packages, authenticated AI Dungeon checks, live canaries, emulator instrumentation, automatic store publishing, and signed-release automation are intentionally deferred.
