@@ -12,6 +12,8 @@
 (function installBetterDungeonCaretScrollGuard() {
   'use strict';
 
+  if (!globalThis.BetterDungeonBridge) return;
+
   if (window.__betterDungeonCaretScrollGuardInstalled) return;
   window.__betterDungeonCaretScrollGuardInstalled = true;
 

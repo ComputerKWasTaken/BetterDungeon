@@ -2,12 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=380">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>BetterDungeon</title>
   <script src="utils/platform.js"></script>
   <link rel="stylesheet" href="fonts/lucide/lucide.css">
   <link rel="stylesheet" href="core/theme-variables.css">
   <link rel="stylesheet" href="popup.css">
+  <link rel="stylesheet" href="utils/android-editable-scroll-fix.css">
 </head>
 <body>
   <!-- Header -->
@@ -16,7 +17,7 @@
       <img src="icons/icon48.png" alt="" class="header-logo">
       <div class="header-title">
         <span class="header-name">BetterDungeon</span>
-        <span class="header-version"><span id="app-version">v2.1.0</span> <span class="header-badge pc">PC</span></span>
+        <span class="header-version"><span id="app-version">v2.1.0</span> <span class="header-badge pc" id="platform-badge">PC</span></span>
       </div>
     </div>
     <div class="header-actions">
@@ -25,6 +26,9 @@
       </a>
       <button class="header-action" id="tutorial-help-btn" aria-label="Start Tutorial" title="Help">
         <span class="icon-circle-question-mark"></span>
+      </button>
+      <button class="header-action" id="app-settings-btn" aria-label="Open BetterDungeon settings" title="Settings" data-bd-requires-capability="androidSettings" hidden>
+        <span class="icon-settings"></span>
       </button>
     </div>
   </header>
@@ -146,7 +150,7 @@
                   <span class="whats-new-highlight-icon whats-new-highlight-icon-native icon-sparkles" aria-hidden="true"></span>
                   <div>
                     <h4>Native feature cleanup</h4>
-                    <p>AI Dungeon now handles Markdown and desktop text-to-speech natively, so BetterDungeon no longer duplicates them. Mobile text-to-speech remains because AI Dungeon's native speech does not work inside the app's WebView.</p>
+                    <p>AI Dungeon now handles Markdown natively. BetterDungeon's text-to-speech feature has been removed on both platforms, and Android now supports native AI streaming.</p>
                   </div>
                 </article>
               </div>
@@ -231,7 +235,7 @@
             <div class="feature-details">
               <p>Navigator is an AI agent designed to help you improve and modify your adventures. It uses always-on bounded adventure context, answers grounded questions, and applies verified non-deletion changes automatically — with a change card for every edit so you stay in the know.</p>
               <div class="feature-hints">
-                <p class="feature-hint"><span class="icon-lightbulb"></span> On desktop, open Navigator from <strong>Game Menu &gt; Gameplay &gt; Navigator</strong>.</p>
+                <p class="feature-hint"><span class="icon-lightbulb"></span> Open Navigator from <strong>Game Menu &gt; Gameplay &gt; Navigator</strong>.</p>
                 <p class="feature-hint"><span class="icon-triangle-alert"></span> Automatic is recommended and selected by default. Permanent deletions always require approval; use Proposed changes to approve every edit or No changes to disable changes. Navigator uses the AI provider configured under <strong>Ultrascripts &gt; AI</strong>.</p>
               </div>
             </div>
@@ -247,7 +251,7 @@
                   </span>
                   <h3 class="feature-title">Artisan</h3>
                 </div>
-                <p class="feature-desc">Your AI agent for creating and polishing scenarios</p>
+                <p class="feature-desc">Your future AI agent for creating and polishing scenarios</p>
               </div>
               <span class="teaser">Teaser</span>
             </div>
@@ -291,7 +295,7 @@
                 <div class="syntax-row"><span>Subtle</span><code>[## Your Command:]</code></div>
                 <div class="syntax-row"><span>OOC</span><code>((OOC ... | User: Your Question?))</code></div>
               </div>
-              <p class="feature-hint"><span class="icon-lightbulb"></span> Use <strong>&#x2191;&#x2193; arrow keys</strong> while in Command mode to switch between Standard, Subtle, and OOC sub-modes.</p>
+              <p class="feature-hint"><span class="icon-lightbulb"></span> <span data-bd-browser-copy>Use <strong>&#x2191;&#x2193; arrow keys</strong> while in Command mode to switch between Standard, Subtle, and OOC sub-modes.</span><span data-bd-android-copy hidden>Tap the previous and next buttons above the input while in Command mode to switch between Standard, Subtle, and OOC.</span></p>
               <p class="feature-hint"><span class="icon-terminal"></span> <strong>Standard</strong> &mdash; direct story instructions. <strong>Subtle</strong> &mdash; indirect guidance via brackets. <strong>OOC</strong> &mdash; ask the AI a direct question.</p>
             </div>
           </article>
@@ -339,7 +343,7 @@
         <div class="section-body" id="collapse-controls">
 
           <!-- Hotkeys -->
-          <article class="feature-card" data-feature="hotkey">
+          <article class="feature-card" data-feature="hotkey" data-bd-requires-feature="hotkey">
             <div class="feature-row">
               <div class="feature-info">
                 <div class="feature-title-row">
@@ -399,7 +403,7 @@
                   </span>
                   <h3 class="feature-title">Input History</h3>
                 </div>
-                <p class="feature-desc">Cycle through past inputs with arrow keys</p>
+                <p class="feature-desc"><span data-bd-browser-copy>Cycle through past inputs with arrow keys</span><span data-bd-android-copy hidden>Browse sent inputs with the history buttons</span></p>
               </div>
               <label class="toggle">
                 <input type="checkbox" id="feature-inputHistory" checked>
@@ -407,7 +411,7 @@
               </label>
             </div>
             <div class="feature-details">
-              <p>Press <strong>Ctrl</strong> + <strong>Up/Down</strong> arrow keys while the input box is focused to cycle through your previously sent inputs.</p>
+              <p><span data-bd-browser-copy>Press <strong>Ctrl</strong> + <strong>Up/Down</strong> arrow keys while the input box is focused to cycle through your previously sent inputs.</span><span data-bd-android-copy hidden>Use the touch-friendly history controls beside the action input to cycle through recently sent inputs for the current adventure.</span></p>
               <p class="feature-hint"><span class="icon-history"></span> Remembers up to 50 of your recent actions and their respective input modes.</p>
             </div>
           </article>
@@ -541,7 +545,7 @@
           </article>
 
           <!-- Story Card Modal Dock -->
-          <article class="feature-card" data-feature="storyCardModalDock">
+          <article class="feature-card" data-feature="storyCardModalDock" data-bd-requires-feature="storyCardModalDock">
             <div class="feature-row">
               <div class="feature-info">
                 <div class="feature-title-row">
@@ -630,7 +634,7 @@
               </div>
 
               <div class="custom-dynamic-actions">
-                <span class="option-value" id="custom-dynamic-status">Changes stay local to this browser.</span>
+                <span class="option-value" id="custom-dynamic-status">Changes stay local to this <span data-bd-browser-copy>browser</span><span data-bd-android-copy hidden>device</span>.</span>
                 <button class="btn btn-action" id="custom-dynamic-save" type="button">
                   <span class="icon-save"></span>
                   Save
@@ -1350,6 +1354,38 @@
     </div>
   </div>
 
+  <!-- Android App Settings Modal -->
+  <div class="modal-backdrop" id="app-settings-modal" data-bd-requires-capability="androidSettings" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="app-settings-title">
+      <div class="modal-header">
+        <h3 class="modal-title" id="app-settings-title">Settings</h3>
+        <button class="modal-close" id="app-settings-close" aria-label="Close settings">
+          <span class="icon-x"></span>
+        </button>
+      </div>
+      <div class="modal-body app-settings-body">
+        <article class="feature-card expanded app-settings-feature-card">
+          <div class="feature-row">
+            <div class="feature-info">
+              <div class="feature-title-row">
+                <span class="feature-icon app-settings-feature-icon"><span class="icon-text-cursor-input"></span></span>
+                <h3 class="feature-title">Caret scroll stabilization</h3>
+              </div>
+              <p class="feature-desc">Reduce snapping in tall WebView text editors</p>
+            </div>
+            <label class="toggle" for="caret-scroll-fix-toggle">
+              <input id="caret-scroll-fix-toggle" type="checkbox" role="switch">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="feature-details">
+            <p>Experimental WebView workaround. A small visual correction may still be noticeable while editing.</p>
+          </div>
+        </article>
+      </div>
+    </div>
+  </div>
+
   <!-- Tutorial Welcome Banner -->
   <div class="tutorial-banner hidden" id="tutorial-welcome-banner">
     <div class="tutorial-banner-icon">
@@ -1437,8 +1473,10 @@
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
+  <script src="utils/android-editable-scroll-fix.js"></script>
   <script src="utils/browser-polyfill.js"></script>
   <script src="services/tutorial-service.js"></script>
+  <script src="utils/webview-polyfill.js"></script>
   <script src="popup-ai-endpoint.js"></script>
   <script src="popup.js"></script>
 </body>

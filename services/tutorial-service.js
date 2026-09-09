@@ -409,7 +409,7 @@ class TutorialService {
 
   async loadState() {
     return new Promise((resolve) => {
-      chrome.storage.sync.get(this.STORAGE_KEY, (result) => {
+      window.BetterDungeonPlatform.extension.storage.sync.get(this.STORAGE_KEY, (result) => {
         resolve((result || {})[this.STORAGE_KEY] || { completed: false, seenWelcome: false, lastStep: 0 });
       });
     });
@@ -419,7 +419,7 @@ class TutorialService {
     const currentState = await this.loadState();
     const newState = { ...currentState, ...updates };
     return new Promise((resolve) => {
-      chrome.storage.sync.set({ [this.STORAGE_KEY]: newState }, resolve);
+      window.BetterDungeonPlatform.extension.storage.sync.set({ [this.STORAGE_KEY]: newState }, resolve);
     });
   }
 

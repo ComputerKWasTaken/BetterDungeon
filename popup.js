@@ -6,6 +6,7 @@
 // ============================================
 
 const DEBUG = false;
+const popupExtension = window.BetterDungeonPlatform.extension;
 
 const STORAGE_KEYS = {
   features: 'betterDungeonFeatures',
@@ -20,6 +21,7 @@ const STORAGE_KEYS = {
   commandSubMode: 'betterDungeon_commandSubMode',
   customDynamicConfig: 'betterDungeon_customDynamicConfig',
   customDynamicRuntime: 'betterDungeon_customDynamicRuntime',
+  androidCaretScrollFix: 'betterDungeon_androidCaretScrollFix',
 };
 
 // Default mode colors (hex format)
@@ -145,18 +147,21 @@ let customDynamicCatalogLoading = false;
 // INITIALIZATION
 // ============================================
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   console.log('[Popup] Initializing popup...');
+  initPlatformSurface();
+  await window.BetterDungeonPlatform?.whenReady?.();
   initNavigation();
   initFeatureCards();
   initToggles();
   initSettings();
+  initAppSettings();
   initCustomDynamicSettings();
   initPresets();
   initCharacters();
   initModals();
   initTools();
-  initHotkeys();
+  if (window.BetterDungeonPlatform?.supportsFeature('hotkey') !== false) initHotkeys();
   initModeColors();
   initUltrascriptsSettings();
   initWhatsNew();
@@ -227,7 +232,7 @@ function initFeatureCards() {
 function initToggles() {
   console.log('[Popup] Initializing toggles...');
   // Load saved states
-  chrome.storage.sync.get(STORAGE_KEYS.features, (result) => {
+  popupExtension.storage.sync.get(STORAGE_KEYS.features, (result) => {
     const savedFeatures = (result || {})[STORAGE_KEYS.features] || {};
     const features = { ...DEFAULT_FEATURES, ...savedFeatures };
     
@@ -255,13 +260,13 @@ function initToggles() {
   });
 
   // Ultrascripts debug toggle
-  chrome.storage.sync.get(STORAGE_KEYS.ultrascriptsDebug, (result) => {
+  popupExtension.storage.sync.get(STORAGE_KEYS.ultrascriptsDebug, (result) => {
     const toggle = document.getElementById('ultrascripts-debug');
     if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.ultrascriptsDebug] ?? false;
   });
 
   document.getElementById('ultrascripts-debug')?.addEventListener('change', (e) => {
-    chrome.storage.sync.set({ [STORAGE_KEYS.ultrascriptsDebug]: e.target.checked });
+    popupExtension.storage.sync.set({ [STORAGE_KEYS.ultrascriptsDebug]: e.target.checked });
     notifyContentScript('SET_ULTRASCRIPTS_DEBUG', { enabled: e.target.checked });
   });
 
@@ -298,7 +303,7 @@ function normalizeUltrascriptsModuleState(saved = {}) {
 }
 
 function loadUltrascriptsModuleToggles() {
-  chrome.storage.sync.get(STORAGE_KEYS.ultrascriptsModules, (result) => {
+  popupExtension.storage.sync.get(STORAGE_KEYS.ultrascriptsModules, (result) => {
     const saved = (result || {})[STORAGE_KEYS.ultrascriptsModules] || {};
     const modules = normalizeUltrascriptsModuleState(saved);
 
@@ -307,7 +312,7 @@ function loadUltrascriptsModuleToggles() {
       toggle.checked = modules[moduleId] !== false;
     });
     if (Object.keys(saved).some(key => !ULTRASCRIPTS_PUBLIC_MODULES.includes(key))) {
-      chrome.storage.sync.set({ [STORAGE_KEYS.ultrascriptsModules]: modules });
+      popupExtension.storage.sync.set({ [STORAGE_KEYS.ultrascriptsModules]: modules });
     }
   });
 }
@@ -315,11 +320,11 @@ function loadUltrascriptsModuleToggles() {
 function saveUltrascriptsModuleState(moduleId, enabled) {
   if (!ULTRASCRIPTS_PUBLIC_MODULES.includes(moduleId)) return;
 
-  chrome.storage.sync.get(STORAGE_KEYS.ultrascriptsModules, (result) => {
+  popupExtension.storage.sync.get(STORAGE_KEYS.ultrascriptsModules, (result) => {
     const saved = (result || {})[STORAGE_KEYS.ultrascriptsModules] || {};
     const modules = { ...normalizeUltrascriptsModuleState(saved), [moduleId]: !!enabled };
 
-    chrome.storage.sync.set({ [STORAGE_KEYS.ultrascriptsModules]: modules }, () => {
+    popupExtension.storage.sync.set({ [STORAGE_KEYS.ultrascriptsModules]: modules }, () => {
       sendToActiveAIDungeon('SET_ULTRASCRIPTS_MODULE_ENABLED', { moduleId, enabled: !!enabled })
         .then(refreshUltrascriptsState)
         .catch(() => {
@@ -364,12 +369,12 @@ function updateUltrascriptsStatus(state, fallbackDetail = '') {
 
 function saveFeatureState(featureId, enabled) {
   log('[Popup] Saving feature state:', featureId, enabled);
-  chrome.storage.sync.get(STORAGE_KEYS.features, (result) => {
+  popupExtension.storage.sync.get(STORAGE_KEYS.features, (result) => {
     const savedFeatures = (result || {})[STORAGE_KEYS.features] || {};
     const features = { ...DEFAULT_FEATURES, ...savedFeatures };
     features[featureId] = enabled;
     
-    chrome.storage.sync.set({ [STORAGE_KEYS.features]: features }, () => {
+    popupExtension.storage.sync.set({ [STORAGE_KEYS.features]: features }, () => {
       notifyContentScript('FEATURE_TOGGLE', { featureId, enabled });
       if (featureId === 'ultrascripts') {
         setUltrascriptsModuleControlsEnabled(enabled);
@@ -393,7 +398,7 @@ function setUltrascriptsModuleControlsEnabled(enabled) {
 
 function initSettings() {
   // Load settings
-  chrome.storage.sync.get(STORAGE_KEYS.settings, (result) => {
+  popupExtension.storage.sync.get(STORAGE_KEYS.settings, (result) => {
     const settings = (result || {})[STORAGE_KEYS.settings] || DEFAULT_SETTINGS;
     
     const slider = document.getElementById('critical-chance');
@@ -414,16 +419,59 @@ function initSettings() {
       const value = parseInt(slider.value);
       display.textContent = `${value}%`;
       
-      chrome.storage.sync.get(STORAGE_KEYS.settings, (result) => {
+      popupExtension.storage.sync.get(STORAGE_KEYS.settings, (result) => {
         const settings = (result || {})[STORAGE_KEYS.settings] || DEFAULT_SETTINGS;
         settings.tryCriticalChance = value;
-        chrome.storage.sync.set({ [STORAGE_KEYS.settings]: settings });
+        popupExtension.storage.sync.set({ [STORAGE_KEYS.settings]: settings });
       });
     });
   }
 
   // Auto See settings
   initAutoSeeSettings();
+}
+
+function updateCaretScrollFixUi(enabled) {
+  const toggle = document.getElementById('caret-scroll-fix-toggle');
+  if (toggle) toggle.checked = enabled;
+}
+
+function applyCaretScrollFixSetting(enabled) {
+  window.BetterDungeonCaretScrollFix?.setEnabled(enabled);
+  try {
+    window.BetterDungeonBridge?.setCaretScrollFixEnabled(enabled);
+  } catch (error) {
+    console.warn('[Popup] Native caret fix toggle unavailable:', error);
+  }
+  notifyContentScript('SET_ANDROID_CARET_SCROLL_FIX', { enabled });
+}
+
+function initAppSettings() {
+  if (!window.BetterDungeonPlatform?.has('androidSettings')) return;
+  const openButton = document.getElementById('app-settings-btn');
+  const toggle = document.getElementById('caret-scroll-fix-toggle');
+  if (!openButton || !toggle) return;
+
+  openButton.addEventListener('click', () => {
+    openModal('app-settings-modal');
+    requestAnimationFrame(() => document.getElementById('app-settings-close')?.focus());
+  });
+
+  popupExtension.storage.sync.get(STORAGE_KEYS.androidCaretScrollFix, (result) => {
+    const enabled = (result || {})[STORAGE_KEYS.androidCaretScrollFix] === true;
+    updateCaretScrollFixUi(enabled);
+    window.BetterDungeonCaretScrollFix?.setEnabled(enabled);
+  });
+
+  toggle.addEventListener('change', () => {
+    const enabled = toggle.checked;
+    toggle.disabled = true;
+    popupExtension.storage.sync.set({ [STORAGE_KEYS.androidCaretScrollFix]: enabled }, () => {
+      applyCaretScrollFixSetting(enabled);
+      toggle.disabled = false;
+      showToast(`Caret scroll stabilization ${enabled ? 'enabled' : 'disabled'}`, 'success');
+    });
+  });
 }
 
 function initCustomDynamicSettings() {
@@ -477,10 +525,10 @@ function initCustomDynamicSettings() {
 }
 
 function loadCustomDynamicSettings() {
-  chrome.storage.sync.get(STORAGE_KEYS.customDynamicConfig, (configResult) => {
+  popupExtension.storage.sync.get(STORAGE_KEYS.customDynamicConfig, (configResult) => {
     currentCustomDynamicConfig = normalizeCustomDynamicConfig((configResult || {})[STORAGE_KEYS.customDynamicConfig]);
 
-    chrome.storage.local.get(STORAGE_KEYS.customDynamicRuntime, (runtimeResult) => {
+    popupExtension.storage.local.get(STORAGE_KEYS.customDynamicRuntime, (runtimeResult) => {
       currentCustomDynamicRuntime = normalizeCustomDynamicRuntime((runtimeResult || {})[STORAGE_KEYS.customDynamicRuntime]);
       renderCustomDynamicConfig();
       updateCustomDynamicRuntimeStatus();
@@ -678,7 +726,7 @@ function saveCustomDynamicSettings() {
     return;
   }
 
-  chrome.storage.sync.set({ [STORAGE_KEYS.customDynamicConfig]: config }, () => {
+  popupExtension.storage.sync.set({ [STORAGE_KEYS.customDynamicConfig]: config }, () => {
     currentCustomDynamicConfig = config;
     renderCustomDynamicConfig();
     setCustomDynamicStatus('Custom Dynamic saved.');
@@ -918,7 +966,7 @@ function updateCustomDynamicRuntimeStatus() {
     setCustomDynamicStatus(`Loaded ${getCustomDynamicModelGroups().length} current AI Dungeon models.`);
     return;
   }
-  setCustomDynamicStatus('Changes stay local to this browser.');
+  setCustomDynamicStatus(`Changes stay local to this ${window.BetterDungeonPlatform?.kind === 'android-webview' ? 'device' : 'browser'}.`);
 }
 
 function setCustomDynamicStatus(message, isError = false) {
@@ -983,7 +1031,7 @@ function initAutoSeeSettings() {
   const intervalOption = document.getElementById('auto-see-interval-option');
 
   // Load saved Auto See settings
-  chrome.storage.sync.get([
+  popupExtension.storage.sync.get([
     'betterDungeon_autoSeeTriggerMode',
     'betterDungeon_autoSeeTurnInterval'
   ], (result) => {
@@ -1006,7 +1054,7 @@ function initAutoSeeSettings() {
   if (triggerModeSelect) {
     triggerModeSelect.addEventListener('change', () => {
       const mode = triggerModeSelect.value;
-      chrome.storage.sync.set({ betterDungeon_autoSeeTriggerMode: mode });
+      popupExtension.storage.sync.set({ betterDungeon_autoSeeTriggerMode: mode });
       notifyContentScript('SET_AUTO_SEE_TRIGGER_MODE', { mode });
       updateAutoSeeIntervalVisibility(mode);
     });
@@ -1017,7 +1065,7 @@ function initAutoSeeSettings() {
     intervalSlider.addEventListener('input', () => {
       const value = parseInt(intervalSlider.value);
       intervalDisplay.textContent = value;
-      chrome.storage.sync.set({ betterDungeon_autoSeeTurnInterval: value });
+      popupExtension.storage.sync.set({ betterDungeon_autoSeeTurnInterval: value });
       notifyContentScript('SET_AUTO_SEE_TURN_INTERVAL', { interval: value });
     });
   }
@@ -1047,15 +1095,15 @@ async function openAnalyticsDashboard(btn) {
   btn.innerHTML = '<span class="icon-loader"></span> Opening...';
 
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await popupExtension.tabs.query({ active: true, currentWindow: true });
     
     if (!tab?.url?.includes('aidungeon.com')) {
       showButtonStatus(btn, 'error', 'Not on AI Dungeon', originalText);
       return;
     }
 
-    chrome.tabs.sendMessage(tab.id, { type: 'OPEN_STORY_CARD_ANALYTICS' }, (response) => {
-      if (chrome.runtime.lastError || !response?.success) {
+    popupExtension.tabs.sendMessage(tab.id, { type: 'OPEN_STORY_CARD_ANALYTICS' }, (response) => {
+      if (popupExtension.runtime.lastError || !response?.success) {
         showButtonStatus(btn, 'error', response?.error || 'Failed', originalText);
       } else {
         // Close the popup after opening the dashboard
@@ -1105,7 +1153,7 @@ function initHotkeys() {
 
 // Load hotkey bindings from storage
 function loadHotkeyBindings() {
-  chrome.storage.sync.get(STORAGE_KEYS.customHotkeys, (result) => {
+  popupExtension.storage.sync.get(STORAGE_KEYS.customHotkeys, (result) => {
     const customBindings = (result || {})[STORAGE_KEYS.customHotkeys];
     if (customBindings && typeof customBindings === 'object') {
       // Use custom bindings as-is (full replacement, not merge)
@@ -1170,7 +1218,7 @@ function formatKeyDisplay(key) {
 // Open the hotkey customization modal
 function openHotkeyModal() {
   // Reset to current saved bindings
-  chrome.storage.sync.get(STORAGE_KEYS.customHotkeys, (result) => {
+  popupExtension.storage.sync.get(STORAGE_KEYS.customHotkeys, (result) => {
     const customBindings = (result || {})[STORAGE_KEYS.customHotkeys];
     if (customBindings && typeof customBindings === 'object') {
       // Use custom bindings as-is (full replacement, not merge)
@@ -1321,13 +1369,13 @@ function removeKeyBinding(key) {
 async function saveHotkeyBindings() {
   log('[Popup] Saving hotkey bindings:', currentHotkeyBindings);
   // Save to storage
-  await chrome.storage.sync.set({ [STORAGE_KEYS.customHotkeys]: currentHotkeyBindings });
+  await popupExtension.storage.sync.set({ [STORAGE_KEYS.customHotkeys]: currentHotkeyBindings });
   
   // Notify content script
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await popupExtension.tabs.query({ active: true, currentWindow: true });
     if (tab?.url?.includes('aidungeon.com')) {
-      chrome.tabs.sendMessage(tab.id, {
+      popupExtension.tabs.sendMessage(tab.id, {
         type: 'HOTKEY_BINDINGS_UPDATED',
         bindings: currentHotkeyBindings
       });
@@ -1390,7 +1438,7 @@ function initModeColors() {
 
 // Load mode colors from storage
 function loadModeColors() {
-  chrome.storage.sync.get(STORAGE_KEYS.customModeColors, (result) => {
+  popupExtension.storage.sync.get(STORAGE_KEYS.customModeColors, (result) => {
     const customColors = (result || {})[STORAGE_KEYS.customModeColors];
     if (customColors && typeof customColors === 'object') {
       currentModeColors = { ...DEFAULT_MODE_COLORS, ...customColors };
@@ -1430,7 +1478,7 @@ function updateColorEditorInputs() {
 // Open the color customization modal
 function openColorModal() {
   // Reload from storage to ensure we have latest
-  chrome.storage.sync.get(STORAGE_KEYS.customModeColors, (result) => {
+  popupExtension.storage.sync.get(STORAGE_KEYS.customModeColors, (result) => {
     const customColors = (result || {})[STORAGE_KEYS.customModeColors];
     if (customColors && typeof customColors === 'object') {
       currentModeColors = { ...DEFAULT_MODE_COLORS, ...customColors };
@@ -1446,13 +1494,13 @@ function openColorModal() {
 async function saveModeColors() {
   log('[Popup] Saving mode colors:', currentModeColors);
   // Save to storage
-  await chrome.storage.sync.set({ [STORAGE_KEYS.customModeColors]: currentModeColors });
+  await popupExtension.storage.sync.set({ [STORAGE_KEYS.customModeColors]: currentModeColors });
   
   // Notify content script
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await popupExtension.tabs.query({ active: true, currentWindow: true });
     if (tab?.url?.includes('aidungeon.com')) {
-      chrome.tabs.sendMessage(tab.id, {
+      popupExtension.tabs.sendMessage(tab.id, {
         type: 'MODE_COLORS_UPDATED',
         colors: currentModeColors
       });
@@ -1497,6 +1545,37 @@ function initPresets() {
   document.getElementById('undo-preset-btn')?.addEventListener('click', undoLastApply);
 }
 
+function initPlatformSurface() {
+  const platform = window.BetterDungeonPlatform;
+  if (!platform) return;
+
+  document.body.classList.toggle('mobile', platform.formFactor === 'mobile');
+  document.querySelectorAll('[data-bd-requires-capability]').forEach(element => {
+    element.hidden = !platform.has(element.dataset.bdRequiresCapability);
+  });
+  document.querySelectorAll('[data-bd-requires-feature]').forEach(element => {
+    const supported = platform.supportsFeature(element.dataset.bdRequiresFeature);
+    element.hidden = !supported;
+    element.querySelectorAll('input, button, select, textarea').forEach(control => {
+      control.disabled = !supported;
+    });
+  });
+  document.querySelectorAll('[data-bd-browser-copy]').forEach(element => {
+    element.hidden = platform.kind !== 'browser';
+  });
+  document.querySelectorAll('[data-bd-android-copy]').forEach(element => {
+    element.hidden = platform.kind !== 'android-webview';
+  });
+
+  const badge = document.getElementById('platform-badge');
+  if (badge) {
+    const android = platform.kind === 'android-webview';
+    badge.textContent = android ? 'Android' : 'PC';
+    badge.classList.toggle('android', android);
+    badge.classList.toggle('pc', !android);
+  }
+}
+
 function switchPresetView(view, shouldFocus = false) {
   const tabs = [...document.querySelectorAll('[data-preset-view]')];
   const panels = [...document.querySelectorAll('[data-preset-panel]')];
@@ -1538,7 +1617,7 @@ function initPresetViews() {
 
 async function loadPresets() {
   // Read from local storage (content script writes here after sync→local migration)
-  chrome.storage.local.get(STORAGE_KEYS.presets, (localResult) => {
+  popupExtension.storage.local.get(STORAGE_KEYS.presets, (localResult) => {
     const localPresets = (localResult || {})[STORAGE_KEYS.presets];
 
     if (localPresets && localPresets.length > 0) {
@@ -1547,11 +1626,13 @@ async function loadPresets() {
     }
 
     // One-time migration: pull legacy presets from sync storage
-    chrome.storage.sync.get(STORAGE_KEYS.presets, (syncResult) => {
+    popupExtension.storage.sync.get(STORAGE_KEYS.presets, (syncResult) => {
       const syncPresets = (syncResult || {})[STORAGE_KEYS.presets] || [];
       if (syncPresets.length > 0) {
-        chrome.storage.local.set({ [STORAGE_KEYS.presets]: syncPresets }, () => {
-          chrome.storage.sync.remove(STORAGE_KEYS.presets);
+        popupExtension.storage.local.set({ [STORAGE_KEYS.presets]: syncPresets }, () => {
+          if (!window.BetterDungeonPlatform?.has('storageAreasAliased')) {
+            popupExtension.storage.sync.remove(STORAGE_KEYS.presets);
+          }
           log('[Popup] Migrated presets from sync to local storage');
         });
       }
@@ -1659,14 +1740,14 @@ function createPresetCard(preset) {
 async function applyPreset(presetId, mode) {
   log('[Popup] Applying preset:', presetId, mode);
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await popupExtension.tabs.query({ active: true, currentWindow: true });
     
     if (!tab?.url?.includes('aidungeon.com')) {
       showToast('Navigate to AI Dungeon first', 'error');
       return;
     }
 
-    const response = await chrome.tabs.sendMessage(tab.id, {
+    const response = await popupExtension.tabs.sendMessage(tab.id, {
       type: 'APPLY_PRESET',
       presetId,
       mode
@@ -1706,7 +1787,7 @@ async function saveNewPreset() {
   }
 
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await popupExtension.tabs.query({ active: true, currentWindow: true });
     
     if (!tab?.url?.includes('aidungeon.com')) {
       showToast('Navigate to AI Dungeon first', 'error');
@@ -1715,7 +1796,7 @@ async function saveNewPreset() {
 
     closeModal('save-modal');
 
-    const response = await chrome.tabs.sendMessage(tab.id, {
+    const response = await popupExtension.tabs.sendMessage(tab.id, {
       type: 'SAVE_CURRENT_AS_PRESET',
       name,
       includeComponents: {
@@ -1770,13 +1851,13 @@ function savePresetChanges() {
     updates.components.authorsNote = document.getElementById('modal-authors-note').value;
   }
 
-  chrome.storage.local.get(STORAGE_KEYS.presets, (result) => {
+  popupExtension.storage.local.get(STORAGE_KEYS.presets, (result) => {
     const presets = (result || {})[STORAGE_KEYS.presets] || [];
     const index = presets.findIndex(p => p.id === currentEditingPreset.id);
     
     if (index !== -1) {
       presets[index] = { ...presets[index], ...updates, updatedAt: Date.now() };
-      chrome.storage.local.set({ [STORAGE_KEYS.presets]: presets }, () => {
+      popupExtension.storage.local.set({ [STORAGE_KEYS.presets]: presets }, () => {
         loadPresets();
         showToast('Preset updated', 'success');
         closeModal('preset-modal');
@@ -1786,9 +1867,9 @@ function savePresetChanges() {
 }
 
 function deletePreset(presetId) {
-  chrome.storage.local.get(STORAGE_KEYS.presets, (result) => {
+  popupExtension.storage.local.get(STORAGE_KEYS.presets, (result) => {
     const presets = ((result || {})[STORAGE_KEYS.presets] || []).filter(p => p.id !== presetId);
-    chrome.storage.local.set({ [STORAGE_KEYS.presets]: presets }, () => {
+    popupExtension.storage.local.set({ [STORAGE_KEYS.presets]: presets }, () => {
       loadPresets();
       showToast('Preset deleted', 'success');
     });
@@ -1799,14 +1880,14 @@ async function undoLastApply() {
   if (!lastUndoState) return;
 
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await popupExtension.tabs.query({ active: true, currentWindow: true });
     
     if (!tab?.url?.includes('aidungeon.com')) {
       showToast('Navigate to AI Dungeon first', 'error');
       return;
     }
 
-    const response = await chrome.tabs.sendMessage(tab.id, {
+    const response = await popupExtension.tabs.sendMessage(tab.id, {
       type: 'UNDO_PRESET_APPLY',
       previousState: lastUndoState
     });
@@ -1854,9 +1935,11 @@ function initCharacters() {
 }
 
 async function loadCharacters() {
-  chrome.storage.sync.remove(STORAGE_KEYS.characters);
-  chrome.storage.sync.remove(STORAGE_KEYS.activeCharacter);
-  chrome.storage.local.get([STORAGE_KEYS.characters, STORAGE_KEYS.activeCharacter], (localResult) => {
+  if (!window.BetterDungeonPlatform?.has('storageAreasAliased')) {
+    popupExtension.storage.sync.remove(STORAGE_KEYS.characters);
+    popupExtension.storage.sync.remove(STORAGE_KEYS.activeCharacter);
+  }
+  popupExtension.storage.local.get([STORAGE_KEYS.characters, STORAGE_KEYS.activeCharacter], (localResult) => {
     const raw = Array.isArray((localResult || {})[STORAGE_KEYS.characters])
       ? (localResult || {})[STORAGE_KEYS.characters]
       : [];
@@ -1875,7 +1958,7 @@ async function loadCharacters() {
     if (storedMainId !== nextMainId) updates[STORAGE_KEYS.activeCharacter] = nextMainId;
 
     if (Object.keys(updates).length > 0) {
-      chrome.storage.local.set(updates);
+      popupExtension.storage.local.set(updates);
     }
     renderCharacters(characters);
   });
@@ -1990,14 +2073,14 @@ function createCharacterCard(character) {
 
 function setMainCharacter(characterId) {
   currentMainCharacterId = characterId || null;
-  chrome.storage.local.set({ [STORAGE_KEYS.activeCharacter]: currentMainCharacterId }, () => {
+  popupExtension.storage.local.set({ [STORAGE_KEYS.activeCharacter]: currentMainCharacterId }, () => {
     loadCharacters();
     showToast('Character selected for prefill', 'success');
   });
 }
 
 function createCharacter(name) {
-  chrome.storage.local.get(STORAGE_KEYS.characters, (result) => {
+  popupExtension.storage.local.get(STORAGE_KEYS.characters, (result) => {
     const characters = normalizeCharacterList((result || {})[STORAGE_KEYS.characters] || []);
     const now = Date.now();
     
@@ -2018,7 +2101,7 @@ function createCharacter(name) {
       currentMainCharacterId = newChar.id;
     }
 
-    chrome.storage.local.set(updates, () => {
+    popupExtension.storage.local.set(updates, () => {
       loadCharacters();
       showToast('Character created!', 'success');
     });
@@ -2067,7 +2150,7 @@ function saveCharacterChanges() {
     updatedAt: Date.now()
   };
 
-  chrome.storage.local.get(STORAGE_KEYS.characters, (result) => {
+  popupExtension.storage.local.get(STORAGE_KEYS.characters, (result) => {
     const characters = normalizeCharacterList((result || {})[STORAGE_KEYS.characters] || []);
     const index = characters.findIndex(c => c.id === savedCharacter.id);
     
@@ -2083,7 +2166,7 @@ function saveCharacterChanges() {
       currentMainCharacterId = savedCharacter.id;
     }
 
-    chrome.storage.local.set(updates, () => {
+    popupExtension.storage.local.set(updates, () => {
       loadCharacters();
       showToast(currentEditingCharacter._isNew ? 'Character created' : 'Character updated', 'success');
       closeModal('character-modal');
@@ -2101,7 +2184,7 @@ async function deleteCharacter() {
   });
   if (!confirmed) return;
 
-  chrome.storage.local.get(STORAGE_KEYS.characters, (result) => {
+  popupExtension.storage.local.get(STORAGE_KEYS.characters, (result) => {
     const characters = normalizeCharacterList((result || {})[STORAGE_KEYS.characters] || [])
       .filter(c => c.id !== currentEditingCharacter.id);
     const updates = { [STORAGE_KEYS.characters]: characters };
@@ -2110,7 +2193,7 @@ async function deleteCharacter() {
       updates[STORAGE_KEYS.activeCharacter] = currentMainCharacterId;
     }
 
-    chrome.storage.local.set(updates, () => {
+    popupExtension.storage.local.set(updates, () => {
       loadCharacters();
       showToast('Character deleted', 'success');
       closeModal('character-modal');
@@ -2279,7 +2362,7 @@ function initWhatsNew() {
   const banner = document.getElementById('whats-new-banner');
   if (!banner) return;
 
-  const manifestVersion = chrome.runtime.getManifest().version;
+  const manifestVersion = popupExtension.runtime.getManifest().version;
   const displayVersion = `v${manifestVersion}`;
   const versionEl = document.getElementById('app-version');
   const titleEl = document.getElementById('whats-new-title');
@@ -2316,15 +2399,15 @@ function initWhatsNew() {
   };
 
   setExpanded(false);
-  chrome.storage.local.get(storageKey, (result) => {
-    if (chrome.runtime.lastError) return;
+  popupExtension.storage.local.get(storageKey, (result) => {
+    if (popupExtension.runtime.lastError) return;
     setExpanded(result?.[storageKey] === true);
   });
 
   toggleBtn?.addEventListener('click', () => {
     const isExpanded = toggleBtn.getAttribute('aria-expanded') !== 'true';
     setExpanded(isExpanded);
-    chrome.storage.local.set({ [storageKey]: isExpanded });
+    popupExtension.storage.local.set({ [storageKey]: isExpanded });
   });
 
   versionTabs.forEach((tab, index) => {
@@ -2350,7 +2433,7 @@ function initCollapsibleSections() {
   const headers = document.querySelectorAll('.section-header-collapsible');
 
   // Load saved collapse states
-  chrome.storage.sync.get('bd_collapsed_sections', (result) => {
+  popupExtension.storage.sync.get('bd_collapsed_sections', (result) => {
     const collapsed = (result || {})['bd_collapsed_sections'] || [];
     collapsed.forEach(id => {
       const header = document.querySelector(`[data-collapse="${id}"]`);
@@ -2385,7 +2468,7 @@ function saveSectionCollapseState() {
       collapsed.push(header.dataset.collapse);
     }
   });
-  chrome.storage.sync.set({ 'bd_collapsed_sections': collapsed });
+  popupExtension.storage.sync.set({ 'bd_collapsed_sections': collapsed });
 }
 
 // ============================================
@@ -2462,7 +2545,7 @@ function filterFeatures(query) {
 
   // If search is cleared, restore saved collapse states
   if (!query) {
-    chrome.storage.sync.get('bd_collapsed_sections', (result) => {
+    popupExtension.storage.sync.get('bd_collapsed_sections', (result) => {
       const collapsed = (result || {})['bd_collapsed_sections'] || [];
       sections.forEach(section => {
         section.classList.remove('search-hidden');
@@ -2991,25 +3074,25 @@ function escapeHtml(text) {
 }
 
 function notifyContentScript(type, data = {}) {
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+  popupExtension.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     const tab = tabs[0];
     if (tab?.id && tab.url?.includes('aidungeon.com')) {
-      chrome.tabs.sendMessage(tab.id, { type, ...data }).catch(() => {});
+      popupExtension.tabs.sendMessage(tab.id, { type, ...data }).catch(() => {});
     }
   });
 }
 
 function sendToActiveAIDungeon(type, data = {}) {
   return new Promise((resolve, reject) => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    popupExtension.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tab = tabs[0];
       if (!tab?.id || !tab.url?.includes('aidungeon.com')) {
         reject(new Error('AI Dungeon tab is not active'));
         return;
       }
 
-      chrome.tabs.sendMessage(tab.id, { type, ...data }, (response) => {
-        const lastError = chrome.runtime.lastError;
+      popupExtension.tabs.sendMessage(tab.id, { type, ...data }, (response) => {
+        const lastError = popupExtension.runtime.lastError;
         if (lastError) {
           reject(new Error(lastError.message));
           return;
@@ -3039,6 +3122,7 @@ function showToast(message, type = 'info') {
 document.querySelectorAll('.feature-credit a').forEach(link => {
   link.addEventListener('click', (e) => {
     e.preventDefault();
-    chrome.tabs.create({ url: link.href });
+    popupExtension.tabs.create({ url: link.href });
   });
 });
+

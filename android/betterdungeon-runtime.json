@@ -82,16 +82,7 @@
     "features/mobile/mobile_design_layer.js",
     "features/mobile/mobile_login_warning.js",
     "features/mobile/mobile_settings_layer.js",
-    "utils/ai-native-runtime.js",
-    "utils/android-editable-scroll-fix.css",
-    "utils/android-editable-scroll-fix.js",
-    "utils/webview-polyfill.js"
+    "utils/ai-native-runtime.js"
   ],
-  "overrides": [
-    "popup-ai-endpoint.js",
-    "popup.css",
-    "popup.html",
-    "popup.js",
-    "styles.css"
-  ]
+  "overrides": []
 }

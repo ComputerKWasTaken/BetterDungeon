@@ -5067,3 +5067,191 @@ html.bd-story-card-dock-active > body {
 .bd-navigator-send[hidden] {
   display: none;
 }
+
+/* Android WebView adaptations are kept beside the shared components they tune. */
+@font-face {
+  font-family: 'IBM Plex Sans Android';
+  src: url('fonts/IBM_Plex_Sans/IBMPlexSans-VariableFont_wdth,wght.ttf') format('truetype-variations');
+  font-weight: 100 700;
+  font-stretch: 75% 100%;
+  font-style: normal;
+  font-display: swap;
+}
+
+html[data-bd-platform="android-webview"] .bd-character-ai-panel {
+  top: calc(14px + env(safe-area-inset-top));
+  width: min(520px, calc(100vw - 24px));
+  max-height: calc(100dvh - 28px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  padding: 10px;
+}
+
+html[data-bd-platform="android-webview"] .bd-character-ai-header {
+  gap: 8px;
+}
+
+html[data-bd-platform="android-webview"] .bd-character-ai-header-controls,
+html[data-bd-platform="android-webview"] .bd-character-ai-picker,
+html[data-bd-platform="android-webview"] .bd-character-ai-actions {
+  gap: 6px;
+}
+
+html[data-bd-platform="android-webview"] .bd-character-ai-body,
+html[data-bd-platform="android-webview"] .bd-character-ai-picker,
+html[data-bd-platform="android-webview"] .bd-character-ai-answer,
+html[data-bd-platform="android-webview"] .bd-character-ai-reason,
+html[data-bd-platform="android-webview"] .bd-character-ai-confidence-warning,
+html[data-bd-platform="android-webview"] .bd-character-ai-ideas-label,
+html[data-bd-platform="android-webview"] .bd-character-ai-ideas,
+html[data-bd-platform="android-webview"] .bd-character-ai-reroll-controls,
+html[data-bd-platform="android-webview"] .bd-character-ai-actions,
+html[data-bd-platform="android-webview"] .bd-character-ai-textarea {
+  margin-top: 8px;
+}
+
+html[data-bd-platform="android-webview"] .bd-character-ai-select,
+html[data-bd-platform="android-webview"] .bd-character-ai-btn {
+  min-height: 42px;
+}
+
+html[data-bd-platform="android-webview"] .bd-character-ai-link-btn,
+html[data-bd-platform="android-webview"] .bd-character-ai-idea,
+html[data-bd-platform="android-webview"] .bd-character-ai-reroll-input {
+  min-height: 40px;
+}
+
+html[data-bd-platform="android-webview"] .bd-character-ai-answer {
+  max-height: 120px;
+  padding: 8px 10px;
+  font-size: var(--bd-font-size-sm);
+}
+
+html[data-bd-platform="android-webview"] .bd-character-ai-ideas {
+  gap: 4px;
+}
+
+html[data-bd-platform="android-webview"] .bd-character-ai-idea,
+html[data-bd-platform="android-webview"] .bd-character-ai-link-btn {
+  padding: 8px 10px;
+}
+
+html[data-bd-platform="android-webview"] .bd-character-ai-btn {
+  padding: 9px 12px;
+}
+
+html[data-bd-platform="android-webview"] .bd-character-ai-textarea {
+  min-height: 72px;
+  max-height: 180px;
+  padding: 8px 10px;
+  font-size: var(--bd-font-size-sm);
+}
+
+html[data-bd-platform="android-webview"] .bd-character-ai-close {
+  width: 34px;
+  height: 34px;
+  font-size: 20px;
+}
+
+.bd-navigator-settings-surface.bd-navigator-settings-active {
+  overflow-y: hidden !important;
+  overscroll-behavior-y: none;
+}
+
+html[data-bd-platform="android-webview"] .bd-navigator-drawer,
+html[data-bd-platform="android-webview"] .bd-navigator-drawer button,
+html[data-bd-platform="android-webview"] .bd-navigator-drawer input,
+html[data-bd-platform="android-webview"] .bd-navigator-drawer textarea,
+html[data-bd-platform="android-webview"] .bd-navigator-drawer select {
+  font-family: 'IBM Plex Sans Android', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+html[data-bd-platform="android-webview"] .bd-navigator-drawer.bd-navigator-embedded .bd-navigator-icon-btn,
+html[data-bd-platform="android-webview"] .bd-navigator-drawer.bd-navigator-embedded .bd-navigator-quick-actions button,
+html[data-bd-platform="android-webview"] .bd-navigator-inspection-back,
+html[data-bd-platform="android-webview"] .bd-navigator-change-segment,
+html[data-bd-platform="android-webview"] .bd-navigator-proposal-buttons button,
+html[data-bd-platform="android-webview"] .bd-navigator-send,
+html[data-bd-platform="android-webview"] .bd-navigator-stop {
+  min-width: 44px;
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+html[data-bd-platform="android-webview"] .bd-navigator-drawer.bd-navigator-embedded .bd-navigator-icon-btn {
+  width: 44px;
+  height: 44px;
+}
+
+html[data-bd-platform="android-webview"] .bd-navigator-drawer.bd-navigator-embedded .bd-navigator-input {
+  box-sizing: border-box;
+  min-height: 60px;
+  padding: 14px 60px 10px 14px;
+  border-radius: 30px;
+  font-size: 16px;
+}
+
+html[data-bd-platform="android-webview"] .bd-navigator-send,
+html[data-bd-platform="android-webview"] .bd-navigator-stop {
+  box-sizing: border-box;
+  right: 8px;
+  bottom: 8px;
+  width: 44px;
+  height: 44px;
+  line-height: 1;
+}
+
+html[data-bd-platform="android-webview"] .bd-navigator-ime-visible .bd-navigator-header {
+  min-height: 52px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+html[data-bd-platform="android-webview"] .bd-navigator-ime-visible .bd-navigator-transcript,
+html[data-bd-platform="android-webview"] .bd-navigator-ime-visible .bd-navigator-inspection-content {
+  padding-top: var(--bd-space-2);
+  padding-bottom: var(--bd-space-2);
+}
+
+html[data-bd-platform="android-webview"] .bd-navigator-ime-visible .bd-navigator-composer {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+html[data-bd-platform="android-webview"] .bd-navigator-ime-visible .bd-navigator-empty-icon {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  html[data-bd-platform="android-webview"] .bd-character-ai-panel {
+    top: calc(60px + env(safe-area-inset-top));
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 72px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    padding: 6px;
+  }
+
+  html[data-bd-platform="android-webview"] .bd-character-ai-subtitle {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  html[data-bd-platform="android-webview"] .bd-character-ai-answer {
+    max-height: 80px;
+    padding: 6px 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  html[data-bd-platform="android-webview"] .bd-navigator-proposal-comparison {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  html[data-bd-platform="android-webview"] .bd-navigator-proposal-toggle {
+    flex-wrap: wrap;
+  }
+
+  html[data-bd-platform="android-webview"] .bd-navigator-proposal-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

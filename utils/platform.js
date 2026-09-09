@@ -175,7 +175,12 @@
       set: (area, values) => storageCall(area, 'set', values),
       remove: (area, keys) => storageCall(area, 'remove', keys)
     }),
-    runtime: Object.freeze({ sendMessage: runtimeSend })
+    runtime: Object.freeze({ sendMessage: runtimeSend }),
+    extension: Object.freeze({
+      get storage() { return globalThis.chrome?.storage; },
+      get runtime() { return globalThis.chrome?.runtime; },
+      get tabs() { return globalThis.chrome?.tabs; }
+    })
   });
 
   globalThis.BetterDungeonPlatform = platform;
@@ -184,4 +189,3 @@
     document.documentElement.dataset.bdFormFactor = platform.formFactor;
   }
 })();
-

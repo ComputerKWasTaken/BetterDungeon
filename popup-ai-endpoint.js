@@ -1,6 +1,7 @@
 // BetterDungeon popup controller for the unified OpenAI-compatible endpoint.
 
 const AI_ENDPOINT_MESSAGE = 'ULTRASCRIPTS_AI_OPENAI_COMPATIBLE';
+const popupAIExtension = window.BetterDungeonPlatform.extension;
 const AI_ENDPOINT_URLS = Object.freeze({
   gemini: 'https://generativelanguage.googleapis.com/v1beta/openai',
   openrouter: 'https://openrouter.ai/api/v1',
@@ -20,8 +21,8 @@ let aiEndpointCapDirty = false;
 
 function sendAIEndpointMessage(request) {
   return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ type: AI_ENDPOINT_MESSAGE, request }, response => {
-      const lastError = chrome.runtime.lastError;
+    popupAIExtension.runtime.sendMessage({ type: AI_ENDPOINT_MESSAGE, request }, response => {
+      const lastError = popupAIExtension.runtime.lastError;
       if (lastError) return reject(new Error(lastError.message || 'AI endpoint request failed.'));
       if (response?.ok) return resolve(response.data);
       reject(response?.error || { code: 'backend_failed', message: 'AI endpoint request failed.' });
@@ -355,7 +356,13 @@ function markAIEndpointDirty() {
 }
 
 function initAIEndpointSettings() {
-  loadAIEndpointSettings();
+  const loadInitialStatus = () => void loadAIEndpointSettings();
+  if (window.BetterDungeonPlatform?.whenReady) {
+    updateEndpointStatus({ pending: 'Loading...' });
+    window.BetterDungeonPlatform.whenReady().then(loadInitialStatus);
+  } else {
+    loadInitialStatus();
+  }
   document.getElementById('ai-endpoint-service')?.addEventListener('change', event => {
     renderEndpointProfile(event.target.value, { markDirty: true });
   });

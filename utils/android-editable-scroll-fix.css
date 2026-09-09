@@ -9,7 +9,7 @@
  * normal one-finger scrolling are unchanged; pinch zoom can still begin
  * anywhere outside an editable.
  */
-html:not(.bd-caret-scroll-fix-disabled) :where(
+html[data-bd-platform="android-webview"]:not(.bd-caret-scroll-fix-disabled) :where(
   textarea,
   input:not(
     [type="button"],

@@ -10,6 +10,8 @@
 (function () {
   'use strict';
 
+  if (!globalThis.BetterDungeonBridge) return;
+
   // ── Storage Change Listeners ──────────────────────────────────────
   // Track storage.onChanged listeners for cross-feature reactivity
 
