@@ -61,7 +61,6 @@ val generateBetterDungeonAssets by tasks.registering {
 
     inputs.file(betterDungeonRuntimeFile)
     inputs.dir(betterDungeonRepositoryRoot.resolve("android/web"))
-    inputs.dir(betterDungeonRepositoryRoot.resolve("android/overrides"))
     val configuredRuntime = JsonSlurper().parse(betterDungeonRuntimeFile) as Map<String, Any?>
     val configuredTargets = (
         runtimeList(configuredRuntime, "earlyScripts") +
@@ -69,14 +68,10 @@ val generateBetterDungeonAssets by tasks.registering {
             runtimeList(configuredRuntime, "scripts") +
             runtimeList(configuredRuntime, "resources")
         ).distinct()
-    val configuredMobileFiles = runtimeList(configuredRuntime, "mobileFiles").toSet()
-    val configuredOverrides = runtimeList(configuredRuntime, "overrides").toSet()
+    val configuredAndroidFiles = runtimeList(configuredRuntime, "androidFiles").toSet()
     inputs.files(configuredTargets.map { target ->
-        when {
-            target in configuredOverrides -> betterDungeonRepositoryRoot.resolve("android/overrides/$target")
-            target in configuredMobileFiles -> betterDungeonRepositoryRoot.resolve("android/web/$target")
-            else -> betterDungeonRepositoryRoot.resolve(target)
-        }
+        if (target in configuredAndroidFiles) betterDungeonRepositoryRoot.resolve("android/web/$target")
+        else betterDungeonRepositoryRoot.resolve(target)
     })
     outputs.dir(generatedBetterDungeonAssets)
 
@@ -87,8 +82,7 @@ val generateBetterDungeonAssets by tasks.registering {
         val styles = runtimeList(parsed, "styles")
         val scripts = runtimeList(parsed, "scripts")
         val resources = runtimeList(parsed, "resources")
-        val mobileFiles = runtimeList(parsed, "mobileFiles").toSet()
-        val overrides = runtimeList(parsed, "overrides").toSet()
+        val androidFiles = runtimeList(parsed, "androidFiles").toSet()
         val orderedTargets = earlyScripts + styles + scripts + resources
         val declaredTargets = orderedTargets.toSet()
 
@@ -106,11 +100,8 @@ val generateBetterDungeonAssets by tasks.registering {
         if (declaredTargets.size != orderedTargets.size) {
             throw GradleException("Android runtime lists contain duplicate paths")
         }
-        if (mobileFiles.size != runtimeList(parsed, "mobileFiles").size) {
-            throw GradleException("mobileFiles contains duplicate paths")
-        }
-        if (overrides.size != runtimeList(parsed, "overrides").size) {
-            throw GradleException("overrides contains duplicate paths")
+        if (androidFiles.size != runtimeList(parsed, "androidFiles").size) {
+            throw GradleException("androidFiles contains duplicate paths")
         }
 
         fun filesBelow(root: File): Set<String> {
@@ -121,19 +112,16 @@ val generateBetterDungeonAssets by tasks.registering {
                 .toSet()
         }
 
-        val actualMobileFiles = filesBelow(betterDungeonRepositoryRoot.resolve("android/web"))
-        val actualOverrides = filesBelow(betterDungeonRepositoryRoot.resolve("android/overrides"))
-        if (actualMobileFiles != mobileFiles) {
-            throw GradleException("android/web does not match mobileFiles; undeclared=${actualMobileFiles - mobileFiles}, missing=${mobileFiles - actualMobileFiles}")
+        val actualAndroidFiles = filesBelow(betterDungeonRepositoryRoot.resolve("android/web"))
+        if (actualAndroidFiles != androidFiles) {
+            throw GradleException("android/web does not match androidFiles; undeclared=${actualAndroidFiles - androidFiles}, missing=${androidFiles - actualAndroidFiles}")
         }
-        if (actualOverrides != overrides) {
-            throw GradleException("android/overrides does not match overrides; undeclared=${actualOverrides - overrides}, missing=${overrides - actualOverrides}")
+        if (!declaredTargets.containsAll(androidFiles)) {
+            throw GradleException("Every Android-only file must be included by a runtime list")
         }
-        if ((mobileFiles intersect overrides).isNotEmpty()) {
-            throw GradleException("A runtime target cannot be both mobile-only and an override: ${mobileFiles intersect overrides}")
-        }
-        if (!declaredTargets.containsAll(mobileFiles + overrides)) {
-            throw GradleException("Every mobile file and override must be included by a runtime list")
+        val collisions = androidFiles.filter { betterDungeonRepositoryRoot.resolve(it).exists() }
+        if (collisions.isNotEmpty()) {
+            throw GradleException("Android-only files must not replace shared paths: $collisions")
         }
 
         val outputRoot = generatedBetterDungeonAssets.get().asFile
@@ -142,10 +130,10 @@ val generateBetterDungeonAssets by tasks.registering {
         val assetRoot = outputRoot.resolve("betterdungeon")
         assetRoot.mkdirs()
 
-        fun sourceFor(target: String): File = when {
-            target in overrides -> betterDungeonRepositoryRoot.resolve("android/overrides/$target")
-            target in mobileFiles -> betterDungeonRepositoryRoot.resolve("android/web/$target")
-            else -> betterDungeonRepositoryRoot.resolve(target)
+        fun sourceFor(target: String): File = if (target in androidFiles) {
+            betterDungeonRepositoryRoot.resolve("android/web/$target")
+        } else {
+            betterDungeonRepositoryRoot.resolve(target)
         }
 
         for (target in (earlyScripts + styles + scripts + resources).distinct()) {

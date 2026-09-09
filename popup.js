@@ -3125,4 +3125,3 @@ document.querySelectorAll('.feature-credit a').forEach(link => {
     popupExtension.tabs.create({ url: link.href });
   });
 });
-

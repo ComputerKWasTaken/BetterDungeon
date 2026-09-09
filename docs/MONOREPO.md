@@ -22,8 +22,7 @@ BetterDungeon/
 ├── core/, features/, modules/ ...   Shared browser and Android web code
 ├── android/
 │   ├── app/                         Native Android application
-│   ├── web/                         Mobile-only WebView files
-│   ├── overrides/                   Intentional same-path Mobile variants
+│   ├── web/                         Unique Android WebView adapters
 │   └── betterdungeon-runtime.json   Ordered Android composition manifest
 ├── tests/
 │   └── smoke/                       Minimal release-boundary checks
@@ -31,9 +30,9 @@ BetterDungeon/
 └── build.ps1                        Unified local interface
 ```
 
-`android/betterdungeon-runtime.json` is the only source of Android injection order. Gradle resolves ordinary paths from the repository root, Mobile-only paths from `android/web/`, and explicitly listed replacements from `android/overrides/`. It rejects missing, duplicate, or undeclared files and writes composed assets plus the runtime manifest under `android/app/build/generated/` before every Android build.
+`android/betterdungeon-runtime.json` is the only source of Android injection order. Gradle resolves shared paths from the repository root and unique `androidFiles` from `android/web/`. It rejects missing, duplicate, undeclared, unsafe, or colliding paths and writes composed assets plus the runtime manifest under `android/app/build/generated/` before every Android build.
 
-To add an Android-only file, place it under `android/web/` and declare it in both a runtime list and `mobileFiles`. To intentionally replace a root file on Android, place the same path under `android/overrides/` and declare it in `overrides`. Prefer moving generally useful fixes into the shared root file.
+Android capabilities come from the native bridge and are exposed to shared code through `window.BetterDungeonPlatform`. Put common behavior in the root implementation and guard only the touch, WebView, storage, or native behavior that truly differs. Add a file under `android/web/` only when it is a unique adapter with no browser implementation, then declare it in both an ordered runtime list and `androidFiles`. Android-only paths may not replace root paths.
 
 ## Local commands
 

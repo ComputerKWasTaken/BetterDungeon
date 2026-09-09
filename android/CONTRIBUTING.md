@@ -5,15 +5,14 @@ Android development now happens in the primary BetterDungeon monorepo. Start fro
 ## Where changes belong
 
 - Native Kotlin, resources, and Android configuration: `android/app/`
-- Mobile-only JavaScript or CSS: `android/web/`
-- Intentional Android variant of a shared path: `android/overrides/<same-path>`
+- Unique Android WebView adapters: `android/web/`
 - Shared browser and Android behavior: the corresponding root file
 - Injection order and source declarations: `android/betterdungeon-runtime.json`
-- Android contract tests: `tests/platform/android/`
+- Repository smoke checks: `tests/smoke/`
 
 Do not copy the shared tree into `app/src/main/assets`. Gradle generates those assets for every build, and `InjectionEngine.kt` reads the generated runtime manifest.
 
-When adding a Mobile-only file or override, declare it in the correct ordered runtime list and in `mobileFiles` or `overrides`. The build deliberately fails when declarations and files drift.
+When adding a unique Android adapter, declare it in the correct ordered runtime list and in `androidFiles`. Do not copy a shared path into Android: expose a native capability and keep the guarded variation in the shared implementation. The build deliberately fails when declarations, files, or paths drift.
 
 ## Verify changes
 
@@ -26,7 +25,7 @@ From the repository root:
 
 For a complete pre-submit check, run `./build.ps1 all`. Also run the app on an Android 8.1+ device or emulator when behavior touches WebViews, navigation, permissions, native transports, or touch UI.
 
-Every push runs the shared Node contracts, extension packaging checks, Android unit tests, generated-asset verification, and `assembleDebug`. CI artifacts are retained for development convenience and are not public releases.
+Every push runs the Node smoke checks, extension packaging checks, Android unit tests, generated-asset verification, and `assembleDebug`. CI artifacts are retained for development convenience and are not public releases.
 
 ## Safety and releases
 

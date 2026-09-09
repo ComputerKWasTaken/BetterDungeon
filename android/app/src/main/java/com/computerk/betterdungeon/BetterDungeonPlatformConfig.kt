@@ -45,4 +45,3 @@ object BetterDungeonPlatformConfig {
         .put("supportedFeatures", JSONArray(supportedFeatures))
         .toString()
 }
-

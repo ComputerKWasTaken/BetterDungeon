@@ -78,11 +78,10 @@
     "fonts",
     "icons"
   ],
-  "mobileFiles": [
+  "androidFiles": [
     "features/mobile/mobile_design_layer.js",
     "features/mobile/mobile_login_warning.js",
     "features/mobile/mobile_settings_layer.js",
     "utils/ai-native-runtime.js"
-  ],
-  "overrides": []
+  ]
 }

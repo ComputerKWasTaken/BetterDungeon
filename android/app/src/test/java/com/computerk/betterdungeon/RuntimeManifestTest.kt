@@ -17,5 +17,18 @@ class RuntimeManifestTest {
         assertTrue(content.contains("\"styles\""))
         assertTrue(content.contains("\"scripts\""))
         assertTrue(content.contains("\"main.js\""))
+        assertTrue(
+            "Platform contract must be the first early script",
+            content.indexOf("\"utils/platform.js\"") < content.indexOf("\"services/apollo-bridge.js\"")
+        )
+
+        val injectionSource = File(
+            "src/main/java/com/computerk/betterdungeon/InjectionEngine.kt"
+        ).readText()
+        assertTrue(
+            "Native platform configuration must precede the early-script loop",
+            injectionSource.indexOf("window.__betterDungeonNativePlatformConfig") <
+                injectionSource.indexOf("for (file in files)")
+        )
     }
 }

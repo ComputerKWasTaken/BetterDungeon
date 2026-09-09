@@ -41,6 +41,15 @@ function includedByPackage(relativePath) {
   return packageEntries.some(entry => relativePath === entry || relativePath.startsWith(entry + '/'));
 }
 
+function filesBelow(directory, prefix = '') {
+  if (!fs.existsSync(directory)) return [];
+  return fs.readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
+    const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name;
+    const absolutePath = path.join(directory, entry.name);
+    return entry.isDirectory() ? filesBelow(absolutePath, relativePath) : [relativePath];
+  });
+}
+
 test('browser and Android release versions match', () => {
   const gradle = fs.readFileSync(path.join(androidRoot, 'app', 'build.gradle.kts'), 'utf8');
   const versionName = gradle.match(/versionName\s*=\s*"([^"]+)"/)?.[1];
@@ -77,6 +86,14 @@ test('platform contract uses browser defaults and native Android capabilities', 
   android.listeners.get('betterdungeon:popup-bridge-ready')();
   await pending;
   assert.equal(ready, true);
+
+  const malformed = loadPlatform({
+    console: { warn() {} },
+    location: { protocol: 'file:' },
+    BetterDungeonBridge: { getPlatformConfig: () => '{not-json' }
+  }).platform;
+  assert.equal(malformed.kind, 'android-webview');
+  assert.equal(malformed.supportsFeature('hotkey'), false);
 });
 
 test('extension manifest files exist and stay inside the package allowlist', () => {
@@ -99,7 +116,7 @@ test('extension manifest files exist and stay inside the package allowlist', () 
 });
 
 test('Android runtime sources resolve and release-only files stay untracked', () => {
-  const lists = ['earlyScripts', 'styles', 'scripts', 'resources', 'mobileFiles', 'overrides'];
+  const lists = ['earlyScripts', 'styles', 'scripts', 'resources', 'androidFiles'];
   for (const key of lists) {
     assert.ok(Array.isArray(runtime[key]), 'runtime manifest is missing ' + key);
     assert.equal(new Set(runtime[key]).size, runtime[key].length, key + ' contains duplicates');
@@ -107,13 +124,26 @@ test('Android runtime sources resolve and release-only files stay untracked', ()
 
   const ordered = [...runtime.earlyScripts, ...runtime.styles, ...runtime.scripts, ...runtime.resources];
   assert.equal(new Set(ordered).size, ordered.length, 'runtime injection order contains duplicates');
+  assert.equal(runtime.earlyScripts[0], 'utils/platform.js', 'platform contract must load before early scripts');
+  assert.equal('overrides' in runtime, false, 'runtime manifest must not support copied overrides');
+  assert.deepEqual(filesBelow(path.join(androidRoot, 'overrides')), [], 'android/overrides must contain no files');
+  assert.deepEqual(
+    [...runtime.androidFiles].sort(),
+    filesBelow(path.join(androidRoot, 'web')).sort(),
+    'androidFiles must exactly match android/web'
+  );
+  for (const relativePath of runtime.androidFiles) {
+    assert.equal(fs.existsSync(path.join(root, relativePath)), false, 'Android-only path collides with shared source: ' + relativePath);
+  }
   for (const relativePath of ordered) {
-    const source = runtime.overrides.includes(relativePath)
-      ? path.join(androidRoot, 'overrides', relativePath)
-      : runtime.mobileFiles.includes(relativePath)
-        ? path.join(androidRoot, 'web', relativePath)
-        : path.join(root, relativePath);
+    const source = runtime.androidFiles.includes(relativePath)
+      ? path.join(androidRoot, 'web', relativePath)
+      : path.join(root, relativePath);
     assert.ok(fs.existsSync(source), 'missing Android runtime source: ' + relativePath);
+  }
+
+  for (const relativePath of runtime.androidFiles) {
+    assert.equal(fs.existsSync(path.join(root, relativePath)), false, 'Android-only path replaces shared source: ' + relativePath);
   }
 
   const tracked = childProcess.execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' });

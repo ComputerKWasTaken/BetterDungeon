@@ -807,6 +807,8 @@ class NavigatorFeature {
 
   deactivateSettingsNavigator({ abort = false, preservePreference = false } = {}) {
     if (abort && this.session?.isChatBusy) this.session.abort();
+    this.inputEl?.blur();
+    this.inputComposing = false;
     if (!preservePreference) this.settingsTabPreferred = false;
     this.settingsTabActive = false;
     this.isOpen = false;

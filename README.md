@@ -119,7 +119,7 @@ The WebFetch module toggle controls access to bounded public HTTPS reads. Reques
 
 BetterDungeon is open source, and contributions are welcome. If you want to work on a feature, fix compatibility with AI Dungeon, or build an Ultrascripts example, start with the [contributing guide](CONTRIBUTING.md).
 
-This is the development home for both the browser extension and Android app. The root remains directly loadable as an unpacked extension, while `android/` opens as a complete Android Studio project. Shared web code lives once at the root; declared mobile-only files and overrides live beside the Android project.
+This is the development home for both the browser extension and Android app. The root remains directly loadable as an unpacked extension, while `android/` opens as a complete Android Studio project. Shared web code lives once at the root; Android declares native capabilities and keeps only unique WebView adapters beside the app.
 
 Daily work happens on `dev`. The protected `stable` branch contains tested, release-ready commits and is updated through the manual **Promote stable** workflow. The common local commands are:
 

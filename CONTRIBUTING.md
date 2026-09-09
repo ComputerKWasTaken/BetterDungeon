@@ -57,9 +57,9 @@ BetterDungeon/
 ├── modules/                   Permission-gated Ultrascripts modules
 ├── utils/                     Storage, DOM, and browser helpers
 ├── examples/                  Ultrascripts starter templates and examples
-├── android/                   Android Studio project, Mobile files, and declared overrides
+├── android/                   Android Studio project and unique WebView adapters
 ├── build/                     Checked-in extension packaging allowlist
-├── tests/                     Node contracts, unit tests, platform tests, harnesses, and fixtures
+├── tests/                     Minimal Node repository smoke checks
 ├── build.ps1                  Unified test and artifact entry point
 ├── icons/                     Extension icons
 └── fonts/                     Local fonts and icon assets
@@ -92,9 +92,9 @@ class MyFeature {
 
 If a feature adds an observer, event listener, timer, or injected element, it should also clean that resource up in `destroy()`. This matters because BetterDungeon can enable and disable features without reloading the page.
 
-## Automated contract suites
+## Automated checks
 
-Run the complete zero-dependency suite with `./build.ps1 test`. Tests are organized into shared contracts, focused units, Android platform contracts, reusable harnesses, and deterministic fixtures under `tests/`. Add shared behavior tests once under `tests/contracts/`; Android-only behavior belongs under `tests/platform/android/`.
+Run the intentionally small zero-dependency baseline with `./build.ps1 test`. It checks release version parity, the shared platform contract, extension package boundaries, Android runtime composition, and forbidden tracked output. Broader browser and live-DOM coverage remains deferred until a deliberate testing baseline is adopted.
 
 Every push and pull request runs the Node suite, verifies the extension ZIP, runs Android unit tests, and builds a debug APK. Successful workflow runs retain both downloadable artifacts for 14 days. Tests must use mocks and fixtures rather than real AI providers or AI Dungeon requests.
 

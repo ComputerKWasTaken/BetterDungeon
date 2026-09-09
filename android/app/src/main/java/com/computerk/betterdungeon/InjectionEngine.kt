@@ -107,8 +107,11 @@ class InjectionEngine(private val context: Context) {
             val js = readAsset("$ASSET_BASE/$file")
             if (js != null) {
                 combined.append("// === $file ===\n")
+                combined.append("try {\n")
                 combined.append(js)
-                combined.append("\n")
+                combined.append("\n} catch (error) { console.error(")
+                combined.append(JSONObject.quote("[BetterDungeon] Error in early script $file:"))
+                combined.append(", error); }\n")
                 Log.d(TAG, "Early script injected: $file")
             } else {
                 Log.w(TAG, "Failed to load early script: $file")

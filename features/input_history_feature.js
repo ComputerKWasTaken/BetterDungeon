@@ -151,7 +151,7 @@ class InputHistoryFeature {
     this.removeHistoryBar();
 
     if (this.currentAdventureId && loadHistory) {
-      this.loadHistory().then(() => {
+      this.migrateLegacyStorage().then(() => this.loadHistory()).then(() => {
         this.loadedAdventureId = this.currentAdventureId;
         if (this.history.length > 0 && window.BetterDungeonPlatform?.has('touchControls')) {
           this.injectHistoryBar();

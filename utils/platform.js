@@ -66,7 +66,11 @@
 
   function parseNativeConfig() {
     let candidate = globalThis.__betterDungeonNativePlatformConfig;
-    if (!candidate && globalThis.BetterDungeonBridge?.getPlatformConfig) {
+    // The native bridge is only a trusted discovery source for local Android
+    // pages such as the embedded popup. Content-page injection receives the
+    // configuration through the native seed above, so a website cannot spoof
+    // Android capabilities by defining a similarly named global.
+    if (!candidate && globalThis.location?.protocol === 'file:' && globalThis.BetterDungeonBridge?.getPlatformConfig) {
       try {
         candidate = globalThis.BetterDungeonBridge.getPlatformConfig();
       } catch (error) {
