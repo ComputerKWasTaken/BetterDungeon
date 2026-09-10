@@ -4,6 +4,16 @@ Hey! Thanks for being interested in BetterDungeon.
 
 This project is a little unusual compared to a normal web app: the extension runs directly inside AI Dungeon, AI Dungeon can change underneath it, and a lot of the fun features are built around keeping those two systems talking to each other. Contributions that improve compatibility, polish an existing feature, or make Ultrascripts easier to use are all very welcome.
 
+## Contribution permissions
+
+BetterDungeon is source-available under the [BetterDungeon License](LICENSE). You may modify and build it privately. Public source forks, patches, and pull requests are also allowed solely to prepare, submit, and review contributions to the official project. Identify your fork as unofficial and preserve the license and attribution notices.
+
+This contribution exception does not authorize independent releases or sharing binaries and installable packages. Keep your test builds private; do not publish fork releases or make fork CI build artifacts available to others without prior written consent from computerK. Other redistribution, even of unchanged free copies, and selling or charging for access to BetterDungeon also require prior written consent. You can share links to official downloads instead.
+
+You retain ownership of your contributions. By intentionally submitting material for inclusion, you grant computerK the perpetual, irrevocable, worldwide, nonexclusive, royalty-free rights described in Section 3 of the license to use, modify, distribute, and sublicense it in official or authorized versions, including commercially and under different terms. Submit only material you have authority to contribute, and identify third-party material and its license; its existing terms still apply.
+
+Files in `examples/` remain MIT-licensed under Section 8, and contributions to that directory are also provided under those MIT terms. This section summarizes the [full license](LICENSE), which controls. For permission requests, contact `@computerK` on Discord.
+
 ## Before you start
 
 You will need:

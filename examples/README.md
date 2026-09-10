@@ -4,6 +4,19 @@ Reference starter scripts for BetterDungeon's Ultrascripts modules. This folder
 is intentionally small: complete showcase scripts should be built from the
 standard templates after each module has been reviewed and finalized.
 
+## License
+
+Files in this `examples/` directory, including scripts, templates, previews, and
+their documentation, remain MIT-licensed under Section 8 of the root
+[LICENSE](../LICENSE). You may copy, modify, share, and use them commercially,
+including in your own scenarios, provided you include the copyright and MIT
+permission notice in copies or substantial portions. Their MIT permissions
+continue to apply when you copy or adapt them outside this directory.
+
+This exception does not apply to BetterDungeon's browser extension or Android
+implementation. Moving other project code into `examples/` does not change its
+license. Separately licensed third-party material retains its own terms.
+
 ## Layout
 
 - **`aid-scripts/`** - AI Dungeon-side scripts (Library + modifier hooks)

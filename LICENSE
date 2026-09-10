@@ -1,6 +1,116 @@
-MIT License
+BetterDungeon License
+Version 1.0
 
 Copyright (c) 2026 computerK
+
+1. Scope
+
+This is a custom source-available license, not an open-source license.
+"Copyright Holder" means computerK. "Software" means the original BetterDungeon
+source code, binaries, assets, and associated documentation made available under
+this License, including the browser extension and Android app, but excluding the
+Examples and separately licensed third-party material described in Section 8.
+
+2. Free use and private modifications
+
+Subject to this License, you may download, install, run, and privately modify the
+Software free of charge. You may make copies and builds for your own use,
+development, testing, and backup. These permissions include personal and business
+use, but do not permit redistribution or charging others for the Software.
+
+You may use the Software's settings and public interfaces and create your own
+stories, scenarios, scripts, and other content. This License does not claim rights
+in, or restrict use, sharing, or monetization of, your original content merely
+because you created it using the Software. It does not grant rights to Software
+code or assets copied into that content, except as expressly provided here.
+
+3. Contributions
+
+You may create and maintain public source forks and publish source changes,
+patches, and pull requests solely to prepare, submit, and review contributions to
+the official BetterDungeon project. You may privately build and test those changes.
+This exception does not authorize independent releases, distribution of binaries
+or installable packages, or commercial distribution of the Software. Contribution
+forks must be identified as unofficial and retain the notices required by Section 6.
+
+A "Contribution" is code, documentation, or other material you intentionally
+submit to the official project for inclusion. You retain ownership of your
+Contributions. By submitting a Contribution, you grant the Copyright Holder a
+perpetual, irrevocable, worldwide, nonexclusive, royalty-free license to use,
+reproduce, modify, incorporate, publicly display, distribute, and sublicense it
+as part of official BetterDungeon versions and derivative works authorized by the
+Copyright Holder, including under different license terms and commercially.
+
+You must have the authority to grant these rights. Identify any third-party
+material and its applicable license when submitting it; submission does not
+relicense that material or override its existing terms. Contributions to the
+Examples are also provided under the MIT terms in Section 8. The Copyright Holder
+is not obligated to accept, use, or maintain any Contribution.
+
+4. Redistribution requires consent
+
+Except as expressly allowed in Sections 3 and 8, you may not publish, share,
+distribute, sublicense, or otherwise make copies of the Software available to
+others, in whole or in part, whether unchanged or modified, in source or binary
+form, free of charge or for payment, without the Copyright Holder's prior written
+consent. This includes mirrors, repackaged downloads, and independent releases.
+You may share links to official BetterDungeon downloads instead.
+
+5. Selling and paid access require consent
+
+Without the Copyright Holder's prior written consent, you may not sell, rent,
+lease, commercially license or sublicense the Software, include it in a paid
+bundle or product, or charge for access to it or its functionality, including
+through a hosted service. These restrictions apply to unchanged and modified
+versions and to substantial portions of the Software.
+
+Using the Software in a business or selling your own original content is not,
+by itself, selling the Software or charging for access to it. The Examples remain
+subject to Section 8 rather than these restrictions.
+
+6. Notices and reserved rights
+
+Keep this License and all applicable copyright, attribution, and third-party
+license notices in copies or substantial portions of the Software that you are
+permitted to make or distribute. Separate written permission applies only to the
+activities and conditions it expressly authorizes.
+
+All rights not expressly granted are reserved. No permission is granted to imply
+that a fork, modification, or other product is official or endorsed by the
+Copyright Holder, or to use BetterDungeon names or branding for that purpose.
+Accurate identification of the project and preservation of its notices are allowed.
+
+7. Existing rights and third-party terms
+
+This License does not revoke or limit permissions already granted for copies of
+BetterDungeon previously released under the MIT License or another license. Those
+copies remain available under their applicable terms; those terms do not
+automatically apply to new material made available only under this License.
+
+Nothing here limits rights that cannot be restricted under applicable law, or
+viewing and forking rights independently granted under the terms of the platform
+on which the Copyright Holder hosts the official repository. Such rights do not
+by themselves authorize independent releases or commercial distribution.
+
+8. Examples and third-party material
+
+Files made available by the official BetterDungeon project within the examples/
+directory (the "Examples"), including scripts, templates, previews, and their
+documentation, are licensed under the MIT License reproduced below, instead of
+the restrictions in Sections 2, 4, 5, and 6. Their MIT permissions continue to
+apply when they are copied or adapted outside that directory. Moving or copying
+other Software into examples/ does not make that Software MIT-licensed.
+
+Separately licensed third-party code, dependencies, fonts, assets, and tooling
+remain governed by their respective licenses. This License does not replace or
+restrict permissions under those licenses. Preserve their required notices.
+
+MIT License (Examples only)
+
+Copyright (c) 2026 computerK
+
+For the following MIT terms only, "Software" means the Examples and their
+associated documentation, not the rest of BetterDungeon.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +129,15 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+9. Disclaimer for BetterDungeon
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE SOFTWARE COVERED BY THIS
+BETTERDUNGEON LICENSE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE. THIS DISCLAIMER DOES NOT EXCLUDE WARRANTIES OR LIABILITY THAT CANNOT
+LAWFULLY BE EXCLUDED.

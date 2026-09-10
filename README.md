@@ -119,7 +119,7 @@ The WebFetch module toggle controls access to bounded public HTTPS reads. Reques
 
 ## For contributors
 
-BetterDungeon is open source, and contributions are welcome. If you want to work on a feature, fix compatibility with AI Dungeon, or build an Ultrascripts example, start with the [contributing guide](CONTRIBUTING.md).
+BetterDungeon is source-available, and contributions are welcome. If you want to work on a feature, fix compatibility with AI Dungeon, or build an Ultrascripts example, start with the [contributing guide](CONTRIBUTING.md).
 
 This is the development home for both the browser extension and Android app. The root remains directly loadable as an unpacked extension, while `android/` opens as a complete Android Studio project. Shared web code lives once at the root; Android declares native capabilities and keeps only unique WebView adapters beside the app.
 
@@ -133,6 +133,18 @@ Daily work happens on `dev`. The protected `stable` branch contains tested, rele
 ```
 
 Build output is written to `dist/` and is never committed. See the [monorepo guide](docs/MONOREPO.md) for source composition, branches, and CI/CD details.
+
+## License
+
+BetterDungeon uses a custom [BetterDungeon License](LICENSE), not an open-source license:
+
+- Download, use, build, and privately modify it free of charge, including for business use.
+- Public source forks and pull requests are allowed solely for contributing to the official project, not for independent releases or binary distribution.
+- Sharing unchanged or modified copies outside that contribution exception requires prior written consent from computerK, even when sharing them for free.
+- Selling, renting, paid bundling, or charging for access to BetterDungeon requires prior written consent. Your own original stories and other content remain yours to use, share, and monetize.
+- Files in [`examples/`](examples/README.md) remain MIT-licensed and may be adapted, shared, and used commercially with the required notices. Separately licensed third-party material retains its own terms.
+
+Previously granted MIT permissions for earlier copies remain valid. This is a summary; the [full license](LICENSE) controls. For permission requests, contact `@computerK` on Discord.
 
 ## Support and feedback
 
