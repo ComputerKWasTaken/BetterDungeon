@@ -221,7 +221,7 @@ class TutorialService {
         type: 'spotlight',
         target: '#ai-settings-card .feature-row',
         title: 'Know what the AI module powers',
-        content: 'The AI module provides one shared language-model connection for Navigator and compatible AI-powered scripts. Its module switch controls access to that connection; the settings inside the card choose which external service BetterDungeon actually uses.',
+        content: 'The AI module lets compatible adventure scripts request AI responses. Its module switch controls script access. Configure all AI features in the dedicated AI tab.',
         icon: 'icon-brain-circuit',
         position: 'top',
         action: 'switchTab',
@@ -233,11 +233,11 @@ class TutorialService {
         type: 'spotlight',
         target: '#ai-endpoint-service',
         title: 'Choose one AI service',
-        content: 'Gemini is the default choice. OpenRouter can expose other supported models, while Custom connects to a compatible HTTPS endpoint. BetterDungeon uses only the service you save and never silently falls back to a different provider.',
+        content: 'Gemini is the default choice. OpenRouter can expose other supported models, while Custom connects to a compatible HTTPS endpoint. Advanced providers can fall back to Gemini when configured; the result identifies which provider completed the request.',
         icon: 'icon-brain-circuit',
         position: 'top',
         action: 'switchTab',
-        actionTarget: 'ultrascripts',
+        actionTarget: 'ai',
         expandCard: true
       },
       {
@@ -249,7 +249,7 @@ class TutorialService {
         icon: 'icon-key-round',
         position: 'top',
         action: 'switchTab',
-        actionTarget: 'ultrascripts',
+        actionTarget: 'ai',
         expandCard: true
       },
       {
@@ -261,7 +261,7 @@ class TutorialService {
         icon: 'icon-circle-check',
         position: 'top',
         action: 'switchTab',
-        actionTarget: 'ultrascripts',
+        actionTarget: 'ai',
         expandCard: true
       },
       {

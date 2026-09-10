@@ -506,7 +506,7 @@ class CharacterPresetFeature {
 
   getAISetupMessage(detail = '') {
     const prefix = detail ? `${detail} ` : '';
-    return `${prefix}Open the BetterDungeon popup and go to Ultrascripts > AI to configure the provider used by Character Prefill.`;
+    return `${prefix}Open the BetterDungeon popup and go to AI to configure the provider used by Character Prefill.`;
   }
 
   describeAIGenerationError(error) {
@@ -770,7 +770,7 @@ class CharacterPresetFeature {
 
   async ensureAIReady() {
     try {
-      const executor = window.UltrascriptsAIExecutor;
+      const executor = window.BetterDungeonAI;
       if (!executor) throw new Error('AI executor is not loaded.');
       const status = executor.refreshStatus
         ? await executor.refreshStatus({ consumer: 'character-presets' })
@@ -809,7 +809,7 @@ class CharacterPresetFeature {
     this.showGeneratingPanel(field);
 
     try {
-      const result = await window.UltrascriptsAIExecutor.query({
+      const result = await window.BetterDungeonAI.query({
         prompt: await this.buildAIPrompt(character),
         output: {
           type: 'json',
@@ -1341,7 +1341,7 @@ class CharacterPresetFeature {
     if (submit) submit.innerHTML = '<span class="bd-character-ai-spinner"></span> Regenerating';
 
     try {
-      const result = await window.UltrascriptsAIExecutor.query({
+      const result = await window.BetterDungeonAI.query({
         prompt: this.buildRerollPrompt(character, question, previousAnswer.answer, modificationRequest),
         output: { type: 'json', schema: this.buildSingleAnswerSchema() },
         thinking: { level: 'low' },

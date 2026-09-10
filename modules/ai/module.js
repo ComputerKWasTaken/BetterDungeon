@@ -7,7 +7,7 @@
   if (window.UltrascriptsAIModule) return;
 
   function executor() {
-    const aiExecutor = window.UltrascriptsAIExecutor;
+    const aiExecutor = window.BetterDungeonAI;
     if (!aiExecutor) {
       throw {
         code: 'unavailable',
@@ -29,11 +29,18 @@
     };
   }
 
-  function queryOp(args = {}, _ctx, request = {}) {
-    return executor().query(args, {
-      requestId: request.id || null,
-      consumer: 'ultrascripts',
-    });
+  // Each mounted adventure runs one AI Dungeon script environment. Request IDs
+  // are not script identities: using them as lock keys would allow overlap.
+  let querying = false;
+  async function queryOp(args = {}, _ctx, request = {}) {
+    if (querying) throw { code: 'busy', message: 'This script already has an AI request in progress.', retryable: true };
+    querying = true;
+    try {
+      return await executor().query(args, {
+        requestId: request.id || null,
+        consumer: 'ultrascripts',
+      });
+    } finally { querying = false; }
   }
 
   const UltrascriptsAIModule = {

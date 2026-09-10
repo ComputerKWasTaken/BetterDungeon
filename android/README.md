@@ -4,6 +4,8 @@ BetterDungeon Mobile is the Android WebView edition of BetterDungeon. Its native
 
 Navigator is an AI agent designed to help you improve and modify your adventures, with a touch-oriented interface and native streaming transport on Android.
 
+Configure providers in the shared popup's **AI** tab. Gemini Simple and Advanced provider routing use the same implementation as the browser extension; Android's adapter supplies native HTTPS, including Mistral model discovery. See [AI setup](../docs/AI.md).
+
 The current application release is BetterDungeon Mobile v2.1.0.
 
 Official APKs are published from the primary [BetterDungeon Releases](https://github.com/ComputerKWasTaken/BetterDungeon/releases) page. Debug APKs attached to GitHub Actions runs are development builds, not releases.

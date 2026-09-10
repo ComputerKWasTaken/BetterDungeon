@@ -1,16 +1,16 @@
 // modules/ai/openai-compatible-backend.js
 //
-// Content-side adapter for BetterDungeon's single remote AI protocol. Secrets,
+// Content-side adapter for BetterDungeon's shared AI service. Secrets,
 // endpoint profiles, HTTP requests, and streaming aggregation stay in the
 // privileged background worker.
 
 (function () {
   if (window.UltrascriptsAIOpenAICompatibleBackend) return;
 
-  const MESSAGE_TYPE = 'ULTRASCRIPTS_AI_OPENAI_COMPATIBLE';
-  const CHAT_PORT_NAME = 'BETTERDUNGEON_AI_CHAT_OPENAI_COMPATIBLE_V1';
-  const PROVIDER_ID = 'openai-compatible';
-  const CONFIG_STORAGE_KEY = 'ultrascripts_ai_endpoint_config_v1';
+  const MESSAGE_TYPE = 'BETTERDUNGEON_AI';
+  const CHAT_PORT_NAME = 'BETTERDUNGEON_AI_CHAT_V2';
+  const PROVIDER_ID = 'betterdungeon-ai';
+  const CONFIG_STORAGE_KEY = 'betterdungeon_ai_config_v2';
 
   function runtime() {
     if (typeof browser !== 'undefined' && browser?.runtime?.sendMessage) return browser.runtime;
@@ -24,7 +24,7 @@
 
   function unwrapResponse(response) {
     if (response?.ok) return response.data;
-    throw response?.error || backendError('OpenAI-compatible backend request failed.');
+    throw response?.error || backendError('BetterDungeon AI backend request failed.');
   }
 
   function sendMessage(request) {
@@ -49,7 +49,7 @@
         if (lastError) {
           reject({
             code: 'unavailable',
-            message: lastError.message || 'OpenAI-compatible backend request failed.',
+            message: lastError.message || 'BetterDungeon AI backend request failed.',
             retryable: true,
             backend: PROVIDER_ID,
           });
@@ -78,12 +78,13 @@
   }
 
   const state = {
+    consumers: {},
     status: {
       ready: false,
       available: false,
       reason: 'ai_backend_status_unknown',
       config: { service: 'gemini' },
-      message: 'OpenAI-compatible backend status has not been checked yet.',
+      message: 'BetterDungeon AI backend status has not been checked yet.',
     },
   };
 
@@ -103,13 +104,19 @@
     const normalized = normalizeStatus(status);
     if (normalized.limits?.resolution === 'pending' || normalized.limits?.resolved === false) return;
     state.status = normalized;
+    if (status.consumers) state.consumers = status.consumers;
+    if (status.consumer) state.consumers[status.consumer] = normalized;
   }
 
   function resultEnvelope(result) {
     const raw = result && typeof result === 'object' ? result : {};
     return {
-      provider: PROVIDER_ID,
+      provider: raw.provider || PROVIDER_ID,
       backend: PROVIDER_ID,
+      consumer: raw.consumer,
+      providerTier: raw.providerTier,
+      attemptedModels: raw.attemptedModels,
+      advancedFallback: raw.advancedFallback,
       service: raw.service,
       generatedAtIso: raw.generatedAtIso,
       model: raw.model,
@@ -126,16 +133,16 @@
     };
   }
 
-  async function refreshStatus() {
+  async function refreshStatus(consumer) {
     try {
-      commitStatus(await sendMessage({ op: 'status' }));
+      commitStatus(await sendMessage({ op: 'status', consumer }));
     } catch (error) {
       state.status = {
         ready: false,
         available: false,
         reason: error?.code || 'ai_backend_status_failed',
         config: null,
-        message: error?.message || 'OpenAI-compatible backend status check failed.',
+        message: error?.message || 'BetterDungeon AI backend status check failed.',
       };
     }
     return state.status;
@@ -167,7 +174,7 @@
     } catch (error) {
       return Promise.reject({
         code: 'unavailable',
-        message: error?.message || 'OpenAI-compatible chat transport is unavailable.',
+        message: error?.message || 'BetterDungeon AI chat transport is unavailable.',
         retryable: true,
         backend: PROVIDER_ID,
       });
@@ -240,7 +247,7 @@
           return;
         }
         if (message.type === 'error') {
-          settle('reject', message.error || backendError('OpenAI-compatible chat request failed.'));
+          settle('reject', message.error || backendError('BetterDungeon AI chat request failed.'));
         }
       }
       function onDisconnect(disconnectedPort) {
@@ -253,7 +260,7 @@
         }
         settle('reject', {
           code: 'unavailable',
-          message: runtimeError || 'OpenAI-compatible chat connection closed before completion.',
+          message: runtimeError || 'BetterDungeon AI chat connection closed before completion.',
           retryable: true,
           backend: PROVIDER_ID,
         });
@@ -268,7 +275,7 @@
       if (!safePost({ v: 1, type: 'start', requestId, task: chatTask })) {
         settle('reject', {
           code: 'unavailable',
-          message: 'OpenAI-compatible chat request could not be started.',
+          message: 'BetterDungeon AI chat request could not be started.',
           retryable: true,
           backend: PROVIDER_ID,
         });
@@ -278,13 +285,13 @@
 
   const provider = {
     id: PROVIDER_ID,
-    label: 'OpenAI-Compatible',
+    label: 'BetterDungeon AI',
     supports: () => ({
       text: true,
       json: true,
       thinking: state.status?.config?.service === 'gemini',
     }),
-    status: () => state.status,
+    status: consumer => state.consumers[consumer === 'character-presets' ? 'characterPresets' : consumer] || state.status,
     query: async (task) => {
       const result = await sendMessage({ op: 'query', task });
       if (result?.status) commitStatus(result.status);
@@ -310,7 +317,7 @@
     backend: provider,
     refreshStatus,
     register() {
-      const executor = window.UltrascriptsAIExecutor;
+      const executor = window.BetterDungeonAI;
       if (!executor?.registerProvider) return false;
       executor.registerProvider(provider, { default: true });
       refreshStatus();

@@ -101,8 +101,8 @@ class AiTransportClient {
         checkNotAborted(active)
         val url = validateUrl(request.optString("url", ""))
         val method = request.optString("method", "POST").trim().uppercase(Locale.US)
-        if (method != "POST") {
-            throw AiTransportException("invalid_args", "AI transport only supports POST requests")
+        if (method != "POST" && method != "GET") {
+            throw AiTransportException("invalid_args", "AI transport only supports GET and POST requests")
         }
 
         val body = request.optString("body", "")
@@ -128,14 +128,16 @@ class AiTransportClient {
             connection.readTimeout = timeoutMs
             connection.useCaches = false
             connection.defaultUseCaches = false
-            connection.doOutput = true
+            connection.doOutput = method == "POST"
             connection.setRequestProperty("Accept-Encoding", "identity")
             headers.forEach { (name, value) -> connection.setRequestProperty(name, value) }
 
             checkNotAborted(active)
-            connection.outputStream.use { output ->
-                output.write(bodyBytes)
-                output.flush()
+            if (method == "POST") {
+                connection.outputStream.use { output ->
+                    output.write(bodyBytes)
+                    output.flush()
+                }
             }
             checkNotAborted(active)
 

@@ -1,13 +1,13 @@
 // modules/ai/executor.js
 //
-// Backend-agnostic execution layer for Ultrascripts AI requests. It validates
+// Backend-agnostic execution layer for BetterDungeon AI requests. It validates
 // public query args, creates normalized query tasks, and adapts backend results
 // into the public response contract. Provider transport lives elsewhere.
 
 (function () {
-  if (window.UltrascriptsAIExecutor) return;
+  if (globalThis.BetterDungeonAI) return;
 
-  const VERSION = '0.6.0-openai-compatible';
+  const VERSION = '2.0.0-shared';
   const PROMPT_MAX_CHARS = 12000;
   const OUTPUT_TYPES = Object.freeze(['text', 'json']);
   const THINKING_LEVELS = Object.freeze(['minimal', 'low', 'medium', 'high']);
@@ -402,10 +402,10 @@
     };
   }
 
-  function providerStatus(providerId) {
+  function providerStatus(providerId, consumer) {
     const provider = state.providers.get(providerId);
     if (!provider) return null;
-    const rawStatus = typeof provider.status === 'function' ? provider.status() : null;
+    const rawStatus = typeof provider.status === 'function' ? provider.status(consumer) : null;
     const status = isObject(rawStatus) ? rawStatus : {};
     return {
       id: provider.id,
@@ -417,7 +417,7 @@
 
   function status(meta = {}) {
     const resolved = resolveProvider(meta.consumer);
-    const provider = resolved.provider ? providerStatus(resolved.provider.id) : null;
+    const provider = resolved.provider ? providerStatus(resolved.provider.id, resolved.consumer) : null;
     const supports = provider ? provider.supports : { text: false, json: false, thinking: false };
     const providerReady = provider?.status?.ready;
     const ready = !!(
@@ -467,7 +467,7 @@
   async function refreshStatus(meta = {}) {
     const resolved = resolveProvider(meta.consumer);
     if (typeof resolved.provider?.refreshStatus === 'function') {
-      await resolved.provider.refreshStatus();
+      await resolved.provider.refreshStatus(resolved.consumer);
     }
     return status({ consumer: resolved.consumer });
   }
@@ -507,6 +507,9 @@
     if (typeof result?.service === 'string') meta.service = result.service;
     if (result?.thinking) meta.thinking = cloneJson(result.thinking);
     if (result?.fallback) meta.fallback = cloneJson(result.fallback);
+    for (const key of ['consumer', 'providerTier', 'attemptedModels', 'advancedFallback']) {
+      if (result?.[key] !== undefined) meta[key] = cloneJson(result[key]);
+    }
     if (result?.usage) meta.usage = cloneJson(result.usage);
     if (typeof result?.finishReason === 'string') meta.finishReason = result.finishReason;
     if (result?.outputTruncated === true) meta.outputTruncated = true;
@@ -541,6 +544,9 @@
     if (typeof result?.service === 'string') meta.service = result.service;
     if (result?.thinking) meta.thinking = cloneJson(result.thinking);
     if (result?.fallback) meta.fallback = cloneJson(result.fallback);
+    for (const key of ['consumer', 'providerTier', 'attemptedModels', 'advancedFallback']) {
+      if (result?.[key] !== undefined) meta[key] = cloneJson(result[key]);
+    }
     if (result?.usage) meta.usage = cloneJson(result.usage);
     if (typeof result?.finishReason === 'string') meta.finishReason = result.finishReason;
     if (result?.outputTruncated === true) meta.outputTruncated = true;
@@ -574,6 +580,7 @@
 
   async function query(args, meta = {}) {
     const task = createTask(args, meta);
+    task.consumer = meta.consumer || 'ultrascripts';
     const resolved = resolveProvider(meta.consumer);
     const provider = resolved.provider;
     if (!provider) {
@@ -611,6 +618,7 @@
   async function chat(args, options = {}) {
     if (!isObject(options)) throw invalidArgs('chat options must be an object');
     const task = createChatTask(args, options);
+    task.consumer = options.consumer || 'navigator';
     const resolved = resolveProvider(options.consumer);
     const provider = resolved.provider;
     if (!provider) {
@@ -712,13 +720,14 @@
       hasBackend: state.providers.size > 0,
       defaultProvider: state.defaultProviderId,
       providers: state.providerOrder
-        .map(providerStatus)
+        .map(id => providerStatus(id))
         .filter(Boolean),
       consumerProviders: Object.fromEntries(state.consumerProviders),
     }),
   };
 
-  window.UltrascriptsAIExecutor = executor;
+  globalThis.BetterDungeonAI = executor;
+  globalThis.UltrascriptsAIExecutor = executor; // Temporary compatibility alias.
 
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = executor;

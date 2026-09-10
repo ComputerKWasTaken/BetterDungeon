@@ -4,7 +4,7 @@
 // request lifecycle, abort, input budgeting, and per-adventure persistence.
 //
 // The drawer UI talks only to this class, and this class talks only to the
-// first-party chat surface on UltrascriptsAIExecutor. Grounding stays behind
+// first-party chat surface on BetterDungeonAI. Grounding stays behind
 // buildSystemInstruction() and buildRequestMessages() so later tools do not
 // change the drawer contract.
 
@@ -737,7 +737,7 @@
     // ==================== PROVIDER READINESS ====================
 
     async checkReady() {
-      const executor = window.UltrascriptsAIExecutor;
+      const executor = window.BetterDungeonAI;
       if (!executor?.chat) {
         return { ready: false, message: 'The BetterDungeon AI layer is not loaded. Try reloading the page.' };
       }
@@ -751,12 +751,12 @@
         return {
           ready: false,
           status,
-          message: `${status?.message || 'The configured AI provider is not ready.'} Open the BetterDungeon popup and go to Ultrascripts > AI to configure it.`,
+          message: `${status?.message || 'The configured AI provider is not ready.'} Open the BetterDungeon popup and go to AI to configure it.`,
         };
       } catch (error) {
         return {
           ready: false,
-          message: `${error?.message || 'AI provider status could not be checked.'} Open the BetterDungeon popup and go to Ultrascripts > AI to configure it.`,
+          message: `${error?.message || 'AI provider status could not be checked.'} Open the BetterDungeon popup and go to AI to configure it.`,
         };
       }
     }
@@ -1469,7 +1469,7 @@
             thinking: requestPayload.thinking,
             projectedInputChars: projected,
           });
-          const result = await window.UltrascriptsAIExecutor.chat(requestPayload, {
+          const result = await window.BetterDungeonAI.chat(requestPayload, {
             consumer: CONSUMER,
             requestId: `navigator-${this.adventureId || 'unknown'}-${Date.now()}-${toolRounds}`,
             signal: turnController.signal,
@@ -1696,7 +1696,7 @@
           return { code, retryable: false, message: 'The AI provider blocked this request under its safety filters. Try rephrasing.' };
         case 'not_configured':
         case 'auth_failed':
-          return { code, retryable, message: 'Navigator needs an AI provider. Open the BetterDungeon popup and go to Ultrascripts > AI.' };
+          return { code, retryable, message: 'Navigator needs an AI provider. Open the BetterDungeon popup and go to AI.' };
         case 'rate_limit':
           return { code, retryable, message: 'The AI provider hit a rate limit. Wait a moment and try again.' };
         case 'timeout':

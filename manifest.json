@@ -17,6 +17,9 @@
     "scripts": [
       "utils/browser-polyfill.js",
       "background.js",
+      "services/ai/config.js",
+      "modules/ai/executor.js",
+      "services/ai/runtime.js",
       "background-ai-openai-compatible.js"
     ]
   },

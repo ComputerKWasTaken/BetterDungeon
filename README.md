@@ -25,7 +25,7 @@ The current release is **BetterDungeon v2.1.0**. Its headline addition is Naviga
 
 - **Meet Navigator** — Work with an AI agent designed to help you improve and modify your adventures. Navigator understands your Plot Components and recent story, can research your complete Story Card collection, and remembers the conversation across multiple turns.
 - **Changes applied for you** — Navigator applies verified non-deletion edits automatically and reports each one on a compact change card so you can course correct. Permanent Story Card and Memory Bank deletions always require explicit approval. Proposed changes mode restores per-change approval, while No changes disables mutation tools entirely.
-- **Simpler AI setup** — Gemini, OpenRouter, and custom HTTPS services share one clear profile system with validation, connection testing, and explicit provider selection.
+- **Simpler AI setup** — A dedicated AI tab offers automatic Gemini setup and per-feature Advanced providers: OpenRouter, Mistral, or a custom HTTPS endpoint.
 - **Stronger Ultrascripts** — v2.1 improves connection reliability, adds synthesized audio, simplifies safe web requests, and upgrades AI responses while preserving the existing script contract.
 - **Native feature cleanup** — BetterDungeon's Markdown feature was removed on PC and Mobile now that AI Dungeon supports it natively. Text-to-speech has also been removed on both platforms.
 - **Built for PC and Android** — Navigator includes streaming responses, cancellation, interfaces tailored for desktop and touch devices, and a dedicated Inspector that explains the exact bounded context, conversation, and tool activity sent for the latest request.
@@ -74,7 +74,7 @@ Android builds are distributed through the [GitHub Releases](../../releases) pag
 
 - **Navigator** — An AI agent grounded in an always-attempted bounded snapshot of Plot Components, recent story, Memory Bank, and Story Cards. It can research omitted details, apply verified edits automatically by default, or operate in Proposed changes or No changes mode.
 - **Plot Presets** — Save and swap Plot Essentials, AI Instructions, and Author's Notes.
-- **Character Presets** — Save character descriptions and use the Ultrascripts AI module to generate scenario prefill answers.
+- **Character Presets** — Save character descriptions and use the shared AI service to generate scenario prefill answers.
 - **Story Card Scanner** — Quickly index Story Cards through AI Dungeon's GraphQL systems, including large scenarios.
 - **Story Card Analytics** — Find card counts, overlapping triggers, empty descriptors, and other cleanup opportunities.
 - **Trigger Highlighting** — See which Story Card keys are active directly in the View Context window.
@@ -111,7 +111,7 @@ Check out the [Ultrascripts examples](examples/README.md) if you want to start b
 1. Install BetterDungeon and open [AI Dungeon](https://play.aidungeon.com/).
 2. Open the BetterDungeon popup from your browser toolbar or the in-game sidebar.
 3. Enable the features you want to use.
-4. If you want AI-powered features or script-side AI, configure a Gemini, OpenRouter, or remote custom endpoint profile in **Ultrascripts** settings.
+4. For AI features, open the **AI** tab, add a Gemini key, and select **Save & connect**. Advanced users can assign OpenRouter, Mistral, or a custom endpoint to individual features. See [AI setup and routing](docs/AI.md).
 
 GitHub opens this repository on `stable`, the recommended release-ready branch. Contributors and coding agents should switch to `dev` for normal work; tested `dev` commits move to `stable` through the manual **Promote stable** workflow.
 

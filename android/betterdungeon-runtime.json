@@ -13,6 +13,9 @@
   ],
   "scripts": [
     "utils/webview-polyfill.js",
+    "services/ai/config.js",
+    "modules/ai/executor.js",
+    "services/ai/runtime.js",
     "utils/ai-native-runtime.js",
     "utils/android-editable-scroll-fix.js",
     "services/ultrascripts/ws-stream.js",
@@ -35,7 +38,6 @@
     "modules/system/module.js",
     "modules/sdk/module.js",
     "modules/audio/module.js",
-    "modules/ai/executor.js",
     "modules/ai/openai-compatible-backend.js",
     "modules/ai/module.js",
     "modules/widget/validators.js",

@@ -3675,3 +3675,55 @@ kbd.hotkey-unbound {
   text-align: center;
   font-size: 10px;
 }
+/* === Shared AI Settings === */
+#tab-ai [hidden] { display: none !important; }
+
+.ai-section-intro { margin: 0 4px 14px; line-height: 1.5; }
+.ai-settings-card .feature-row { cursor: default; gap: 14px; }
+.ai-settings-card .feature-desc { line-height: 1.5; }
+.ai-settings-card .toggle { flex-shrink: 0; }
+
+.ai-settings-body {
+  display: grid;
+  gap: 14px;
+  padding: 0 14px 14px;
+}
+
+.ai-settings-body .form-group { margin: 0; min-width: 0; }
+.ai-settings-body .btn { margin-top: 0; }
+.ai-label-row { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 6px; }
+.ai-label-row .form-label { margin: 0; }
+
+.ai-text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 11px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ai-text-link:hover { color: var(--accent); }
+.ai-text-link:focus-visible, .ai-more-options summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: var(--radius-sm); }
+.ai-text-link:disabled { opacity: 0.5; cursor: default; }
+.ai-actions .ai-clear-button { flex: 0 0 auto; border-color: transparent; background: transparent; color: var(--text-muted); }
+.ai-actions .ai-clear-button:hover { color: var(--text-primary); background: var(--bg-hover); }
+
+#ai-feature-routes { display: grid; gap: 10px; margin: 0; padding: 0; border: 0; min-width: 0; }
+#ai-feature-routes legend { padding: 0; margin-bottom: 10px; }
+#ai-feature-routes .form-label { margin-bottom: 0; }
+.ai-more-options { border-top: 1px solid var(--border); padding-top: 12px; }
+.ai-more-options summary { color: var(--text-secondary); font-size: 11px; cursor: pointer; }
+.ai-more-options[open] summary { margin-bottom: 12px; }
+.ai-settings-body .ai-fallback-note { margin: 0; }
+.ai-settings-footer { display: grid; gap: 10px; padding: 4px; margin-top: 10px; }
+.ai-settings-footer .form-help { margin: 0; line-height: 1.5; }
+.ai-feedback:empty { display: none; }
+.ai-feedback[data-state="error"] { color: var(--error); }
+.ai-feedback[data-state="success"] { color: var(--success); }
+#ai-last-result { overflow-wrap: anywhere; }

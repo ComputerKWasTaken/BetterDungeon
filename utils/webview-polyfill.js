@@ -647,7 +647,7 @@
 
   function handleRuntimeMessage(message) {
     if (!message || typeof message !== 'object') return null;
-    if (message.type === AI_MESSAGE && window.__bdAiRuntime?.handle) {
+    if ((message.type === AI_MESSAGE || message.type === 'BETTERDUNGEON_AI') && window.__bdAiRuntime?.handle) {
       return window.__bdAiRuntime.handle(message.request);
     }
     if (message.type === WEBFETCH_MESSAGE) return handleWebFetch(message.request);

@@ -43,6 +43,7 @@
       <span class="nav-icon icon-radio-tower"></span>
       <span class="nav-label">Ultrascripts</span>
     </button>
+    <button class="nav-item" data-tab="ai"><span class="nav-icon icon-brain-circuit"></span><span class="nav-label">AI</span></button>
     <button class="nav-item" data-tab="presets">
       <span class="nav-icon icon-bookmark"></span>
       <span class="nav-label">Presets</span>
@@ -134,7 +135,7 @@
                   <span class="whats-new-highlight-icon whats-new-highlight-icon-ai icon-brain-circuit" aria-hidden="true"></span>
                   <div>
                     <h4>Simpler AI setup</h4>
-                    <p>Gemini, OpenRouter, and custom HTTPS services now use one clear profile system with validation, connection testing, and explicit provider selection.</p>
+                    <p>A dedicated AI tab offers Simple Gemini setup and per-feature Advanced providers, including automatic Mistral fallback.</p>
                   </div>
                 </article>
 
@@ -885,82 +886,8 @@
                 </label>
               </div>
               <div class="feature-details">
-                <p>All remote services use one OpenAI-compatible Chat Completions backend. The selected service is activated when you save; BetterDungeon never falls back across services.</p>
-
-                <section class="ai-provider-panel" id="ai-endpoint-panel" data-provider="openai-compatible">
-                  <div class="ai-provider-panel-header">
-                    <div>
-                      <h4>OpenAI-compatible endpoint</h4>
-                      <p>Gemini is the default; OpenRouter and remote custom HTTPS endpoints (including Mistral-compatible URLs) use the same protocol.</p>
-                    </div>
-                    <span class="ai-provider-badge" id="ai-endpoint-status" data-state="pending">Checking</span>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="ai-endpoint-service">Service</label>
-                    <select class="form-input" id="ai-endpoint-service">
-                      <option value="gemini">Google Gemini</option>
-                      <option value="openrouter">OpenRouter</option>
-                      <option value="custom">Custom endpoint</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="ai-endpoint-base-url">Base URL</label>
-                    <input type="url" class="form-input" id="ai-endpoint-base-url" aria-describedby="ai-endpoint-base-url-help ai-endpoint-validation" spellcheck="false">
-                    <p class="form-help" id="ai-endpoint-base-url-help">Gemini and OpenRouter use their official locked URL. Custom endpoints must use HTTPS; BetterDungeon adds <code>/chat/completions</code>.</p>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="ai-endpoint-api-key">API key <span class="form-label-optional" id="ai-endpoint-key-optional"></span></label>
-                    <input type="password" class="form-input" id="ai-endpoint-api-key" placeholder="Paste a key" autocomplete="off" spellcheck="false">
-                  </div>
-                  <div class="form-group" id="ai-endpoint-model-mode-group">
-                    <label class="form-label" for="ai-endpoint-model-mode">Model selection</label>
-                    <select class="form-input" id="ai-endpoint-model-mode">
-                      <option value="auto">Best available (429 stepdown)</option>
-                      <option value="manual">Manual model</option>
-                    </select>
-                  </div>
-                  <div class="form-group" id="ai-endpoint-model-group">
-                    <label class="form-label" for="ai-endpoint-model">Model ID</label>
-                    <input type="text" class="form-input" id="ai-endpoint-model" placeholder="gemini-3.5-flash-lite" aria-describedby="ai-endpoint-model-help ai-endpoint-validation" spellcheck="false">
-                    <p class="form-help" id="ai-endpoint-model-help">Use the exact model identifier accepted by the selected service.</p>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label" for="ai-endpoint-max-input-tokens">Input cap</label>
-                    <select class="form-input" id="ai-endpoint-max-input-tokens">
-                      <option value="32000">32k</option>
-                      <option value="64000">64k</option>
-                      <option value="128000">128k</option>
-                      <option value="256000">256k</option>
-                      <option value="1000000">1M</option>
-                      <option value="custom">Custom</option>
-                    </select>
-                    <input type="text" inputmode="numeric" class="form-input" id="ai-endpoint-max-input-custom" placeholder="4000" hidden>
-                    <p class="form-help">Absolute input-token cap used by all BetterDungeon AI module requests.</p>
-                  </div>
-                  <p class="feature-hint" id="ai-endpoint-gemini-help"><span class="icon-key-round"></span> Get a Gemini key from <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer">Google AI Studio</a>.</p>
-                  <div class="ai-provider-validation" id="ai-endpoint-validation" role="status" aria-live="polite"></div>
-                  <div class="ai-provider-status-card" id="ai-endpoint-status-card" data-state="pending">
-                    <span class="ai-provider-status-dot" aria-hidden="true"></span>
-                    <div>
-                      <strong id="ai-endpoint-status-title">Checking configuration</strong>
-                      <span id="ai-endpoint-status-detail">Reading locally saved settings...</span>
-                    </div>
-                  </div>
-                  <div class="btn-row">
-                    <button class="btn btn-action" id="ai-endpoint-save" type="button">
-                      <span class="icon-save"></span>
-                      Save
-                    </button>
-                    <button class="btn btn-ghost" id="ai-endpoint-test" type="button">
-                      <span class="icon-circle-check"></span>
-                      Save &amp; test
-                    </button>
-                    <button class="btn btn-ghost" id="ai-endpoint-clear-key" type="button">
-                      <span class="icon-eraser"></span>
-                      Clear key
-                    </button>
-                  </div>
-                </section>
+                <p>Allow adventure scripts to request AI responses. Configure providers for all features in the AI tab.</p>
+                <button type="button" class="btn btn-ghost" id="ai-open-settings">Open AI settings</button>
               </div>
             </article>
 
@@ -1052,7 +979,106 @@
       </div>
     </section>
 
+    <!-- AI Tab -->
+    <section class="tab-panel" id="tab-ai">
+      <div class="section">
+        <div class="section-header">
+          <span class="section-icon icon-brain-circuit" aria-hidden="true"></span>
+          <h2 class="section-title">AI connections</h2>
+        </div>
+        <p class="feature-desc ai-section-intro">For Navigator, Character Prefill, and Ultrascripts.</p>
+
+        <section class="feature-card static-card ai-settings-card" id="ai-simple-panel" aria-labelledby="ai-simple-title">
+          <div class="feature-row">
+            <div class="feature-info">
+              <h3 class="feature-title" id="ai-simple-title">Gemini</h3>
+              <p class="feature-desc">Free to use on Google's free tier. Just add a key.</p>
+            </div>
+          </div>
+          <div class="ai-settings-body">
+            <div class="form-group">
+              <div class="ai-label-row">
+                <label class="form-label" for="ai-simple-key">API key</label>
+                <a class="ai-text-link" href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer">Get a free Gemini key <span class="icon-external-link" aria-hidden="true"></span></a>
+              </div>
+              <input type="password" class="form-input" id="ai-simple-key" autocomplete="off" spellcheck="false" aria-describedby="ai-simple-free-help">
+            </div>
+            <div class="btn-row ai-actions">
+              <button type="button" class="btn btn-action" id="ai-simple-test"><span class="icon-circle-check" aria-hidden="true"></span>Save &amp; connect</button>
+              <button type="button" class="btn btn-ghost ai-clear-button" id="ai-simple-clear">Clear key</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="feature-card static-card ai-settings-card" id="ai-advanced-panel" aria-labelledby="ai-advanced-title">
+          <div class="feature-row">
+            <div class="feature-info">
+              <h3 class="feature-title" id="ai-advanced-title">Advanced</h3>
+              <p class="feature-desc">Choose another provider for selected features.</p>
+            </div>
+            <label class="toggle sm">
+              <input type="checkbox" id="ai-advanced-enabled" aria-label="Enable Advanced AI" aria-controls="ai-advanced-fields" aria-expanded="false">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="ai-settings-body" id="ai-advanced-fields" hidden>
+            <div class="form-group">
+              <label class="form-label" for="ai-endpoint-service">Provider</label>
+              <select class="form-input" id="ai-endpoint-service"><option value="openrouter">OpenRouter</option><option value="mistral">Mistral</option><option value="custom">Custom endpoint</option></select>
+            </div>
+            <div class="form-group" id="ai-endpoint-base-url-group" hidden>
+              <label class="form-label" for="ai-endpoint-base-url">Base URL</label>
+              <input type="url" class="form-input" id="ai-endpoint-base-url" spellcheck="false" aria-describedby="ai-endpoint-base-url-help">
+              <p class="form-help" id="ai-endpoint-base-url-help">Use HTTPS. BetterDungeon adds /chat/completions.</p>
+            </div>
+            <div class="form-group">
+              <div class="ai-label-row">
+                <label class="form-label" for="ai-endpoint-api-key">API key</label>
+                <button type="button" class="ai-text-link" id="ai-endpoint-clear-key">Clear key</button>
+              </div>
+              <input type="password" class="form-input" id="ai-endpoint-api-key" autocomplete="off" spellcheck="false">
+              <p class="form-help"><a class="ai-text-link" id="ai-endpoint-key-link" target="_blank" rel="noopener noreferrer" hidden><span id="ai-endpoint-key-link-label"></span> <span class="icon-external-link" aria-hidden="true"></span></a></p>
+            </div>
+            <div class="form-group" id="ai-mistral-model-group" hidden>
+              <label class="form-label" for="ai-mistral-model">Model</label>
+              <select class="form-input" id="ai-mistral-model" aria-describedby="ai-mistral-model-help"></select>
+              <p class="form-help" id="ai-mistral-model-help">Automatic switches models when one reaches its limit.</p>
+            </div>
+            <div class="form-group" id="ai-endpoint-model-group">
+              <label class="form-label" for="ai-endpoint-model">Model ID</label>
+              <input type="text" class="form-input" id="ai-endpoint-model" spellcheck="false">
+            </div>
+            <fieldset id="ai-feature-routes">
+              <legend class="form-label">Use this provider for</legend>
+              <label class="form-label form-label-check"><input type="checkbox" data-ai-consumer="navigator">Navigator</label>
+              <label class="form-label form-label-check"><input type="checkbox" data-ai-consumer="ultrascripts">Ultrascripts AI</label>
+              <label class="form-label form-label-check"><input type="checkbox" data-ai-consumer="characterPresets">Character Prefill</label>
+              <label hidden><input type="checkbox" data-ai-consumer="ambience">Ambience (future)</label>
+            </fieldset>
+            <details class="ai-more-options">
+              <summary>More options</summary>
+              <div class="form-group">
+                <label class="form-label" for="ai-endpoint-max-input-tokens">Input-token cap</label>
+                <input type="number" min="0" max="2000000" step="1" class="form-input" id="ai-endpoint-max-input-tokens" aria-describedby="ai-input-cap-help">
+                <p class="form-help" id="ai-input-cap-help">0 uses the default. Requests above your cap are rejected.</p>
+              </div>
+            </details>
+            <p class="form-help ai-fallback-note">If this provider is unavailable, requests are also sent to Google when a Gemini key is saved.</p>
+            <button type="button" class="btn btn-action" id="ai-endpoint-test"><span class="icon-circle-check" aria-hidden="true"></span>Save &amp; test provider</button>
+          </div>
+        </section>
+
+        <div class="ai-settings-footer">
+          <div class="btn-row" id="ai-save-row" hidden><button type="button" class="btn btn-action" id="ai-endpoint-save"><span class="icon-save" aria-hidden="true"></span>Save changes</button></div>
+          <p class="form-help ai-feedback" id="ai-endpoint-validation" role="status" aria-live="polite">Loading settings…</p>
+          <p class="form-help" id="ai-last-result" role="status" hidden></p>
+          <p class="form-help">Keys stay on this device. Usage follows your provider’s plan.</p>
+        </div>
+      </div>
+    </section>
+
     <!-- Presets Tab -->
+
     <section class="tab-panel" id="tab-presets">
       
       <div class="preset-view-tabs" role="tablist" aria-label="Preset type">
@@ -1475,6 +1501,7 @@
   <script src="utils/browser-polyfill.js"></script>
   <script src="services/tutorial-service.js"></script>
   <script src="utils/webview-polyfill.js"></script>
+  <script src="services/ai/config.js"></script>
   <script src="popup-ai-endpoint.js"></script>
   <script src="popup.js"></script>
 </body>

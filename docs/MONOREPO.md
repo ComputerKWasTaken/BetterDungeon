@@ -50,7 +50,7 @@ Open the `android/` directory in Android Studio for Sync, Run, Debug, and manual
 
 ## CI/CD boundary
 
-The reusable quality gate runs on every push, every pull request, manual dispatches, and stable promotions. Its Node step runs only the repository smoke checks; extension packaging and the Android build provide the remaining baseline verification. It uses Node.js 24, JDK 21, the checked-in Gradle wrapper, read-only permissions, SHA-pinned actions, and GitHub-hosted runners. Normal CI receives no repository secrets and does not publish releases or store builds.
+The reusable quality gate runs on every push, every pull request, manual dispatches, and stable promotions. Its Node step runs repository smoke checks and focused offline AI routing/compatibility checks; extension packaging and the Android build provide the remaining baseline verification. It uses Node.js 24, JDK 21, the checked-in Gradle wrapper, read-only permissions, SHA-pinned actions, and GitHub-hosted runners. Normal CI receives no repository secrets and does not publish releases or store builds.
 
 The quality gate is intentionally a build-and-policy safety net, not a comprehensive product test framework. Playwright, DOM emulation packages, authenticated AI Dungeon checks, live canaries, and emulator instrumentation are not planned. User-facing behavior is checked manually on the real browser and Android surfaces. Small deterministic tests may still be added when they protect a stable, high-value contract without recreating AI Dungeon.
 
