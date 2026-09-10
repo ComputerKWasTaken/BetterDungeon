@@ -4,8 +4,8 @@ BetterDungeon's browser extension and Android app are developed from this reposi
 
 ## Branches and releases
 
-- `dev` is the default branch and normal workspace for contributors and agents.
-- `stable` contains tested, release-ready commits.
+- `stable` is GitHub's default branch and the recommended public view of the repository. It contains tested, release-ready commits.
+- `dev` is the normal workspace for contributors and agents. New work starts here even though it is not GitHub's default branch.
 - The manual **Promote stable** workflow validates an exact commit already contained in `dev`, confirms the update is a fast-forward, runs the complete quality gate, and then advances `stable`.
 - A dedicated write-enabled deploy key is available only to the promotion workflow; normal CI remains read-only and receives no repository secrets.
 - Version tags and GitHub Releases are created manually after promotion. Chrome Web Store submission and signed Android releases remain manual.
@@ -52,4 +52,6 @@ Open the `android/` directory in Android Studio for Sync, Run, Debug, and manual
 
 The reusable quality gate runs on every push, every pull request, manual dispatches, and stable promotions. Its Node step runs only the repository smoke checks; extension packaging and the Android build provide the remaining baseline verification. It uses Node.js 24, JDK 21, the checked-in Gradle wrapper, read-only permissions, SHA-pinned actions, and GitHub-hosted runners. Normal CI receives no repository secrets and does not publish releases or store builds.
 
-Playwright, DOM emulation packages, authenticated AI Dungeon checks, live canaries, emulator instrumentation, automatic store publishing, and signed-release automation are intentionally deferred.
+The quality gate is intentionally a build-and-policy safety net, not a comprehensive product test framework. Playwright, DOM emulation packages, authenticated AI Dungeon checks, live canaries, and emulator instrumentation are not planned. User-facing behavior is checked manually on the real browser and Android surfaces. Small deterministic tests may still be added when they protect a stable, high-value contract without recreating AI Dungeon.
+
+Automatic store publishing and signed-release automation also remain out of scope; releases stay deliberate and manual.

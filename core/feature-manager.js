@@ -65,10 +65,6 @@ class FeatureManager {
       this.featureClasses.set('storyCardAnalytics', StoryCardAnalyticsFeature);
     }
 
-    if (typeof NotesFeature !== 'undefined') {
-      this.featureClasses.set('notes', NotesFeature);
-    }
-
     if (typeof StoryCardModalDockFeature !== 'undefined') {
       this.featureClasses.set('storyCardModalDock', StoryCardModalDockFeature);
     }

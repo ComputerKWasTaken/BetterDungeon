@@ -463,7 +463,7 @@
         <div class="section-body" id="collapse-writing">
 
           <!-- Adventure Notes -->
-          <article class="feature-card" data-feature="notes">
+          <article class="feature-card expanded static-card adventure-notes-card" data-feature="notes">
             <div class="feature-row">
               <div class="feature-info">
                 <div class="feature-title-row">
@@ -472,16 +472,14 @@
                   </span>
                   <h3 class="feature-title">Adventure Notes</h3>
                 </div>
-                <p class="feature-desc">Write and save notes per adventure</p>
+                <p class="feature-desc">Private notes for the active adventure</p>
               </div>
-              <label class="toggle">
-                <input type="checkbox" id="feature-notes" checked>
-                <span class="toggle-slider"></span>
-              </label>
+              <span class="adventure-notes-state" id="adventure-notes-state">Connecting&hellip;</span>
             </div>
             <div class="feature-details">
-              <p>An embedded Plot Components notes card that saves per adventure. Notes are <strong>saved per adventure</strong>.</p>
-              <p class="feature-hint"><span class="icon-lightbulb"></span> Notes appear at the bottom of the Plot Components section when enabled.</p>
+              <label class="form-label" for="adventure-notes-editor">Notes</label>
+              <textarea class="form-textarea adventure-notes-editor" id="adventure-notes-editor" aria-describedby="adventure-notes-help" placeholder="Write your private notes here&hellip;" disabled></textarea>
+              <p class="feature-hint" id="adventure-notes-help"><span class="icon-lock-keyhole"></span> Stored locally per adventure and never sent to AI Dungeon or an AI provider.</p>
             </div>
           </article>
 

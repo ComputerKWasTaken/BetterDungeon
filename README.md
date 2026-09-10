@@ -62,7 +62,7 @@ Android builds are distributed through the [GitHub Releases](../../releases) pag
 
 - **Command Mode** — Send direct narrative instructions without cluttering the story. Subtle and OOC sub-modes are included.
 - **Try Mode** — Add configurable, RNG-based action checks with live rolls, critical success, and critical failure margins.
-- **Adventure Notes** — Keep private notes attached to each adventure, saved locally in your browser.
+- **Adventure Notes** — Keep private, per-adventure notes in the BetterDungeon popup, saved only on your device.
 
 ### Take control of your input
 
@@ -112,6 +112,8 @@ Check out the [Ultrascripts examples](examples/README.md) if you want to start b
 2. Open the BetterDungeon popup from your browser toolbar or the in-game sidebar.
 3. Enable the features you want to use.
 4. If you want AI-powered features or script-side AI, configure a Gemini, OpenRouter, or remote custom endpoint profile in **Ultrascripts** settings.
+
+GitHub opens this repository on `stable`, the recommended release-ready branch. Contributors and coding agents should switch to `dev` for normal work; tested `dev` commits move to `stable` through the manual **Promote stable** workflow.
 
 The WebFetch module toggle controls access to bounded public HTTPS reads. Requests never include browser cookies or ambient credentials.
 

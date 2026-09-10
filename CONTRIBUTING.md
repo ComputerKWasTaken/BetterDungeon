@@ -9,7 +9,7 @@ This project is a little unusual compared to a normal web app: the extension run
 You will need:
 
 - Git
-- Node.js 24 LTS for the automated contract suites
+- Node.js 24 LTS for the repository smoke checks
 - A Chromium-based browser for primary testing
 - Firefox 109 or newer if you are testing the Firefox port
 - Android Studio with JDK 21 and the Android SDK when changing Mobile
@@ -18,7 +18,7 @@ You will need:
 
 The test stack has no npm dependencies. The repository root can still be loaded directly as an unpacked extension.
 
-Start normal work from `dev`. The `stable` branch is release-ready and is advanced only by the **Promote stable** GitHub Actions workflow after the complete quality gate passes.
+GitHub shows `stable` by default because it is the public, release-ready branch. Start normal work from `dev`. `stable` advances only through the **Promote stable** GitHub Actions workflow after the complete quality gate passes.
 
 ## Run BetterDungeon locally
 
@@ -94,7 +94,7 @@ If a feature adds an observer, event listener, timer, or injected element, it sh
 
 ## Automated checks
 
-Run the intentionally small zero-dependency baseline with `./build.ps1 test`. It checks release version parity, the shared platform contract, extension package boundaries, Android runtime composition, and forbidden tracked output. Broader browser and live-DOM coverage remains deferred until a deliberate testing baseline is adopted.
+Run the intentionally small zero-dependency baseline with `./build.ps1 test`. It checks release version parity, the shared platform contract, extension package boundaries, Android runtime composition, and forbidden tracked output. The project deliberately relies on focused manual browser and device checks instead of maintaining a comprehensive Playwright or live-DOM framework.
 
 Every push and pull request runs the Node suite, verifies the extension ZIP, runs Android unit tests, and builds a debug APK. Successful workflow runs retain both downloadable artifacts for 14 days. Tests must use mocks and fixtures rather than real AI providers or AI Dungeon requests.
 

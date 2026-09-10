@@ -22,6 +22,7 @@ const STORAGE_KEYS = {
   customDynamicConfig: 'betterDungeon_customDynamicConfig',
   customDynamicRuntime: 'betterDungeon_customDynamicRuntime',
   androidCaretScrollFix: 'betterDungeon_androidCaretScrollFix',
+  adventureNotesPrefix: 'betterDungeon_notes_',
 };
 
 // Default mode colors (hex format)
@@ -143,6 +144,10 @@ let currentCustomDynamicConfig = { ...DEFAULT_CUSTOM_DYNAMIC_CONFIG };
 let currentCustomDynamicRuntime = { ...DEFAULT_CUSTOM_DYNAMIC_RUNTIME };
 let customDynamicCatalogLoading = false;
 
+// Adventure Notes state
+let activeAdventureNotesKey = null;
+let adventureNotesSaveTimer = null;
+
 // ============================================
 // INITIALIZATION
 // ============================================
@@ -154,6 +159,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initNavigation();
   initFeatureCards();
   initToggles();
+  void initAdventureNotes();
   initSettings();
   initAppSettings();
   initCustomDynamicSettings();
@@ -223,6 +229,71 @@ function initFeatureCards() {
       card.classList.toggle('expanded');
     });
   });
+}
+
+// ============================================
+// ADVENTURE NOTES
+// ============================================
+
+function setAdventureNotesState(label, state = '') {
+  const status = document.getElementById('adventure-notes-state');
+  if (!status) return;
+  status.textContent = label;
+  status.classList.toggle('ready', state === 'ready');
+  status.classList.toggle('error', state === 'error');
+}
+
+async function initAdventureNotes() {
+  const editor = document.getElementById('adventure-notes-editor');
+  if (!editor) return;
+
+  try {
+    const response = await sendToActiveAIDungeon('GET_ACTIVE_ADVENTURE');
+    if (!response?.success || !response.adventureId) {
+      throw new Error('Open an adventure to use Notes');
+    }
+
+    activeAdventureNotesKey = `${STORAGE_KEYS.adventureNotesPrefix}${response.adventureId}`;
+    const stored = await window.BetterDungeonPlatform.storage.get('local', activeAdventureNotesKey);
+    editor.value = typeof stored?.[activeAdventureNotesKey] === 'string'
+      ? stored[activeAdventureNotesKey]
+      : '';
+    editor.disabled = false;
+    setAdventureNotesState('Saved', 'ready');
+
+    editor.addEventListener('input', scheduleAdventureNotesSave);
+    editor.addEventListener('blur', () => void saveAdventureNotes());
+    window.addEventListener('pagehide', () => void saveAdventureNotes());
+  } catch (error) {
+    activeAdventureNotesKey = null;
+    editor.disabled = true;
+    editor.placeholder = 'Open an AI Dungeon adventure to use Notes.';
+    setAdventureNotesState('No adventure', 'error');
+    log('[Popup] Adventure Notes unavailable:', error);
+  }
+}
+
+function scheduleAdventureNotesSave() {
+  setAdventureNotesState('Unsaved');
+  clearTimeout(adventureNotesSaveTimer);
+  adventureNotesSaveTimer = setTimeout(() => void saveAdventureNotes(), 400);
+}
+
+async function saveAdventureNotes() {
+  const editor = document.getElementById('adventure-notes-editor');
+  const storageKey = activeAdventureNotesKey;
+  if (!editor || editor.disabled || !storageKey) return;
+
+  clearTimeout(adventureNotesSaveTimer);
+  adventureNotesSaveTimer = null;
+  setAdventureNotesState('Saving');
+  try {
+    await window.BetterDungeonPlatform.storage.set('local', { [storageKey]: editor.value });
+    if (storageKey === activeAdventureNotesKey) setAdventureNotesState('Saved', 'ready');
+  } catch (error) {
+    setAdventureNotesState('Save failed', 'error');
+    console.error('[Popup] Unable to save Adventure Notes:', error);
+  }
 }
 
 // ============================================

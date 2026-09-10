@@ -60,7 +60,6 @@
     "features/navigator_feature.js",
     "features/auto_see_feature.js",
     "features/story_card_analytics_feature.js",
-    "features/notes_feature.js",
     "features/input_history_feature.js",
     "features/custom_dynamic_feature.js",
     "features/mobile/mobile_settings_layer.js",

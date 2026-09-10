@@ -22,7 +22,8 @@ function Assert-SafeGeneratedPath([string]$Path) {
         [System.IO.Path]::GetFullPath($DistRoot),
         [System.IO.Path]::GetFullPath((Join-Path $AndroidRoot 'build')),
         [System.IO.Path]::GetFullPath((Join-Path $AndroidRoot 'app\build')),
-        [System.IO.Path]::GetFullPath((Join-Path $AndroidRoot '.gradle'))
+        [System.IO.Path]::GetFullPath((Join-Path $AndroidRoot '.gradle')),
+        [System.IO.Path]::GetFullPath((Join-Path $AndroidRoot '.kotlin'))
     )
     if ($allowed -notcontains $fullPath) {
         throw "Refusing to modify an undeclared generated path: $fullPath"
@@ -151,7 +152,8 @@ function Clean-GeneratedOutput {
         $DistRoot,
         (Join-Path $AndroidRoot 'build'),
         (Join-Path $AndroidRoot 'app\build'),
-        (Join-Path $AndroidRoot '.gradle')
+        (Join-Path $AndroidRoot '.gradle'),
+        (Join-Path $AndroidRoot '.kotlin')
     )) {
         Remove-GeneratedDirectory $path
     }

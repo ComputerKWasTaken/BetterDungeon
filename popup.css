@@ -1982,6 +1982,35 @@ body.mobile {
   cursor: not-allowed;
 }
 
+.adventure-notes-state {
+  flex-shrink: 0;
+  margin-left: 8px;
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.35px;
+  text-transform: uppercase;
+}
+
+.adventure-notes-state.ready {
+  color: var(--bd-green);
+}
+
+.adventure-notes-state.error {
+  color: var(--bd-orange);
+}
+
+.adventure-notes-editor {
+  min-height: 150px;
+  max-height: 320px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+
+.adventure-notes-editor:disabled {
+  min-height: 90px;
+}
+
 .form-select {
   width: 100%;
   padding: 8px 12px;

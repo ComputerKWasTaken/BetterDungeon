@@ -111,11 +111,21 @@ class BetterDungeon {
           modules: window.Ultrascripts?.registry?.list?.() || [],
         });
         return true;
+      } else if (message.type === 'GET_ACTIVE_ADVENTURE') {
+        sendResponse(this.handleGetActiveAdventure());
+        return true;
       } else if (message.type === 'REFRESH_CUSTOM_DYNAMIC_MODELS') {
         this.handleRefreshCustomDynamicModels(message.force !== false).then(sendResponse);
         return true;
       }
     });
+  }
+
+  handleGetActiveAdventure() {
+    // Keep the raw route segment so existing betterDungeon_notes_<id> keys
+    // remain byte-for-byte compatible with the former injected Notes feature.
+    const adventureId = window.location.pathname.match(/\/adventure\/([^/]+)/)?.[1] || '';
+    return { success: Boolean(adventureId), adventureId };
   }
 
   async handleRefreshCustomDynamicModels(force = true) {
