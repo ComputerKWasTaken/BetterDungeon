@@ -50,8 +50,7 @@ class HotkeyFeature {
     '4': 'modeStory',
     '5': 'modeGuide',
     '6': 'generateImage',
-    '7': 'modeCommand',
-    '8': 'generateVideo'
+    '7': 'modeCommand'
   };
 
   constructor() {
