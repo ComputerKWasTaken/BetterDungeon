@@ -49,7 +49,8 @@ const HOTKEY_ACTIONS = {
   'modeSay': { description: 'Say Mode', category: 'modes' },
   'modeStory': { description: 'Story Mode', category: 'modes' },
   'modeGuide': { description: 'Guide Mode', category: 'modes' },
-  'modeSee': { description: 'See Mode', category: 'modes' },
+  'generateImage': { description: 'Generate Image', category: 'modes' },
+  'generateVideo': { description: 'Generate Video', category: 'modes' },
   'modeCommand': { description: 'Command Mode*', category: 'modes' }
 };
 
@@ -67,9 +68,23 @@ const DEFAULT_HOTKEY_BINDINGS = {
   '3': 'modeSay',
   '4': 'modeStory',
   '5': 'modeGuide',
-  '6': 'modeSee',
+  '6': 'generateImage',
   '7': 'modeCommand'
 };
+
+// Saved bindings may still name actions that have since been renamed
+// (must match hotkey_feature.js)
+const RENAMED_HOTKEY_ACTIONS = {
+  modeSee: 'generateImage'
+};
+
+function migrateHotkeyBindings(bindings) {
+  const migrated = {};
+  for (const [key, actionId] of Object.entries(bindings)) {
+    migrated[key] = RENAMED_HOTKEY_ACTIONS[actionId] || actionId;
+  }
+  return migrated;
+}
 
 const DEFAULT_FEATURES = {
   ultrascripts: true,
@@ -1158,7 +1173,7 @@ function loadHotkeyBindings() {
     if (customBindings && typeof customBindings === 'object') {
       // Use custom bindings as-is (full replacement, not merge)
       // so that unbound hotkeys stay unbound.
-      currentHotkeyBindings = { ...customBindings };
+      currentHotkeyBindings = migrateHotkeyBindings(customBindings);
     } else {
       currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS };
     }
@@ -1223,7 +1238,7 @@ function openHotkeyModal() {
     if (customBindings && typeof customBindings === 'object') {
       // Use custom bindings as-is (full replacement, not merge)
       // so that unbound hotkeys stay unbound.
-      currentHotkeyBindings = { ...customBindings };
+      currentHotkeyBindings = migrateHotkeyBindings(customBindings);
     } else {
       currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS };
     }
