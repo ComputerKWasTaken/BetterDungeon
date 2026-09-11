@@ -23,8 +23,16 @@ class HotkeyFeature {
     'modeSay': { selector: '[aria-label="Set to \'Say\' mode"]', description: 'Say Mode', requiresMenu: true, category: 'modes' },
     'modeStory': { selector: '[aria-label="Set to \'Story\' mode"]', description: 'Story Mode', requiresMenu: true, category: 'modes' },
     'modeGuide': { selector: '[aria-label="Set to \'Guide\' mode"]', description: 'Guide Mode', requiresMenu: true, category: 'modes' },
-    'modeSee': { selector: '[aria-label="Set to \'See\' mode"]', description: 'See Mode', requiresMenu: true, category: 'modes' },
+    'generateImage': { selector: '[aria-label="Generate an image"]', description: 'Generate Image', requiresMenu: true, category: 'modes' },
+    'generateVideo': { selector: '[aria-label="Generate a video"]', description: 'Generate Video', requiresMenu: true, category: 'modes' },
     'modeCommand': { selector: '[aria-label="Set to \'Command\' mode"]', description: 'Command Mode', requiresMenu: true, featureDependent: 'command', category: 'modes' }
+  };
+
+  // AI Dungeon dropped the See input mode and put Generate image/video actions
+  // in the same menu. Saved bindings still name the old action, so carry them
+  // forward instead of silently dropping the key.
+  static RENAMED_ACTIONS = {
+    modeSee: 'generateImage'
   };
 
   // Default key bindings (key -> action ID)
@@ -41,8 +49,9 @@ class HotkeyFeature {
     '3': 'modeSay',
     '4': 'modeStory',
     '5': 'modeGuide',
-    '6': 'modeSee',
-    '7': 'modeCommand'
+    '6': 'generateImage',
+    '7': 'modeCommand',
+    '8': 'generateVideo'
   };
 
   constructor() {
@@ -90,7 +99,7 @@ class HotkeyFeature {
           // Use custom bindings as-is (full replacement, not merge).
           // This allows users to unbind individual hotkeys — merging
           // with defaults would silently re-add any key the user removed.
-          this.keyBindings = { ...customBindings };
+          this.keyBindings = HotkeyFeature.migrateBindings(customBindings);
           this.log('[Hotkey] Loaded custom bindings', this.keyBindings);
         } else {
           this.keyBindings = { ...HotkeyFeature.DEFAULT_BINDINGS };
@@ -98,6 +107,15 @@ class HotkeyFeature {
         resolve();
       });
     });
+  }
+
+  // Point saved bindings at the current action IDs
+  static migrateBindings(bindings) {
+    const migrated = {};
+    for (const [key, actionId] of Object.entries(bindings)) {
+      migrated[key] = HotkeyFeature.RENAMED_ACTIONS[actionId] || actionId;
+    }
+    return migrated;
   }
 
   // Build the hotkeyMap from current keyBindings
@@ -115,7 +133,7 @@ class HotkeyFeature {
   listenForBindingUpdates() {
     this.boundMessageListener = (message, sender, sendResponse) => {
       if (message.type === 'HOTKEY_BINDINGS_UPDATED') {
-        this.keyBindings = message.bindings;
+        this.keyBindings = HotkeyFeature.migrateBindings(message.bindings);
         this.buildHotkeyMap();
         this.log('[Hotkey] Bindings updated', this.keyBindings);
         sendResponse({ success: true });
