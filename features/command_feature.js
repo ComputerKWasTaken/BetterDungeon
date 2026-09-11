@@ -293,13 +293,15 @@ class CommandFeature {
     this.commandButton = cleanButton;
     this.markModeMenuScrollable(menu);
 
-    // Apply sprite theming for non-Dynamic themes
-    // Command takes over the end-cap structure of whichever button closed the
-    // strip, and that button is converted into a middle button.
+    // Apply sprite theming for non-Dynamic themes. The menu also holds controls
+    // that are not input modes - the close arrow, and the Generate image/video
+    // actions - so Command only inherits the end-cap sprite when it actually
+    // ends the strip. Mid-strip it is a middle button and nothing else moves.
+    const commandEndsStrip = !cleanButton.nextSibling;
     this.applySpriteTheming(cleanButton, lastNativeButton);
 
     // The former end-cap is no longer last, so give it the middle sprite
-    if (lastNativeButton !== storyButton) {
+    if (commandEndsStrip && lastNativeButton !== storyButton) {
       this.convertToMiddleButton(lastNativeButton, storyButton);
     }
   }
