@@ -78,12 +78,25 @@ class StoryCardScanner {
         signal: this.abortController?.signal,
       });
       if (snapshot.provenance?.source !== 'apollo') return null;
-      return Array.isArray(snapshot.cards) ? snapshot.cards : [];
+      const cards = Array.isArray(snapshot.cards) ? snapshot.cards : [];
+      const expectedTotal = Number(snapshot.coverage?.authoritativeTotal);
+      return { cards, expectedTotal: Number.isFinite(expectedTotal) ? expectedTotal : null };
     } catch (error) {
       if (error?.name === 'AbortError' || this.abortController?.signal.aborted) throw error;
       this.log('Apollo Story Card read unavailable; using existing fallback chain.');
       return null;
     }
+  }
+
+  // A cached card set is only trusted when it is non-empty and, where the
+  // adventure advertises a total, at least matches it. Apollo can hold the
+  // adventure entity before its story card refs resolve, which reports zero
+  // cards for a story that has plenty - and an empty set used to end the
+  // lookup here rather than falling through to a source that has them.
+  isCardSetComplete(cards, expectedTotal) {
+    if (!Array.isArray(cards) || cards.length === 0) return false;
+    if (Number.isFinite(expectedTotal) && expectedTotal > 0 && cards.length < expectedTotal) return false;
+    return true;
   }
 
   async fetchStoryCardsViaGraphQL(shortId) {
@@ -122,7 +135,12 @@ class StoryCardScanner {
     if (!adventure) {
       throw new Error('GraphQL story-card lookup returned no adventure data.');
     }
-    return Array.isArray(adventure.storyCards) ? adventure.storyCards : [];
+    const cards = Array.isArray(adventure.storyCards) ? adventure.storyCards : [];
+    const advertised = Number(adventure.storyCardCount);
+    if (Number.isFinite(advertised) && cards.length < advertised) {
+      this.log(`Adventure advertises ${advertised} story cards but GraphQL returned ${cards.length}.`);
+    }
+    return cards;
   }
 
   async scanAllCards(onTriggerFound = null, onProgress = null, onCardScanned = null) {
@@ -140,18 +158,24 @@ class StoryCardScanner {
         return { success: false, error: 'Adventure shortId is unknown' };
       }
 
-      const apolloCards = await this.getApolloStoryCards(shortId);
-      const wsCards = this.getWsStoryCards();
-      const cards = apolloCards !== null
-        ? apolloCards
-        : wsCards.length > 0
-          ? wsCards
-          : await this.fetchStoryCardsViaGraphQL(shortId);
-      const source = apolloCards !== null
-        ? 'apollo'
-        : wsCards.length > 0
-          ? 'ws'
-          : 'graphql';
+      const apollo = await this.getApolloStoryCards(shortId);
+      const expectedTotal = apollo?.expectedTotal ?? null;
+
+      let cards;
+      let source;
+      if (apollo && this.isCardSetComplete(apollo.cards, expectedTotal)) {
+        cards = apollo.cards;
+        source = 'apollo';
+      } else {
+        const wsCards = this.getWsStoryCards();
+        if (this.isCardSetComplete(wsCards, expectedTotal)) {
+          cards = wsCards;
+          source = 'ws';
+        } else {
+          cards = await this.fetchStoryCardsViaGraphQL(shortId);
+          source = 'graphql';
+        }
+      }
 
       return this.consumeStoryCards(
         cards,
