@@ -15,7 +15,7 @@
       <img src="icons/icon48.png" alt="" class="header-logo">
       <div class="header-title">
         <span class="header-name">BetterDungeon</span>
-        <span class="header-version"><span id="app-version">v2.0.2</span> <span class="header-badge pc">PC</span></span>
+        <span class="header-version"><span id="app-version">v2.0.3</span> <span class="header-badge pc">PC</span></span>
       </div>
     </div>
     <div class="header-actions">
@@ -60,7 +60,7 @@
             <span class="whats-new-compact-icon icon-sparkles"></span>
             <span class="whats-new-compact-text">
               <strong id="whats-new-title">What's New</strong>
-              <span class="whats-new-compact-summary">Revamped Custom Dynamic &middot; Release history</span>
+              <span class="whats-new-compact-summary">Emergency Alpha compatibility patch &middot; v2.1 coming later</span>
             </span>
           </span>
           <span class="whats-new-compact-right">
@@ -70,8 +70,11 @@
         </button>
         <div class="whats-new-expandable" id="whats-new-expandable" aria-hidden="true">
           <div class="whats-new-version-tabs" role="tablist" aria-label="Release notes versions">
-            <button class="whats-new-version-tab active" id="whats-new-tab-202" type="button" role="tab" aria-selected="true" aria-controls="whats-new-release-202" data-whats-new-version="2.0.2">
-              v2.0.2 <span>Current</span>
+            <button class="whats-new-version-tab active" id="whats-new-tab-203" type="button" role="tab" aria-selected="true" aria-controls="whats-new-release-203" data-whats-new-version="2.0.3">
+              v2.0.3 <span>Current</span>
+            </button>
+            <button class="whats-new-version-tab" id="whats-new-tab-202" type="button" role="tab" aria-selected="false" aria-controls="whats-new-release-202" data-whats-new-version="2.0.2" tabindex="-1">
+              v2.0.2
             </button>
             <button class="whats-new-version-tab" id="whats-new-tab-200" type="button" role="tab" aria-selected="false" aria-controls="whats-new-release-200" data-whats-new-version="2.0.0" tabindex="-1">
               v2.0.0
@@ -79,7 +82,20 @@
           </div>
 
           <div class="whats-new-release-panels">
-            <section class="whats-new-release" id="whats-new-release-202" role="tabpanel" aria-labelledby="whats-new-tab-202" data-whats-new-panel="2.0.2">
+            <section class="whats-new-release" id="whats-new-release-203" role="tabpanel" aria-labelledby="whats-new-tab-203" data-whats-new-panel="2.0.3">
+              <div class="whats-new-archive-list">
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-triangle-alert" style="color: #f97316;"></span>
+                  <div><strong>Emergency Patch Before v2.1</strong>: BetterDungeon v2.0.3 is a focused compatibility hotfix for the current public release. v2.1 is still in development and will be released when it is ready.</div>
+                </div>
+                <div class="whats-new-archive-item">
+                  <span class="whats-new-item-icon icon-wrench" style="color: #22c55e;"></span>
+                  <div><strong>Action Selector Freeze Fixed</strong>: Updated Command mode for AI Dungeon's redesigned action input selector, preventing the PC tab from freezing when changing action modes.</div>
+                </div>
+              </div>
+            </section>
+
+            <section class="whats-new-release whats-new-release-archive" id="whats-new-release-202" role="tabpanel" aria-labelledby="whats-new-tab-202" data-whats-new-panel="2.0.2" hidden>
               <div class="whats-new-archive-list">
                 <div class="whats-new-archive-item whats-new-archive-item-group">
                   <span class="whats-new-item-icon icon-route" style="color: #a855f7;"></span>

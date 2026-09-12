@@ -6,7 +6,7 @@
 
 An all-in-one browser extension for AI Dungeon that adds quality-of-life improvements, powerful scenario tools, and features I genuinely wished the game had built in.
 
-[![Version](https://img.shields.io/badge/version-2.0.2-7c3aed?style=for-the-badge)](manifest.json)
+[![Version](https://img.shields.io/badge/version-2.0.3-7c3aed?style=for-the-badge)](manifest.json)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-install-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/betterdungeon/ppliljfopejamemejnnchehpbacpebjf)
 
 </div>
@@ -19,11 +19,15 @@ Hey everyone, it's computerK here. BetterDungeon is my attempt to turn AI Dungeo
 
 It started as a collection of small quality-of-life features. It has grown into a full ecosystem of tools for input, formatting, scenario building, automation, and script-to-extension communication. Whether you want cleaner formatting, smarter presets, a better way to manage Story Cards, or completely new capabilities inside your scripts, BetterDungeon is built to get out of your way and let you play.
 
-The current release is **BetterDungeon v2.0.2**. BetterDungeon V2 introduced Ultrascripts, the Firefox port, the Android port, a major UI refresh, and a pretty serious rework of several original features.
+The current release is **BetterDungeon v2.0.3**, an emergency compatibility patch for the current public build while v2.1 remains in development. BetterDungeon V2 introduced Ultrascripts, the Firefox port, the Android port, a major UI refresh, and a pretty serious rework of several original features.
+
+### What's new in v2.0.3
+
+This emergency patch updates Command mode for AI Dungeon's redesigned action input selector, preventing a PC-only tab freeze when changing action modes. The broader v2.1 update is still in development and will be released when it is ready.
 
 ### What's new in v2.0.2
 
-Custom Dynamic has been revamped with:
+Custom Dynamic was revamped with:
 
 - The latest AI Dungeon models.
 - The ability to select different versions of the same model.

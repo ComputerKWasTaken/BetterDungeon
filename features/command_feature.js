@@ -5,6 +5,11 @@
 class CommandFeature {
   static id = 'command';
 
+  // Runaway-injection guard. If the input mode menu keeps rejecting our
+  // placement, stop touching it rather than spinning the page into a freeze.
+  static REINJECT_WINDOW_MS = 2000;
+  static MAX_REINJECTS_PER_WINDOW = 25;
+
   // Sub-mode definitions
   static SUB_MODES = ['standard', 'subtle', 'ooc'];
   static SUB_MODE_LABELS = {
@@ -32,6 +37,10 @@ class CommandFeature {
     this.pendingCommandDelete = null;
     this.responseObserver = null;
     this._lastSpriteState = null; // track sprite/dynamic theme for reactive re-injection
+    this.pendingInjection = null;  // rAF handle coalescing observer bursts
+    this.reinjectWindowStart = 0;
+    this.reinjectCount = 0;
+    this.reinjectionBlocked = false;
     this.debug = false;
   }
 
@@ -99,6 +108,10 @@ class CommandFeature {
       this.observer.disconnect();
       this.observer = null;
     }
+    if (this.pendingInjection !== null) {
+      cancelAnimationFrame(this.pendingInjection);
+      this.pendingInjection = null;
+    }
     if (this.responseObserver) {
       this.responseObserver.disconnect();
       this.responseObserver = null;
@@ -126,8 +139,14 @@ class CommandFeature {
   }
 
   setupObserver() {
-    this.observer = new MutationObserver((mutations) => {
-      this.injectCommandButton();
+    // Coalesce mutation bursts, including mutations caused by our own button,
+    // into one injection pass per frame.
+    this.observer = new MutationObserver(() => {
+      if (this.pendingInjection !== null) return;
+      this.pendingInjection = requestAnimationFrame(() => {
+        this.pendingInjection = null;
+        this.injectCommandButton();
+      });
     });
 
     this.observer.observe(document.body, {
@@ -144,6 +163,48 @@ class CommandFeature {
       return storyButton.parentElement;
     }
     return null;
+  }
+
+  // Find native input modes from their aria-labels instead of hardcoding the
+  // final mode. The menu can also contain non-mode actions such as Image/Video.
+  getNativeModeButtons(menu) {
+    if (!menu) return [];
+
+    const buttons = [];
+    const matches = menu.querySelectorAll('[aria-label^="Set to \'"][aria-label$="\' mode"]');
+    for (const node of matches) {
+      if (node.getAttribute('aria-label') === "Set to 'Command' mode") continue;
+
+      // Normalize nested matches to direct menu children for sibling checks.
+      let child = node;
+      while (child.parentElement && child.parentElement !== menu) {
+        child = child.parentElement;
+      }
+      if (child.parentElement === menu && !buttons.includes(child)) {
+        buttons.push(child);
+      }
+    }
+    return buttons;
+  }
+
+  // Backstop against future menu changes causing another mutation loop.
+  allowReinjection() {
+    const now = Date.now();
+    if (now - this.reinjectWindowStart > CommandFeature.REINJECT_WINDOW_MS) {
+      this.reinjectWindowStart = now;
+      this.reinjectCount = 0;
+      this.reinjectionBlocked = false;
+    }
+
+    this.reinjectCount += 1;
+    if (this.reinjectCount > CommandFeature.MAX_REINJECTS_PER_WINDOW) {
+      if (!this.reinjectionBlocked) {
+        this.reinjectionBlocked = true;
+        console.warn('[Command] Input mode menu is changing faster than the Command button can be placed; pausing injection to keep the page responsive.');
+      }
+      return false;
+    }
+    return true;
   }
 
   // Check whether a native button has a sprite-based theme active
@@ -163,7 +224,11 @@ class CommandFeature {
     // Find reference buttons for positioning
     const storyButton = menu.querySelector('[aria-label="Set to \'Story\' mode"]');
     if (!storyButton) return;
-    const seeButton = menu.querySelector('[aria-label="Set to \'See\' mode"]');
+
+    // Anchor after the last native mode. See no longer exists in Alpha, while
+    // Guide is followed by Image and Video actions that are not input modes.
+    const nativeButtons = this.getNativeModeButtons(menu);
+    const lastNativeButton = nativeButtons[nativeButtons.length - 1] || storyButton;
 
     // Detect theme switches (sprite <-> dynamic) and force re-inject
     const isSpriteNow = this._isSpriteActive(storyButton);
@@ -177,13 +242,15 @@ class CommandFeature {
     // Check if we already added the button
     const existingButton = menu.querySelector('[aria-label="Set to \'Command\' mode"]');
     if (existingButton) {
-      // Verify it's in the correct position (should be after See, at the end)
-      // Correct position: seeButton -> commandButton (last)
-      if (seeButton && existingButton.previousElementSibling === seeButton && !existingButton.nextElementSibling) {
+      // Image/Video or other non-mode controls may legitimately follow Command.
+      if (existingButton.previousElementSibling === lastNativeButton) {
         return; // Already in correct position
       }
+      if (!this.allowReinjection()) return;
       // Wrong position - remove and re-add
       existingButton.remove();
+    } else if (!this.allowReinjection()) {
+      return;
     }
 
     // Clone the Story button as a template
@@ -214,29 +281,23 @@ class CommandFeature {
       this.activateCommandMode();
     });
 
-    // Insert the button after the See button (last one) or after Story button
-    if (seeButton && seeButton.nextSibling) {
-      menu.insertBefore(cleanButton, seeButton.nextSibling);
-    } else if (seeButton) {
-      menu.appendChild(cleanButton);
+    // Keep custom modes contiguous: Command follows the final native mode and
+    // remains before one-shot actions such as Generate image/video.
+    if (lastNativeButton.nextSibling) {
+      menu.insertBefore(cleanButton, lastNativeButton.nextSibling);
     } else {
-      // Insert after Story button
-      if (storyButton.nextSibling) {
-        menu.insertBefore(cleanButton, storyButton.nextSibling);
-      } else {
-        menu.appendChild(cleanButton);
-      }
+      menu.appendChild(cleanButton);
     }
 
     this.commandButton = cleanButton;
 
-    // Apply sprite theming for non-Dynamic themes
-    // Command uses See's end-cap structure, and we convert See to middle button
-    this.applySpriteTheming(cleanButton, seeButton || storyButton);
-    
-    // Convert See button to use middle button sprite (since Command is now the last button)
-    if (seeButton) {
-      this.convertToMiddleButton(seeButton, storyButton);
+    // Command is only an end-cap when it truly ends the strip. On current Alpha,
+    // Image and Video follow it, so no native mode's sprite should be rewritten.
+    const commandEndsStrip = !cleanButton.nextSibling;
+    this.applySpriteTheming(cleanButton, lastNativeButton);
+
+    if (commandEndsStrip && lastNativeButton !== storyButton) {
+      this.convertToMiddleButton(lastNativeButton, storyButton);
     }
   }
 
