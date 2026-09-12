@@ -19,7 +19,7 @@ Hey everyone, it's computerK here. BetterDungeon is my attempt to turn AI Dungeo
 
 It started as a collection of small quality-of-life features. It has grown into a full ecosystem of tools for input, formatting, scenario building, automation, and script-to-extension communication. Whether you want cleaner formatting, smarter presets, a better way to manage Story Cards, or completely new capabilities inside your scripts, BetterDungeon is built to get out of your way and let you play.
 
-The current release is **BetterDungeon v2.1.0**. Its headline addition is Navigator, an AI agent designed to help you improve and modify your adventures.
+This branch develops **BetterDungeon v2.1.0**. The version currently distributed to users is tracked on [`release`](../../tree/release). Its headline addition is Navigator, an AI agent designed to help you improve and modify your adventures.
 
 ### What's new in v2.1.0
 
@@ -113,7 +113,7 @@ Check out the [Ultrascripts examples](examples/README.md) if you want to start b
 3. Enable the features you want to use.
 4. For AI features, open the **AI** tab, add a Gemini key, and select **Save & connect**. Advanced users can assign OpenRouter, Mistral, or a custom endpoint to individual features. See [AI setup and routing](docs/AI.md).
 
-GitHub opens this repository on `stable`, the recommended release-ready branch. Contributors and coding agents should switch to `dev` for normal work; tested `dev` commits move to `stable` through the manual **Promote stable** workflow.
+GitHub opens this repository on `preview`, the newest tested build available before store publication. Contributors and coding agents should switch to `dev` for normal work; tested `dev` commits move to `preview` through the manual **Promote preview** workflow.
 
 The WebFetch module toggle controls access to bounded public HTTPS reads. Requests never include browser cookies or ambient credentials.
 
@@ -123,7 +123,7 @@ BetterDungeon is source-available, and contributions are welcome. If you want to
 
 This is the development home for both the browser extension and Android app. The root remains directly loadable as an unpacked extension, while `android/` opens as a complete Android Studio project. Shared web code lives once at the root; Android declares native capabilities and keeps only unique WebView adapters beside the app.
 
-Daily work happens on `dev`. The protected `stable` branch contains tested, release-ready commits and is updated through the manual **Promote stable** workflow. The common local commands are:
+Published store/GitHub Release source is kept on `release`. Daily work happens on `dev`. The protected `preview` branch contains tested, release-ready commits and is updated through the manual **Promote preview** workflow. The common local commands are:
 
 ```powershell
 .\build.ps1 test       # Run repository smoke checks
