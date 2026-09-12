@@ -655,7 +655,7 @@ class NavigatorFeature {
     const icon = tab.querySelector('[aria-hidden="true"]');
     if (icon) {
       icon.textContent = '';
-      icon.className = 'bd-navigator-settings-tab-icon icon-compass';
+      icon.className = 'bd-navigator-settings-tab-icon icon-telescope';
     }
     const label = [...tab.querySelectorAll('span')].reverse().find(node => node.textContent?.trim());
     if (label) {
@@ -831,7 +831,7 @@ class NavigatorFeature {
     header.className = 'bd-navigator-header';
     header.innerHTML = `
       <div class="bd-navigator-header-identity">
-        <span class="bd-navigator-mark icon-compass" aria-hidden="true"></span>
+        <span class="bd-navigator-mark icon-telescope" aria-hidden="true"></span>
         <h2 class="bd-navigator-title">Navigator</h2>
       </div>
       <div class="bd-navigator-header-actions">
@@ -920,7 +920,7 @@ class NavigatorFeature {
     const empty = document.createElement('div');
     empty.className = 'bd-navigator-empty';
     empty.innerHTML = `
-      <span class="bd-navigator-empty-icon icon-compass" aria-hidden="true"></span>
+      <span class="bd-navigator-empty-icon icon-telescope" aria-hidden="true"></span>
       <p class="bd-navigator-empty-text"><strong>I'm Navigator.</strong> I'm an AI agent designed to help you improve and modify your adventures. Let's get started.</p>
       <div class="bd-navigator-quick-actions" aria-label="Suggested prompts">
         <button type="button" data-prompt="Review my Plot Components and suggest the most important improvements.">Review my plot</button>

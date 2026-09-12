@@ -416,7 +416,7 @@ class AIDungeonService {
       if (mobile) {
         button.replaceChildren();
         const glyph = document.createElement('span');
-        glyph.className = `icon-${name === 'try' ? 'gamepad-2' : 'bot'}`;
+        glyph.className = `icon-${name === 'try' ? 'gamepad-2' : 'box'}`;
         glyph.setAttribute('aria-hidden', 'true');
         const text = document.createElement('span');
         text.textContent = label;
