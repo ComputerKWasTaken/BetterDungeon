@@ -454,51 +454,17 @@ class InputHistoryFeature {
     }
   }
 
-  // Inject a <style> tag that allows the input row to overflow so the
-  // history bar can sit visually above it without being clipped.
-  // Uses the same !important-override pattern as mobile_design_layer.js.
-  injectOverflowStyle() {
-    if (document.getElementById('bd-history-bar-styles')) return;
-    const style = document.createElement('style');
-    style.id = 'bd-history-bar-styles';
-    style.textContent = `
-      [data-bd-history-parent] {
-        overflow: visible !important;
-      }
-      #bd-history-counter {
-        display: inline-flex !important;
-        align-items: center;
-        justify-content: center;
-        line-height: 1;
-      }
-      #bd-history-counter .icon-history {
-        font-size: 13px;
-        line-height: 1;
-        display: inline-block;
-        vertical-align: middle;
-        position: relative;
-        top: 0.5px;
-      }
-    `;
-    document.head.appendChild(style);
-  }
-
-  removeOverflowStyle() {
-    const el = document.getElementById('bd-history-bar-styles');
-    if (el) el.remove();
-  }
-
   injectHistoryBar() {
     if (!window.BetterDungeonPlatform?.has('touchControls')) return;
     if (document.querySelector('#bd-history-bar')) return;
     const textarea = document.querySelector(this.textInputSelector);
     if (!textarea) return;
 
-    // The input row (textarea's parent) has position:absolute and bottom padding.
-    // We mark it with a data attribute so our injected <style> can force
-    // overflow:visible, letting the bar sit above the row without clipping.
-    const inputRow = textarea.parentElement;
-    if (!inputRow) return;
+    // The clipped input row can't host controls — dock the chip to the
+    // controller like the other compact mode pills (styled in styles.css).
+    const host = textarea.closest('#game-text-input-controller')
+      || textarea.parentElement?.parentElement;
+    if (!host) return;
 
     // A fresh bar injection always starts in the idle state — any stale
     // historyIndex from a previous injection would cause the bar to
@@ -506,51 +472,15 @@ class InputHistoryFeature {
     // user didn't request.
     this.historyIndex = -1;
 
-    inputRow.setAttribute('data-bd-history-parent', 'true');
-    this.injectOverflowStyle();
-
     const bar = document.createElement('div');
     bar.id = 'bd-history-bar';
-    bar.style.cssText = `
-      position: absolute;
-      bottom: calc(100% + 4px);
-      right: 8px;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 2px 8px;
-      background: rgba(0, 0, 0, 0.45);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      border-radius: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      font-family: var(--bd-font-family-primary, 'IBM Plex Sans', sans-serif);
-      font-size: 11px;
-      color: rgba(255, 255, 255, 0.5);
-      z-index: 5;
-      pointer-events: none;
-      touch-action: manipulation;
-      transition: opacity 0.2s;
-    `;
-
-    // Touch-friendly button style matching other BetterDungeon compact bars
-    const btnStyle = `
-      pointer-events:auto;
-      display:flex; align-items:center; justify-content:center;
-      min-width:28px; min-height:24px;
-      font-size:12px; font-weight:700; color:rgba(255,255,255,0.6);
-      padding:2px 6px; border-radius:5px;
-      background:rgba(255,255,255,0.08);
-      cursor:pointer; user-select:none;
-      -webkit-tap-highlight-color:transparent;
-      touch-action:manipulation;
-      transition:background .15s, transform .1s;
-    `.replace(/\n\s*/g, ' ');
-
+    bar.className = 'bd-compact-mode-controls bd-history-chip';
+    bar.setAttribute('role', 'group');
+    bar.setAttribute('aria-label', 'Input history');
     bar.innerHTML = `
-      <span id="bd-history-prev" role="button" aria-label="Previous input" style="${btnStyle}">&#9650;</span>
-      <span id="bd-history-counter" aria-label="Input history" style="min-width:24px; min-height:20px; text-align:center; font-variant-numeric:tabular-nums; font-weight:600; font-size:10px; letter-spacing:0.3px;"></span>
-      <span id="bd-history-next" role="button" aria-label="Next input" style="${btnStyle}">&#9660;</span>
+      <button type="button" id="bd-history-prev" aria-label="Previous input"><span class="icon-chevron-up" aria-hidden="true"></span></button>
+      <span id="bd-history-counter" aria-label="Input history"></span>
+      <button type="button" id="bd-history-next" aria-label="Next input"><span class="icon-chevron-down" aria-hidden="true"></span></button>
     `;
 
     // Wire touch + click for prev/next with a shared debounce to prevent
@@ -584,7 +514,7 @@ class InputHistoryFeature {
     wireTouchBtn(bar.querySelector('#bd-history-prev'), () => this.navigateHistory('up'));
     wireTouchBtn(bar.querySelector('#bd-history-next'), () => this.navigateHistory('down'));
 
-    inputRow.appendChild(bar);
+    host.appendChild(bar);
     this.historyBar = bar;
     this.updateHistoryBar();
   }
@@ -640,9 +570,6 @@ class InputHistoryFeature {
     const bar = document.querySelector('#bd-history-bar');
     if (bar) bar.remove();
     this.historyBar = null;
-    this.removeOverflowStyle();
-    const marked = document.querySelector('[data-bd-history-parent]');
-    if (marked) marked.removeAttribute('data-bd-history-parent');
   }
 }
 

@@ -350,15 +350,15 @@
    INPUT MODE COLOR CODING
    ============================================ */
 
+/* The edge rides on the rounded input box itself — no position or radius
+   overrides, so the border follows the element's own geometry exactly. */
 .bd-input-mode-colored {
-  position: relative;
   border: 2px solid var(--bd-mode-border, transparent) !important;
-  border-radius: 12px !important;
   box-shadow: 
     0px 0px 32px rgba(0, 0, 0, 0.4),
     0px 0px 20px var(--bd-mode-glow, transparent),
     inset 0px 0px 12px var(--bd-mode-glow, transparent) !important;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease, border-radius 0.3s ease !important;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease !important;
 }
 
 /* Mode-specific colors using data attributes */
@@ -390,6 +390,16 @@
 .bd-input-mode-colored[data-bd-input-mode="see"] {
   --bd-mode-border: rgba(var(--bd-mode-see-rgb), 0.6);
   --bd-mode-glow: var(--bd-mode-see-glow);
+}
+
+.bd-input-mode-colored[data-bd-input-mode="image"] {
+  --bd-mode-border: rgba(var(--bd-mode-image-rgb), 0.6);
+  --bd-mode-glow: var(--bd-mode-image-glow);
+}
+
+.bd-input-mode-colored[data-bd-input-mode="video"] {
+  --bd-mode-border: rgba(var(--bd-mode-video-rgb), 0.6);
+  --bd-mode-glow: var(--bd-mode-video-glow);
 }
 
 .bd-input-mode-colored[data-bd-input-mode="command"] {
@@ -5236,55 +5246,96 @@ html[data-bd-platform="android-webview"] .bd-navigator-ime-visible .bd-navigator
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
-/* Compact input controls live above the controller, outside its clipped
-   textarea row. Both features share spacing and 44px touch/keyboard targets. */
+/* Compact input controls float as a centered pill above the controller,
+   outside its clipped textarea row. Buttons stay round and tappable. */
 .bd-compact-mode-controls {
   position: absolute;
-  bottom: calc(100% + 8px);
-  left: 8px;
-  right: 8px;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 16px);
   min-width: 0;
-  height: 56px;
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 5px;
-  border: 1px solid var(--bd-border-color, rgba(255,255,255,.18));
-  border-radius: 12px;
-  background: var(--bd-bg-secondary, #252935);
+  gap: 4px;
+  padding: 3px 4px;
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 999px;
+  background: rgba(47, 53, 57, .92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: var(--bd-text-primary, #f1f5f9);
-  box-shadow: 0 4px 16px rgba(0,0,0,.18);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, .25);
   font-family: var(--bd-font-family-primary, system-ui, sans-serif);
-  font-size: 13px;
-  line-height: 1.3;
+  font-size: 12px;
+  line-height: 1.2;
   z-index: 3;
   pointer-events: auto;
 }
-.gameplay-action-input-dock:has(.bd-compact-mode-controls) { padding-top: 64px; }
+.gameplay-action-input-dock:has(.bd-compact-mode-controls) { padding-top: 48px; }
+.gameplay-action-input-dock:has(.bd-compact-mode-controls:not(.bd-history-chip)):has(.bd-history-chip) { padding-top: 92px; }
 .bd-compact-mode-controls button {
   box-sizing: border-box;
-  flex: 0 0 44px;
-  width: 44px;
-  height: 44px;
-  min-height: 44px;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 0;
-  border: 1px solid currentColor;
-  border-radius: 8px;
-  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .08);
   color: inherit;
   font: inherit;
-  font-size: 24px;
+  font-size: 15px;
   line-height: 1;
   cursor: pointer;
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background .15s, transform .1s;
 }
 .bd-compact-mode-controls button:disabled { opacity: .35; cursor: default; }
-.bd-compact-mode-controls button:not(:disabled):active { background: rgba(128,128,128,.2); }
+.bd-compact-mode-controls button:not(:disabled):active { background: rgba(255, 255, 255, .2); transform: scale(.94); }
 .bd-compact-mode-controls button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
-.bd-mode-control-value { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.bd-mode-control-caption { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
-.bd-compact-mode-controls #bd-success-percent { font-weight: 700; font-variant-numeric: tabular-nums; }
-.bd-success-track { height: 5px; overflow: hidden; border-radius: 4px; background: rgba(128,128,128,.25); }
+.bd-mode-control-value { flex: 0 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 0 2px; }
+.bd-mode-control-caption { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; font-size: 10px; letter-spacing: .5px; text-transform: uppercase; opacity: .75; white-space: nowrap; }
+.bd-compact-mode-controls #bd-success-percent { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.bd-success-track { width: 56px; height: 4px; overflow: hidden; border-radius: 4px; background: rgba(128, 128, 128, .25); }
 .bd-success-track > div { height: 100%; border-radius: inherit; transition: width .15s; }
 .bd-command-controls .bd-mode-control-value { align-items: center; }
+
+/* The input-history chip shares the pill surface but docks to the right edge.
+   It floats one step higher whenever a Try/Command pill is open beneath it. */
+.bd-compact-mode-controls.bd-history-chip {
+  left: auto;
+  right: 6px;
+  transform: none;
+  gap: 2px;
+  padding: 2px 3px;
+}
+.bd-compact-mode-controls.bd-history-chip button {
+  flex-basis: 30px;
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  font-size: 12px;
+}
+.bd-history-chip #bd-history-counter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  line-height: 1;
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .3px;
+}
+.bd-history-chip #bd-history-counter .icon-history { font-size: 11px; line-height: 1; }
+#game-text-input-controller:has(.bd-compact-mode-controls:not(.bd-history-chip)) .bd-history-chip {
+  bottom: calc(100% + 48px);
+}

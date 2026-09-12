@@ -702,9 +702,9 @@ class CommandFeature {
     bar.setAttribute('role', 'group');
     bar.setAttribute('aria-label', 'Command sub-mode');
     bar.innerHTML = `
-      <button type="button" id="bd-submode-prev" aria-label="Previous command sub-mode">‹</button>
+      <button type="button" id="bd-submode-prev" aria-label="Previous command sub-mode"><span class="icon-chevron-left" aria-hidden="true"></span></button>
       <div class="bd-mode-control-value"><span class="bd-mode-control-caption">Command style</span><span id="bd-submode-pill" aria-live="polite"></span></div>
-      <button type="button" id="bd-submode-next" aria-label="Next command sub-mode">›</button>
+      <button type="button" id="bd-submode-next" aria-label="Next command sub-mode"><span class="icon-chevron-right" aria-hidden="true"></span></button>
     `;
 
     const wireButton = (element, direction) => {
@@ -737,9 +737,9 @@ class CommandFeature {
     const color = modeColors[this.subMode];
     pill.textContent = modeLabels[this.subMode];
     pill.style.cssText = `
-      padding: 1px 6px;
-      border-radius: 6px;
-      font-size: ${this.subModeBar?.classList.contains('bd-compact-mode-controls') ? '13px' : '9px'};
+      padding: 1px 5px;
+      border-radius: 5px;
+      font-size: ${this.subModeBar?.classList.contains('bd-compact-mode-controls') ? '10px' : '9px'};
       font-weight: 600;
       letter-spacing: 0.3px;
       background: ${color};

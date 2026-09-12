@@ -272,13 +272,29 @@ class AIDungeonService {
       });
   }
 
-  // Reads the currently active input mode from the collapsed mode bar label
+  // Reads the currently active input mode from the collapsed mode bar label.
+  // Image/Video are one-shot composers, not entries in MODES — they are still
+  // reported so edge coloring can follow them. 'see' is returned as-is because
+  // switchToMode('see') verifies against that exact label on the legacy UI.
   detectCurrentMode() {
     const modeBtn = this.getModeButton();
     if (!modeBtn) return null;
     const label = modeBtn.querySelector('.font_body');
     const raw = (label?.textContent || modeBtn.textContent).trim().toLowerCase();
-    return raw.startsWith('command') ? 'command' : raw;
+    if (raw.startsWith('command')) return 'command';
+    if (raw === 'see') return 'see';
+    if (raw.includes('video')) return 'video';
+    if (raw.includes('image')) return 'image';
+
+    // Media composers can leave the pill on the previous text mode. The submit
+    // icon and textarea placeholder track the real composer state.
+    const icon = this.getSubmitIconGlyph() || '';
+    if (/^w_(video|movie|cam|play)/.test(icon)) return 'video';
+    if (icon === 'w_image') return 'image';
+    const placeholder = this.getTextInput()?.placeholder?.toLowerCase() || '';
+    if (placeholder.includes('video')) return 'video';
+    if (placeholder.includes('image') || placeholder.includes('picture')) return 'image';
+    return raw;
   }
 
   // Whether the expanded input mode menu is currently visible

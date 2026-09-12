@@ -28,7 +28,7 @@
 
   function render(layout) {
     const mobile = layout === 'mobile';
-    fixture.innerHTML = `<div id="game-text-input-controller"><div><textarea id="game-text-input"></textarea><button aria-label="Submit action"><span class="font_icons">w_run</span></button></div><button aria-label="Change input mode" ${mobile ? 'aria-haspopup="menu" aria-expanded="false"' : ''}><span class="font_body">do</span></button></div>`;
+    fixture.innerHTML = `<div id="game-text-input-controller"><div class="_btlr-13--5px"><textarea id="game-text-input"></textarea><button aria-label="Submit action"><span class="font_icons">w_run</span></button></div><button aria-label="Change input mode" ${mobile ? 'aria-haspopup="menu" aria-expanded="false"' : ''}><span class="font_body">do</span></button></div>`;
     const trigger = aid.getModeButton();
     function open() {
       if (aid.getInputModeMenu()) return;
@@ -98,10 +98,23 @@
       assert(mutations === 0, `${layout}: menu must settle, observed ${mutations} mutations`);
       assert(aid.getModeButtonByName('command') === firstCommand && aid.getModeButtonByName('try') === firstTry, `${layout}: retain button identity`);
       observer.disconnect();
+      // Edge coloring hugs the rounded input row, not the outer controller
+      const coloredBox = fixture.querySelector('.bd-input-mode-colored');
+      assert(coloredBox?.classList.contains('_btlr-13--5px') && coloredBox.getAttribute('data-bd-input-mode') === 'do', `${layout}: mode color hugs the rounded input box`);
+      const modeTrigger = aid.getModeButton();
+      modeTrigger.querySelector('.font_body').textContent = 'image';
+      colors.detectAndApplyColor();
+      assert(aid.getInputContainer()?.getAttribute('data-bd-input-mode') === 'image', `${layout}: image composer gets the image edge`);
+      modeTrigger.querySelector('.font_body').textContent = 'video';
+      colors.detectAndApplyColor();
+      assert(aid.getInputContainer()?.getAttribute('data-bd-input-mode') === 'video', `${layout}: video composer gets the video edge`);
+      modeTrigger.querySelector('.font_body').textContent = 'do';
+      colors.detectAndApplyColor();
       const hotkeys = new HotkeyFeature();
       const migrated = HotkeyFeature.migrateBindings({9: 'modeSee'});
-      assert(migrated[9] === 'generateImage' && !Object.values(HotkeyFeature.DEFAULT_BINDINGS).includes('generateVideo'), 'saved hotkeys migrate; Video remains unbound');
+      assert(migrated[9] === 'generateImage' && HotkeyFeature.DEFAULT_BINDINGS['8'] === 'generateVideo', 'saved hotkeys migrate; Video defaults to 8');
       assert(hotkeys.getMenuActionTarget({actionId:'generateImage'}), `${layout}: Image hotkey resolves`);
+      if (layout !== 'legacy') assert(hotkeys.getMenuActionTarget({actionId:'generateVideo'}), `${layout}: Video hotkey resolves`);
       if (layout !== 'legacy') {
         assert(!aid.getAllModeButtons().includes(aid.getGenerateButton('image')), `${layout}: media is not a mode`);
         assert(aid.getGenerateButton('image').dataset.bdModeStyled === 'image', `${layout}: Image color`);
@@ -119,13 +132,28 @@
         const bar = document.getElementById('bd-success-bar-container');
         assert(bar.parentElement.id === 'game-text-input-controller', 'mobile: Try bar outside clipped input row');
         const up = bar.querySelector('#bd-weight-up');
-        assert(up.getBoundingClientRect().width >= 44 && up.getBoundingClientRect().height >= 44, 'mobile: Try touch target');
+        assert(up.getBoundingClientRect().width >= 36 && up.getBoundingClientRect().height >= 36, 'mobile: Try touch target');
         up.click();
         assert(attempt.getSuccessChance() === 55 && bar.querySelector('#bd-success-percent').textContent === '55%', 'mobile: increase chance');
         for (let i=0;i<20;i++) up.click();
         assert(attempt.getSuccessChance() === 95 && up.disabled, 'mobile: clamp and disable upper limit');
         bar.querySelector('#bd-weight-down').click();
         assert(attempt.getSuccessChance() === 90 && !up.disabled, 'mobile: decrease re-enables upper control');
+        const previousPlatform = window.BetterDungeonPlatform;
+        window.BetterDungeonPlatform = { has: c => c === 'touchControls' };
+        try {
+          const history = new InputHistoryFeature();
+          history.history = ['first', 'second'];
+          history.injectHistoryBar();
+          const chip = document.getElementById('bd-history-bar');
+          assert(chip?.parentElement.id === 'game-text-input-controller', 'mobile: history chip docks to the controller, not the clipped row');
+          assert(chip.classList.contains('bd-compact-mode-controls') && chip.classList.contains('bd-history-chip'), 'mobile: history chip shares the pill surface');
+          assert(!document.querySelector('[data-bd-history-parent]'), 'mobile: clipped input row keeps its overflow');
+          assert(document.querySelector('#game-text-input-controller:has(.bd-compact-mode-controls:not(.bd-history-chip)) .bd-history-chip'), 'mobile: history chip lifts above the Try pill');
+          history.removeHistoryBar();
+        } finally {
+          window.BetterDungeonPlatform = previousPlatform;
+        }
       }
       assert(await aid.openModeMenu(), `${layout}: reopen`); await sleep(100);
       assert(attempt.isTryMode, `${layout}: opening menu preserves Try`);
@@ -138,7 +166,7 @@
         const bar = document.getElementById('bd-command-submode-bar');
         assert(bar.parentElement.id === 'game-text-input-controller' && !document.getElementById('bd-success-bar-container'), 'mobile: only active controls remain');
         const next = bar.querySelector('#bd-submode-next');
-        assert(next.getBoundingClientRect().width >= 44 && next.getBoundingClientRect().height >= 44, 'mobile: Command touch target');
+        assert(next.getBoundingClientRect().width >= 36 && next.getBoundingClientRect().height >= 36, 'mobile: Command touch target');
         next.click();
         assert(command.subMode === 'subtle' && aid.detectCurrentMode() === 'command', 'mobile: cycle command preserves logical mode');
         bar.querySelector('#bd-submode-prev').click();

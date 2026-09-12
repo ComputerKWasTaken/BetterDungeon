@@ -435,12 +435,12 @@ class TryFeature {
     bar.setAttribute('role', 'group');
     bar.setAttribute('aria-label', 'Try success chance');
     bar.innerHTML = `
-      <button type="button" id="bd-weight-down" aria-label="Decrease success chance">−</button>
+      <button type="button" id="bd-weight-down" aria-label="Decrease success chance"><span class="icon-minus" aria-hidden="true"></span></button>
       <div class="bd-mode-control-value">
         <div class="bd-mode-control-caption"><span>Success</span><span id="bd-success-percent" aria-live="polite"></span></div>
         <div class="bd-success-track" aria-hidden="true"><div id="bd-success-bar-fill"></div></div>
       </div>
-      <button type="button" id="bd-weight-up" aria-label="Increase success chance">+</button>
+      <button type="button" id="bd-weight-up" aria-label="Increase success chance"><span class="icon-plus" aria-hidden="true"></span></button>
     `;
 
     const wireButton = (element, delta) => {

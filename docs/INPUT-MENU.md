@@ -21,7 +21,7 @@ Use `AIDungeonService`, not numeric IDs, generated class names, globally matched
 - `getInputMenuEntryName(element)` resolves a scoped native/custom entry; `getModeButtonByName(name)` only resolves known text modes.
 - `getAllModeButtons()` excludes Image/Video and supports future native writing-mode labels for anchoring. `getGenerateButton('image' | 'video')` is explicitly separate.
 - `openModeMenu()` sends ArrowDown to the compact Radix trigger because a synthetic click alone does not open it. `closeModeMenu()` uses the correct native dismissal path.
-- `detectCurrentMode()` normalizes Command's sub-mode labels to `command`. `switchToMode()` verifies the result and never treats media generation as a text-mode change.
+- `detectCurrentMode()` normalizes Command's sub-mode labels to `command` and reports `image`/`video` while a media composer is open (pill label first, then the submit icon glyph, then the textarea placeholder). `switchToMode()` verifies the result and never treats media generation as a text-mode change.
 
 ## Injection and lifecycle
 
@@ -33,9 +33,9 @@ Try activates native Do; Command activates native Story. Opening/dismissing the 
 
 ## Compact controls and colors
 
-Try's success-chance controls and Command's style controls share a 56px bar with 44px buttons, readable labels, focus outlines and live value announcements. The bar belongs to `#game-text-input-controller`, **not** its overflow-clipped textarea row. The action dock reserves 64px above the controller while a compact bar exists. Try clamps to 5–95% in five-point steps and disables controls at the limits. Command cycles Standard, Subtle and OOC.
+Try's success-chance controls and Command's style controls share a centered floating pill above `#game-text-input-controller`, **not** its overflow-clipped textarea row: 36px round buttons, compact uppercase labels, focus outlines and live value announcements. The action dock reserves 48px above the controller while a compact pill exists (92px when the history chip is raised above it). The input-history chip reuses the same pill surface, docked to the right edge, and floats a step higher while a mode pill is open. Try clamps to 5–95% in five-point steps and disables controls at the limits. Command cycles Standard, Subtle and OOC.
 
-Colors distinguish Image (cyan) and Video (indigo). Saved See colors migrate to Image; saved See hotkeys migrate to the Image action. Video has no default binding. The compact menu is styled as a native dropdown even when the desktop theme uses sprites. Input history containing a legacy See mode falls back to Story when See is unavailable, without generating an image. AutoSee retains its backend image-generation flow.
+Colors distinguish Image (cyan) and Video (indigo), including edge borders around the input box while their composers are open. Mode coloring targets the visible rounded input row (`getInputContainer()`), never the outer controller, and follows the box's own border-radius. Saved See colors migrate to Image; saved See hotkeys migrate to the Image action. Video is bound to `8` by default. The compact menu is styled as a native dropdown even when the desktop theme uses sprites. Input history containing a legacy See mode falls back to Story when See is unavailable, without generating an image. AutoSee retains its backend image-generation flow.
 
 ## Regression checks
 

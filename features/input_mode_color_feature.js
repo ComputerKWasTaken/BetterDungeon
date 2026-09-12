@@ -170,27 +170,11 @@ class InputModeColorFeature {
   }
 
   findInputContainer() {
-    const controller = document.querySelector('#game-text-input-controller');
-    if (controller) return controller;
-    // Find the input container with border-radius (the rounded input box)
-    const textarea = document.querySelector('#game-text-input');
-    if (textarea) {
-      // Look for parent with border-top-left-radius class (_btlr-)
-      const container = textarea.closest('div[class*="_btlr-"]');
-      if (container) {
-        return container;
-      }
-      // Fallback: traverse up to find container with visible border-radius
-      let parent = textarea.parentElement;
-      while (parent && parent !== document.body) {
-        const style = window.getComputedStyle(parent);
-        if (style.borderRadius && parseFloat(style.borderRadius) > 8) {
-          return parent;
-        }
-        parent = parent.parentElement;
-      }
-    }
-    return null;
+    // Color the visible rounded input box itself — the controller is an outer
+    // wrapper that also holds the collapsed mode pill, so coloring it leaves
+    // the edge detached from the actual input area.
+    return this.aid.getInputContainer()
+      || document.querySelector('#game-text-input-controller');
   }
 
   detectAndApplyColor() {
