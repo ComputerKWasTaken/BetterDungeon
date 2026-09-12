@@ -3721,6 +3721,9 @@ kbd.hotkey-unbound {
 .ai-more-options summary { color: var(--text-secondary); font-size: 11px; cursor: pointer; }
 .ai-more-options[open] summary { margin-bottom: 12px; }
 .ai-settings-body .ai-fallback-note { margin: 0; }
+.ai-settings-body .ai-test-feedback { margin: 0; line-height: 1.5; }
+.ai-test-feedback[data-state="error"] { color: var(--error); }
+.ai-test-feedback[data-state="success"] { color: var(--success); }
 .ai-settings-footer { display: grid; gap: 10px; padding: 4px; margin-top: 10px; }
 .ai-settings-footer .form-help { margin: 0; line-height: 1.5; }
 .ai-feedback:empty { display: none; }

@@ -6,6 +6,12 @@
   const PORT = 'BETTERDUNGEON_AI_CHAT_V2';
   const fail = (code, message, extra = {}) => Object.assign(new Error(message), { code, ...extra });
   const clone = v => JSON.parse(JSON.stringify(v));
+  function sameStored(a, b) {
+    if (a === b) return true;
+    if (!a || !b || typeof a !== 'object' || typeof b !== 'object' || Array.isArray(a) !== Array.isArray(b)) return false;
+    const keys = Object.keys(a);
+    return keys.length === Object.keys(b).length && keys.every(key => Object.hasOwn(b, key) && sameStored(a[key], b[key]));
+  }
   function create({ storage, fetch: transport, now = Date.now }) {
     let migration, last = null;
     const STATE_KEY = 'betterdungeon_ai_runtime_state_v1';
@@ -27,7 +33,7 @@
         const migrated = C.migrate(saved[C.LEGACY_KEY]);
         await storage.set({ [C.KEY]: migrated });
         const written = (await storage.get(C.KEY))[C.KEY];
-        if (JSON.stringify(written) !== JSON.stringify(migrated)) throw fail('storage_failed', 'AI settings could not be saved. Original settings were preserved.');
+        if (!sameStored(written, migrated)) throw fail('storage_failed', 'AI settings could not be saved. Original settings were preserved.');
         if (saved[C.LEGACY_KEY]) await storage.remove(C.LEGACY_KEY);
       })().catch(e => { migration = null; throw e; });
       await migration;
@@ -43,9 +49,11 @@
         if (raw.advanced?.profiles?.[name]?.apiKey === undefined) next.advanced.profiles[name].apiKey = old.advanced.profiles[name].apiKey;
       }
       await storage.set({ [C.KEY]: next });
-      if (JSON.stringify((await storage.get(C.KEY))[C.KEY]) !== JSON.stringify(next)) throw fail('storage_failed', 'AI settings could not be saved.');
+      if (!sameStored((await storage.get(C.KEY))[C.KEY], next)) throw fail('storage_failed', 'AI settings could not be saved.');
       suppressed.clear(); catalogs.clear(); last = null;
-      await persistState();
+      // The configuration is already committed. A failed diagnostic-state reset
+      // must not report the user's settings as unsaved.
+      await persistState().catch(() => {});
       return next;
     }
     function status(c, consumer) {
@@ -57,7 +65,8 @@
       return { ready, available: ready, reason: ready ? null : 'not_configured',
         message: ready ? 'BetterDungeon AI is ready.' : 'Open the AI tab in the BetterDungeon popup to configure a provider.',
         limits: { maxInputTokens: Math.min(cap, s.service === 'mistral' ? 240000 : 2000000), maxInputChars: Math.min(cap, s.service === 'mistral' ? 240000 : 2000000) * 3, maxOutputTokens: 2048, resolved: true },
-        config: { ...C.publicConfig(c), service: s.service }, consumer: id, tier, last };
+        config: { ...C.publicConfig(c), service: s.service,
+          thinkingLevels: tier === 'simple' ? ['minimal', 'low', 'medium', 'high'] : [] }, consumer: id, tier, last };
     }
     async function http(url, init, signal, parse) {
       const controller = new AbortController();
@@ -261,6 +270,10 @@
     }
     async function run(c, raw, controls = {}, forcedTier) {
       const info = taskData(raw), attempted = [];
+      if (controls.diagnostic) {
+        info.outputTokens = 64;
+        info.totalTokens = info.inputTokens + info.outputTokens;
+      }
       const primary = forcedTier || (c.advanced.enabled && c.routing[info.consumer] === 'advanced' ? 'advanced' : 'simple');
       let advancedFallback = false, emitted = false;
       const onDelta = (text, seq) => { emitted = true; controls.onDelta?.(text, seq); };
@@ -284,9 +297,12 @@
           try {
             const result = await attempt(info, s, model, controls.signal, onDelta);
             suppressed.delete(key);
-            last = { consumer: info.consumer, providerTier: tier, provider: s.service, model, attemptedModels: [...attempted], advancedFallback };
-            await persistState().catch(() => {});
-            return { ...result, ...last, service: s.service, generatedAtIso: new Date(now()).toISOString(), fallback: { advancedToSimple: advancedFallback, attemptedModels: [...attempted] }, status: status(c, info.consumer) };
+            const completion = { consumer: info.consumer, providerTier: tier, provider: s.service, model, attemptedModels: [...attempted], advancedFallback };
+            if (!controls.diagnostic) {
+              last = completion;
+              await persistState().catch(() => {});
+            }
+            return { ...result, ...completion, service: s.service, generatedAtIso: new Date(now()).toISOString(), fallback: { advancedToSimple: advancedFallback, attemptedModels: [...attempted] }, status: status(c, info.consumer) };
           } catch (e) {
             lastError = e;
             if (emitted) throw e; // Do not concatenate output from two different attempts.
@@ -328,9 +344,9 @@
         parentSignal?.addEventListener('abort', cancel, { once: true });
         // One deadline includes discovery and every fallback, so a script timeout
         // cannot leave a chain of new provider requests running in the background.
-        timer = setTimeout(() => { timedOut = true; controller.abort(); }, 115000);
+        timer = setTimeout(() => { timedOut = true; controller.abort(); }, request.op === 'test' ? 30000 : 115000);
         controls = { ...controls, signal: controller.signal };
-        if (request.op === 'test') return await run(c, { prompt: 'Reply with exactly: BetterDungeon AI ready', output: { type: 'text' }, consumer: 'ultrascripts' }, controls, request.tier === 'advanced' ? 'advanced' : 'simple');
+        if (request.op === 'test') return await run(c, { prompt: 'Reply with exactly: BetterDungeon AI ready', output: { type: 'text' }, consumer: 'ultrascripts' }, { ...controls, diagnostic: true }, request.tier === 'advanced' ? 'advanced' : 'simple');
         if (request.op === 'query' || request.op === 'chat') return await run(c, { ...request.task, op: request.op }, controls);
         throw fail('invalid_args', 'Unsupported AI operation.');
       } catch (e) { throw C.redactError(timedOut ? fail('timeout', 'AI request timed out.') : e, c); }

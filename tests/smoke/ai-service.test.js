@@ -9,6 +9,8 @@ const C = require('../../services/ai/config.js');
 require('../../modules/ai/executor.js');
 const Runtime = require('../../services/ai/runtime.js');
 const copy = v => JSON.parse(JSON.stringify(v));
+const reverseKeys = v => Array.isArray(v) ? v.map(reverseKeys) : v && typeof v === 'object'
+  ? Object.fromEntries(Object.entries(v).reverse().map(([key, value]) => [key, reverseKeys(value)])) : v;
 const query = { op: 'query', task: { prompt: 'Describe the forest.', output: { type: 'text' }, consumer: 'ultrascripts' } };
 const json = (data, status = 200, headers = {}) => new Response(JSON.stringify(data), { status, headers });
 const reply = () => json({ choices: [{ message: { content: 'Forest' }, finish_reason: 'stop' }] });
@@ -52,6 +54,32 @@ test('migration preserves profiles and keys; status redacts them; failed writes 
   await assert.rejects(broken.api.config());
   assert.ok(broken.data[C.LEGACY_KEY]);
 });
+test('AI settings accept storage property reordering but still detect a lost key', async () => {
+  const saved = C.normalize({ simple: { apiKey: 'original-key' } });
+  const h = setup(saved, geminiReply);
+  const get = h.storage.get;
+  h.storage.get = async keys => reverseKeys(await get(keys));
+  const updated = (await h.api.handle({ op: 'settings:get' })).config;
+  updated.simple.apiKey = 'replacement-key';
+  assert.notEqual(JSON.stringify(reverseKeys(saved)), JSON.stringify(saved));
+  await h.api.handle({ op: 'settings:set', config: updated });
+  assert.equal(h.data[C.KEY].simple.apiKey, 'replacement-key');
+
+  const migrated = setup(null, geminiReply, { [C.LEGACY_KEY]: { profiles: { gemini: { apiKey: 'legacy-key' } } } });
+  const migrationGet = migrated.storage.get;
+  migrated.storage.get = async keys => reverseKeys(await migrationGet(keys));
+  await migrated.api.handle({ op: 'settings:get' });
+  assert.equal(migrated.data[C.KEY].simple.apiKey, 'legacy-key');
+  assert.equal(migrated.data[C.LEGACY_KEY], undefined);
+
+  const broken = setup(saved, geminiReply);
+  const set = broken.storage.set;
+  broken.storage.set = async values => {
+    await set(values);
+    if (Object.hasOwn(values, C.KEY)) delete broken.data[C.KEY].simple.apiKey;
+  };
+  await assert.rejects(broken.api.handle({ op: 'settings:set', config: { ...saved, simple: { ...saved.simple, apiKey: 'replacement-key' } } }), { code: 'storage_failed' });
+});
 test('Gemini lanes and Navigator large-request eligibility', () => {
   const c = C.normalize({ simple: { apiKey: 'g' } });
   assert.deepEqual(C.models(c, 'simple', 'ultrascripts', 4000), C.flash);
@@ -59,6 +87,56 @@ test('Gemini lanes and Navigator large-request eligibility', () => {
   c.simple.quotaStrategy = 'shared';
   assert.deepEqual(C.models(c, 'simple', 'navigator', 12001), C.flash);
   assert.deepEqual(C.models(c, 'simple', 'navigator', 12000), [...C.flash, ...C.gemma]);
+});
+
+test('Navigator advertises Gemini thinking levels and saved AI settings survive a reload', async () => {
+  const h = setup(C.normalize({ simple: { apiKey: 'original-key' } }), geminiReply);
+  const initial = await h.api.handle({ op: 'status', consumer: 'navigator' });
+  assert.deepEqual(initial.config.thinkingLevels, ['minimal', 'low', 'medium', 'high']);
+  const updated = copy(initial.config);
+  updated.simple.apiKey = 'replacement-key';
+  updated.advanced.enabled = true;
+  updated.advanced.activeService = 'mistral';
+  updated.advanced.profiles.mistral.apiKey = 'mistral-key';
+  updated.routing.characterPresets = 'advanced';
+  await h.api.handle({ op: 'settings:set', config: updated });
+  const reloaded = setup(null, geminiReply, h.data);
+  const status = await reloaded.api.handle({ op: 'status', consumer: 'characterPresets' });
+  assert.equal(status.tier, 'advanced');
+  assert.deepEqual(status.config.thinkingLevels, []);
+  assert.equal(h.data[C.KEY].simple.apiKey, 'replacement-key');
+  assert.equal(h.data[C.KEY].advanced.profiles.mistral.apiKey, 'mistral-key');
+  assert.ok(!JSON.stringify(status).includes('replacement-key'));
+});
+
+test('a diagnostic-state write failure does not falsely report saved settings as failed', async () => {
+  const h = setup(C.normalize({ simple: { apiKey: 'original-key' } }), geminiReply);
+  const set = h.storage.set;
+  h.storage.set = values => Object.hasOwn(values, 'betterdungeon_ai_runtime_state_v1')
+    ? Promise.reject(new Error('Diagnostic state unavailable')) : set(values);
+  const updated = (await h.api.handle({ op: 'settings:get' })).config;
+  updated.simple.apiKey = 'replacement-key';
+  const saved = await h.api.handle({ op: 'settings:set', config: updated });
+  assert.equal(saved.config.simple.keyConfigured, true);
+  assert.equal(h.data[C.KEY].simple.apiKey, 'replacement-key');
+});
+
+test('connection checks use the selected provider, a small output cap, and do not replace the latest real completion', async () => {
+  const simple = setup(C.normalize({ simple: { apiKey: 'gemini-key' } }), geminiReply);
+  await simple.api.handle(query);
+  const previous = simple.data.betterdungeon_ai_runtime_state_v1.last;
+  const checked = await simple.api.handle({ op: 'test', tier: 'simple' });
+  assert.equal(checked.model, C.flash[0]);
+  assert.equal(JSON.parse(simple.requests.at(-1).body).generationConfig.maxOutputTokens, 64);
+  assert.deepEqual(checked.status.last, previous);
+  assert.deepEqual(simple.data.betterdungeon_ai_runtime_state_v1.last, previous);
+
+  const mistral = setup(advanced(), reply);
+  const advancedCheck = await mistral.api.handle({ op: 'test', tier: 'advanced' });
+  assert.equal(advancedCheck.model, C.mistral[0].id);
+  assert.equal(advancedCheck.providerTier, 'advanced');
+  assert.equal(JSON.parse(mistral.requests.at(-1).body).max_tokens, 64);
+  assert.equal(advancedCheck.status.last, null);
 });
 test('Mistral Automatic falls through in order, respects suppression and returns actual provider metadata', async () => {
   let success = false;
@@ -188,6 +266,9 @@ test('browser and Android hosts return identical responses through current and l
       const result = await new Promise(resolve => listeners[0]({ type, request: query }, {}, resolve));
       assert.equal(result.ok, true); results.push([result.data.text, result.data.model, result.data.providerTier]);
     }
+    const diagnostic = await new Promise(resolve => listeners[0]({ type: 'BETTERDUNGEON_AI', request: { op: 'test', tier: 'simple' } }, {}, resolve));
+    assert.equal(diagnostic.ok, true);
+    assert.equal(diagnostic.data.model, C.flash[0]);
   }
   assert.ok(results.every(r => JSON.stringify(r) === JSON.stringify(results[0])));
 });

@@ -473,11 +473,10 @@ function saveFeatureState(featureId, enabled) {
 }
 
 function setUltrascriptsModuleControlsEnabled(enabled) {
-  document.querySelectorAll('[data-ultrascripts-module-toggle], #ultrascripts-debug, #ai-endpoint-service, #ai-endpoint-base-url, #ai-endpoint-api-key, #ai-endpoint-model-mode, #ai-endpoint-model, #ai-endpoint-save, #ai-endpoint-clear-key, #ai-endpoint-test')
+  document.querySelectorAll('[data-ultrascripts-module-toggle], #ultrascripts-debug')
     .forEach(control => {
       control.disabled = !enabled;
     });
-  if (enabled && typeof setEndpointControlsPending === 'function') setEndpointControlsPending(false);
 }
 
 // ============================================

@@ -1,10 +1,10 @@
 # AI setup and routing
 
-Open the popup's **AI** tab. For Simple setup, paste a personal Gemini API key and choose **Save & connect**. BetterDungeon selects models automatically. Keys stay in local storage; provider use follows the account's quotas and billing. The Ultrascripts AI switch controls script permission only; Navigator and Character Prefill use the shared service independently.
+Open the popup's **AI** tab. For Simple setup, paste a personal Gemini API key and choose **Save & connect**. BetterDungeon saves the key before testing the connection; if the test fails, the key is still saved and the result appears beside the button. Connection checks have a 30-second backend deadline, use a small output cap, and do not replace the latest real completion. BetterDungeon selects models automatically. Keys stay in local storage; provider use follows the account's quotas and billing. The Ultrascripts AI switch controls script permission only; Navigator and Character Prefill use the shared service independently.
 
 ## Advanced providers
 
-Enable Advanced, select OpenRouter, Mistral, or Custom, and select which features use it. Advanced works without a Gemini key. OpenRouter and Custom use the supplied model ID; Custom requires an HTTPS base URL. An input cap of 0 uses the default. Saving configuration makes no provider calls; connection tests send a small test request to the selected provider.
+Enable Advanced, select OpenRouter, Mistral, or Custom, and select which features use it. Advanced works without a Gemini key. OpenRouter and Custom use the supplied model ID; Custom requires an HTTPS base URL to test or run requests, but an incomplete profile can still be saved. An input cap of 0 uses the default. Saving configuration makes no provider calls; connection tests send a small test request to the selected provider.
 
 Mistral's default Automatic option tries `mistral-large-2512`, `ministral-14b-2512`, `ministral-8b-2512`, then `ministral-3b-2512`. Selecting a model pins it; Custom Mistral model ID accepts another model available to the account. Discovery uses the model-list endpoint with the ordinary API key, never an admin key. Automatic models have 256k context windows. Their supplied account limits inform the chosen order, but are not guaranteed quotas for every user.
 
