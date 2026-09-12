@@ -132,7 +132,7 @@
         const bar = document.getElementById('bd-success-bar-container');
         assert(bar.parentElement.id === 'game-text-input-controller', 'mobile: Try bar outside clipped input row');
         const up = bar.querySelector('#bd-weight-up');
-        assert(up.getBoundingClientRect().width >= 36 && up.getBoundingClientRect().height >= 36, 'mobile: Try touch target');
+        assert(up.getBoundingClientRect().width >= 32 && up.getBoundingClientRect().height >= 32, 'mobile: Try touch target');
         up.click();
         assert(attempt.getSuccessChance() === 55 && bar.querySelector('#bd-success-percent').textContent === '55%', 'mobile: increase chance');
         for (let i=0;i<20;i++) up.click();
@@ -166,7 +166,7 @@
         const bar = document.getElementById('bd-command-submode-bar');
         assert(bar.parentElement.id === 'game-text-input-controller' && !document.getElementById('bd-success-bar-container'), 'mobile: only active controls remain');
         const next = bar.querySelector('#bd-submode-next');
-        assert(next.getBoundingClientRect().width >= 36 && next.getBoundingClientRect().height >= 36, 'mobile: Command touch target');
+        assert(next.getBoundingClientRect().width >= 32 && next.getBoundingClientRect().height >= 32, 'mobile: Command touch target');
         next.click();
         assert(command.subMode === 'subtle' && aid.detectCurrentMode() === 'command', 'mobile: cycle command preserves logical mode');
         bar.querySelector('#bd-submode-prev').click();

@@ -113,18 +113,15 @@
    LOADING SCREEN
    ============================================ */
 
+/* AI Dungeon's hashed font URLs change between builds — load the packaged
+   variable font instead of chasing their _next/static paths. */
 @font-face {
   font-family: 'IBM Plex Sans';
-  src: url('https://play.aidungeon.com/_next/static/media/IBMPlexSans-Regular.c7dc84d0.ttf') format('truetype');
-  font-weight: 400;
+  src: url('fonts/IBM_Plex_Sans/IBMPlexSans-VariableFont_wdth,wght.ttf') format('truetype-variations');
+  font-weight: 100 700;
+  font-stretch: 75% 100%;
   font-style: normal;
-}
-
-@font-face {
-  font-family: 'IBM Plex Sans';
-  src: url('https://play.aidungeon.com/_next/static/media/IBMPlexSans-Medium.b57725b8.ttf') format('truetype');
-  font-weight: 500;
-  font-style: normal;
+  font-display: swap;
 }
 
 .bd-loading-overlay {
@@ -5246,21 +5243,20 @@ html[data-bd-platform="android-webview"] .bd-navigator-ime-visible .bd-navigator
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
-/* Compact input controls float as a centered pill above the controller,
+/* Compact input controls float as a right-docked pill above the controller,
    outside its clipped textarea row. Buttons stay round and tappable. */
 .bd-compact-mode-controls {
   position: absolute;
   bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
+  right: 8px;
   width: max-content;
   max-width: calc(100% - 16px);
   min-width: 0;
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 4px;
+  gap: 3px;
+  padding: 2px 3px;
   border: 1px solid rgba(255, 255, 255, .08);
   border-radius: 999px;
   background: rgba(47, 53, 57, .92);
@@ -5269,19 +5265,19 @@ html[data-bd-platform="android-webview"] .bd-navigator-ime-visible .bd-navigator
   color: var(--bd-text-primary, #f1f5f9);
   box-shadow: 0 3px 10px rgba(0, 0, 0, .25);
   font-family: var(--bd-font-family-primary, system-ui, sans-serif);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.2;
   z-index: 3;
   pointer-events: auto;
 }
-.gameplay-action-input-dock:has(.bd-compact-mode-controls) { padding-top: 48px; }
-.gameplay-action-input-dock:has(.bd-compact-mode-controls:not(.bd-history-chip)):has(.bd-history-chip) { padding-top: 92px; }
+.gameplay-action-input-dock:has(.bd-compact-mode-controls) { padding-top: 44px; }
+.gameplay-action-input-dock:has(.bd-compact-mode-controls:not(.bd-history-chip)):has(.bd-history-chip) { padding-top: 84px; }
 .bd-compact-mode-controls button {
   box-sizing: border-box;
-  flex: 0 0 36px;
-  width: 36px;
-  height: 36px;
-  min-height: 36px;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -5291,7 +5287,7 @@ html[data-bd-platform="android-webview"] .bd-navigator-ime-visible .bd-navigator
   background: rgba(255, 255, 255, .08);
   color: inherit;
   font: inherit;
-  font-size: 15px;
+  font-size: 13px;
   line-height: 1;
   cursor: pointer;
   touch-action: manipulation;
@@ -5302,40 +5298,37 @@ html[data-bd-platform="android-webview"] .bd-navigator-ime-visible .bd-navigator
 .bd-compact-mode-controls button:not(:disabled):active { background: rgba(255, 255, 255, .2); transform: scale(.94); }
 .bd-compact-mode-controls button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 .bd-mode-control-value { flex: 0 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 0 2px; }
-.bd-mode-control-caption { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; font-size: 10px; letter-spacing: .5px; text-transform: uppercase; opacity: .75; white-space: nowrap; }
-.bd-compact-mode-controls #bd-success-percent { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.bd-success-track { width: 56px; height: 4px; overflow: hidden; border-radius: 4px; background: rgba(128, 128, 128, .25); }
+.bd-mode-control-caption { display: flex; justify-content: space-between; align-items: baseline; gap: 5px; font-size: 9px; letter-spacing: .5px; text-transform: uppercase; opacity: .75; white-space: nowrap; }
+.bd-compact-mode-controls #bd-success-percent { font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.bd-success-track { width: 48px; height: 4px; overflow: hidden; border-radius: 4px; background: rgba(128, 128, 128, .25); }
 .bd-success-track > div { height: 100%; border-radius: inherit; transition: width .15s; }
 .bd-command-controls .bd-mode-control-value { align-items: center; }
 
-/* The input-history chip shares the pill surface but docks to the right edge.
-   It floats one step higher whenever a Try/Command pill is open beneath it. */
+/* The input-history chip shares the pill surface on the same right edge and
+   floats one step higher whenever a Try/Command pill is open beneath it. */
 .bd-compact-mode-controls.bd-history-chip {
-  left: auto;
-  right: 6px;
-  transform: none;
   gap: 2px;
   padding: 2px 3px;
 }
 .bd-compact-mode-controls.bd-history-chip button {
-  flex-basis: 30px;
-  width: 30px;
-  height: 30px;
-  min-height: 30px;
-  font-size: 12px;
+  flex-basis: 26px;
+  width: 26px;
+  height: 26px;
+  min-height: 26px;
+  font-size: 11px;
 }
 .bd-history-chip #bd-history-counter {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 20px;
+  min-width: 18px;
   line-height: 1;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: .3px;
 }
-.bd-history-chip #bd-history-counter .icon-history { font-size: 11px; line-height: 1; }
+.bd-history-chip #bd-history-counter .icon-history { font-size: 10px; line-height: 1; }
 #game-text-input-controller:has(.bd-compact-mode-controls:not(.bd-history-chip)) .bd-history-chip {
-  bottom: calc(100% + 48px);
+  bottom: calc(100% + 46px);
 }

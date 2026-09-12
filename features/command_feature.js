@@ -739,7 +739,7 @@ class CommandFeature {
     pill.style.cssText = `
       padding: 1px 5px;
       border-radius: 5px;
-      font-size: ${this.subModeBar?.classList.contains('bd-compact-mode-controls') ? '10px' : '9px'};
+      font-size: 9px;
       font-weight: 600;
       letter-spacing: 0.3px;
       background: ${color};
