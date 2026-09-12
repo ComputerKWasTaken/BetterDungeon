@@ -5300,7 +5300,7 @@ html[data-bd-platform="android-webview"] .bd-navigator-ime-visible .bd-navigator
 .bd-mode-control-value { flex: 0 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 0 2px; }
 .bd-mode-control-caption { display: flex; justify-content: space-between; align-items: baseline; gap: 5px; font-size: 9px; letter-spacing: .5px; text-transform: uppercase; opacity: .75; white-space: nowrap; }
 .bd-compact-mode-controls #bd-success-percent { font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.bd-success-track { width: 48px; height: 4px; overflow: hidden; border-radius: 4px; background: rgba(128, 128, 128, .25); }
+.bd-success-track { width: 100%; height: 4px; overflow: hidden; border-radius: 4px; background: rgba(128, 128, 128, .25); }
 .bd-success-track > div { height: 100%; border-radius: inherit; transition: width .15s; }
 .bd-command-controls .bd-mode-control-value { align-items: center; }
 

@@ -110,8 +110,6 @@ class TryFeature {
 
   destroy() {
     clearTimeout(this.activationTimer);
-    clearTimeout(this.autoCleanupTimer);
-    this.autoCleanupTimer = null;
     this.activationTimer = null;
     if (this.observer) {
       this.observer.disconnect();
@@ -191,7 +189,7 @@ class TryFeature {
       this.updateModeDisplay();
     }
     const bar = document.getElementById('bd-success-bar-container');
-    if (this.isTryMode && !this.activationTimer && (!bar || bar.classList.contains('bd-compact-mode-controls') !== this.aid.usesCompactInput())) {
+    if (this.isTryMode && !this.activationTimer && !bar) {
       this.injectSuccessBar();
     }
   }
@@ -382,58 +380,17 @@ class TryFeature {
     const textarea = document.querySelector('#game-text-input');
     if (!textarea) return;
 
-    // The input row (textarea's parent) has position:absolute and 32px bottom padding
+    // The input row (textarea's parent) clips overflow — the pill docks to
+    // the controller on every layout instead.
     const inputRow = textarea.parentElement;
     if (!inputRow) return;
 
-    if (this.aid.usesCompactInput()) {
-      this.injectTouchSuccessBar(inputRow);
-      return;
-    }
-
-    const bar = document.createElement('div');
-    bar.id = 'bd-success-bar-container';
-    bar.style.cssText = `
-      position: absolute;
-      bottom: 6px;
-      left: 32px;
-      right: 32px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 5px 14px;
-      background: rgba(0, 0, 0, 0.3);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      border-radius: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      font-family: var(--bd-font-family-primary, 'IBM Plex Sans', sans-serif);
-      font-size: 11px;
-      color: rgba(255, 255, 255, 0.45);
-      z-index: 2;
-      pointer-events: none;
-    `;
-
-    bar.innerHTML = `
-      <span style="white-space:nowrap; font-weight:600; font-size:10px; letter-spacing:0.4px; text-transform:uppercase;">Success</span>
-      <div style="flex:1; height:5px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden;">
-        <div id="bd-success-bar-fill" style="height:100%; border-radius:3px; transition:width .3s cubic-bezier(.4,0,.2,1), background .3s;"></div>
-      </div>
-      <span id="bd-success-percent" style="min-width:28px; text-align:right; font-weight:700; font-size:12px; font-variant-numeric:tabular-nums; transition:color .3s;"></span>
-      <span style="opacity:0.3; font-size:9px;">↑↓</span>
-    `;
-
-    inputRow.appendChild(bar);
-    this.successBar = bar;
-    this.updateSuccessBar();
-  }
-
-  injectTouchSuccessBar(inputRow) {
     const bar = document.createElement('div');
     bar.id = 'bd-success-bar-container';
     bar.className = 'bd-compact-mode-controls bd-try-controls';
     bar.setAttribute('role', 'group');
     bar.setAttribute('aria-label', 'Try success chance');
+    bar.title = 'Adjust with ↑ and ↓';
     bar.innerHTML = `
       <button type="button" id="bd-weight-down" aria-label="Decrease success chance"><span class="icon-minus" aria-hidden="true"></span></button>
       <div class="bd-mode-control-value">
@@ -454,7 +411,6 @@ class TryFeature {
     wireButton(bar.querySelector('#bd-weight-down'), -1);
     wireButton(bar.querySelector('#bd-weight-up'), 1);
 
-    // The native textarea row clips overflow. Anchor to its controller instead.
     (inputRow.closest('#game-text-input-controller') || inputRow.parentElement).appendChild(bar);
     this.successBar = bar;
     this.updateSuccessBar();
@@ -678,30 +634,8 @@ class TryFeature {
     this.submitClickHandler = handleClick;
     document.addEventListener('click', handleClick, true);
     
-    // Auto-cleanup after 30 seconds, but only if user isn't actively using the input
-    this.scheduleAutoCleanup();
-  }
-
-  scheduleAutoCleanup() {
-    if (this.autoCleanupTimer) {
-      clearTimeout(this.autoCleanupTimer);
-    }
-    
-    this.autoCleanupTimer = setTimeout(() => {
-      if (!this.isTryMode) return;
-      
-      const textarea = document.querySelector('#game-text-input');
-      const isUserTyping = textarea && (document.activeElement === textarea || textarea.value.trim().length > 0);
-      const isInStorySection = document.querySelector('#gameplay-output') !== null;
-      
-      // Don't auto-deactivate if user is actively typing, has content, or is not in story section
-      if (isUserTyping || !isInStorySection) {
-        // Reschedule check - user is still active or not in story section
-        this.scheduleAutoCleanup();
-      } else {
-        this.deactivateTryMode();
-      }
-    }, 30000);
+    // Try stays active until the user submits or picks a native mode — an
+    // idle auto-revert made the mode feel like it dropped on its own.
   }
 
   deactivateTryMode() {
@@ -709,12 +643,6 @@ class TryFeature {
     this.activationTimer = null;
     this.isTryMode = false;
     this.restoreModeDisplay();
-    
-    // Clean up auto-cleanup timer
-    if (this.autoCleanupTimer) {
-      clearTimeout(this.autoCleanupTimer);
-      this.autoCleanupTimer = null;
-    }
     
     // Reset weight for next try
     this.weight = 0;

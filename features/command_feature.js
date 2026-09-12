@@ -99,8 +99,6 @@ class CommandFeature {
 
   destroy() {
     clearTimeout(this.activationTimer);
-    clearTimeout(this.autoCleanupTimer);
-    this.autoCleanupTimer = null;
     this.activationTimer = null;
     if (this.observer) {
       this.observer.disconnect();
@@ -146,7 +144,7 @@ class CommandFeature {
         this.pendingInjection = null;
         this.injectCommandButton();
         const bar = document.getElementById('bd-command-submode-bar');
-        if (this.isCommandMode && !this.activationTimer && (!bar || bar.classList.contains('bd-compact-mode-controls') !== this.aid.usesCompactInput())) {
+        if (this.isCommandMode && !this.activationTimer && !bar) {
           this.injectSubModeBar();
         }
       });
@@ -553,30 +551,8 @@ class CommandFeature {
     this.submitClickHandler = handleClick;
     document.addEventListener('click', handleClick, true);
     
-    // Auto-cleanup after 30 seconds, but only if user isn't actively using the input
-    this.scheduleAutoCleanup();
-  }
-
-  scheduleAutoCleanup() {
-    if (this.autoCleanupTimer) {
-      clearTimeout(this.autoCleanupTimer);
-    }
-    
-    this.autoCleanupTimer = setTimeout(() => {
-      if (!this.isCommandMode) return;
-      
-      const textarea = document.querySelector('#game-text-input');
-      const isUserTyping = textarea && (document.activeElement === textarea || textarea.value.trim().length > 0);
-      const isInStorySection = document.querySelector('#gameplay-output') !== null;
-      
-      // Don't auto-deactivate if user is actively typing, has content, or is not in story section
-      if (isUserTyping || !isInStorySection) {
-        // Reschedule check - user is still active or not in story section
-        this.scheduleAutoCleanup();
-      } else {
-        this.deactivateCommandMode();
-      }
-    }, 30000);
+    // Command stays active until the user submits or picks a native mode —
+    // an idle auto-revert made the mode feel like it dropped on its own.
   }
 
   deactivateCommandMode() {
@@ -585,12 +561,6 @@ class CommandFeature {
     this.isCommandMode = false;
     this.restoreModeDisplay();
     this.removeSubModeBar();
-    
-    // Clean up auto-cleanup timer
-    if (this.autoCleanupTimer) {
-      clearTimeout(this.autoCleanupTimer);
-      this.autoCleanupTimer = null;
-    }
     
     // Clean up listeners
     if (this.boundKeyHandler) {
@@ -656,44 +626,9 @@ class CommandFeature {
     const textarea = document.querySelector('#game-text-input');
     if (!textarea) return;
 
+    // The input row (textarea's parent) clips overflow — the pill docks to
+    // the controller on every layout instead.
     const inputRow = textarea.parentElement;
-    if (!inputRow) return;
-
-    if (this.aid.usesCompactInput()) {
-      this.injectTouchSubModeBar(inputRow);
-      return;
-    }
-
-    const bar = document.createElement('div');
-    bar.id = 'bd-command-submode-bar';
-    bar.style.cssText = `
-      position: absolute;
-      bottom: 8px;
-      left: 12px;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 2px 8px;
-      background: rgba(0, 0, 0, 0.35);
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
-      border-radius: 10px;
-      font-family: var(--bd-font-family-primary, 'IBM Plex Sans', sans-serif);
-      font-size: 9px;
-      color: rgba(255, 255, 255, 0.5);
-      z-index: 2;
-      pointer-events: none;
-      user-select: none;
-    `;
-
-    bar.innerHTML = `<span id="bd-submode-pill"></span><span style="opacity:0.3; font-size:8px;">\u2191\u2193</span>`;
-
-    inputRow.appendChild(bar);
-    this.subModeBar = bar;
-    this.updateSubModeBar();
-  }
-
-  injectTouchSubModeBar(inputRow) {
     if (!inputRow?.parentElement) return;
 
     const bar = document.createElement('div');
@@ -701,6 +636,7 @@ class CommandFeature {
     bar.className = 'bd-compact-mode-controls bd-command-controls';
     bar.setAttribute('role', 'group');
     bar.setAttribute('aria-label', 'Command sub-mode');
+    bar.title = 'Cycle with ↑ and ↓';
     bar.innerHTML = `
       <button type="button" id="bd-submode-prev" aria-label="Previous command sub-mode"><span class="icon-chevron-left" aria-hidden="true"></span></button>
       <div class="bd-mode-control-value"><span class="bd-mode-control-caption">Command style</span><span id="bd-submode-pill" aria-live="polite"></span></div>

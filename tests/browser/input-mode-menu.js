@@ -128,9 +128,10 @@
         document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));
       } else firstTry.click();
       await until(() => attempt.isTryMode && aid.detectCurrentMode() === 'try' && nativeClicks.at(-1) === 'do', `${layout}: Try activates native Do`);
+      const bar = document.getElementById('bd-success-bar-container');
+      assert(bar.parentElement.id === 'game-text-input-controller', `${layout}: Try pill docks to the controller`);
+      assert(bar.classList.contains('bd-compact-mode-controls'), `${layout}: Try uses the shared pill surface`);
       if (layout === 'mobile') {
-        const bar = document.getElementById('bd-success-bar-container');
-        assert(bar.parentElement.id === 'game-text-input-controller', 'mobile: Try bar outside clipped input row');
         const up = bar.querySelector('#bd-weight-up');
         assert(up.getBoundingClientRect().width >= 32 && up.getBoundingClientRect().height >= 32, 'mobile: Try touch target');
         up.click();
@@ -139,21 +140,20 @@
         assert(attempt.getSuccessChance() === 95 && up.disabled, 'mobile: clamp and disable upper limit');
         bar.querySelector('#bd-weight-down').click();
         assert(attempt.getSuccessChance() === 90 && !up.disabled, 'mobile: decrease re-enables upper control');
-        const previousPlatform = window.BetterDungeonPlatform;
-        window.BetterDungeonPlatform = { has: c => c === 'touchControls' };
-        try {
-          const history = new InputHistoryFeature();
-          history.history = ['first', 'second'];
-          history.injectHistoryBar();
-          const chip = document.getElementById('bd-history-bar');
-          assert(chip?.parentElement.id === 'game-text-input-controller', 'mobile: history chip docks to the controller, not the clipped row');
-          assert(chip.classList.contains('bd-compact-mode-controls') && chip.classList.contains('bd-history-chip'), 'mobile: history chip shares the pill surface');
-          assert(!document.querySelector('[data-bd-history-parent]'), 'mobile: clipped input row keeps its overflow');
-          assert(document.querySelector('#game-text-input-controller:has(.bd-compact-mode-controls:not(.bd-history-chip)) .bd-history-chip'), 'mobile: history chip lifts above the Try pill');
-          history.removeHistoryBar();
-        } finally {
-          window.BetterDungeonPlatform = previousPlatform;
-        }
+        const history = new InputHistoryFeature();
+        history.history = ['first', 'second'];
+        history.injectHistoryBar();
+        const chip = document.getElementById('bd-history-bar');
+        assert(chip?.parentElement.id === 'game-text-input-controller', 'mobile: history chip docks to the controller, not the clipped row');
+        assert(chip.classList.contains('bd-compact-mode-controls') && chip.classList.contains('bd-history-chip'), 'mobile: history chip shares the pill surface');
+        assert(!document.querySelector('[data-bd-history-parent]'), 'mobile: clipped input row keeps its overflow');
+        assert(document.querySelector('#game-text-input-controller:has(.bd-compact-mode-controls:not(.bd-history-chip)) .bd-history-chip'), 'mobile: history chip lifts above the Try pill');
+        history.removeHistoryBar();
+      } else {
+        const history = new InputHistoryFeature();
+        history.history = ['first'];
+        history.injectHistoryBar();
+        assert(!document.getElementById('bd-history-bar'), `${layout}: history chip stays hidden on the wide layout`);
       }
       assert(await aid.openModeMenu(), `${layout}: reopen`); await sleep(100);
       assert(attempt.isTryMode, `${layout}: opening menu preserves Try`);
@@ -162,14 +162,15 @@
       await aid.openModeMenu(); await settle();
       aid.getModeButtonByName('command').click();
       await until(() => command.isCommandMode && !attempt.isTryMode && aid.detectCurrentMode() === 'command' && nativeClicks.at(-1) === 'story', `${layout}: Command activates Story and cancels Try`);
+      const commandBar = document.getElementById('bd-command-submode-bar');
+      assert(commandBar.parentElement.id === 'game-text-input-controller' && !document.getElementById('bd-success-bar-container'), `${layout}: only active controls remain`);
+      assert(commandBar.classList.contains('bd-compact-mode-controls'), `${layout}: Command uses the shared pill surface`);
       if (layout === 'mobile') {
-        const bar = document.getElementById('bd-command-submode-bar');
-        assert(bar.parentElement.id === 'game-text-input-controller' && !document.getElementById('bd-success-bar-container'), 'mobile: only active controls remain');
-        const next = bar.querySelector('#bd-submode-next');
+        const next = commandBar.querySelector('#bd-submode-next');
         assert(next.getBoundingClientRect().width >= 32 && next.getBoundingClientRect().height >= 32, 'mobile: Command touch target');
         next.click();
         assert(command.subMode === 'subtle' && aid.detectCurrentMode() === 'command', 'mobile: cycle command preserves logical mode');
-        bar.querySelector('#bd-submode-prev').click();
+        commandBar.querySelector('#bd-submode-prev').click();
         assert(command.subMode === 'standard', 'mobile: previous command style');
       }
       await aid.openModeMenu(); await settle();
@@ -212,7 +213,7 @@
         render(layout);
         aid.getModeButton().querySelector('.font_body').textContent = mode === 'try' ? 'do' : 'story';
         document.getElementById('game-text-input').value = 'Unsubmitted draft';
-        await until(() => aid.detectCurrentMode() === mode && fixture.querySelector(layout === 'mobile' ? '.bd-compact-mode-controls' : '#bd-success-bar-container:not(.bd-compact-mode-controls), #bd-command-submode-bar:not(.bd-compact-mode-controls)'), `${mode}: controls rebuild on ${layout}`);
+        await until(() => aid.detectCurrentMode() === mode && fixture.querySelector('.bd-compact-mode-controls'), `${mode}: controls rebuild on ${layout}`);
         assert(document.getElementById('game-text-input').value === 'Unsubmitted draft', `${mode}: resize preserves draft`);
       }
       command.destroy(); attempt.destroy();

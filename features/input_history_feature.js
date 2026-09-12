@@ -70,9 +70,9 @@ class InputHistoryFeature {
     }
 
     this.attachListeners();
-    if (window.BetterDungeonPlatform?.has('touchControls')) {
-      this.setupHistoryBarObserver();
-    }
+    // The observer is cheap; injectHistoryBar self-gates on the compact
+    // input layout, so it can safely run on every platform.
+    this.setupHistoryBarObserver();
     this.startAdventureChangeDetection();
     console.log('[InputHistory] Initialization complete.');
   }
@@ -143,7 +143,7 @@ class InputHistoryFeature {
     if (this.currentAdventureId && loadHistory) {
       this.migrateLegacyStorage().then(() => this.loadHistory()).then(() => {
         this.loadedAdventureId = this.currentAdventureId;
-        if (this.history.length > 0 && window.BetterDungeonPlatform?.has('touchControls')) {
+        if (this.history.length > 0) {
           this.injectHistoryBar();
           this.updateHistoryBar();
         }
@@ -362,8 +362,8 @@ class InputHistoryFeature {
     this.historyIndex = -1; // Reset index after sending
     this.log(`Saved input to history: [${mode}] ${text}`);
 
-    // Ensure the touch-navigation bar is visible and reflects the new count
-    if (window.BetterDungeonPlatform?.has('touchControls')) {
+    // Ensure the history chip is visible and reflects the new count
+    if (this.aid.usesCompactInput()) {
       this.injectHistoryBar();
       this.updateHistoryBar();
     }
@@ -442,8 +442,10 @@ class InputHistoryFeature {
   setupHistoryBarObserver() {
     this.historyBarObserver = new MutationObserver(() => {
       const input = document.querySelector(this.textInputSelector);
-      if (input && this.history.length > 0 && !document.querySelector('#bd-history-bar')) {
+      if (input && this.history.length > 0) {
         this.injectHistoryBar();
+      } else {
+        this.removeHistoryBar();
       }
     });
     this.historyBarObserver.observe(document.body, { childList: true, subtree: true });
@@ -455,7 +457,12 @@ class InputHistoryFeature {
   }
 
   injectHistoryBar() {
-    if (!window.BetterDungeonPlatform?.has('touchControls')) return;
+    // The chip only exists while the compact input layout is active —
+    // mobile-width menus and Android both qualify via usesCompactInput.
+    if (!this.aid.usesCompactInput()) {
+      this.removeHistoryBar();
+      return;
+    }
     if (document.querySelector('#bd-history-bar')) return;
     const textarea = document.querySelector(this.textInputSelector);
     if (!textarea) return;
