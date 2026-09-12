@@ -12,11 +12,6 @@ class CommandFeature {
     subtle:   'command [subtle]',
     ooc:      'command [OOC]'
   };
-  // Runaway-injection guard. If the input mode menu keeps rejecting our
-  // placement we stop touching it rather than spinning the page into a freeze.
-  static REINJECT_WINDOW_MS = 2000;
-  static MAX_REINJECTS_PER_WINDOW = 25;
-
   static SUB_MODE_PLACEHOLDERS = {
     standard: 'Give an instruction to the AI.',
     subtle:   'Give a subtle instruction to the AI.',
@@ -25,6 +20,8 @@ class CommandFeature {
 
   constructor() {
     this.observer = null;
+    this.aid = new AIDungeonService();
+    this.activationTimer = null;
     this.commandButton = null;
     this.isCommandMode = false;
     this.boundKeyHandler = null;
@@ -38,9 +35,6 @@ class CommandFeature {
     this.responseObserver = null;
     this._lastSpriteState = null; // track sprite/dynamic theme for reactive re-injection
     this.pendingInjection = null;  // rAF handle coalescing observer bursts
-    this.reinjectWindowStart = 0;
-    this.reinjectCount = 0;
-    this.reinjectionBlocked = false;
     this.debug = false;
   }
 
@@ -104,6 +98,10 @@ class CommandFeature {
   }
 
   destroy() {
+    clearTimeout(this.activationTimer);
+    clearTimeout(this.autoCleanupTimer);
+    this.autoCleanupTimer = null;
+    this.activationTimer = null;
     if (this.observer) {
       this.observer.disconnect();
       this.observer = null;
@@ -133,9 +131,9 @@ class CommandFeature {
       this.subModeKeyHandler = null;
     }
     this.removeSubModeBar();
-    this.removeCommandButton();
-    this.restoreModeDisplay();
+    if (this.isCommandMode) this.restoreModeDisplay();
     this.isCommandMode = false;
+    this.removeCommandButton();
   }
 
   setupObserver() {
@@ -147,7 +145,8 @@ class CommandFeature {
       this.pendingInjection = requestAnimationFrame(() => {
         this.pendingInjection = null;
         this.injectCommandButton();
-        if (this.isCommandMode && !document.getElementById('bd-command-submode-bar')) {
+        const bar = document.getElementById('bd-command-submode-bar');
+        if (this.isCommandMode && !this.activationTimer && (!bar || bar.classList.contains('bd-compact-mode-controls') !== this.aid.usesCompactInput())) {
           this.injectSubModeBar();
         }
       });
@@ -159,158 +158,14 @@ class CommandFeature {
     });
   }
 
-  findInputModeMenu() {
-    // Find the input mode menu by looking for the container with the mode buttons
-    // The menu has buttons with aria-labels like "Set to 'Do' mode", "Set to 'Say' mode", etc.
-    const storyButton = document.querySelector('[aria-label="Set to \'Story\' mode"]');
-    if (storyButton) {
-      return storyButton.parentElement;
-    }
-    return null;
-  }
-
-  // Every native input-mode button, in menu order. AI Dungeon revises this set
-  // over time (Guide was added, See gave way to Image and Video), so discover
-  // them from the aria-label pattern instead of naming them one by one.
-  getNativeModeButtons(menu) {
-    if (!menu) return [];
-    const buttons = [];
-    const matches = menu.querySelectorAll('[aria-label^="Set to \'"][aria-label$="\' mode"]');
-    for (const node of matches) {
-      if (node.getAttribute('aria-label') === "Set to 'Command' mode") continue;
-      // Normalize to the menu's direct child so sibling comparisons hold
-      let child = node;
-      while (child.parentElement && child.parentElement !== menu) child = child.parentElement;
-      if (child.parentElement === menu && !buttons.includes(child)) buttons.push(child);
-    }
-    return buttons;
-  }
-
-  // Rate-limit how often we may rewrite the menu within one window.
-  allowReinjection() {
-    const now = Date.now();
-    if (now - this.reinjectWindowStart > CommandFeature.REINJECT_WINDOW_MS) {
-      this.reinjectWindowStart = now;
-      this.reinjectCount = 0;
-      this.reinjectionBlocked = false;
-    }
-    this.reinjectCount += 1;
-    if (this.reinjectCount > CommandFeature.MAX_REINJECTS_PER_WINDOW) {
-      if (!this.reinjectionBlocked) {
-        this.reinjectionBlocked = true;
-        console.warn('[Command] Input mode menu is changing faster than the Command button can be placed; pausing injection to keep the page responsive.');
-      }
-      return false;
-    }
-    return true;
-  }
-
-  // Check whether a native button has a sprite-based theme active
-  _isSpriteActive(nativeButton) {
-    if (!nativeButton) return false;
-    const wrapper = nativeButton.querySelector('div[style*="position: absolute"]');
-    if (!wrapper) return false;
-    const viewport = wrapper.querySelector('div[class*="_ox-hidden"]');
-    if (!viewport) return false;
-    return parseFloat(window.getComputedStyle(viewport).width) > 0;
-  }
-
   injectCommandButton() {
-    const menu = this.findInputModeMenu();
-    if (!menu) return;
-
-    // Find reference buttons for positioning
-    const storyButton = menu.querySelector('[aria-label="Set to \'Story\' mode"]');
-    if (!storyButton) return;
-
-    // Anchor on whichever native button currently ends the strip rather than a
-    // fixed label - when the hardcoded anchor was absent, every observer pass
-    // treated the button as misplaced and re-inserted it, freezing the browser.
-    const nativeButtons = this.getNativeModeButtons(menu);
-    const lastNativeButton = nativeButtons[nativeButtons.length - 1] || storyButton;
-
-    // Detect theme switches (sprite <-> dynamic) and force re-inject
-    const isSpriteNow = this._isSpriteActive(storyButton);
-    if (this._lastSpriteState !== null && this._lastSpriteState !== isSpriteNow) {
-      const stale = menu.querySelector('[aria-label="Set to \'Command\' mode"]');
-      if (stale) stale.remove();
-      this.commandButton = null;
-    }
-    this._lastSpriteState = isSpriteNow;
-
-    // Check if we already added the button
-    const existingButton = menu.querySelector('[aria-label="Set to \'Command\' mode"]');
-    if (existingButton) {
-      // Verify it still sits directly after the last native mode button.
-      // Platform UI may add a scroll affordance after the final input-mode
-      // button, so compare against that button, not the menu's last child.
-      if (existingButton.previousElementSibling === lastNativeButton) {
-        this.markModeMenuScrollable(menu);
-        return; // Already in correct position
-      }
-      if (!this.allowReinjection()) return;
-      // Wrong position - remove and re-add
-      existingButton.remove();
-    } else if (!this.allowReinjection()) {
-      return;
-    }
-
-    // Clone the Story button as a template
-    const commandButton = storyButton.cloneNode(true);
-    
-    // Update aria-label
-    commandButton.setAttribute('aria-label', "Set to 'Command' mode");
-    
-    // Update the icon text - use the AI icon
-    const iconElement = commandButton.querySelector('.font_icons');
-    if (iconElement) {
-      iconElement.textContent = 'w_ai';
-    }
-    
-    // Update the label text
-    const labelElement = commandButton.querySelector('.font_body');
-    if (labelElement) {
-      labelElement.textContent = 'Command';
-    }
-
-    // Remove any existing click handlers by cloning without event listeners
-    const cleanButton = commandButton.cloneNode(true);
-    
-    // Add our click handler
-    cleanButton.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      this.activateCommandMode();
+    this.commandButton = this.aid.injectCustomModeButton(this, {
+      name: 'command', base: 'story', label: 'Command', icon: 'w_ai',
+      activate: () => this.activateCommandMode()
     });
-
-    // Insert the button after the last native mode button
-    if (lastNativeButton.nextSibling) {
-      menu.insertBefore(cleanButton, lastNativeButton.nextSibling);
-    } else {
-      menu.appendChild(cleanButton);
+    if (this.isCommandMode && !this.activationTimer && this.aid.detectCurrentMode() === 'story') {
+      this.updateModeDisplay();
     }
-
-    this.commandButton = cleanButton;
-    this.markModeMenuScrollable(menu);
-
-    // Apply sprite theming for non-Dynamic themes. The menu also holds controls
-    // that are not input modes - the close arrow, and the Generate image/video
-    // actions - so Command only inherits the end-cap sprite when it actually
-    // ends the strip. Mid-strip it is a middle button and nothing else moves.
-    const commandEndsStrip = !cleanButton.nextSibling;
-    this.applySpriteTheming(cleanButton, lastNativeButton);
-
-    // The former end-cap is no longer last, so give it the middle sprite
-    if (commandEndsStrip && lastNativeButton !== storyButton) {
-      this.convertToMiddleButton(lastNativeButton, storyButton);
-    }
-  }
-
-  markModeMenuScrollable(menu) {
-    if (!menu || !window.BetterDungeonPlatform?.has('touchControls')) return;
-    menu.setAttribute('data-bd-mode-menu', 'true');
-    const menuLeft = parseFloat(menu.style.left) || Math.max(8, Math.round(menu.getBoundingClientRect().left || 12));
-    menu.style.setProperty('--bd-menu-left', `${menuLeft}px`);
   }
 
   // Convert an end-cap button (3-part sprite) to a middle button (single viewport).
@@ -319,6 +174,7 @@ class CommandFeature {
     if (!targetButton || !referenceMiddleButton) return;
 
     setTimeout(() => {
+      if (!targetButton.isConnected) return;
       const refWrapper = referenceMiddleButton.querySelector('div[style*="position: absolute"]');
       if (!refWrapper) return;
 
@@ -369,6 +225,7 @@ class CommandFeature {
     if (!customButton || !referenceButton) return;
 
     setTimeout(() => {
+      if (!customButton.isConnected) return;
       const refWrapper = referenceButton.querySelector('div[style*="position: absolute"]');
       if (!refWrapper) return;
 
@@ -482,6 +339,7 @@ class CommandFeature {
   }
 
   removeCommandButton() {
+    this.aid.removeCustomModeButton('command');
     const button = document.querySelector('[aria-label="Set to \'Command\' mode"]');
     if (button) {
       button.remove();
@@ -490,30 +348,20 @@ class CommandFeature {
   }
 
   activateCommandMode() {
+    const baseButton = this.aid.getModeButtonByName('story');
+    if (!baseButton || baseButton.getAttribute('aria-disabled') === 'true') return;
+    // Let existing mode-change handlers restore the previous mode before the
+    // native click changes React state, then enable our overlay.
+    baseButton.click();
     this.isCommandMode = true;
-
-    // Click the Story button first to set the base mode
-    const storyButton = document.querySelector('[aria-label="Set to \'Story\' mode"]');
-    if (storyButton) {
-      storyButton.click();
-    }
-
-    // Close the menu by clicking the back arrow
-    setTimeout(() => {
-      const closeButton = document.querySelector('[aria-label="Close \'Input Mode\' menu"]');
-      if (closeButton) {
-        closeButton.click();
-      }
-      
-      // After menu closes, update the UI to show "Command" mode
-      setTimeout(() => {
-        this.updateModeDisplay();
-        this.injectSubModeBar();
-        
-        // Show first-use hint
-        this.showFirstUseHint();
-      }, 50);
-    }, 50);
+    clearTimeout(this.activationTimer);
+    this.activationTimer = setTimeout(() => {
+      this.activationTimer = null;
+      if (!this.isCommandMode) return;
+      this.aid.closeModeMenu();
+      this.updateModeDisplay();
+      this.injectSubModeBar();
+    }, 100);
 
     // Setup interception for the next submission
     this.setupSubmitInterception();
@@ -530,23 +378,18 @@ class CommandFeature {
   }
 
   watchForModeChanges() {
-    // Clean up any existing observer
-    if (this.modeChangeObserver) {
-      this.modeChangeObserver.disconnect();
+    if (this.modeChangeHandler) {
+      document.removeEventListener('click', this.modeChangeHandler, true);
     }
 
     // Watch for clicks on the "Change input mode" button or any mode selection
     const handleModeChange = (e) => {
       if (!this.isCommandMode) return;
 
-      const target = e.target.closest('[aria-label]');
-      if (!target) return;
-
-      const ariaLabel = target.getAttribute('aria-label') || '';
-      
-      // If user clicks "Change input mode" or selects a different mode, cancel command mode
-      if (ariaLabel === 'Change input mode' ||
-          ariaLabel.startsWith("Set to '") && !ariaLabel.includes("Command")) {
+      const selected = this.aid.getInputMenuEntryName(e.target);
+      // Opening/dismissing the menu or generating media doesn't change the
+      // underlying text mode. Only selecting another mode ends the overlay.
+      if (selected && Object.hasOwn(AIDungeonService.MODES, selected) && selected !== 'command') {
         this.deactivateCommandMode();
       }
     };
@@ -565,7 +408,9 @@ class CommandFeature {
       if (modeText) {
         const lower = modeText.textContent.toLowerCase();
         if (lower === 'story' || lower.startsWith('command')) {
-          modeText.textContent = CommandFeature.SUB_MODE_LABELS[this.subMode];
+          if (modeText.textContent !== CommandFeature.SUB_MODE_LABELS[this.subMode]) {
+            modeText.textContent = CommandFeature.SUB_MODE_LABELS[this.subMode];
+          }
         }
       }
     }
@@ -735,6 +580,8 @@ class CommandFeature {
   }
 
   deactivateCommandMode() {
+    clearTimeout(this.activationTimer);
+    this.activationTimer = null;
     this.isCommandMode = false;
     this.restoreModeDisplay();
     this.removeSubModeBar();
@@ -812,7 +659,7 @@ class CommandFeature {
     const inputRow = textarea.parentElement;
     if (!inputRow) return;
 
-    if (window.BetterDungeonPlatform?.has('touchControls')) {
+    if (this.aid.usesCompactInput()) {
       this.injectTouchSubModeBar(inputRow);
       return;
     }
@@ -851,67 +698,27 @@ class CommandFeature {
 
     const bar = document.createElement('div');
     bar.id = 'bd-command-submode-bar';
-    bar.style.cssText = `
-      position: relative;
-      flex: 0 0 auto;
-      width: 100%;
-      box-sizing: border-box;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 2px 8px;
-      background: rgba(0, 0, 0, 0.45);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      border-radius: 10px;
-      font-family: var(--bd-font-family-primary, 'IBM Plex Sans', sans-serif);
-      font-size: 12px;
-      color: rgba(255, 255, 255, 0.5);
-      z-index: 2;
-      pointer-events: auto;
-      user-select: none;
-    `;
-    const buttonStyle = `
-      pointer-events:auto; cursor:pointer; user-select:none;
-      display:flex; align-items:center; justify-content:center;
-      min-width:44px; min-height:44px; border:0; font:inherit;
-      font-size:12px; font-weight:700; color:rgba(255,255,255,0.7);
-      padding:1px 4px; line-height:1; border-radius:4px;
-      background:rgba(255,255,255,0.08); touch-action:manipulation;
-      -webkit-tap-highlight-color:transparent;
-      transition:background .15s, transform .1s;
-    `.replace(/\n\s*/g, ' ');
-
+    bar.className = 'bd-compact-mode-controls bd-command-controls';
+    bar.setAttribute('role', 'group');
+    bar.setAttribute('aria-label', 'Command sub-mode');
     bar.innerHTML = `
-      <button type="button" id="bd-submode-prev" aria-label="Previous command sub-mode" style="${buttonStyle}">‹</button>
-      <span id="bd-submode-pill" aria-live="polite"></span>
-      <button type="button" id="bd-submode-next" aria-label="Next command sub-mode" style="${buttonStyle}">›</button>
+      <button type="button" id="bd-submode-prev" aria-label="Previous command sub-mode">‹</button>
+      <div class="bd-mode-control-value"><span class="bd-mode-control-caption">Command style</span><span id="bd-submode-pill" aria-live="polite"></span></div>
+      <button type="button" id="bd-submode-next" aria-label="Next command sub-mode">›</button>
     `;
 
     const wireButton = (element, direction) => {
       if (!element) return;
-      const press = () => {
-        element.style.background = 'rgba(255,255,255,0.22)';
-        element.style.transform = 'scale(0.92)';
-      };
-      const release = () => {
-        element.style.background = 'rgba(255,255,255,0.08)';
-        element.style.transform = '';
-      };
       element.addEventListener('click', event => {
         event.preventDefault();
         event.stopPropagation();
         this.cycleSubMode(direction);
       });
-      element.addEventListener('pointerdown', press);
-      element.addEventListener('pointerup', release);
-      element.addEventListener('pointercancel', release);
-      element.addEventListener('pointerleave', release);
     };
 
     wireButton(bar.querySelector('#bd-submode-prev'), -1);
     wireButton(bar.querySelector('#bd-submode-next'), 1);
-    inputRow.parentElement.insertBefore(bar, inputRow);
+    (inputRow.closest('#game-text-input-controller') || inputRow.parentElement).appendChild(bar);
     this.subModeBar = bar;
     this.updateSubModeBar();
   }
@@ -932,7 +739,7 @@ class CommandFeature {
     pill.style.cssText = `
       padding: 1px 6px;
       border-radius: 6px;
-      font-size: 9px;
+      font-size: ${this.subModeBar?.classList.contains('bd-compact-mode-controls') ? '13px' : '9px'};
       font-weight: 600;
       letter-spacing: 0.3px;
       background: ${color};

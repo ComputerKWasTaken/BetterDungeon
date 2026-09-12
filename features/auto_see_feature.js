@@ -332,6 +332,8 @@ class AutoSeeFeature {
   }
 
   prepareForAIResponse({ captureMode, source }) {
+    // Compatibility with the older See text mode. Current Alpha's Image/Video
+    // menu actions bypass text submission; backend image requests still use see.
     if (captureMode && this.detectCurrentInputMode() === 'see') {
       this.log('[AutoSee] Ignoring manual See submission');
       return;

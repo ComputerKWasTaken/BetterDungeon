@@ -32,7 +32,8 @@ const DEFAULT_MODE_COLORS = {
   say: '#22c55e',      // Green - Dialogue, communication
   story: '#fbbf24',    // Amber/Gold - Authorial, creativity
   guide: '#ec4899',    // Pink - Direction, guidance, navigation
-  see: '#06b6d4',      // Cyan - Clarity, vision, perception
+  image: '#06b6d4',    // Cyan - Image generation (formerly See)
+  video: '#6366f1',    // Indigo - Video generation
   command: '#f97316'   // Orange - Authority, directives
 };
 
@@ -1527,7 +1528,8 @@ function loadModeColors() {
   popupExtension.storage.sync.get(STORAGE_KEYS.customModeColors, (result) => {
     const customColors = (result || {})[STORAGE_KEYS.customModeColors];
     if (customColors && typeof customColors === 'object') {
-      currentModeColors = { ...DEFAULT_MODE_COLORS, ...customColors };
+      currentModeColors = { ...DEFAULT_MODE_COLORS, ...customColors,
+        image: customColors.image || customColors.see || DEFAULT_MODE_COLORS.image };
     } else {
       currentModeColors = { ...DEFAULT_MODE_COLORS };
     }
@@ -1567,7 +1569,8 @@ function openColorModal() {
   popupExtension.storage.sync.get(STORAGE_KEYS.customModeColors, (result) => {
     const customColors = (result || {})[STORAGE_KEYS.customModeColors];
     if (customColors && typeof customColors === 'object') {
-      currentModeColors = { ...DEFAULT_MODE_COLORS, ...customColors };
+      currentModeColors = { ...DEFAULT_MODE_COLORS, ...customColors,
+        image: customColors.image || customColors.see || DEFAULT_MODE_COLORS.image };
     } else {
       currentModeColors = { ...DEFAULT_MODE_COLORS };
     }

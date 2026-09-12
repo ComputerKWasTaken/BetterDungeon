@@ -2,7 +2,8 @@
 // Centralized DOM query layer for AI Dungeon's adventure page.
 // Provides stable selectors based on ARIA labels, roles, and scarce IDs
 // so that selector updates only need to happen in one place.
-// Reference: Project Management/docs/13-DOM/ for full DOM documentation.
+// Reference: docs/INPUT-MENU.md for the current Alpha selector contract;
+// Project Management/docs/13-DOM/ contains the broader historical DOM reference.
 
 class AIDungeonService {
 
@@ -35,6 +36,7 @@ class AIDungeonService {
     CLOSE_INPUT:         '[aria-label="Close text input"]',
     CHANGE_MODE:         '[aria-label="Change input mode"]',
     CLOSE_MODE_MENU:     '[aria-label="Close \'Input Mode\' menu"]',
+    MOBILE_MODE_MENU:    '[role="menu"][aria-label="Input mode"]',
 
     // --- Command Bar ---
     COMMAND_BAR:         '[aria-label="Command bar"]',
@@ -92,6 +94,13 @@ class AIDungeonService {
     see:     '[aria-label="Set to \'See\' mode"]',
     try:     '[aria-label="Set to \'Try\' mode"]',
     command: '[aria-label="Set to \'Command\' mode"]',
+  };
+
+  // Media generation is a one-shot action, not a text input mode. Keep See
+  // in MODES only as a compatibility lookup for the older production UI.
+  static INPUT_ACTIONS = {
+    image: '[aria-label="Generate an image"]',
+    video: '[aria-label="Generate a video"]'
   };
 
   // Icon glyphs for each native input mode (useful for submit-button identification)
@@ -202,24 +211,65 @@ class AIDungeonService {
 
   // Returns the expanded input mode menu container, or null if closed
   getInputModeMenu() {
-    // The menu parent wraps all mode buttons; detect via the Do button's parent
+    const mobile = document.querySelector(AIDungeonService.SEL.MOBILE_MODE_MENU);
+    if (mobile && mobile.getAttribute('data-state') !== 'closed') return mobile;
     const doBtn = document.querySelector(AIDungeonService.MODES.do);
     return doBtn ? doBtn.parentElement : null;
   }
 
+  isMobileModeMenu(menu = this.getInputModeMenu()) {
+    return menu?.matches(AIDungeonService.SEL.MOBILE_MODE_MENU) || false;
+  }
+
+  usesCompactInput() {
+    return this.getModeButton()?.getAttribute('aria-haspopup') === 'menu'
+      || window.BetterDungeonPlatform?.has('touchControls') || false;
+  }
+
+  // Only search the input menu, never another dialog's radio items. Alpha uses
+  // bare text beside SVG icons on mobile and explicit aria-labels on desktop.
+  getInputMenuEntryName(element) {
+    const entry = element?.closest?.('[role="menuitemradio"], [role="button"]');
+    const menu = this.getInputModeMenu();
+    if (!entry || !menu?.contains(entry)) return null;
+    const label = entry.getAttribute('aria-label') || '';
+    const mode = label.match(/^Set to '(.+)' mode$/);
+    if (mode) return mode[1].toLowerCase();
+    if (label === 'Generate an image') return 'image';
+    if (label === 'Generate a video') return 'video';
+    if (this.isMobileModeMenu(menu) && entry.getAttribute('role') === 'menuitemradio') {
+      return entry.textContent.trim().toLowerCase();
+    }
+    return null;
+  }
+
+  getInputMenuEntry(name) {
+    const menu = this.getInputModeMenu();
+    if (!menu) return null;
+    const target = name.toLowerCase();
+    return Array.from(menu.querySelectorAll('[role="button"], [role="menuitemradio"]'))
+      .find(entry => this.getInputMenuEntryName(entry) === target) || null;
+  }
+
   // Returns a specific mode button by lowercase name (e.g., 'do', 'try', 'command')
   getModeButtonByName(modeName) {
-    const sel = AIDungeonService.MODES[modeName.toLowerCase()];
-    return sel ? document.querySelector(sel) : null;
+    const name = modeName.toLowerCase();
+    return Object.hasOwn(AIDungeonService.MODES, name) ? this.getInputMenuEntry(name) : null;
+  }
+
+  getGenerateButton(kind) {
+    return Object.hasOwn(AIDungeonService.INPUT_ACTIONS, kind) ? this.getInputMenuEntry(kind) : null;
   }
 
   // Returns all currently visible mode buttons inside the expanded menu
   getAllModeButtons() {
     const menu = this.getInputModeMenu();
     if (!menu) return [];
-    return Array.from(menu.children).filter(el =>
-      el.getAttribute('aria-label')?.startsWith("Set to '")
-    );
+    return Array.from(menu.querySelectorAll('[role="button"], [role="menuitemradio"]'))
+      .filter(el => {
+        const name = this.getInputMenuEntryName(el);
+        return name && !['image', 'video'].includes(name);
+      });
   }
 
   // Reads the currently active input mode from the collapsed mode bar label
@@ -227,12 +277,13 @@ class AIDungeonService {
     const modeBtn = this.getModeButton();
     if (!modeBtn) return null;
     const label = modeBtn.querySelector('.font_body');
-    return label ? label.textContent.trim().toLowerCase() : null;
+    const raw = (label?.textContent || modeBtn.textContent).trim().toLowerCase();
+    return raw.startsWith('command') ? 'command' : raw;
   }
 
   // Whether the expanded input mode menu is currently visible
   isModeMenuOpen() {
-    return !!document.querySelector(AIDungeonService.MODES.do);
+    return !!this.getInputModeMenu();
   }
 
   // Opens the expanded mode menu and waits for it to appear
@@ -240,7 +291,12 @@ class AIDungeonService {
     if (this.isModeMenuOpen()) return true;
     const btn = this.getModeButton();
     if (!btn) return false;
-    btn.click();
+    if (btn.getAttribute('aria-haspopup') === 'menu') {
+      // Radix opens on pointerdown/keyboard, not on a synthetic click alone.
+      btn.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+    } else {
+      btn.click();
+    }
     const deadline = Date.now() + maxWaitMs;
     while (Date.now() < deadline) {
       await this.wait(50);
@@ -251,6 +307,11 @@ class AIDungeonService {
 
   // Closes the expanded mode menu via the back/close button
   closeModeMenu() {
+    const menu = this.getInputModeMenu();
+    if (this.isMobileModeMenu(menu)) {
+      menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      return;
+    }
     const closeBtn = this.getCloseModeMenuButton();
     if (closeBtn) closeBtn.click();
   }
@@ -259,6 +320,9 @@ class AIDungeonService {
   async switchToMode(modeName, options = {}) {
     const { maxWaitMs = 1500 } = options;
     const target = modeName.toLowerCase();
+    if (!Object.hasOwn(AIDungeonService.MODES, target)) {
+      return { success: false, error: `Unknown text input mode '${target}'` };
+    }
 
     // Already active — no-op
     if (this.detectCurrentMode() === target) {
@@ -289,6 +353,142 @@ class AIDungeonService {
   }
 
   // ==================== THEME & SPRITE DETECTION ====================
+
+  // Both custom modes use the same placement contract. A settled menu must be
+  // a no-op: observers see our insertions too. Never anchor to a custom mode or
+  // to the Create section, and preserve node identity when repositioning.
+  injectCustomModeButton(owner, { name, base, label, icon, activate }) {
+    const menu = this.getInputModeMenu();
+    const template = this.getModeButtonByName(base);
+    if (!menu || !template) return null;
+    const mobile = this.isMobileModeMenu(menu);
+    const native = this.getAllModeButtons().filter(el =>
+      !['try', 'command'].includes(this.getInputMenuEntryName(el)));
+    const anchor = name === 'try' ? template : native[native.length - 1];
+    if (!anchor) return null;
+    const parent = anchor.parentElement;
+    let button = menu.querySelector(`[data-bd-custom-mode="${name}"]`);
+    const sprite = !mobile && !this.isDynamicTheme();
+    const theme = sprite ? this.getThemeSpriteUrl(template) || 'sprite' : 'dynamic';
+    const needsTheme = button && button.dataset.bdButtonTheme !== theme;
+    if (button && !needsTheme && button.previousElementSibling === anchor) {
+      this.updateCustomModeSelection(menu);
+      return button;
+    }
+
+    const now = Date.now();
+    if (!owner._modeInjectionWindow || now - owner._modeInjectionWindow.start > 2000) {
+      owner._modeInjectionWindow = { start: now, count: 0 };
+    }
+    if (++owner._modeInjectionWindow.count > 25) return button;
+    if (needsTheme) { button.remove(); button = null; }
+    const created = !button;
+    if (created) {
+      button = template.cloneNode(true);
+      // Clones must not inherit selection, React/Radix registration, IDs, or
+      // the base mode's color marker. Mobile icons/labels are SVG + bare text.
+      for (const node of [button, ...button.querySelectorAll('[id]')]) node.removeAttribute('id');
+      for (const attr of ['data-bd-mode-styled', 'data-highlighted', 'data-radix-collection-item', 'data-state', 'aria-checked', 'aria-disabled', 'data-disabled']) {
+        button.removeAttribute(attr);
+      }
+      button.classList.remove('bd-mode-button-colored');
+      button.style.removeProperty('--bd-button-rgb');
+      button.dataset.bdCustomMode = name;
+      button.dataset.bdButtonTheme = theme;
+      button.setAttribute('aria-label', `Set to '${label}' mode`);
+      button.tabIndex = mobile ? -1 : 0;
+      if (mobile) {
+        button.replaceChildren();
+        const glyph = document.createElement('span');
+        glyph.className = `icon-${name === 'try' ? 'gamepad-2' : 'bot'}`;
+        glyph.setAttribute('aria-hidden', 'true');
+        const text = document.createElement('span');
+        text.textContent = label;
+        button.append(glyph, text);
+        button.classList.add('bd-mobile-custom-mode');
+        button.setAttribute('role', 'menuitemradio');
+        button.addEventListener('pointermove', e => {
+          if (e.pointerType === 'mouse') button.focus({ preventScroll: true });
+        });
+      } else {
+        const glyph = button.querySelector('.font_icons');
+        const text = button.querySelector('.font_body');
+        if (glyph) glyph.textContent = icon;
+        if (text) text.textContent = label;
+        button.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault(); e.stopPropagation(); button.click();
+          }
+        });
+      }
+      button.addEventListener('click', e => {
+        e.preventDefault(); e.stopPropagation(); activate();
+      });
+    }
+    parent.insertBefore(button, anchor.nextSibling);
+    if (mobile) {
+      this.bindCustomModeNavigation(menu);
+      this.updateCustomModeSelection(menu);
+    } else {
+      menu.setAttribute('data-bd-mode-menu', 'true');
+      if (created) {
+        const endsStrip = !button.nextElementSibling;
+        owner.applySpriteTheming(button, name === 'command' && endsStrip ? anchor : template);
+        if (name === 'command' && endsStrip && anchor !== template) {
+          owner.convertToMiddleButton(anchor, template);
+        }
+      }
+    }
+    return button;
+  }
+
+  updateCustomModeSelection(menu) {
+    if (!this.isMobileModeMenu(menu)) return;
+    const active = this.detectCurrentMode();
+    for (const button of menu.querySelectorAll('[role="menuitemradio"]')) {
+      const selected = this.getInputMenuEntryName(button) === active;
+      const value = String(selected);
+      if (button.getAttribute('aria-checked') !== value) button.setAttribute('aria-checked', value);
+      if (button.dataset.bdCustomMode) button.dataset.state = selected ? 'checked' : 'unchecked';
+    }
+  }
+
+  bindCustomModeNavigation(menu) {
+    if (menu._bdModeKeyHandler) return;
+    // Radix's internal collection does not register cloned entries. Handle
+    // navigation across the whole visible menu so custom items aren't skipped.
+    menu._bdModeKeyHandler = e => {
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      const items = Array.from(menu.querySelectorAll('[role="menuitemradio"], [role="menuitem"]'))
+        .filter(el => !el.hasAttribute('data-disabled') && el.getAttribute('aria-disabled') !== 'true');
+      const index = items.indexOf(document.activeElement);
+      let next;
+      if (e.key === 'ArrowDown') next = (index + 1) % items.length;
+      if (e.key === 'ArrowUp') next = (index - 1 + items.length) % items.length;
+      if (e.key === 'Home') next = 0;
+      if (e.key === 'End') next = items.length - 1;
+      if (next !== undefined && items.length) {
+        e.preventDefault(); e.stopImmediatePropagation();
+        items[next].focus();
+      } else if ((e.key === 'Enter' || e.key === ' ') && document.activeElement?.dataset.bdCustomMode) {
+        e.preventDefault(); e.stopImmediatePropagation(); document.activeElement.click();
+      }
+    };
+    menu.addEventListener('keydown', menu._bdModeKeyHandler, true);
+  }
+
+  removeCustomModeButton(name) {
+    document.querySelectorAll(`[data-bd-custom-mode="${name}"]`).forEach(button => button.remove());
+    const menu = this.getInputModeMenu();
+    if (menu && !menu.querySelector('[data-bd-custom-mode]')) {
+      if (menu._bdModeKeyHandler) {
+        menu.removeEventListener('keydown', menu._bdModeKeyHandler, true);
+        delete menu._bdModeKeyHandler;
+      }
+      menu.removeAttribute('data-bd-mode-menu');
+    }
+    this.updateCustomModeSelection(menu);
+  }
 
   // Returns true when the active theme is "Dynamic" (no custom sprite sheet)
   isDynamicTheme() {

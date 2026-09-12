@@ -132,6 +132,13 @@
 
               <div class="whats-new-highlight-list">
                 <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon icon-gamepad-2" aria-hidden="true"></span>
+                  <div>
+                    <h4>Ready for Alpha's new input menu</h4>
+                    <p>Try and Command support the desktop strip and mobile dropdown, with roomier touch controls. Image and Video have separate colors and hotkeys, and opening the menu no longer clears your custom mode.</p>
+                  </div>
+                </article>
+                <article class="whats-new-highlight">
                   <span class="whats-new-highlight-icon whats-new-highlight-icon-ai icon-brain-circuit" aria-hidden="true"></span>
                   <div>
                     <h4>Simpler AI setup</h4>
@@ -442,7 +449,8 @@
                 <div class="color-chip" data-mode="say" style="--chip-color: #22c55e"><span>Say</span></div>
                 <div class="color-chip" data-mode="story" style="--chip-color: #fbbf24"><span>Story</span></div>
                 <div class="color-chip" data-mode="guide" style="--chip-color: #ec4899"><span>Guide</span></div>
-                <div class="color-chip" data-mode="see" style="--chip-color: #06b6d4"><span>See</span></div>
+                <div class="color-chip" data-mode="image" style="--chip-color: #06b6d4"><span>Image</span></div>
+                <div class="color-chip" data-mode="video" style="--chip-color: #6366f1"><span>Video</span></div>
                 <div class="color-chip" data-mode="command" style="--chip-color: #f97316"><span>Command</span></div>
               </div>
               <button class="btn btn-action" id="customize-colors-btn">
@@ -649,7 +657,7 @@
             <div class="feature-row">
               <div class="feature-info">
                 <div class="feature-title-row">
-                  <span class="feature-icon" style="color: var(--bd-mode-see);">
+                  <span class="feature-icon" style="color: var(--bd-mode-image);">
                     <span class="icon-eye"></span>
                   </span>
                   <h3 class="feature-title">Auto See</h3>
@@ -663,7 +671,7 @@
             </div>
             <div class="feature-details">
               <div class="automation-info">
-                <p>Submits a background <strong>See</strong> action after AI output without changing your input mode.</p>
+                <p>Generates an image after AI output without changing your text input mode.</p>
               </div>
 
               <div class="feature-option-inline">
@@ -1358,9 +1366,13 @@
             <span class="color-editor-label">Guide</span>
             <input type="color" class="color-editor-input" data-mode="guide" value="#ec4899">
           </div>
-          <div class="color-editor-item" data-mode="see">
-            <span class="color-editor-label">See</span>
-            <input type="color" class="color-editor-input" data-mode="see" value="#06b6d4">
+          <div class="color-editor-item" data-mode="image">
+            <span class="color-editor-label">Image</span>
+            <input type="color" class="color-editor-input" data-mode="image" value="#06b6d4">
+          </div>
+          <div class="color-editor-item" data-mode="video">
+            <span class="color-editor-label">Video</span>
+            <input type="color" class="color-editor-input" data-mode="video" value="#6366f1">
           </div>
           <div class="color-editor-item" data-mode="command">
             <span class="color-editor-label">Command</span>

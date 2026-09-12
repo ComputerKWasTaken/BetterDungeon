@@ -54,6 +54,7 @@ class HotkeyFeature {
   };
 
   constructor() {
+    this.aid = new AIDungeonService();
     this.boundKeyHandler = null;
     this.boundMessageListener = null;
     // hotkeyMap maps key -> action config (built from bindings)
@@ -249,54 +250,30 @@ class HotkeyFeature {
   isFeatureEnabled(featureId) {
     // Check if the feature-dependent button exists in DOM (means feature is enabled)
     if (featureId === 'try') {
-      return !!document.querySelector('[aria-label="Set to \'Try\' mode"]');
+      return !!this.aid.getModeButtonByName('try');
     }
     if (featureId === 'command') {
-      return !!document.querySelector('[aria-label="Set to \'Command\' mode"]');
+      return !!this.aid.getModeButtonByName('command');
     }
     return true;
   }
 
   async openInputModeMenu(operationId = null) {
-    const menuButton = document.querySelector('[aria-label="Change input mode"]');
-    if (!menuButton) return false;
-    
-    // Check if menu is already open
-    const existingMenu = document.querySelector('[aria-label="Set to \'Do\' mode"]');
-    if (existingMenu) return true;
-    
-    // Click to open the menu
-    menuButton.click();
-    
-    // Wait for menu to appear with operation validation
-    return new Promise(resolve => {
-      let attempts = 0;
-      const checkMenu = setInterval(() => {
-        // Check if operation was cancelled
-        if (operationId !== null && !this.isOperationValid(operationId)) {
-          clearInterval(checkMenu);
-          resolve(false);
-          return;
-        }
-        
-        attempts++;
-        const menu = document.querySelector('[aria-label="Set to \'Do\' mode"]');
-        if (menu) {
-          clearInterval(checkMenu);
-          resolve(true);
-        } else if (attempts > 20) {
-          clearInterval(checkMenu);
-          resolve(false);
-        }
-      }, 50);
-    });
+    if (operationId !== null && !this.isOperationValid(operationId)) return false;
+    const opened = await this.aid.openModeMenu();
+    return opened && (operationId === null || this.isOperationValid(operationId));
+  }
+
+  getMenuActionTarget(config) {
+    if (config.actionId === 'generateImage') {
+      return this.aid.getGenerateButton('image') || this.aid.getModeButtonByName('see');
+    }
+    if (config.actionId === 'generateVideo') return this.aid.getGenerateButton('video');
+    return this.aid.getModeButtonByName(config.actionId.replace(/^mode/, '').toLowerCase());
   }
 
   closeInputModeMenu() {
-    const closeButton = document.querySelector('[aria-label="Close \'Input Mode\' menu"]');
-    if (closeButton) {
-      closeButton.click();
-    }
+    this.aid.closeModeMenu();
   }
 
   closeInputArea() {
@@ -376,6 +353,13 @@ class HotkeyFeature {
       const hotkeyConfig = this.hotkeyMap[key];
       
       if (!hotkeyConfig) return;
+
+      // Escape dismisses the menu first; don't close the whole input drawer.
+      if (key === 'escape' && this.aid.isModeMenuOpen()) {
+        e.preventDefault();
+        this.aid.closeModeMenu();
+        return;
+      }
       
       e.preventDefault();
       e.stopPropagation();
@@ -446,10 +430,10 @@ class HotkeyFeature {
           }
           
           // Find and click the target element
-          const targetElement = document.querySelector(hotkeyConfig.selector);
+          const targetElement = this.getMenuActionTarget(hotkeyConfig);
           if (targetElement) {
             // Check if element is disabled
-            const isDisabled = targetElement.getAttribute('aria-disabled') === 'true';
+            const isDisabled = targetElement.getAttribute('aria-disabled') === 'true' || targetElement.hasAttribute('data-disabled');
             if (!isDisabled) {
               targetElement.click();
             }

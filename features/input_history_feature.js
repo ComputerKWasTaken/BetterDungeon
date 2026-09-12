@@ -9,6 +9,7 @@ class InputHistoryFeature {
 
   constructor() {
     this.enabled = true;
+    this.aid = new AIDungeonService();
     this.debug = false;
     
     // Selectors
@@ -16,17 +17,6 @@ class InputHistoryFeature {
     this.submitButtonSelector = '[aria-label="Submit action"]';
     this.inputModeMenuSelector = '[aria-label="Change input mode"]';
     
-    // Mode selectors
-    this.modeSelectors = {
-      'do': '[aria-label="Set to \'Do\' mode"]',
-      'say': '[aria-label="Set to \'Say\' mode"]',
-      'story': '[aria-label="Set to \'Story\' mode"]',
-      'guide': '[aria-label="Set to \'Guide\' mode"]',
-      'see': '[aria-label="Set to \'See\' mode"]',
-      'try': '[aria-label="Set to \'Try\' mode"]',
-      'command': '[aria-label="Set to \'Command\' mode"]'
-    };
-
     // State
     this.history = [];
     this.historyIndex = -1;
@@ -268,55 +258,23 @@ class InputHistoryFeature {
   }
 
   detectCurrentInputMode() {
-    const modeButton = document.querySelector(this.inputModeMenuSelector);
-    if (modeButton) {
-      const modeText = modeButton.querySelector('.font_body');
-      if (modeText) {
-        const mode = modeText.textContent.toLowerCase().trim();
-        return mode;
-      }
-    }
-    return 'do'; // Default
+    return this.aid.detectCurrentMode() || 'do';
   }
 
   async setInputMode(mode) {
-    const targetMode = mode.toLowerCase();
-    const currentMode = this.detectCurrentInputMode();
-    
-    if (targetMode === currentMode) return;
-    
-    // Wait for any previous mode switch animation to finish
+    const target = mode.toLowerCase().startsWith('command') ? 'command' : mode.toLowerCase();
+    // Historical See entries must never trigger paid image generation when
+    // browsing input history. Use Story if that legacy mode is unavailable.
     const elapsed = Date.now() - this.lastModeSwitchTime;
     if (elapsed < this.modeSwitchCooldown) {
       await new Promise(resolve => setTimeout(resolve, this.modeSwitchCooldown - elapsed));
     }
-    
-    this.log(`Changing mode from ${currentMode} to ${targetMode}`);
-    
-    // Open mode menu
-    const modeMenuBtn = document.querySelector(this.inputModeMenuSelector);
-    if (!modeMenuBtn) return;
-    
-    modeMenuBtn.click();
-    
-    // Wait for menu to open
-    await new Promise(resolve => setTimeout(resolve, 50));
-    
-    // Select the mode
-    const modeSelector = this.modeSelectors[targetMode];
-    if (modeSelector) {
-      const modeBtn = document.querySelector(modeSelector);
-      if (modeBtn) {
-        modeBtn.click();
-      } else {
-        // Fallback: click outside to close if mode button not found
-        document.body.click();
-      }
+    if (target === 'see') {
+      if (!await this.aid.openModeMenu()) return;
+      await this.aid.switchToMode(this.aid.getModeButtonByName('see') ? 'see' : 'story');
     } else {
-      // Fallback
-      document.body.click();
+      await this.aid.switchToMode(target);
     }
-    
     this.lastModeSwitchTime = Date.now();
   }
 

@@ -6,6 +6,9 @@ class TryFeature {
 
   constructor() {
     this.observer = null;
+    this.aid = new AIDungeonService();
+    this.activationTimer = null;
+    this.pendingInjection = null;
     this.tryButton = null;
     this.isTryMode = false;
     this.boundKeyHandler = null;
@@ -106,9 +109,17 @@ class TryFeature {
   }
 
   destroy() {
+    clearTimeout(this.activationTimer);
+    clearTimeout(this.autoCleanupTimer);
+    this.autoCleanupTimer = null;
+    this.activationTimer = null;
     if (this.observer) {
       this.observer.disconnect();
       this.observer = null;
+    }
+    if (this.pendingInjection !== null) {
+      cancelAnimationFrame(this.pendingInjection);
+      this.pendingInjection = null;
     }
     if (this.actionIconObserver) {
       this.actionIconObserver.disconnect();
@@ -130,10 +141,10 @@ class TryFeature {
       document.removeEventListener('keydown', this.weightKeyHandler, true);
       this.weightKeyHandler = null;
     }
-    this.removeTryButton();
     this.removeSuccessBar();
-    this.restoreModeDisplay();
+    if (this.isTryMode) this.restoreModeDisplay();
     this.isTryMode = false;
+    this.removeTryButton();
     this.pendingTryText = null;
     this.weight = 0;
   }
@@ -157,8 +168,12 @@ class TryFeature {
   }
 
   setupObserver() {
-    this.observer = new MutationObserver((mutations) => {
-      this.injectTryButton();
+    this.observer = new MutationObserver(() => {
+      if (this.pendingInjection !== null) return;
+      this.pendingInjection = requestAnimationFrame(() => {
+        this.pendingInjection = null;
+        this.injectTryButton();
+      });
     });
 
     this.observer.observe(document.body, {
@@ -167,106 +182,18 @@ class TryFeature {
     });
   }
 
-  findInputModeMenu() {
-    // Find the input mode menu by looking for the container with the mode buttons
-    const doButton = document.querySelector('[aria-label="Set to \'Do\' mode"]');
-    if (doButton) {
-      return doButton.parentElement;
-    }
-    return null;
-  }
-
-  // Check whether a native button has a sprite-based theme active
-  _isSpriteActive(nativeButton) {
-    if (!nativeButton) return false;
-    const wrapper = nativeButton.querySelector('div[style*="position: absolute"]');
-    if (!wrapper) return false;
-    const viewport = wrapper.querySelector('div[class*="_ox-hidden"]');
-    if (!viewport) return false;
-    return parseFloat(window.getComputedStyle(viewport).width) > 0;
-  }
-
   injectTryButton() {
-    const menu = this.findInputModeMenu();
-    if (!menu) return;
-
-    // Find the reference buttons for positioning
-    const doButton = menu.querySelector('[aria-label="Set to \'Do\' mode"]');
-    if (!doButton) return;
-    const sayButton = menu.querySelector('[aria-label="Set to \'Say\' mode"]');
-
-    // Detect theme switches (sprite <-> dynamic) and force re-inject
-    const isSpriteNow = this._isSpriteActive(doButton);
-    if (this._lastSpriteState !== null && this._lastSpriteState !== isSpriteNow) {
-      const stale = menu.querySelector('[aria-label="Set to \'Try\' mode"]');
-      if (stale) stale.remove();
-      this.tryButton = null;
-    }
-    this._lastSpriteState = isSpriteNow;
-
-    // Check if we already added the button
-    const existingButton = menu.querySelector('[aria-label="Set to \'Try\' mode"]');
-    if (existingButton) {
-      // Verify it's in the correct position (should be between Do and Say)
-      // Correct position: doButton -> tryButton -> sayButton
-      if (existingButton.previousElementSibling === doButton) {
-        this.markModeMenuScrollable(menu);
-        return; // Already in correct position
-      }
-      // Wrong position - remove and re-add
-      existingButton.remove();
-    }
-
-    // Clone the Do button as a template
-    const tryButton = doButton.cloneNode(true);
-    
-    // Update aria-label
-    tryButton.setAttribute('aria-label', "Set to 'Try' mode");
-    
-    // Update the icon text - use controller icon (w_controller)
-    const iconElement = tryButton.querySelector('.font_icons');
-    if (iconElement) {
-      iconElement.textContent = 'w_controller'; // Using controller icon
-    }
-    
-    // Update the label text
-    const labelElement = tryButton.querySelector('.font_body');
-    if (labelElement) {
-      labelElement.textContent = 'Try';
-    }
-
-    // Remove any existing click handlers by cloning without event listeners
-    const cleanButton = tryButton.cloneNode(true);
-    
-    // Add our click handler
-    cleanButton.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      this.activateTryMode();
+    this.tryButton = this.aid.injectCustomModeButton(this, {
+      name: 'try', base: 'do', label: 'Try', icon: 'w_controller',
+      activate: () => this.activateTryMode()
     });
-
-    // Insert the button after the Do button (between Do and Say)
-    if (sayButton) {
-      menu.insertBefore(cleanButton, sayButton);
-    } else if (doButton.nextSibling) {
-      menu.insertBefore(cleanButton, doButton.nextSibling);
-    } else {
-      menu.appendChild(cleanButton);
+    if (this.isTryMode && !this.activationTimer && this.aid.detectCurrentMode() === 'do') {
+      this.updateModeDisplay();
     }
-
-    this.tryButton = cleanButton;
-    this.markModeMenuScrollable(menu);
-
-    // Scale sprite viewport if a sprite theme is active (pass Do as reference
-    // in case the clone was created before AI Dungeon populated the sprite)
-    this.applySpriteTheming(cleanButton, doButton);
-  }
-
-  markModeMenuScrollable(menu) {
-    if (!menu || !window.BetterDungeonPlatform?.has('touchControls')) return;
-    menu.setAttribute('data-bd-mode-menu', 'true');
-    const menuLeft = parseFloat(menu.style.left) || Math.max(8, Math.round(menu.getBoundingClientRect().left || 12));
-    menu.style.setProperty('--bd-menu-left', `${menuLeft}px`);
+    const bar = document.getElementById('bd-success-bar-container');
+    if (this.isTryMode && !this.activationTimer && (!bar || bar.classList.contains('bd-compact-mode-controls') !== this.aid.usesCompactInput())) {
+      this.injectSuccessBar();
+    }
   }
 
   // Scale the cloned button's sprite viewport to match its rendered width,
@@ -277,6 +204,7 @@ class TryFeature {
     if (!customButton || !referenceButton) return;
 
     setTimeout(() => {
+      if (!customButton.isConnected || !referenceButton.isConnected) return;
       // Check the reference button to determine if a sprite theme is active
       const refWrapper = referenceButton.querySelector('div[style*="position: absolute"]');
       if (!refWrapper) return;
@@ -365,6 +293,7 @@ class TryFeature {
   }
 
   removeTryButton() {
+    this.aid.removeCustomModeButton('try');
     const button = document.querySelector('[aria-label="Set to \'Try\' mode"]');
     if (button) {
       button.remove();
@@ -373,30 +302,20 @@ class TryFeature {
   }
 
   activateTryMode() {
+    const baseButton = this.aid.getModeButtonByName('do');
+    if (!baseButton || baseButton.getAttribute('aria-disabled') === 'true') return;
+    // Let existing mode-change handlers restore the previous mode before the
+    // native click changes React state, then enable our overlay.
+    baseButton.click();
     this.isTryMode = true;
-
-    // Click the Do button first to set the base mode (action text, not story text)
-    const doButton = document.querySelector('[aria-label="Set to \'Do\' mode"]');
-    if (doButton) {
-      doButton.click();
-    }
-
-    // Close the menu by clicking the back arrow
-    setTimeout(() => {
-      const closeButton = document.querySelector('[aria-label="Close \'Input Mode\' menu"]');
-      if (closeButton) {
-        closeButton.click();
-      }
-      
-      // After menu closes, update the UI to show "Try" mode
-      setTimeout(() => {
-        this.updateModeDisplay();
-        this.injectSuccessBar();
-        
-        // Show first-use hint
-        this.showFirstUseHint();
-      }, 50);
-    }, 50);
+    clearTimeout(this.activationTimer);
+    this.activationTimer = setTimeout(() => {
+      this.activationTimer = null;
+      if (!this.isTryMode) return;
+      this.aid.closeModeMenu();
+      this.updateModeDisplay();
+      this.injectSuccessBar();
+    }, 100);
 
     // Setup interception for the next submission
     this.setupSubmitInterception();
@@ -467,7 +386,7 @@ class TryFeature {
     const inputRow = textarea.parentElement;
     if (!inputRow) return;
 
-    if (window.BetterDungeonPlatform?.has('touchControls')) {
+    if (this.aid.usesCompactInput()) {
       this.injectTouchSuccessBar(inputRow);
       return;
     }
@@ -512,73 +431,31 @@ class TryFeature {
   injectTouchSuccessBar(inputRow) {
     const bar = document.createElement('div');
     bar.id = 'bd-success-bar-container';
-    bar.style.cssText = `
-      position: absolute;
-      bottom: calc(100% + 32px);
-      left: 8px;
-      right: 8px;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      padding: 2px 8px;
-      background: rgba(0, 0, 0, 0.45);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      border-radius: 6px;
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      font-family: var(--bd-font-family-primary, 'IBM Plex Sans', sans-serif);
-      font-size: 10px;
-      color: rgba(255, 255, 255, 0.45);
-      z-index: 2;
-      pointer-events: none;
-      box-sizing: border-box;
-      height: 22px;
-    `;
-    const buttonStyle = `
-      pointer-events:auto; cursor:pointer; user-select:none;
-      display:flex; align-items:center; justify-content:center;
-      min-width:28px; min-height:20px; border:0;
-      font-size:14px; font-weight:700; color:rgba(255,255,255,0.7);
-      padding:1px 6px; line-height:1; border-radius:4px;
-      background:rgba(255,255,255,0.08); touch-action:manipulation;
-      -webkit-tap-highlight-color:transparent;
-      transition:background .15s, transform .1s;
-    `.replace(/\n\s*/g, ' ');
-
+    bar.className = 'bd-compact-mode-controls bd-try-controls';
+    bar.setAttribute('role', 'group');
+    bar.setAttribute('aria-label', 'Try success chance');
     bar.innerHTML = `
-      <span style="white-space:nowrap; font-weight:600; font-size:9px; letter-spacing:0.3px; text-transform:uppercase;">Success</span>
-      <button type="button" id="bd-weight-down" aria-label="Decrease success chance" style="${buttonStyle}">−</button>
-      <div style="flex:1; height:3px; background:rgba(255,255,255,0.08); border-radius:2px; overflow:hidden;">
-        <div id="bd-success-bar-fill" style="height:100%; border-radius:2px; transition:width .3s cubic-bezier(.4,0,.2,1), background .3s;"></div>
+      <button type="button" id="bd-weight-down" aria-label="Decrease success chance">−</button>
+      <div class="bd-mode-control-value">
+        <div class="bd-mode-control-caption"><span>Success</span><span id="bd-success-percent" aria-live="polite"></span></div>
+        <div class="bd-success-track" aria-hidden="true"><div id="bd-success-bar-fill"></div></div>
       </div>
-      <span id="bd-success-percent" style="min-width:24px; text-align:center; font-weight:700; font-size:10px; font-variant-numeric:tabular-nums; transition:color .3s;"></span>
-      <button type="button" id="bd-weight-up" aria-label="Increase success chance" style="${buttonStyle}">+</button>
+      <button type="button" id="bd-weight-up" aria-label="Increase success chance">+</button>
     `;
 
     const wireButton = (element, delta) => {
       if (!element) return;
-      const press = () => {
-        element.style.background = 'rgba(255,255,255,0.22)';
-        element.style.transform = 'scale(0.92)';
-      };
-      const release = () => {
-        element.style.background = 'rgba(255,255,255,0.08)';
-        element.style.transform = '';
-      };
       element.addEventListener('click', event => {
         event.preventDefault();
         event.stopPropagation();
         this.adjustWeight(delta);
       });
-      element.addEventListener('pointerdown', press);
-      element.addEventListener('pointerup', release);
-      element.addEventListener('pointercancel', release);
-      element.addEventListener('pointerleave', release);
     };
     wireButton(bar.querySelector('#bd-weight-down'), -1);
     wireButton(bar.querySelector('#bd-weight-up'), 1);
 
-    inputRow.appendChild(bar);
+    // The native textarea row clips overflow. Anchor to its controller instead.
+    (inputRow.closest('#game-text-input-controller') || inputRow.parentElement).appendChild(bar);
     this.successBar = bar;
     this.updateSuccessBar();
   }
@@ -589,6 +466,10 @@ class TryFeature {
     if (!fill || !percentText) return;
 
     const chance = this.getSuccessChance();
+    const down = document.getElementById('bd-weight-down');
+    const up = document.getElementById('bd-weight-up');
+    if (down) down.disabled = chance <= 5;
+    if (up) up.disabled = chance >= 95;
     percentText.textContent = `${chance}%`;
     fill.style.width = `${chance}%`;
 
@@ -628,14 +509,10 @@ class TryFeature {
     const handleModeChange = (e) => {
       if (!this.isTryMode) return;
 
-      const target = e.target.closest('[aria-label]');
-      if (!target) return;
-
-      const ariaLabel = target.getAttribute('aria-label') || '';
-      
-      // If user clicks "Change input mode" or selects a different mode, cancel try mode
-      if (ariaLabel === 'Change input mode' ||
-          ariaLabel.startsWith("Set to '") && !ariaLabel.includes("Try")) {
+      const selected = this.aid.getInputMenuEntryName(e.target);
+      // Opening/dismissing the menu or generating media doesn't change the
+      // underlying text mode. Only selecting another mode ends the overlay.
+      if (selected && Object.hasOwn(AIDungeonService.MODES, selected) && selected !== 'try') {
         this.deactivateTryMode();
       }
     };
@@ -828,6 +705,8 @@ class TryFeature {
   }
 
   deactivateTryMode() {
+    clearTimeout(this.activationTimer);
+    this.activationTimer = null;
     this.isTryMode = false;
     this.restoreModeDisplay();
     

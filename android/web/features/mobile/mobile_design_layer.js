@@ -20,6 +20,9 @@
       document.querySelector('[aria-label="Set to \'Guide\' mode"]') ||
       document.querySelector('[aria-label="Set to \'Try\' mode"]') ||
       document.querySelector('[aria-label="Set to \'Command\' mode"]');
+    // Alpha's vertical Radix menu already scrolls. Never mark its Write
+    // group as a horizontal rail after custom buttons have been inserted.
+    if (button?.closest('[role="menu"]')) return null;
     return button?.parentElement || null;
   }
 

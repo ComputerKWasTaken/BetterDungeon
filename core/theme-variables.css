@@ -372,10 +372,21 @@
   --bd-mode-guide-glow:    rgba(236, 72, 153, 0.15);
   --bd-mode-guide-rgb:     236, 72, 153;
 
-  --bd-mode-see:           var(--bd-cyan);
+  --bd-mode-image:         var(--bd-cyan);
+  --bd-mode-image-light:   var(--bd-cyan-light);
+  --bd-mode-image-glow:    rgba(6, 182, 212, 0.15);
+  --bd-mode-image-rgb:     6, 182, 212;
+
+  --bd-mode-video:         #6366f1;
+  --bd-mode-video-light:   #818cf8;
+  --bd-mode-video-glow:    rgba(99, 102, 241, 0.15);
+  --bd-mode-video-rgb:     99, 102, 241;
+
+  /* Legacy See aliases for older production menus and integrations. */
+  --bd-mode-see:           var(--bd-mode-image);
   --bd-mode-see-light:     var(--bd-cyan-light);
   --bd-mode-see-glow:      rgba(6, 182, 212, 0.15);
-  --bd-mode-see-rgb:       6, 182, 212;
+  --bd-mode-see-rgb:       var(--bd-mode-image-rgb);
 
   --bd-mode-command:       var(--bd-orange);
   --bd-mode-command-light: var(--bd-orange-light);

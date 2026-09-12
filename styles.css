@@ -404,6 +404,42 @@
 }
 
 /* Mode selection button gradient styling (Dynamic theme only - applied via JS) */
+/* Desktop Alpha rails can overflow even on a PC window. The mobile Radix menu
+   keeps its native vertical scrolling and available-height calculation. */
+[data-bd-mode-menu]:not([role="menu"]) {
+  max-width: calc(100vw - 56px);
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  overscroll-behavior-x: contain;
+}
+[data-bd-mode-menu] > [role="button"] { flex-shrink: 0; }
+[role="menu"][aria-label="Input mode"] .bd-mobile-custom-mode {
+  min-width: 0;
+  min-height: 44px;
+  justify-content: flex-start;
+}
+[role="menu"][aria-label="Input mode"] .bd-mobile-custom-mode:focus {
+  background-color: var(--aid-core-3, rgba(128, 128, 128, 0.2));
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+}
+[role="menu"][aria-label="Input mode"] .bd-mobile-custom-mode[aria-checked="true"]::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+[role="menu"][aria-label="Input mode"] [aria-checked="false"] > [data-slot="aid-dropdown-menu-radio-indicator-container"] {
+  visibility: hidden;
+}
+[role="menu"][aria-label="Input mode"] .bd-mode-button-colored {
+  background: linear-gradient(135deg, rgba(var(--bd-button-rgb), 0.12), rgba(var(--bd-button-rgb), 0.28));
+}
+[role="menu"][aria-label="Input mode"] .bd-mode-button-colored::before { display: none; }
+
 .bd-mode-button-colored {
   position: relative;
   overflow: hidden;
@@ -5200,3 +5236,55 @@ html[data-bd-platform="android-webview"] .bd-navigator-ime-visible .bd-navigator
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+/* Compact input controls live above the controller, outside its clipped
+   textarea row. Both features share spacing and 44px touch/keyboard targets. */
+.bd-compact-mode-controls {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 8px;
+  right: 8px;
+  min-width: 0;
+  height: 56px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px;
+  border: 1px solid var(--bd-border-color, rgba(255,255,255,.18));
+  border-radius: 12px;
+  background: var(--bd-bg-secondary, #252935);
+  color: var(--bd-text-primary, #f1f5f9);
+  box-shadow: 0 4px 16px rgba(0,0,0,.18);
+  font-family: var(--bd-font-family-primary, system-ui, sans-serif);
+  font-size: 13px;
+  line-height: 1.3;
+  z-index: 3;
+  pointer-events: auto;
+}
+.gameplay-action-input-dock:has(.bd-compact-mode-controls) { padding-top: 64px; }
+.bd-compact-mode-controls button {
+  box-sizing: border-box;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.bd-compact-mode-controls button:disabled { opacity: .35; cursor: default; }
+.bd-compact-mode-controls button:not(:disabled):active { background: rgba(128,128,128,.2); }
+.bd-compact-mode-controls button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.bd-mode-control-value { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.bd-mode-control-caption { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
+.bd-compact-mode-controls #bd-success-percent { font-weight: 700; font-variant-numeric: tabular-nums; }
+.bd-success-track { height: 5px; overflow: hidden; border-radius: 4px; background: rgba(128,128,128,.25); }
+.bd-success-track > div { height: 100%; border-radius: inherit; transition: width .15s; }
+.bd-command-controls .bd-mode-control-value { align-items: center; }

@@ -134,6 +134,8 @@ Published store/GitHub Release source is kept on `release`. Daily work happens o
 
 Build output is written to `dist/` and is never committed. See the [monorepo guide](docs/MONOREPO.md) for source composition, branches, and CI/CD details.
 
+The [Alpha input-menu contract](docs/INPUT-MENU.md) documents desktop/compact selectors, Try/Command integration, media actions, and browser regression checks.
+
 ## License
 
 BetterDungeon uses a custom [BetterDungeon License](LICENSE), not an open-source license:

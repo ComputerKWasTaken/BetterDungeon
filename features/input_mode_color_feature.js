@@ -15,11 +15,13 @@ class InputModeColorFeature {
     say: '#22c55e',      // Green - Dialogue, communication
     story: '#fbbf24',    // Amber/Gold - Authorial, creativity
     guide: '#ec4899',    // Pink - Direction, guidance, navigation
-    see: '#06b6d4',      // Cyan - Clarity, vision, perception
+    image: '#06b6d4',    // Cyan - Image generation (formerly See)
+    video: '#6366f1',    // Indigo - Video generation
     command: '#f97316'   // Orange - Authority, directives
   };
 
   constructor() {
+    this.aid = new AIDungeonService();
     this.observer = null;
     this.currentMode = null;
     this.inputContainer = null;
@@ -68,7 +70,8 @@ class InputModeColorFeature {
       chrome.storage.sync.get(InputModeColorFeature.STORAGE_KEY, (result) => {
         const customColors = (result || {})[InputModeColorFeature.STORAGE_KEY];
         if (customColors && typeof customColors === 'object') {
-          this.customColors = { ...InputModeColorFeature.DEFAULT_COLORS, ...customColors };
+          this.customColors = { ...InputModeColorFeature.DEFAULT_COLORS, ...customColors,
+            image: customColors.image || customColors.see || InputModeColorFeature.DEFAULT_COLORS.image };
           this.log('[InputModeColor] Loaded custom colors', this.customColors);
         } else {
           this.customColors = { ...InputModeColorFeature.DEFAULT_COLORS };
@@ -129,7 +132,9 @@ class InputModeColorFeature {
   listenForColorUpdates() {
     this.boundMessageListener = (message, sender, sendResponse) => {
       if (message.type === 'MODE_COLORS_UPDATED') {
-        this.customColors = message.colors;
+        const colors = message.colors || {};
+        this.customColors = { ...InputModeColorFeature.DEFAULT_COLORS, ...colors,
+          image: colors.image || colors.see || InputModeColorFeature.DEFAULT_COLORS.image };
         this.injectCustomColorStyles();
         // Force re-apply current mode styling
         if (this.currentMode) {
@@ -161,21 +166,12 @@ class InputModeColorFeature {
   // Mode color mapping handled in CSS via data attributes
   
   detectCurrentMode() {
-    // The "Change input mode" button displays the current mode name
-    const modeButton = document.querySelector('[aria-label="Change input mode"]');
-    if (modeButton) {
-      const modeText = modeButton.querySelector('.font_body');
-      if (modeText) {
-        const raw = modeText.textContent.toLowerCase().trim();
-        // Normalize Command sub-mode labels (e.g. "command [subtle]", "command [ooc]") to "command"
-        if (raw.startsWith('command')) return 'command';
-        return raw;
-      }
-    }
-    return null;
+    return this.aid.detectCurrentMode();
   }
 
   findInputContainer() {
+    const controller = document.querySelector('#game-text-input-controller');
+    if (controller) return controller;
     // Find the input container with border-radius (the rounded input box)
     const textarea = document.querySelector('#game-text-input');
     if (textarea) {
@@ -205,7 +201,7 @@ class InputModeColorFeature {
     
     if (mode === this.currentMode) {
       // Mode hasn't changed, but ensure styling is still applied
-      if (mode && !this.inputContainer) {
+      if (mode && (!this.inputContainer?.isConnected || this.inputContainer !== this.findInputContainer())) {
         this.applyColorStyling(mode);
       }
       return;
@@ -222,6 +218,7 @@ class InputModeColorFeature {
 
   // Check if the current theme is Dynamic (no sprites)
   isDynamicTheme() {
+    if (this.aid.isMobileModeMenu()) return true;
     // Dynamic theme has no sprite images - check for sprite containers with 0 width
     const spriteContainer = document.querySelector('[aria-label="Change input mode"] div[style*="position: absolute"]');
     if (spriteContainer) {
@@ -246,7 +243,7 @@ class InputModeColorFeature {
     this._lastDynamic = isDynamic;
 
     // Toggle sprite-menu background attribute on the menu container
-    const menuContainer = document.querySelector('[aria-label="Set to \'Do\' mode"]')?.parentElement;
+    const menuContainer = this.aid.getInputModeMenu();
     if (menuContainer) {
       if (!isDynamic) {
         menuContainer.setAttribute('data-bd-sprite-menu', '');
@@ -267,20 +264,10 @@ class InputModeColorFeature {
       return;
     }
 
-    // Style mode selection buttons in the input mode menu (is_Button elements)
-    const modeSelectors = [
-      { selector: '[aria-label="Set to \'Do\' mode"]', mode: 'do' },
-      { selector: '[aria-label="Set to \'Try\' mode"]', mode: 'try' },
-      { selector: '[aria-label="Set to \'Say\' mode"]', mode: 'say' },
-      { selector: '[aria-label="Set to \'Story\' mode"]', mode: 'story' },
-      { selector: '[aria-label="Set to \'Guide\' mode"]', mode: 'guide' },
-      { selector: '[aria-label="Set to \'See\' mode"]', mode: 'see' },
-      { selector: '[aria-label="Set to \'Command\' mode"]', mode: 'command' }
-    ];
-
-    modeSelectors.forEach(({ selector, mode }) => {
-      const button = document.querySelector(selector);
-      if (button && !button.hasAttribute('data-bd-mode-styled')) {
+    // Use the same menu discovery as injection and hotkeys.
+    Object.keys(AIDungeonService.MODES).forEach(mode => {
+      const button = this.aid.getModeButtonByName(mode);
+      if (button && button.getAttribute('data-bd-mode-styled') !== mode) {
         button.setAttribute('data-bd-mode-styled', mode);
         button.classList.add('bd-mode-button-colored');
         
@@ -291,7 +278,7 @@ class InputModeColorFeature {
           'say': 'var(--bd-mode-say-rgb)',
           'story': 'var(--bd-mode-story-rgb)',
           'guide': 'var(--bd-mode-guide-rgb)',
-          'see': 'var(--bd-mode-see-rgb)',
+          'see': 'var(--bd-mode-image-rgb)',
           'command': 'var(--bd-mode-command-rgb)'
         };
         
@@ -300,6 +287,14 @@ class InputModeColorFeature {
         }
       }
     });
+    for (const kind of ['image', 'video']) {
+      const button = this.aid.getGenerateButton(kind);
+      if (button && button.getAttribute('data-bd-mode-styled') !== kind) {
+        button.setAttribute('data-bd-mode-styled', kind);
+        button.classList.add('bd-mode-button-colored');
+        button.style.setProperty('--bd-button-rgb', `var(--bd-mode-${kind}-rgb)`);
+      }
+    }
   }
 
   applyColorStyling(mode) {
