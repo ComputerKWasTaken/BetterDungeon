@@ -18,7 +18,7 @@ You will need:
 
 The test stack has no npm dependencies. The repository root can still be loaded directly as an unpacked extension.
 
-Start normal work from `dev`. The `stable` branch is release-ready and is advanced only by the **Promote stable** GitHub Actions workflow after the complete quality gate passes.
+GitHub shows `preview` by default because it is the public, release-ready branch. Start normal work from `dev`. `preview` advances only through the **Promote preview** GitHub Actions workflow after the complete quality gate passes.
 
 ## Run BetterDungeon locally
 
