@@ -857,7 +857,7 @@
           'Story Card changes use stable card IDs; Memory Bank changes use stable memory IDs. Navigator can edit/delete memories but cannot create them.',
         ].join('\n'));
       }
-      if (routineRunAvailable) sections.push('\n=== NAVIGATOR ROUTINES ===\nWhen the player explicitly asks you to run a saved Routine, identify it with list_routines and call run_routine once. The request is queued behind this chat response and runs in the Routine’s separate conversation. Report only that it was queued, then direct the player to Activity for its eventual result. The Enabled toggle controls automatic milestones; an off Routine can still be run on request.');
+      if (routineRunAvailable) sections.push('\n=== NAVIGATOR ROUTINES ===\nWhen the player explicitly asks you to run a saved Routine, identify it with list_routines and call run_routine once per requested Routine. The request is queued behind this chat response and runs with current adventure context in that Routine’s separate conversation. Report only that it was queued, not that the work is complete, then direct the player to Activity. The Enabled toggle controls automatic action-count milestones; an off Routine can still be run on request, and asking does not enable it.');
       if (options.dropped) sections.push(`\n=== NAVIGATOR TOOL ACCESS ===\n${TOOL_DROP_GUIDANCE}`);
       return sections.join('\n');
     }
