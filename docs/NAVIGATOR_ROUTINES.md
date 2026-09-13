@@ -1,8 +1,8 @@
 # Navigator Routines
 
 Open **Game Menu → Gameplay → Navigator → Routines**. A Routine is a name,
-instructions, and an **Every N actions** interval (1–100). Enabling it schedules
-it in every adventure on this device. You can also ask Navigator in main Chat
+instructions, and a setting for how often it runs (1–100 actions). Enabling it schedules
+it after that many completed actions in every adventure on this device. You can also ask Navigator in main Chat
 to run any saved Routine by name, even when its automatic trigger is off. For
 example, “Run NPC Brains now and focus on the innkeeper.” Navigator queues the
 run after its current chat reply; review its eventual result in **Activity**.

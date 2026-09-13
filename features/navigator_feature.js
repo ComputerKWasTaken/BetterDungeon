@@ -870,10 +870,7 @@ class NavigatorFeature {
     const header = document.createElement('header');
     header.className = 'bd-navigator-header';
     header.innerHTML = `
-      <div class="bd-navigator-header-identity">
-        <span class="bd-navigator-mark icon-telescope" aria-hidden="true"></span>
-        <h2 class="bd-navigator-title">Navigator</h2>
-      </div>
+      <nav class="bd-routine-nav bd-navigator-primary-nav" aria-label="Navigator views"></nav>
       <div class="bd-navigator-header-actions">
         <button type="button" class="bd-navigator-icon-btn bd-navigator-inspection" aria-label="Open Inspector" title="Open Inspector" aria-controls="bd-navigator-inspection-panel" aria-expanded="false">
           <span class="icon-file-braces" aria-hidden="true"></span>

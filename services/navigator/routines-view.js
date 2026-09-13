@@ -23,14 +23,22 @@
       this.view = 'chat';
       this.renderVersion = 0;
       this.fileRequests = new Map();
-      this.nav = element('nav', 'bd-routine-nav');
-      this.nav.setAttribute('aria-label', 'Navigator views');
-      for (const [view, label] of [['chat', 'Chat'], ['routines', 'Routines'], ['activity', 'Activity']]) {
-        const tab = button(label, () => this.show(view));
+      this.nav = feature.drawer.querySelector('.bd-navigator-primary-nav');
+      if (!this.nav) throw new Error('Navigator view navigation could not be initialized. Reload the page and try again.');
+      const views = [
+        ['chat', 'Chat', 'icon-message-square', true],
+        ['routines', 'Routines', 'icon-bot', true],
+        ['activity', 'Activity', 'icon-activity', false]
+      ];
+      for (const [view, label, icon, showLabel] of views) {
+        const tab = button('', () => this.show(view));
         tab.dataset.view = view;
+        tab.setAttribute('aria-label', label);
+        tab.title = label;
+        tab.append(element('span', icon, undefined));
+        if (showLabel) tab.append(element('span', 'bd-routine-view-label', label));
         this.nav.append(tab);
       }
-      feature.drawer.querySelector('.bd-navigator-header').after(this.nav);
       this.panel = element('section', 'bd-routine-panel');
       this.panel.hidden = true;
       feature.transcriptEl.before(this.panel);
@@ -110,7 +118,7 @@
 
     renderRules() {
       this.panel.replaceChildren();
-      this.panel.append(element('p', 'bd-routine-hint', 'Enabled Routines run every N actions in every adventure on this device. You can also ask Navigator in Chat to run any saved Routine now, even when its automatic trigger is off.'));
+      this.panel.append(element('p', 'bd-routine-hint', 'When enabled, a Routine runs after its chosen number of completed actions. Ask Navigator in Chat to run any saved Routine whenever you want.'));
       const actions = element('div', 'bd-routine-actions');
       actions.append(button('New Routine', () => this.editor()), button('Import', () => this.act(() => this.importFile())), button('Export', () => this.act(() => this.exportFile())));
       this.panel.append(actions);
@@ -123,7 +131,7 @@
         const input = element('input');
         input.type = 'checkbox';
         input.checked = rule.enabled;
-        input.setAttribute('aria-label', `Enable ${rule.name} in every adventure`);
+        input.setAttribute('aria-label', `Enable ${rule.name}`);
         input.addEventListener('change', () => this.act(async () => {
           input.disabled = true;
           try { await this.runner.saveRule({ ...rule, enabled: input.checked }); this.renderRules(); }
@@ -131,7 +139,7 @@
         }));
         label.append(input, element('strong', '', rule.name));
         row.append(label, button('Edit', () => this.editor(rule)));
-        card.append(row, element('p', 'bd-routine-hint', `Every ${rule.interval} action${rule.interval === 1 ? '' : 's'} · ${rule.enabled ? 'On in all adventures' : 'Off'}`));
+        card.append(row, element('p', 'bd-routine-hint', `Runs every ${rule.interval} action${rule.interval === 1 ? '' : 's'} · ${rule.enabled ? 'Enabled' : 'Off'}`));
         if (rule.interval <= 2) card.append(element('p', 'bd-routine-hint', 'Frequent runs can use substantial provider quota or paid usage.'));
         const preview = element('p', 'bd-routine-preview', rule.instruction);
         card.append(preview);
@@ -156,11 +164,19 @@
       const name = field('Name', 'input', rule.name, 80);
       const instruction = field('Instructions for Navigator', 'textarea', rule.instruction, 7000);
       instruction.rows = 8;
-      const interval = field('Every N actions', 'input', rule.interval);
+      const intervalField = element('label', 'bd-routine-field');
+      const intervalLabel = element('span', '', 'Run every');
+      const intervalWrap = element('span', 'bd-routine-interval');
+      const interval = element('input');
+      interval.value = rule.interval;
       interval.type = 'number'; interval.min = '1'; interval.max = '100'; interval.step = '1';
+      interval.setAttribute('aria-label', 'Run every number of actions');
+      intervalWrap.append(interval, element('span', '', 'actions'));
+      intervalField.append(intervalLabel, intervalWrap);
+      this.panel.append(intervalField);
       const enabled = element('input'); enabled.type = 'checkbox'; enabled.checked = rule.enabled;
       const toggle = element('label', 'bd-routine-toggle');
-      toggle.append(enabled, element('span', '', 'Enabled in every adventure on this device'));
+      toggle.append(enabled, element('span', '', 'Enabled'));
       this.panel.append(toggle);
       const warning = element('p', 'bd-routine-hint', 'Frequent runs can use substantial provider quota or paid usage.');
       const updateWarning = () => { warning.hidden = Number(interval.value) > 2; };
@@ -301,7 +317,9 @@
       for (const pending of this.fileRequests.values()) { clearTimeout(pending.timer); pending.resolve(null); }
       this.fileRequests.clear();
       if (globalThis.__bdRoutineFileResult === this.nativeCallback) delete globalThis.__bdRoutineFileResult;
-      this.nav.remove(); this.panel.remove(); this.threadLabel.remove(); this.status.remove(); this.notice.remove();
+      // The view buttons live in Navigator's persistent header. The drawer is
+      // reused across adventure navigation, so leave the host in place.
+      this.nav.replaceChildren(); this.panel.remove(); this.threadLabel.remove(); this.status.remove(); this.notice.remove();
     }
   }
   globalThis.NavigatorRoutinesView = NavigatorRoutinesView;

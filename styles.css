@@ -3269,6 +3269,14 @@ html.bd-story-card-dock-active > body {
   padding: var(--bd-space-2) var(--bd-space-4);
   border-bottom: 1px solid var(--bd-border-subtle);
 }
+.bd-navigator-primary-nav {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+}
 .bd-routine-button {
   font: inherit;
   color: var(--bd-text-secondary);
@@ -3356,6 +3364,8 @@ html.bd-story-card-dock-active > body {
 }
 .bd-routine-field textarea { resize: vertical; min-height: 140px; }
 .bd-routine-field input[type="number"] { max-width: 110px; }
+.bd-routine-interval { display: inline-flex; align-items: center; gap: var(--bd-space-2); }
+.bd-routine-interval input[type="number"] { max-width: 110px; }
 .bd-routine-thread-label { padding: var(--bd-space-2) var(--bd-space-4); font-size: var(--bd-font-size-sm); }
 .bd-routine-prompt summary { cursor: pointer; color: var(--bd-text-secondary); }
 .bd-routine-prompt[open] summary { margin-bottom: var(--bd-space-3); }
@@ -3410,7 +3420,7 @@ html[data-bd-form-factor="mobile"] .bd-routine-button { min-height: 40px; }
 }
 
 .bd-navigator-drawer.bd-navigator-embedded .bd-navigator-header {
-  gap: var(--bd-space-2);
+  gap: 4px;
   min-height: 52px;
   padding: 0 var(--bd-space-4);
   background: transparent;
@@ -3422,38 +3432,6 @@ html[data-bd-form-factor="mobile"] .bd-routine-button { min-height: 40px; }
   border: 1px solid var(--bd-border-subtle);
   border-radius: var(--bd-radius-xl);
   background: var(--bd-tag-bg);
-}
-
-.bd-navigator-header-identity {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  gap: var(--bd-space-2);
-}
-
-.bd-navigator-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 30px;
-  width: 30px;
-  height: 30px;
-  border: 1px solid var(--bd-border-accent);
-  border-radius: 50%;
-  background: var(--bd-accent-muted);
-  color: var(--bd-accent-primary);
-  font-size: var(--bd-font-size-base);
-}
-
-.bd-navigator-title {
-  margin: 0;
-  overflow: hidden;
-  color: var(--bd-text-primary);
-  font-size: var(--bd-font-size-md);
-  font-weight: var(--bd-font-weight-medium);
-  line-height: var(--bd-line-height-normal);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .bd-navigator-drawer.bd-navigator-embedded .bd-navigator-header-actions {
@@ -3585,13 +3563,43 @@ html[data-bd-form-factor="mobile"] .bd-routine-button { min-height: 40px; }
 .bd-navigator-header {
   display: flex;
   align-items: center;
-  gap: var(--bd-space-3);
+  gap: 4px;
   flex-shrink: 0;
   min-height: 64px;
   padding: 10px var(--bd-space-3);
   border-bottom: 1px solid var(--bd-border-subtle);
   background: linear-gradient(180deg, var(--bd-bg-tertiary), var(--bd-bg-secondary));
 }
+
+.bd-navigator-header .bd-navigator-primary-nav .bd-routine-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: var(--bd-radius-md);
+  color: var(--bd-text-muted);
+  white-space: nowrap;
+}
+
+.bd-navigator-header .bd-navigator-primary-nav .bd-routine-button:hover,
+.bd-navigator-header .bd-navigator-primary-nav .bd-routine-button[aria-current="true"] {
+  color: var(--bd-accent-light);
+  background: var(--bd-accent-muted);
+}
+
+.bd-navigator-header .bd-navigator-primary-nav .bd-routine-button[aria-current="true"] {
+  box-shadow: inset 0 -1px 0 var(--bd-border-accent);
+}
+
+.bd-navigator-header .bd-navigator-primary-nav .bd-routine-button > span:first-child {
+  font-size: 14px;
+}
+
+.bd-routine-view-label { font-size: var(--bd-font-size-sm); }
 
 .bd-navigator-settings-panel {
   padding: var(--bd-space-3);
@@ -5291,6 +5299,16 @@ html[data-bd-platform="android-webview"] .bd-navigator-stop {
 html[data-bd-platform="android-webview"] .bd-navigator-drawer.bd-navigator-embedded .bd-navigator-icon-btn {
   width: 44px;
   height: 44px;
+}
+
+html[data-bd-platform="android-webview"] .bd-navigator-drawer.bd-navigator-embedded .bd-navigator-primary-nav .bd-routine-button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 6px;
+}
+
+@media (max-width: 420px) {
+  .bd-navigator-primary-nav .bd-routine-view-label { display: none; }
 }
 
 html[data-bd-platform="android-webview"] .bd-navigator-drawer.bd-navigator-embedded .bd-navigator-input {
