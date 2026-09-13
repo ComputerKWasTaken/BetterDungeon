@@ -1,15 +1,48 @@
 # Navigator Routines
 
 Open **Game Menu → Gameplay → Navigator → Routines**. A Routine is a name,
-an instruction for Navigator, and an interval from 1 to 100 actions. Enable it
-to run in every adventure on this device. There is no additional master switch
-or daily allowance. Provider quotas and any billing still apply; frequent
-Routines can consume substantial usage.
+instructions, and an **Every N actions** interval (1–100). Enabling it schedules
+it in every adventure on this device. You can also ask Navigator in main Chat
+to run any saved Routine by name, even when its automatic trigger is off. For
+example, “Run NPC Brains now and focus on the innkeeper.” Navigator queues the
+run after its current chat reply; review its eventual result in **Activity**.
+There is no additional master switch or daily allowance. Provider quotas and
+any billing still apply; frequent scheduled Routines can consume substantial
+usage.
 
-**Auto Cards** and **Story Arc** are editable examples, initially off. They ask
-Navigator to maintain useful Story Cards or a Story Arc section in Plot
-Essentials. They use normal Navigator context and tools; results depend on the
-story, instructions, and chosen AI model.
+Six editable examples start disabled. The first four show how Routines can
+replace common script workflows; the last two are Navigator-native ideas:
+
+| Routine | Interval | Responsibility |
+| --- | ---: | --- |
+| **NPC Brains** | 5 actions | Dedicated, compact brain cards for significant recurring NPCs, separating observed experiences from inferred inner life. |
+| **Automatic Story Cards** | 5 actions | Durable characters, places, objects, and lore that emerge through play; not brain cards. |
+| **Story Arcs** | 10 actions | A flexible, forward-looking outline of roughly 3–5 beats in Plot Essentials; not a recap. |
+| **State Management** | 5 actions | A compact Adventure State section in Plot Essentials, updated only from established changes and player-defined rules. |
+| **Scene Compass** | 10 actions | A short, current-scene pacing or tone cue in Author’s Note, without dictating events. |
+| **Continuity Watch** | 10 actions | Small corrections to clear, evidenced contradictions in existing lore; reports uncertain issues instead of inventing fixes. |
+
+Each example asks Navigator to review current context, compare existing content,
+then change or skip. It reads matching cards before editing, avoids duplicates,
+and preserves unrelated material. State Management treats player-edited values
+as authoritative until a clear story event changes them; it does not invent
+numeric mechanics. These are prompts, not specialized script engines, and
+results depend on the story and chosen AI model. The pre-release template
+upgrade replaces only untouched, disabled old examples; customized or enabled
+rules remain as they were.
+
+Navigator can make persistent changes outside story generation, use provider
+thinking, and reach controls scripts may not have. The tradeoffs are provider
+usage, asynchronous updates that may lag behind play, imperfect model judgment,
+and story-context cost: Plot Essentials is persistent context, while a brain
+card's Entry uses context when triggered. Routines are not deterministic state
+engines. Navigator can edit existing Memory Bank entries but cannot create one.
+
+Navigator knows how Routines work. Ask it to draft a reusable workflow and it
+can propose a new Routine. The proposal always requires
+your approval and creates a disabled rule. Review its instruction and enable it
+yourself when ready. Navigator will not silently add a rule that runs across
+adventures.
 
 ## When a Routine runs
 
@@ -20,7 +53,7 @@ five clicks of Send. Continue and Retry can also advance the count. A completed
 generation that crosses a milestone runs the Routine once, even if the exact
 count was skipped.
 
-Opening an adventure or enabling a Routine establishes a baseline; neither
+Opening an adventure or enabling a scheduled Routine establishes a baseline; neither
 starts a run immediately. Edits, undo, restored history, and page reloads do not
 trigger runs. There is no catch-up for closed pages. Work continues when
 Navigator or Settings is closed, and while an open browser tab is hidden.
@@ -40,7 +73,8 @@ links to applied changes, required approvals, or errors. **Activity** lists
 Routine runs for the current adventure. Open one to review its transcript and
 change cards, then reply to guide that Routine with fresh adventure context.
 Each Routine has a separate conversation in each adventure; normal Chat remains
-separate.
+separate. Player-requested runs appear in the same Activity view and use that
+Routine’s conversation. Asking for a run does not enable its automatic trigger.
 
 Routines inherit the adventure's Navigator provider, thinking setting, and
 **Automatic**, **Proposed changes**, or **No changes** mode. Permanent deletions
@@ -58,10 +92,12 @@ its past activity.
 
 Use **Export** to save a JSON file, then **Import** on another installation.
 Android uses the system document picker. Imports add new, disabled copies and
-leave existing rules intact. Files contain rule instructions only, with no
+leave existing rules intact. Files contain rule names, triggers, and instructions, with no
 provider keys, adventure transcripts, or activity. Review imported instructions
 before enabling them. Rule libraries support up to 100 Routines and 1 MB;
-invalid imports leave the current library untouched.
+invalid imports leave the current library untouched. Older manual-only rules
+import as disabled every-5-actions Routines, preserving their instructions;
+they can still be run on request from Chat.
 
 ## Implementation and verification
 

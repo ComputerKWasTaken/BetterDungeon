@@ -47,7 +47,7 @@ function session(log, name, gate = null) {
 
 async function harness({ initialCount = 0, rules = [rule()], store, lockManager, android = false, gate = null, adventure = 'adventure' } = {}) {
   const log = [];
-  store ||= storage({ [Routines.KEY]: { version: 1, routines: rules } });
+  store ||= storage({ [Routines.KEY]: { version: 1, templateCatalogVersion: 5, routines: rules } });
   const chat = session(log, 'chat');
   let serverCount = initialCount;
   const runner = new Routines(adventure, chat, {
@@ -195,7 +195,11 @@ test('the feature script entry bootstraps real platform storage before Routines,
   const runner = new context.NavigatorRoutines('adventure', session([], 'chat'));
   await runner.init();
   assert.equal(runner.error, '');
-  assert.equal(runner.rules.length, 2);
+  assert.equal(runner.rules.length, 6);
+  assert.deepEqual(Array.from(runner.rules, rule => [rule.name, rule.interval]), [
+    ['NPC Brains', 5], ['Automatic Story Cards', 5], ['Story Arcs', 10], ['State Management', 5],
+    ['Scene Compass', 10], ['Continuity Watch', 10]
+  ]);
   assert.equal(values[Routines.KEY].routines.every(rule => !rule.enabled), true);
   runner.destroy();
 });
@@ -206,6 +210,197 @@ test('a missing platform reports a recoverable startup error instead of preventi
   assert.match(runner.error, /Reload the BetterDungeon extension/);
   assert.equal(runner.armed, false);
   runner.destroy();
+});
+
+test('catalog migration replaces only pristine disabled examples and preserves edited or active rules', async () => {
+  const old = Routines.legacyDefaults.map((template, index) => ({ id: `old-${index}`, name: template.name, interval: template.interval, instruction: template.instruction, enabled: false }));
+  const pristineStore = storage({ [Routines.KEY]: { version: 1, templateCatalogVersion: 2, routines: old } });
+  const pristine = await harness({ store: pristineStore });
+  assert.deepEqual(pristine.runner.rules.slice(0, 4).map(rule => rule.name), ['NPC Brains', 'Automatic Story Cards', 'Story Arcs', 'State Management']);
+  assert.deepEqual(pristine.runner.rules.slice(0, 4).map(rule => rule.id), ['old-2', 'old-0', 'old-1', 'old-3']);
+  assert.equal(pristine.runner.rules.length, 6);
+  assert.equal(pristine.runner.rules.every(rule => !rule.enabled), true);
+  pristine.runner.destroy();
+  const reopened = await harness({ store: pristineStore });
+  assert.equal(reopened.runner.rules.length, 6);
+  reopened.runner.destroy();
+
+  const original = { ...rule('saved'), name: 'My saved rule', instruction: 'Keep my original instruction.' };
+  const edited = { ...old[0], instruction: 'My changed instructions.', id: 'edited' };
+  const active = { ...old[2], enabled: true, id: 'active' };
+  const store = storage({ [Routines.KEY]: { version: 1, templateCatalogVersion: 2, routines: [original, edited, active] } });
+  const first = await harness({ store });
+  assert.deepEqual(first.runner.rules.slice(0, 4).map(item => item.name), ['NPC Brains', 'Automatic Story Cards', 'Story Arcs', 'State Management']);
+  assert.equal(first.runner.rules.find(item => item.id === original.id).instruction, original.instruction);
+  assert.equal(first.runner.rules.find(item => item.id === 'edited').instruction, edited.instruction);
+  assert.equal(first.runner.rules.find(item => item.id === 'active').enabled, true);
+  assert.equal(first.runner.rules.find(item => item.id === 'active').instruction, active.instruction);
+  first.runner.destroy();
+  const second = await harness({ store });
+  assert.equal(second.runner.rules.length, 9);
+  second.runner.destroy();
+
+  const fullStore = storage({ [Routines.KEY]: { version: 1, templateCatalogVersion: 2, routines: Array.from({ length: 99 }, (_, index) => ({ ...rule(`saved-${index}`), enabled: false })) } });
+  const full = await harness({ store: fullStore });
+  assert.equal(full.runner.rules.length, 100);
+  assert.equal(full.runner.rules[0].name, 'NPC Brains');
+  full.runner.destroy();
+
+  const current = Routines.templates().slice(0, 4);
+  const currentIds = current.map(item => item.id);
+  const v3Store = storage({ [Routines.KEY]: { version: 1, templateCatalogVersion: 3, routines: current } });
+  const upgraded = await harness({ store: v3Store });
+  assert.deepEqual(upgraded.runner.rules.map(item => item.name), Routines.templates().map(item => item.name));
+  assert.deepEqual(upgraded.runner.rules.slice(0, 4).map(item => item.id), currentIds);
+  upgraded.runner.destroy();
+});
+
+test('old manual-only rules become disabled scheduled rules and still run on explicit request', async () => {
+  const manual = { id: 'self', name: 'Inner Self', instruction: 'Review the NPC.', mode: 'manual', command: 'inner-self', interval: null, enabled: true };
+  const store = storage({ [Routines.KEY]: { version: 1, templateCatalogVersion: 4, routines: [manual] } });
+  const h = await harness({ store });
+  const migrated = h.runner.rules.find(item => item.id === 'self');
+  assert.equal(migrated.interval, 5);
+  assert.equal(migrated.enabled, false);
+  assert.equal('mode' in migrated || 'command' in migrated, false);
+  await h.runner.observe(event(100));
+  await idle(h.runner);
+  assert.deepEqual(h.log, []);
+  assert.equal(h.runner.listForNavigator('inner').routines[0].id, 'self');
+  assert.equal(h.runner.requestRun('Inner Self', 'extra guidance').status, 'queued');
+  await idle(h.runner);
+  assert.deepEqual(h.log, ['self']);
+  assert.equal(h.runner.activity[0].kind, 'requested');
+  assert.equal(h.runner.activity[0].milestone, null);
+  assert.deepEqual(h.chat.getMessages(), []);
+  assert.match((await h.runner.sessionFor('self')).getMessages()[0].content, /extra guidance/);
+  const exported = h.runner.exportRules();
+  assert.equal(JSON.parse(exported).routines.every(item => !('mode' in item) && !('command' in item)), true);
+  await h.runner.importRules(exported);
+  assert.equal(h.runner.rules.find(item => item.name === 'Inner Self' && item.id !== 'self').enabled, false);
+  const imported = Routines.parseImport(JSON.stringify({ version: 1, routines: [manual] }));
+  assert.equal(imported[0].interval, 5);
+  assert.equal(imported[0].enabled, false);
+  h.runner.destroy();
+});
+
+test('Navigator Routine proposals require approval and create disabled rules', async () => {
+  const h = await harness();
+  const definition = Routines.proposalDefinition();
+  assert.equal(definition.name, 'propose_routine_create');
+  const proposal = h.runner.makeProposal({ name: 'Relationship review', instruction: 'Review changes in relationships.', interval: 5 });
+  assert.equal(proposal.status, 'pending');
+  assert.equal(h.runner.rules.some(item => item.name === 'Relationship review'), false);
+  await assert.rejects(h.runner.applyProposedRule(proposal), error => error.code === 'invalid_proposal');
+  proposal.status = 'applying';
+  await h.runner.applyProposedRule(proposal);
+  const saved = h.runner.rules.find(item => item.name === 'Relationship review');
+  assert.equal(saved.enabled, false);
+  assert.equal(saved.interval, 5);
+  assert.throws(() => h.runner.makeProposal({ name: 'Invalid', instruction: 'Review.', interval: 0 }), /interval/);
+  h.runner.destroy();
+});
+
+test('Navigator stages a Routine tool call for approval even in Automatic mode', async () => {
+  const h = await harness();
+  const context = { console, setTimeout, clearTimeout, AbortController, crypto: globalThis.crypto,
+    chrome: { runtime: { id: 'test' }, storage: { local: { get(_key, cb) { cb({}); }, set(_data, cb) { cb(); } }, onChanged: { addListener() {}, removeListener() {} } } } };
+  context.window = context;
+  context.NavigatorRoutines = Routines;
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../services/navigator/session.js'), 'utf8'), context);
+  const navigator = new context.NavigatorSession('adventure');
+  navigator.routines = h.runner;
+  navigator.tools = { definitions: () => [] };
+  navigator.mutations = null;
+  navigator.changeMode = 'automatic';
+  assert.ok(navigator.getToolDefinitions().some(item => item.name === 'propose_routine_create'));
+  const message = navigator.addMessage({ role: 'assistant', content: '' });
+  const results = await navigator.executeToolCalls([{ id: 'call', name: 'propose_routine_create', arguments: {
+    name: 'Memory review', instruction: 'Review significant changes to relationships.', interval: 5
+  } }], new AbortController().signal, 8000, message.id, { index: {} });
+  assert.equal(results.results[0].result.data.status, 'pending_approval');
+  assert.equal(h.runner.rules.some(item => item.name === 'Memory review'), false);
+  const proposal = navigator.findMessage(message.id).proposals[0];
+  assert.equal(proposal.status, 'pending');
+  assert.equal(await navigator.applyProposal(message.id, proposal.id), true);
+  assert.equal(h.runner.rules.find(item => item.name === 'Memory review').enabled, false);
+  navigator.destroy(); h.runner.destroy();
+});
+
+test('Navigator Chat queues a requested Routine after its reply without mixing histories', async () => {
+  const h = await harness({ rules: [{ ...rule(), enabled: false }] });
+  let release;
+  const sendChat = h.chat.send.bind(h.chat);
+  h.chat.send = async (...args) => { await new Promise(resolve => { release = resolve; }); await sendChat(...args); };
+  const speaking = h.runner.enqueueManual(h.chat, 'Run cards now');
+  while (!release) await new Promise(resolve => setImmediate(resolve));
+  const context = { console, setTimeout, clearTimeout, AbortController, crypto: globalThis.crypto,
+    chrome: { runtime: { id: 'test' }, storage: { local: { get(_key, cb) { cb({}); }, set(_data, cb) { cb(); } }, onChanged: { addListener() {}, removeListener() {} } } } };
+  context.window = context;
+  context.NavigatorRoutines = Routines;
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../services/navigator/session.js'), 'utf8'), context);
+  const navigator = new context.NavigatorSession('adventure');
+  navigator.routines = h.runner;
+  navigator.tools = { definitions: () => [] };
+  navigator.changeMode = 'none';
+  assert.deepEqual(navigator.getToolDefinitions().map(item => item.name), ['list_routines', 'run_routine']);
+  const message = navigator.addMessage({ role: 'assistant', content: '' });
+  const listed = await navigator.executeToolCalls([{ id: 'list', name: 'list_routines', arguments: { query: 'cards' } }], new AbortController().signal, 8000, message.id);
+  assert.equal(listed.results[0].result.data.routines[0].id, 'cards');
+  const queued = await navigator.executeToolCalls([{ id: 'run', name: 'run_routine', arguments: { routine: 'cards', guidance: 'Focus on places.' } }], new AbortController().signal, 8000, message.id);
+  assert.equal(queued.results[0].result.data.status, 'queued');
+  assert.deepEqual(h.log, []);
+  const duplicate = await navigator.executeToolCalls([{ id: 'again', name: 'run_routine', arguments: { routine: 'cards' } }], new AbortController().signal, 8000, message.id);
+  assert.equal(duplicate.results[0].result.data.status, 'already_queued');
+  release();
+  await speaking;
+  await idle(h.runner);
+  assert.deepEqual(h.log, ['chat', 'cards']);
+  assert.equal(h.runner.activity[0].kind, 'requested');
+  assert.match((await h.runner.sessionFor('cards')).getMessages()[0].content, /Focus on places/);
+  const routineSession = new context.NavigatorSession('adventure', { routineId: 'cards' });
+  routineSession.routines = h.runner;
+  routineSession.tools = { definitions: () => [] };
+  assert.equal(routineSession.getToolDefinitions().some(item => item.name === 'run_routine'), false);
+  navigator.destroy(); routineSession.destroy(); h.runner.destroy();
+});
+
+test('an explicit request satisfies the same Routine’s pending automatic milestone', async () => {
+  const h = await harness({ initialCount: 4 });
+  let release;
+  const sendChat = h.chat.send.bind(h.chat);
+  h.chat.send = async (...args) => { await new Promise(resolve => { release = resolve; }); await sendChat(...args); };
+  const speaking = h.runner.enqueueManual(h.chat, 'Run cards now');
+  while (!release) await new Promise(resolve => setImmediate(resolve));
+  await h.runner.observe(event(5));
+  assert.equal(h.runner.pending.get('cards').milestone, 5);
+  h.runner.requestRun('cards');
+  release();
+  await speaking;
+  await idle(h.runner);
+  assert.deepEqual(h.log, ['chat', 'cards']);
+  assert.equal(h.runner.activity[0].kind, 'requested');
+  assert.equal(h.store.values[h.runner.stateKey].fired.cards, 5);
+  h.runner.destroy();
+});
+
+test('a waiting chat message takes priority over requested runs, which can be cancelled', async () => {
+  const h = await harness();
+  let release;
+  const sendChat = h.chat.send.bind(h.chat);
+  h.chat.send = async (...args) => { await new Promise(resolve => { release = resolve; }); await sendChat(...args); };
+  const first = h.runner.enqueueManual(h.chat, 'First message');
+  while (!release) await new Promise(resolve => setImmediate(resolve));
+  h.runner.requestRun('cards');
+  const second = h.runner.enqueueManual(h.chat, 'Second message');
+  assert.deepEqual(h.runner.manual.map(task => task.kind), ['manual', 'requested']);
+  const cancelled = h.runner.cancelWaiting();
+  assert.deepEqual(cancelled.map(task => task.kind), ['manual', 'requested']);
+  release();
+  await Promise.all([first, second]);
+  await idle(h.runner);
+  assert.deepEqual(h.log, ['chat']);
+  h.runner.destroy();
 });
 
 test('a failed run is recorded once and waits for the next milestone rather than retrying', async () => {

@@ -110,7 +110,7 @@
 
     renderRules() {
       this.panel.replaceChildren();
-      this.panel.append(element('p', 'bd-routine-hint', 'Enabled Routines run in every adventure on this device. Each uses Navigator’s AI connection and this adventure’s change settings.'));
+      this.panel.append(element('p', 'bd-routine-hint', 'Enabled Routines run every N actions in every adventure on this device. You can also ask Navigator in Chat to run any saved Routine now, even when its automatic trigger is off.'));
       const actions = element('div', 'bd-routine-actions');
       actions.append(button('New Routine', () => this.editor()), button('Import', () => this.act(() => this.importFile())), button('Export', () => this.act(() => this.exportFile())));
       this.panel.append(actions);
@@ -193,7 +193,7 @@
         const row = element('div', 'bd-routine-row');
         row.append(element('strong', '', record.name), button('Open', () => this.show('thread', record.routineId, record.id)));
         const labels = { approval: 'Approval needed', expired: 'Approval expired', complete: 'Complete', error: 'Needs attention', stopped: 'Stopped', interrupted: 'Interrupted', running: 'Working' };
-        card.append(row, element('p', 'bd-routine-hint', `${labels[record.status] || record.status} · ${record.milestone ? `Action ${record.milestone}` : 'Follow-up'} · ${new Date(record.startedAt).toLocaleString()}`));
+        card.append(row, element('p', 'bd-routine-hint', `${labels[record.status] || record.status} · ${record.kind === 'requested' ? 'Requested in Chat' : record.milestone ? `Action ${record.milestone}` : 'Follow-up'} · ${new Date(record.startedAt).toLocaleString()}`));
         if (record.applied) card.append(element('p', 'bd-routine-hint', `${record.applied} change${record.applied === 1 ? '' : 's'} applied`));
         if (record.summary) card.append(element('p', 'bd-routine-preview', record.summary));
         if (record.status === 'expired') card.append(element('p', 'bd-routine-hint', 'The page reloaded before review. Open the conversation and ask Navigator for a fresh proposal.'));
@@ -220,8 +220,8 @@
         const name = active.record?.name || this.runner.rules.find(rule => rule.id === active.ruleId)?.name || 'Navigator';
         this.status.append(button(`${name} · working`, () => active.session?.routineId ? this.openActivity(active.record || { routineId: active.session.routineId }) : this.openChat()), button('Stop', () => this.runner.stop()));
       }
-      if (this.runner.manual.length) this.status.append(button('Message waiting · cancel', () => {
-        const [waiting] = this.runner.cancelWaiting();
+      if (this.runner.manual.length) this.status.append(button(`${this.runner.manual.some(task => task.kind === 'manual') ? 'Message waiting' : 'Routine queued'} · cancel`, () => {
+        const waiting = this.runner.cancelWaiting().find(task => task.text && task.session === this.feature.session);
         if (waiting?.text && waiting.session === this.feature.session && !this.feature.inputEl.value) {
           this.feature.inputEl.value = waiting.text;
           this.feature.autosizeInput();

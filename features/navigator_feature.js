@@ -333,7 +333,9 @@ class NavigatorFeature {
     this.routines = new NavigatorRoutines(adventureId, session, {
       onChange: notice => this.routinesView?.changed(notice)
     });
+    session.routines = this.routines;
     this.routinesReady = this.routines.init();
+    session.routinesReady = this.routinesReady;
     session.refreshContext().then(async snapshot => {
       if (!session.isApolloPreviewRetryable?.()) return;
       for (const delay of [250, 500, 1000]) {
@@ -1534,7 +1536,7 @@ class NavigatorFeature {
     if (!this.session || !this.inputEl) return;
     if (this.inputComposing) return;
     const text = this.inputEl.value;
-    if (!text.trim() || this.session.isBusy || this.routines?.manual.length) return;
+    if (!text.trim() || this.session.isBusy || this.routines?.manual.some(task => task.kind === 'manual')) return;
 
     this.inputEl.value = '';
     this.autosizeInput();
@@ -1571,7 +1573,7 @@ class NavigatorFeature {
     const busy = !!this.session?.isBusy;
     const chatBusy = !!this.session?.isChatBusy;
     if (this.sendBtn) {
-      this.sendBtn.disabled = busy || !!this.routines?.manual.length;
+      this.sendBtn.disabled = busy || !!this.routines?.manual.some(task => task.kind === 'manual');
       this.sendBtn.hidden = chatBusy;
     }
     if (this.stopBtn) this.stopBtn.hidden = !chatBusy;
@@ -1649,7 +1651,7 @@ class NavigatorFeature {
       const details = document.createElement('details');
       details.className = 'bd-routine-prompt';
       const summary = document.createElement('summary');
-      summary.textContent = `${message.routineName || 'Routine'} · Action ${message.milestone ?? 'milestone'}`;
+      summary.textContent = `${message.routineName || 'Routine'} · ${message.milestone == null ? 'Requested run' : `Action ${message.milestone}`}`;
       const content = document.createElement('div');
       this.renderText(content, message.content || '');
       details.append(summary, content);
@@ -1917,7 +1919,7 @@ class NavigatorFeature {
       apply.className = destructive
         ? 'bd-navigator-proposal-apply bd-navigator-proposal-delete'
         : 'bd-navigator-proposal-apply';
-      apply.textContent = destructive ? 'Delete' : 'Apply';
+      apply.textContent = destructive ? 'Delete' : proposal.kind === 'routine_create' ? 'Create disabled Routine' : 'Apply';
 
       reject.disabled = state.chatBusy;
       apply.disabled = state.chatBusy || state.changesDisabled;
