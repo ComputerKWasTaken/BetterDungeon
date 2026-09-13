@@ -181,7 +181,7 @@
     }
   }
 
-  function onActions(payload) {
+  function onActions(payload, source = 'live') {
     const incoming = payload?.actions;
     if (!Array.isArray(incoming)) return;
 
@@ -215,6 +215,9 @@
     }
 
     emit('ultrascripts:actions:change', {
+      source,
+      adventureId: state.adventureId,
+      shortId: parseShortIdFromUrl(),
       actions: incoming,
       changed,
       key: payload?.key ?? null,
@@ -268,7 +271,7 @@
           onActions(msg.payload);
           break;
         case 'actions:hydrate':
-          onActions(msg.payload);
+          onActions(msg.payload, 'hydrate');
           break;
         case 'adventure:change':
           if (msg.payload?.adventureId) {

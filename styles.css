@@ -3257,6 +3257,130 @@ html.bd-story-card-dock-active > body {
   overscroll-behavior-y: none;
 }
 
+/* Navigator Routines use the same spacing, controls, and theme as chat. */
+.bd-routine-nav, .bd-routine-actions, .bd-routine-row, .bd-routine-toggle,
+.bd-routine-thread-label {
+  display: flex;
+  align-items: center;
+  gap: var(--bd-space-2);
+}
+.bd-routine-nav {
+  flex: 0 0 auto;
+  padding: var(--bd-space-2) var(--bd-space-4);
+  border-bottom: 1px solid var(--bd-border-subtle);
+}
+.bd-routine-button {
+  font: inherit;
+  color: var(--bd-text-secondary);
+  background: transparent;
+  border: 1px solid var(--bd-border-subtle);
+  border-radius: var(--bd-radius-lg);
+  padding: var(--bd-space-2) var(--bd-space-3);
+  cursor: pointer;
+}
+.bd-routine-button:hover, .bd-routine-button[aria-current="true"] {
+  color: var(--bd-accent-primary);
+  background: var(--bd-accent-muted);
+}
+.bd-routine-button:focus-visible, .bd-routine-field input:focus-visible,
+.bd-routine-field textarea:focus-visible {
+  outline: 2px solid var(--bd-accent-primary);
+  outline-offset: 2px;
+}
+.bd-routine-button:disabled { opacity: .5; cursor: default; }
+.bd-routine-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--bd-space-4);
+}
+.bd-routine-panel[hidden], .bd-routine-status[hidden], .bd-routine-notice[hidden],
+.bd-routine-thread-label[hidden], .bd-routine-panel [hidden] { display: none !important; }
+.bd-navigator-drawer[data-routine-view="routines"] .bd-navigator-transcript,
+.bd-navigator-drawer[data-routine-view="routines"] .bd-navigator-composer,
+.bd-navigator-drawer[data-routine-view="activity"] .bd-navigator-transcript,
+.bd-navigator-drawer[data-routine-view="activity"] .bd-navigator-composer { display: none; }
+.bd-routine-panel h3 { margin: 0 0 var(--bd-space-4); font-size: var(--bd-font-size-md); }
+.bd-routine-panel p { margin: var(--bd-space-2) 0; line-height: 1.5; }
+.bd-routine-hint { color: var(--bd-text-secondary); font-size: var(--bd-font-size-sm); }
+.bd-routine-error { color: var(--bd-error, #ef7373); }
+.bd-routine-actions { flex-wrap: wrap; margin: var(--bd-space-4) 0; }
+.bd-routine-card {
+  margin-top: var(--bd-space-3);
+  padding: var(--bd-space-3);
+  border: 1px solid var(--bd-border-subtle);
+  border-radius: var(--bd-radius-xl);
+  background: var(--bd-tag-bg);
+}
+.bd-routine-row { justify-content: space-between; }
+.bd-routine-toggle { min-width: 0; cursor: pointer; }
+.bd-routine-toggle strong { overflow-wrap: anywhere; }
+/* AI Dungeon resets native form controls, including checkbox appearance and
+   dimensions. Restore these explicitly inside our own controls. */
+.bd-routine-toggle input[type="checkbox"] {
+  appearance: auto;
+  -webkit-appearance: checkbox;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  margin: 0;
+  accent-color: var(--bd-accent-primary);
+  flex: 0 0 18px;
+  cursor: pointer;
+}
+.bd-routine-toggle input:focus-visible {
+  outline: 2px solid var(--bd-accent-primary);
+  outline-offset: 2px;
+}
+.bd-routine-preview {
+  color: var(--bd-text-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.bd-routine-field { display: grid; gap: var(--bd-space-2); margin: var(--bd-space-4) 0; }
+.bd-routine-field input, .bd-routine-field textarea {
+  box-sizing: border-box;
+  width: 100%;
+  font: inherit;
+  color: var(--bd-text-primary);
+  background: var(--bd-bg-primary, #17171a);
+  border: 1px solid var(--bd-border-default);
+  border-radius: var(--bd-radius-lg);
+  padding: var(--bd-space-3);
+}
+.bd-routine-field textarea { resize: vertical; min-height: 140px; }
+.bd-routine-field input[type="number"] { max-width: 110px; }
+.bd-routine-thread-label { padding: var(--bd-space-2) var(--bd-space-4); font-size: var(--bd-font-size-sm); }
+.bd-routine-prompt summary { cursor: pointer; color: var(--bd-text-secondary); }
+.bd-routine-prompt[open] summary { margin-bottom: var(--bd-space-3); }
+.bd-routine-status, .bd-routine-notice {
+  position: fixed;
+  z-index: 2147483000;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: calc(110px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: min(400px, calc(100vw - 24px));
+  padding: 6px;
+  color: var(--bd-text-primary);
+  background: var(--bd-bg-primary, #17171a);
+  border: 1px solid var(--bd-border-default);
+  border-radius: var(--bd-radius-lg);
+  box-shadow: 0 4px 20px #0005;
+  font-family: var(--bd-font-family-primary);
+  font-size: var(--bd-font-size-sm);
+}
+.bd-routine-notice { bottom: calc(168px + env(safe-area-inset-bottom)); }
+.bd-routine-status .bd-routine-button, .bd-routine-notice .bd-routine-button { border: 0; }
+html[data-bd-form-factor="mobile"] .bd-routine-button { min-height: 40px; }
+
 .bd-navigator-drawer {
   position: relative;
   display: flex;

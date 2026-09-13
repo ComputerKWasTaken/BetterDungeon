@@ -37,6 +37,19 @@ class BetterDungeonBridge(private val context: Context) {
     var popupWebView: WebView? = null
     var onClosePopup: (() -> Unit)? = null
     var onShowPopup: (() -> Unit)? = null
+    var onOpenRoutineFile: ((String) -> Unit)? = null
+    var onSaveRoutineFile: ((String, String) -> Unit)? = null
+
+    @JavascriptInterface
+    fun openRoutineFile(requestId: String) {
+        mainHandler.post { onOpenRoutineFile?.invoke(requestId) }
+    }
+
+    @JavascriptInterface
+    fun saveRoutineFile(requestId: String, text: String) {
+        if (text.length > 1024 * 1024) return
+        mainHandler.post { onSaveRoutineFile?.invoke(requestId, text) }
+    }
 
     /** Return the immutable capability contract consumed by shared web code. */
     @JavascriptInterface

@@ -50,6 +50,8 @@
     "services/navigator/tools.js",
     "services/navigator/mutations.js",
     "services/navigator/session.js",
+    "services/navigator/routines.js",
+    "services/navigator/routines-view.js",
     "services/story-card-scanner.js",
     "features/ultrascripts_feature.js",
     "core/feature-manager.js",

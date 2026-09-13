@@ -51,6 +51,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var bridge: BetterDungeonBridge
     private lateinit var injectionEngine: InjectionEngine
+    private lateinit var routineFileTransfer: RoutineFileTransfer
 
     private var popupLoaded = false
     private var backNavigationPending = false
@@ -92,6 +93,11 @@ class MainActivity : AppCompatActivity() {
         // Initialize components
         bridge = BetterDungeonBridge(this)
         injectionEngine = InjectionEngine(this)
+        routineFileTransfer = RoutineFileTransfer(this, { mainWebView }) { uri ->
+            uri.scheme == "https" && isAiDungeonUri(uri)
+        }
+        bridge.onOpenRoutineFile = routineFileTransfer::open
+        bridge.onSaveRoutineFile = routineFileTransfer::save
         val caretScrollFixEnabled = bridge.isCaretScrollFixEnabled()
         mainWebView.caretScrollFixEnabled = caretScrollFixEnabled
         popupWebView.caretScrollFixEnabled = caretScrollFixEnabled
@@ -116,6 +122,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        routineFileTransfer.close()
         bridge.shutdown()
         mainWebView.destroy()
         popupWebView.destroy()

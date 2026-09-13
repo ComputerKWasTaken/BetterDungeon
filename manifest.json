@@ -61,6 +61,7 @@
     {
       "matches": ["https://play.aidungeon.com/*", "https://beta.aidungeon.com/*", "https://alpha.aidungeon.com/*"],
       "js": [
+        "utils/platform.js",
         "utils/browser-polyfill.js",
         "utils/dom.js",
         "utils/storage.js",
@@ -94,6 +95,8 @@
         "services/navigator/tools.js",
         "services/navigator/mutations.js",
         "services/navigator/session.js",
+        "services/navigator/routines.js",
+        "services/navigator/routines-view.js",
         "services/story-card-scanner.js",
         "features/ultrascripts_feature.js",
         "core/feature-manager.js",

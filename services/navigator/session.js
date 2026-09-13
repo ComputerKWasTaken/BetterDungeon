@@ -148,8 +148,13 @@
   }
 
   class NavigatorSession {
-    constructor(adventureId) {
+    constructor(adventureId, { routineId = null } = {}) {
       this.adventureId = adventureId || null;
+      this.routineId = routineId;
+      this.messageMetadata = {};
+      this.persistenceDirty = false;
+      this.persistPromise = Promise.resolve();
+      this.storageRevision = null;
       this.messages = [];
       this.listeners = new Set();
       this.controller = null;
@@ -208,6 +213,7 @@
     }
 
     emit(event, payload) {
+      if (['append', 'update', 'reset'].includes(event)) this.persistenceDirty = true;
       for (const listener of this.listeners) {
         try {
           listener(event, payload);
@@ -247,6 +253,7 @@
         createdAt: Date.now(),
         status: 'complete',
         content: '',
+        ...this.messageMetadata,
         ...message,
       };
       this.messages.push(record);
@@ -397,7 +404,16 @@
     // ==================== PERSISTENCE ====================
 
     get storageKey() {
+      if (this.routineId && this.adventureId) return `betterDungeon_navigator_routine_session_${encodeURIComponent(this.adventureId)}_${encodeURIComponent(this.routineId)}`;
       return this.adventureId ? `${STORAGE_PREFIX}${this.adventureId}` : null;
+    }
+
+    async refreshStoredConversation() {
+      await this.persistPromise;
+      if (!this.loaded) return this.load();
+      const stored = await this.storageGet(chrome.storage.local, this.storageKey);
+      const revision = stored?.[this.storageKey]?.revision || null;
+      if (revision !== this.storageRevision) await this.load();
     }
 
     async load() {
@@ -452,6 +468,8 @@
         : [];
       this.loaded = true;
       this.emit('reset', this.messages);
+      this.storageRevision = stored?.revision || null;
+      this.persistenceDirty = false;
     }
 
     storageGet(area, keys) {
@@ -649,9 +667,9 @@
 
     persist() {
       const key = this.storageKey;
-      if (!key || !isExtensionContextValid()) return;
+      if (!key || !isExtensionContextValid() || !this.persistenceDirty) return this.persistPromise;
 
-      let kept = this.messages.slice(-MAX_PERSISTED_MESSAGES).map(message => ({
+      let kept = this.messages.slice(-(this.routineId ? 40 : MAX_PERSISTED_MESSAGES)).map(message => ({
         ...message,
         proposals: Array.isArray(message.proposals)
           ? message.proposals.map(projectProposalForPersistence)
@@ -661,16 +679,27 @@
           : undefined,
       }));
       let total = kept.reduce((sum, message) => sum + persistedMessageSize(message), 0);
-      while (kept.length > 1 && total > MAX_PERSISTED_CHARS) {
+      while (kept.length > 1 && total > (this.routineId ? 48000 : MAX_PERSISTED_CHARS)) {
         total -= persistedMessageSize(kept[0]);
         kept = kept.slice(1);
       }
 
-      try {
-        chrome.storage.local.set({ [key]: { v: 1, messages: kept, updatedAt: Date.now() } });
-      } catch (error) {
-        this.log('[Navigator] Failed to persist transcript:', error);
-      }
+      this.persistenceDirty = false;
+      const revision = createId('revision');
+      this.storageRevision = revision;
+      this.persistPromise = this.persistPromise.then(() => new Promise(resolve => {
+        try {
+          chrome.storage.local.set({ [key]: { v: 1, messages: kept, revision, updatedAt: Date.now() } }, () => {
+            if (chrome.runtime?.lastError) this.persistenceDirty = true;
+            resolve();
+          });
+        } catch (error) {
+          this.persistenceDirty = true;
+          this.log('[Navigator] Failed to persist transcript:', error);
+          resolve();
+        }
+      }));
+      return this.persistPromise;
     }
 
     // ==================== GROUNDING ====================
@@ -1239,15 +1268,19 @@
 
     // ==================== SEND ====================
 
-    async send(text) {
+    async send(text, metadata = {}) {
       const trimmed = String(text || '').trim();
       if (!trimmed) return;
-      if (this.isBusy) return;
+      if (this.isBusy || this.destroyed) return;
 
       this.sending = true;
+      this.controller = new AbortController();
+      this.messageMetadata = { routineId: this.routineId, runId: metadata.runId || null, source: metadata.source || 'manual', routineName: metadata.routineName || null, milestone: metadata.milestone ?? null };
       try {
         await this.runTurn(trimmed);
       } finally {
+        this.controller = null;
+        this.messageMetadata = {};
         this.sending = false;
         this.emit('idle', null);
       }
@@ -1274,6 +1307,12 @@
       if (addUserMessage) this.addMessage({ role: 'user', content: trimmed });
 
       const ready = await this.checkReady();
+      if (this.destroyed || this.controller?.signal.aborted) {
+        this.addMessage({ role: 'assistant', status: 'aborted', content: '' });
+        this.finishRequestInspection(null, { code: 'aborted', message: 'Stopped.' });
+        this.persist();
+        return;
+      }
       if (!ready.ready) {
         this.addMessage({
           role: 'assistant',
@@ -1288,7 +1327,7 @@
 
       const assistant = this.addMessage({ role: 'assistant', status: 'pending', content: '' });
       this.streamingMessageId = assistant.id;
-      const turnController = new AbortController();
+      const turnController = this.controller || new AbortController();
       this.controller = turnController;
 
       let request;
@@ -1814,6 +1853,7 @@
           if (proposal.status === 'pending' || proposal.status === 'queued' || proposal.status === 'applying') {
             proposal.status = 'expired';
             proposal.error = null;
+            this.persistenceDirty = true;
           }
         }
       }
@@ -1826,7 +1866,7 @@
       } catch {
         /* noop */
       }
-      this.controller = null;
+      // Keep the aborted signal visible while readiness/context work settles.
     }
 
     destroy() {

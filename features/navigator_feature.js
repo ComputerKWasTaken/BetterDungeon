@@ -17,6 +17,9 @@ class NavigatorFeature {
     this.debug = false;
     this.currentAdventureId = null;
     this.session = null;
+    this.chatSession = null;
+    this.routines = null;
+    this.routinesView = null;
     this.unsubscribe = null;
 
     this.drawer = null;
@@ -81,6 +84,7 @@ class NavigatorFeature {
     if (!element) return false;
     return !!(
       this.drawer?.contains(element) ||
+      this.routinesView?.owns(element) ||
       this.settingsTabWrapper?.contains(element) ||
       this.settingsContentPanel?.contains(element) ||
       this.settingsTabsLeftButton?.contains(element) ||
@@ -178,15 +182,14 @@ class NavigatorFeature {
   }
 
   getAdventureIdFromUrl() {
-    const fromWs = window.Ultrascripts?.ws?.getAdventureShortId?.();
-    if (fromWs) return fromWs;
-    const match = window.location.pathname.match(/\/adventure\/([^/]+)/);
+    // The stream can briefly retain the old identity across SPA navigation.
+    const match = window.location.pathname.match(/\/(?:adventures?|play)\/([^/]+)/);
     return match ? match[1] : null;
   }
 
   detectCurrentAdventure() {
     const adventureId = this.getAdventureIdFromUrl();
-    const onAdventure = !!(adventureId && this.isAdventureUIPresent());
+    const onAdventure = !!(adventureId && (this.currentAdventureId === adventureId || this.isAdventureUIPresent()));
 
     if (!onAdventure) {
       if (this.currentAdventureId) {
@@ -210,6 +213,13 @@ class NavigatorFeature {
   startAdventureChangeDetection() {
     this.boundUrlChange = () => this.detectCurrentAdventure();
     window.addEventListener('popstate', this.boundUrlChange);
+    window.addEventListener('pageshow', this.boundUrlChange);
+    this.boundPageHide = () => {
+      this.teardownSession();
+      this.removeUI();
+      this.currentAdventureId = null;
+    };
+    window.addEventListener('pagehide', this.boundPageHide);
 
     this.originalPushState = history.pushState;
     this.originalReplaceState = history.replaceState;
@@ -254,7 +264,12 @@ class NavigatorFeature {
   stopAdventureChangeDetection() {
     if (this.boundUrlChange) {
       window.removeEventListener('popstate', this.boundUrlChange);
+      window.removeEventListener('pageshow', this.boundUrlChange);
       this.boundUrlChange = null;
+    }
+    if (this.boundPageHide) {
+      window.removeEventListener('pagehide', this.boundPageHide);
+      this.boundPageHide = null;
     }
     if (this.originalPushState) {
       history.pushState = this.originalPushState;
@@ -306,13 +321,19 @@ class NavigatorFeature {
     }
 
     this.session = new NavigatorSession(adventureId);
+    this.chatSession = this.session;
     const session = this.session;
     this.unsubscribe = this.session.subscribe((event, payload) => this.onSessionEvent(event, payload));
     // Clear any previous adventure's transcript immediately rather than
     // leaving it on screen until storage resolves.
     this.renderTranscript();
     this.session.settingsReady?.then(() => this.renderNavigatorSettings());
-    this.session.load().then(() => this.renderTranscript());
+    session.loadPromise = session.load();
+    session.loadPromise.then(() => { if (this.session === session) this.renderTranscript(); });
+    this.routines = new NavigatorRoutines(adventureId, session, {
+      onChange: notice => this.routinesView?.changed(notice)
+    });
+    this.routinesReady = this.routines.init();
     session.refreshContext().then(async snapshot => {
       if (!session.isApolloPreviewRetryable?.()) return;
       for (const delay of [250, 500, 1000]) {
@@ -327,15 +348,29 @@ class NavigatorFeature {
   }
 
   teardownSession() {
+    this.routinesView?.destroy();
+    this.routinesView = null;
+    this.routines?.destroy();
+    this.routines = null;
     if (this.unsubscribe) {
       this.unsubscribe();
       this.unsubscribe = null;
     }
-    if (this.session) {
-      this.session.destroy();
-      this.session = null;
-    }
+    this.chatSession?.destroy();
+    this.chatSession = null;
+    this.session = null;
     this.messageNodes.clear();
+  }
+
+  selectSession(session) {
+    if (!session || this.session === session) return;
+    this.unsubscribe?.();
+    this.session = session;
+    this.unsubscribe = session.subscribe((event, payload) => this.onSessionEvent(event, payload));
+    this.proposalExpansion.clear();
+    if (this.inputEl) this.inputEl.value = '';
+    this.renderTranscript();
+    this.renderNavigatorSettings();
   }
 
   onSessionEvent(event, payload) {
@@ -374,10 +409,16 @@ class NavigatorFeature {
 
   createUI() {
     if (!this.drawer) this.createDrawer();
+    if (!this.routinesView && this.routines) {
+      this.routinesView = new NavigatorRoutinesView(this);
+      this.routinesReady?.then(() => this.routinesView?.changed());
+    }
     this.syncSettingsIntegration();
   }
 
   removeUI() {
+    this.routinesView?.destroy();
+    this.routinesView = null;
     if (this.confirmationPanel && !this.confirmationPanel.hidden) this.resolveConfirmation(false);
     this.inputEl?.blur();
     this.resetSettingsIntegration({ preserveActive: false });
@@ -717,7 +758,7 @@ class NavigatorFeature {
     this.boundSettingsTablistClick = event => {
       const clickedTab = event.target?.closest?.('[role="tab"]');
       if (!clickedTab || clickedTab === this.settingsTab) return;
-      this.deactivateSettingsNavigator({ abort: true, preservePreference: false });
+      this.deactivateSettingsNavigator({ preservePreference: false });
     };
     tablist.addEventListener('click', this.boundSettingsTablistClick, true);
     return true;
@@ -729,8 +770,6 @@ class NavigatorFeature {
     const tablist = this.getSectionTablist(surface);
 
     if (!surface || !tablist) {
-      const wasActive = this.settingsTabActive;
-      if (wasActive && this.session?.isChatBusy) this.session.abort();
       this.resetSettingsIntegration({ preserveActive: false });
       return false;
     }
@@ -805,8 +844,7 @@ class NavigatorFeature {
     return true;
   }
 
-  deactivateSettingsNavigator({ abort = false, preservePreference = false } = {}) {
-    if (abort && this.session?.isChatBusy) this.session.abort();
+  deactivateSettingsNavigator({ preservePreference = false } = {}) {
     this.inputEl?.blur();
     this.inputComposing = false;
     if (!preservePreference) this.settingsTabPreferred = false;
@@ -1004,7 +1042,7 @@ class NavigatorFeature {
     settings.querySelector('[data-nav-setting="thinkingLevel"]')?.addEventListener('input', event => {
       this.updateThinkingLevelLabel(Number(event.target.value));
     });
-    this.stopBtn.addEventListener('click', () => this.session?.abort());
+    this.stopBtn.addEventListener('click', () => this.routines ? this.routines.stop() : this.session?.abort());
     confirmation.querySelector('.bd-navigator-confirmation-cancel').addEventListener('click', () => this.resolveConfirmation(false));
     confirmation.querySelector('.bd-navigator-confirmation-accept').addEventListener('click', () => this.resolveConfirmation(true));
     confirmation.addEventListener('click', event => {
@@ -1405,7 +1443,7 @@ class NavigatorFeature {
     this.setInspectorOpen(false, { focus: false });
     this.inputEl?.blur();
     this.inputComposing = false;
-    this.deactivateSettingsNavigator({ abort: true, preservePreference: true });
+    this.deactivateSettingsNavigator({ preservePreference: true });
     document.querySelector('[aria-label="Close settings"]')?.click();
   }
 
@@ -1496,12 +1534,15 @@ class NavigatorFeature {
     if (!this.session || !this.inputEl) return;
     if (this.inputComposing) return;
     const text = this.inputEl.value;
-    if (!text.trim() || this.session.isBusy) return;
+    if (!text.trim() || this.session.isBusy || this.routines?.manual.length) return;
 
     this.inputEl.value = '';
     this.autosizeInput();
     this.autoScroll = true;
-    this.session.send(text).finally(() => this.focusComposer());
+    const request = this.routines ? this.routines.enqueueManual(this.session, text) : this.session.send(text);
+    request.catch(error => {
+      if (error?.name !== 'AbortError') this.routinesView?.changed({ record: { name: 'Navigator', status: 'error' } });
+    }).finally(() => this.focusComposer());
     this.updateComposerState();
   }
 
@@ -1513,7 +1554,7 @@ class NavigatorFeature {
   }
 
   async handleClear() {
-    if (!this.session || this.session.isBusy || !this.session.getMessages().length) return;
+    if (!this.session || this.session.isBusy || this.routines?.active || !this.session.getMessages().length) return;
     const confirmed = await this.showConfirmation({
       title: 'Clear conversation?',
       message: 'This permanently removes this adventure\'s Navigator messages and proposal history.',
@@ -1530,13 +1571,13 @@ class NavigatorFeature {
     const busy = !!this.session?.isBusy;
     const chatBusy = !!this.session?.isChatBusy;
     if (this.sendBtn) {
-      this.sendBtn.disabled = busy;
+      this.sendBtn.disabled = busy || !!this.routines?.manual.length;
       this.sendBtn.hidden = chatBusy;
     }
     if (this.stopBtn) this.stopBtn.hidden = !chatBusy;
     if (this.inputEl) this.inputEl.disabled = busy && !chatBusy;
     const clear = this.drawer?.querySelector?.('.bd-navigator-clear');
-    if (clear) clear.disabled = busy || !(this.session?.getMessages().length > 0);
+    if (clear) clear.disabled = busy || !!this.routines?.active || this.routinesView?.panel.hidden === false || !(this.session?.getMessages().length > 0);
     this.emptyEl?.querySelectorAll('.bd-navigator-quick-actions button').forEach(button => {
       button.disabled = busy;
     });
@@ -1604,7 +1645,16 @@ class NavigatorFeature {
     const isAssistant = message.role === 'assistant';
     body.classList.toggle('bd-navigator-markdown', isAssistant);
     if (isAssistant) this.renderMarkdown(body, message.content || '');
-    else this.renderText(body, message.content || '');
+    else if (message.source === 'routine') {
+      const details = document.createElement('details');
+      details.className = 'bd-routine-prompt';
+      const summary = document.createElement('summary');
+      summary.textContent = `${message.routineName || 'Routine'} · Action ${message.milestone ?? 'milestone'}`;
+      const content = document.createElement('div');
+      this.renderText(content, message.content || '');
+      details.append(summary, content);
+      body.replaceChildren(details);
+    } else this.renderText(body, message.content || '');
     this.renderToolTrail(toolTrail, message);
     this.renderProposals(proposals, message);
 
@@ -1873,8 +1923,13 @@ class NavigatorFeature {
       apply.disabled = state.chatBusy || state.changesDisabled;
       if (state.changesDisabled) apply.title = 'Navigator No changes mode is enabled.';
       else if (state.chatBusy) apply.title = 'Wait for Navigator to finish this response.';
-      reject.addEventListener('click', () => this.session?.rejectProposal(messageId, proposal.id));
-      apply.addEventListener('click', () => this.session?.applyProposal(messageId, proposal.id));
+      const session = this.session;
+      const queue = operation => {
+        if (!this.routines) return operation();
+        return this.routines.enqueueManual(session, null, operation).catch(() => {});
+      };
+      reject.addEventListener('click', () => queue(() => session.rejectProposal(messageId, proposal.id)));
+      apply.addEventListener('click', () => queue(() => session.applyProposal(messageId, proposal.id)));
       actions.append(reject, apply);
       details.appendChild(actions);
     }

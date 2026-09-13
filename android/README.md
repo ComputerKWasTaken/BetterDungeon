@@ -4,6 +4,8 @@ BetterDungeon Mobile is the Android WebView edition of BetterDungeon. Its native
 
 Navigator is an AI agent designed to help you improve and modify your adventures, with a touch-oriented interface and native streaming transport on Android.
 
+[Navigator Routines](../docs/NAVIGATOR_ROUTINES.md) run while the adventure WebView remains active, even when Settings is closed. Manage them inside Navigator. Rule import/export uses Android's system document picker; no broad storage permission is needed.
+
 Configure providers in the shared popup's **AI** tab. Gemini Simple and Advanced provider routing use the same implementation as the browser extension; Android's adapter supplies native HTTPS, including Mistral model discovery. See [AI setup](../docs/AI.md).
 
 The current application release is BetterDungeon Mobile v2.1.0.

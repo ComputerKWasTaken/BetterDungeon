@@ -24,6 +24,7 @@ This branch develops **BetterDungeon v2.1.0**. The version currently distributed
 ### What's new in v2.1.0
 
 - **Meet Navigator** — Work with an AI agent designed to help you improve and modify your adventures. Navigator understands your Plot Components and recent story, can research your complete Story Card collection, and remembers the conversation across multiple turns.
+- **Navigator Routines** — Give Navigator repeatable instructions that run at adventure action-count milestones. Review results and guide each Routine in its own conversation. Auto Cards and Story Arc examples start disabled. See [Routines](docs/NAVIGATOR_ROUTINES.md).
 - **Changes applied for you** — Navigator applies verified non-deletion edits automatically and reports each one on a compact change card so you can course correct. Permanent Story Card and Memory Bank deletions always require explicit approval. Proposed changes mode restores per-change approval, while No changes disables mutation tools entirely.
 - **Simpler AI setup** — A dedicated AI tab offers automatic Gemini setup and per-feature Advanced providers: OpenRouter, Mistral, or a custom HTTPS endpoint.
 - **Stronger Ultrascripts** — v2.1 improves connection reliability, adds synthesized audio, simplifies safe web requests, and upgrades AI responses while preserving the existing script contract.

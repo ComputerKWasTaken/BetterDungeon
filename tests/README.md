@@ -1,9 +1,12 @@
 # BetterDungeon smoke checks
 
 The current automated baseline is intentionally small. The test build command
-runs only the repository smoke suite, which protects release version parity,
+runs the repository, shared AI service, and focused Navigator Routine smoke checks. They protect release version parity,
 extension package boundaries, Android runtime source resolution, and the rule
-against tracked build or signing output.
+against tracked build or signing output, provider routing and redaction, and
+Routine milestone/queue behavior, duplicate-tab claims, import validation,
+isolated conversations, and approval expiry. Provider behavior is mocked;
+these checks make no live provider requests.
 
 The Android build itself composes the runtime assets and runs its unit-test
 task. Browser and device behavior are reviewed manually on the real product
