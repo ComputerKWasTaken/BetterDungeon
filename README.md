@@ -151,6 +151,7 @@ Previously granted MIT permissions for earlier copies remain valid. This is a su
 
 ## Support and feedback
 
+- Read the [BetterDungeon Privacy Policy](PRIVACY.md) for details about local storage and optional third-party requests.
 - Found a bug? [Open an issue](../../issues/new/choose).
 - Have an idea? [Open a feature request](../../issues/new).
 - Want to discuss the project? Find me on Discord at `@computerK`.
