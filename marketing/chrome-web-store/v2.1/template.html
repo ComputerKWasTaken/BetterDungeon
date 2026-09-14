@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src file: data:; font-src file:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'">
+  <title>BetterDungeon — Store artwork</title>
+  <style>/*__STYLES__*/</style>
+</head>
+<body>
+  <main class="artboard">
+    <header class="brand"><img class="brand-mark" alt=""><span class="wordmark">Better<span>Dungeon</span></span></header>
+    <h1></h1>
+    <figure class="product-frame"><img class="product-capture" alt="BetterDungeon in AI Dungeon"></figure>
+  </main>
+  <script>
+    // Local export data is supplied by render.ps1; no network requests or libraries.
+    const data = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob('/*__DATA__*/'), c => c.charCodeAt(0))));
+    document.documentElement.style.setProperty('--canvas-width', `${data.width}px`);
+    document.documentElement.style.setProperty('--canvas-height', `${data.height}px`);
+    document.body.className = data.kind;
+    document.querySelector('.brand-mark').src = data.brandMark;
+    document.querySelector('h1').textContent = data.headline || '';
+    if (data.capture) {
+      document.querySelector('.product-capture').src = data.capture;
+      document.querySelector('.product-capture').style.objectPosition = data.position || 'center';
+    } else {
+      document.querySelector('.product-frame').remove();
+      document.querySelector('h1').remove();
+    }
+    const font = new FontFace('IBM Plex Sans', `url("${data.font}")`, { weight: '100 700' });
+    document.fonts.add(font);
+    Promise.all([font.load(), ...Array.from(document.images, image => image.decode())])
+      .then(() => document.documentElement.dataset.ready = 'true');
+  </script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "product": "BetterDungeon",
+  "brandMark": "icons/icon128.png",
+  "font": "fonts/IBM_Plex_Sans/IBMPlexSans-VariableFont_wdth,wght.ttf",
+  "slides": [
+    { "id": "01-more-from-every-adventure", "kind": "screenshot", "width": 1280, "height": 800, "headline": "More from every adventure", "capture": "captures/01-adventure.jpg", "position": "center" },
+    { "id": "02-shape-the-story-your-way", "kind": "screenshot", "width": 1280, "height": 800, "headline": "Shape the story your way", "capture": "captures/02-creative-control.jpg", "position": "center" },
+    { "id": "03-keep-your-world-in-focus", "kind": "screenshot", "width": 1280, "height": 800, "headline": "Keep your world in focus", "capture": "captures/03-world.jpg", "position": "center" },
+    { "id": "04-get-help-as-you-play", "kind": "screenshot", "width": 1280, "height": 800, "headline": "Get help as you play", "capture": "captures/04-assistance.jpg", "position": "center" },
+    { "id": "05-make-it-yours", "kind": "screenshot", "width": 1280, "height": 800, "headline": "Make it yours", "capture": "captures/05-personalization.jpg", "position": "center" },
+    { "id": "06-small-promo", "kind": "small", "width": 440, "height": 280 },
+    { "id": "07-marquee-promo", "kind": "marquee", "width": 1400, "height": 560 }
+  ]
+}

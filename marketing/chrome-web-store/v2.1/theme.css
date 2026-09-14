@@ -1,0 +1,26 @@
+:root {
+  --background: #0f0e11;
+  --surface: #151419;
+  --foreground: #f4f1ed;
+  --accent: #eda449;
+  --border: #36313b;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; width: var(--canvas-width); height: var(--canvas-height); overflow: hidden; }
+body { background: var(--background); color: var(--foreground); font-family: 'IBM Plex Sans', sans-serif; }
+.artboard { width: 100%; height: 100%; position: relative; overflow: hidden; }
+.brand { display: flex; align-items: center; gap: 13px; }
+.brand-mark { width: 38px; height: 38px; object-fit: contain; }
+.wordmark { font-size: 25px; font-weight: 550; letter-spacing: -.7px; }
+.wordmark span { color: var(--accent); }
+.screenshot .brand { position: absolute; left: 48px; top: 29px; }
+h1 { position: absolute; left: 48px; right: 40px; top: 89px; margin: 0; font-size: 60px; line-height: 1.12; font-weight: 550; letter-spacing: -1.8px; }
+.product-frame { position: absolute; left: 48px; right: 48px; top: 210px; bottom: 70px; margin: 0; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--surface); }
+.product-capture { width: 100%; height: 100%; display: block; object-fit: contain; }
+.small .artboard, .marquee .artboard { display: flex; justify-content: center; align-items: center; background: radial-gradient(ellipse at 50% 110%, #241a13 0%, #0f0e11 70%); }
+.small .brand { flex-direction: column; gap: 16px; }
+.small .brand-mark { width: 84px; height: 84px; }
+.small .wordmark { font-size: 37px; letter-spacing: -1.1px; }
+.marquee .brand { gap: 35px; }
+.marquee .brand-mark { width: 128px; height: 128px; }
+.marquee .wordmark { font-size: 86px; letter-spacing: -3px; font-weight: 500; }
