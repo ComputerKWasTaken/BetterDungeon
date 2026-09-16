@@ -125,7 +125,7 @@ class NavigatorFeature {
       window.cancelAnimationFrame?.(this.visualViewportFrame);
       window.clearTimeout?.(this.visualViewportFrame);
     }
-    const schedule = window.requestAnimationFrame || (callback => window.setTimeout(callback, 0));
+    const schedule = window.requestAnimationFrame?.bind(window) || (callback => window.setTimeout(callback, 0));
     this.visualViewportFrame = schedule(() => {
       this.visualViewportFrame = null;
       this.syncVisualViewport();
@@ -144,7 +144,8 @@ class NavigatorFeature {
 
   scheduleSettingsIntegrationSync() {
     if (this.settingsSyncFrame !== null) return;
-    const schedule = window.requestAnimationFrame || (callback => window.setTimeout(callback, 0));
+    // Firefox's content-script global is not a Window; keep the DOM receiver.
+    const schedule = window.requestAnimationFrame?.bind(window) || (callback => window.setTimeout(callback, 0));
     this.settingsSyncFrame = schedule(() => {
       this.settingsSyncFrame = null;
       if (this.currentAdventureId && this.drawer) this.syncSettingsIntegration();
@@ -587,7 +588,7 @@ class NavigatorFeature {
     this.settingsTabsRightButton = createControl('right');
     this.boundSettingsTablistScroll = () => this.updateSettingsTabOverflow();
     tablist.addEventListener('scroll', this.boundSettingsTablistScroll, { passive: true });
-    const schedule = window.requestAnimationFrame || (callback => window.setTimeout(callback, 0));
+    const schedule = window.requestAnimationFrame?.bind(window) || (callback => window.setTimeout(callback, 0));
     schedule(() => this.updateSettingsTabOverflow());
   }
 
