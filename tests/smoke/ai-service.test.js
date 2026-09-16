@@ -235,6 +235,52 @@ test('truncated streams are not retried after visible output', async () => {
   await assert.rejects(h.api.handle(chat), { code: 'invalid_response' });
   assert.equal(h.requests.length, 1);
 });
+test('Navigator discovers the custom provider when window and the content-script global differ', async () => {
+  const config = C.normalize({ advanced: { enabled: true, activeService: 'custom', profiles: {
+    custom: { baseUrl: 'https://example.com/llm/v1', model: 'local-model.gguf' },
+  } }, routing: { navigator: 'advanced' } });
+  for (const separateWindow of [true, false]) {
+    const h = setup(config, reply);
+    const context = { console, browser: { runtime: {
+      sendMessage: async message => ({ ok: true, data: await h.api.handle(message.request) }),
+    } } };
+    context.window = separateWindow ? {} : context;
+    vm.createContext(context);
+    for (const file of ['modules/ai/executor.js', 'modules/ai/openai-compatible-backend.js', 'services/navigator/session.js']) {
+      vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
+    }
+    const session = {};
+    const readiness = await context.window.NavigatorSession.prototype.checkReady.call(session);
+    assert.equal(readiness.ready, true, readiness.message);
+    assert.equal(session.providerStatus.config.service, 'custom');
+    const executor = context.window.BetterDungeonAI;
+    assert.equal(executor.resolveProvider('navigator').provider, 'betterdungeon-ai');
+    vm.runInContext(fs.readFileSync(path.join(root, 'modules/ai/executor.js'), 'utf8'), context);
+    assert.equal(context.window.BetterDungeonAI, executor);
+    assert.equal(context.window.UltrascriptsAIExecutor, executor);
+  }
+});
+
+test('Navigator streams from a custom endpoint without an API key or Gemini configuration', async () => {
+  const config = C.normalize({ advanced: { enabled: true, activeService: 'custom', profiles: {
+    custom: { baseUrl: 'https://example.com/llm/v1', model: 'local-model.gguf' },
+  } }, routing: { navigator: 'advanced' } });
+  const h = setup(config, (url, init) => {
+    assert.equal(url, 'https://example.com/llm/v1/chat/completions');
+    assert.equal(JSON.parse(init.body).model, 'local-model.gguf');
+    assert.equal(JSON.parse(init.body).stream, true);
+    assert.ok(!Object.keys(init.headers).some(key => key.toLowerCase() === 'authorization'));
+    return stream([{ choices: [{ delta: { content: 'Review' }, finish_reason: 'stop' }] }]);
+  });
+  const deltas = [];
+  const result = await h.api.handle(chat, { onDelta: delta => deltas.push(delta) });
+  assert.equal(result.text, 'Review');
+  assert.equal(result.service, 'custom');
+  assert.equal(result.providerTier, 'advanced');
+  assert.deepEqual(deltas, ['Review']);
+  assert.equal(h.requests.length, 1);
+});
+
 test('Ultrascripts rejects overlap and unlocks after failure', async () => {
   let release;
   const context = { console, window: { BetterDungeonAI: { query: () => new Promise((_, reject) => { release = reject; }) } } };

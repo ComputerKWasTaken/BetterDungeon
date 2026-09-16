@@ -4,8 +4,10 @@
 // public query args, creates normalized query tasks, and adapts backend results
 // into the public response contract. Provider transport lives elsewhere.
 
-(function () {
-  if (globalThis.BetterDungeonAI) return;
+// Firefox content scripts have a globalThis distinct from window. Publish on
+// window for feature consumers, while workers and Node use their global object.
+(function (root) {
+  if (root.BetterDungeonAI) return;
 
   const VERSION = '2.0.0-shared';
   const PROMPT_MAX_CHARS = 12000;
@@ -726,10 +728,10 @@
     }),
   };
 
-  globalThis.BetterDungeonAI = executor;
-  globalThis.UltrascriptsAIExecutor = executor; // Temporary compatibility alias.
+  root.BetterDungeonAI = executor;
+  root.UltrascriptsAIExecutor = executor; // Temporary compatibility alias.
 
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = executor;
   }
-})();
+})(typeof window !== 'undefined' ? window : globalThis);
