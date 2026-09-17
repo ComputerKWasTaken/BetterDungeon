@@ -16,13 +16,11 @@ If Advanced is unavailable and a Gemini key is configured, the request is retrie
 
 `services/ai/config.js` owns configuration and the model catalog. `services/ai/runtime.js` owns request routing, Gemini native REST, OpenAI-compatible payloads, streaming, error normalization, and continuations. Browser and Android hosts install this same runtime with browser fetch or cancellable native HTTPS respectively. No provider SDK dependency is required.
 
-Simple defaults to separate feature pools: Navigator and Ultrascripts use Gemini 3.5 Flash-Lite then 3.1 Flash-Lite; Character Prefill and future Ambience use Gemma 4 31B then 26B A4B. There is no capacity selector in the popup. The internal `quotaStrategy: shared` compatibility setting permits cross-pool fallback; saving through the popup selects the automatic separated policy. Navigator requests above an estimated 12,000 tokens including reserved output never fall back to Gemma. Token estimates include prompts, tools, and continuation state and are approximate; a provider context rejection remains terminal.
+Simple defaults to separate feature pools: Navigator and Ultrascripts use Gemini 3.5 Flash-Lite then 3.1 Flash-Lite; Character Prefill uses Gemma 4 31B then 26B A4B. There is no capacity selector in the popup. The internal `quotaStrategy: shared` compatibility setting permits cross-pool fallback; saving through the popup selects the automatic separated policy. Navigator requests above an estimated 12,000 tokens including reserved output never fall back to Gemma. Token estimates include prompts, tools, and continuation state and are approximate; a provider context rejection remains terminal.
 
 The public `BetterDungeonAI` executor retains the `UltrascriptsAIExecutor` alias temporarily. The Ultrascripts query API still accepts at most 12,000 prompt characters. Each adventure's script environment permits one request at a time; an overlapping request receives `busy`. Fallbacks share a 115-second deadline, within the script operation's 120-second timeout.
 
 The local-only `betterdungeon_ai_config_v2` key stores Simple and Advanced profiles plus per-consumer routing. The old endpoint key migrates once. Saved Gemini, OpenRouter, and Custom keys are preserved. Existing Advanced users stay on Advanced; existing Gemini users receive Simple routing. Old manual Gemini model preferences become automatic routing. Migration verifies the new write before deleting the old key. Saved keys are omitted from status responses; an omitted key on save means preserve, while an explicit empty key means clear.
-
-Ambience's consumer is reserved, but Ambience playback and scene awareness are not implemented here.
 
 ## Verification before stable
 

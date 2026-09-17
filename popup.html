@@ -53,6 +53,24 @@
   <!-- Fading Glow Divider Bar -->
   <div class="accent-bar"></div>
 
+  <!-- Update Available Banner -->
+  <div class="update-banner" id="update-banner" hidden>
+    <span class="update-banner-icon"><span class="icon-rocket"></span></span>
+    <div class="update-banner-content">
+      <strong id="update-banner-title">Update available</strong>
+      <span id="update-banner-detail">A new release is on GitHub.</span>
+    </div>
+    <div class="update-banner-actions">
+      <button class="btn btn-primary btn-sm" id="update-banner-view" type="button">
+        <span class="icon-download"></span>
+        <span id="update-banner-view-label">View</span>
+      </button>
+      <button class="btn btn-icon btn-ghost" id="update-banner-dismiss" type="button" aria-label="Dismiss update notification" title="Dismiss">
+        <span class="icon-x"></span>
+      </button>
+    </div>
+  </div>
+
   <!-- Main Content -->
   <main class="main">
     
@@ -66,7 +84,7 @@
             <span class="whats-new-compact-icon icon-sparkles"></span>
             <span class="whats-new-compact-text">
               <strong id="whats-new-title">What's New</strong>
-              <span class="whats-new-compact-summary">Navigator &middot; Grounded chat &middot; Auto-applied changes</span>
+              <span class="whats-new-compact-summary">Navigator Routines &middot; AI setup &middot; Input controls</span>
             </span>
           </span>
           <span class="whats-new-compact-right">
@@ -94,11 +112,19 @@
                 <div>
                   <span class="whats-new-eyebrow">Headline feature</span>
                   <h3>Meet Navigator</h3>
-                  <p>An AI agent designed to help you improve and modify your adventures.</p>
+                  <p>Chat about your adventure or let Routines handle recurring work as you play.</p>
                 </div>
               </div>
 
               <div class="whats-new-navigator-features">
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-navigator icon-bot" aria-hidden="true"></span>
+                  <div>
+                    <h4>Routines work while you play</h4>
+                    <p>Write an instruction once and Navigator can run it every few completed actions. Start with editable examples for Story Cards, NPCs, story arcs, and adventure state.</p>
+                    <span class="whats-new-detail">Per-Routine history &middot; Activity view &middot; Reviewable changes</span>
+                  </div>
+                </article>
                 <article class="whats-new-highlight">
                   <span class="whats-new-highlight-icon whats-new-highlight-icon-navigator icon-book-open-text" aria-hidden="true"></span>
                   <div>
@@ -132,7 +158,7 @@
 
               <div class="whats-new-highlight-list">
                 <article class="whats-new-highlight">
-                  <span class="whats-new-highlight-icon icon-gamepad-2" aria-hidden="true"></span>
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-input icon-gamepad-2" aria-hidden="true"></span>
                   <div>
                     <h4>Ready for Alpha's new input menu</h4>
                     <p>Try and Command support the desktop strip and mobile dropdown, with floating touch pills. Image and Video have separate colors and hotkeys, and opening the menu no longer clears your custom mode.</p>
@@ -212,6 +238,17 @@
               </div>
             </section>
           </div>
+          <div class="whats-new-update-checks" id="update-checks-row" hidden>
+            <div class="whats-new-update-info">
+              <span class="icon-bell"></span>
+              <span>Update checks<span class="whats-new-update-note"> — GitHub Releases on manual installs</span></span>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="update-check-now" type="button">Check now</button>
+            <label class="toggle" for="update-checks-toggle">
+              <input id="update-checks-toggle" type="checkbox" role="switch">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -233,7 +270,7 @@
                   </span>
                   <h3 class="feature-title">Navigator</h3>
                 </div>
-                <p class="feature-desc">An AI agent designed to help you improve and modify your adventures.</p>
+                <p class="feature-desc">Chat with your adventure agent and automate recurring work with Routines.</p>
               </div>
               <label class="toggle">
                 <input type="checkbox" id="feature-navigator">
@@ -241,10 +278,10 @@
               </label>
             </div>
             <div class="feature-details">
-              <p>Navigator is an AI agent designed to help you improve and modify your adventures. It uses always-on bounded adventure context, answers grounded questions, and applies verified non-deletion changes automatically — with a change card for every edit so you stay in the know.</p>
+              <p>Ask Navigator about your adventure, request changes, or create Routines that run after a set number of completed actions.</p>
               <div class="feature-hints">
-                <p class="feature-hint"><span class="icon-lightbulb"></span> Open Navigator from <strong>Game Menu &gt; Gameplay &gt; Navigator</strong>.</p>
-                <p class="feature-hint"><span class="icon-triangle-alert"></span> Automatic is recommended and selected by default. Permanent deletions always require approval; use Proposed changes to approve every edit or No changes to disable changes. Configure the provider in the <strong>AI</strong> tab. Manage <strong>Routines</strong> inside Navigator to run instructions automatically at adventure action-count milestones.</p>
+                <p class="feature-hint"><span class="icon-lightbulb" aria-hidden="true"></span><span>Open from <strong>Game Menu &gt; Gameplay &gt; Navigator</strong>. Create and manage Routines there.</span></p>
+                <p class="feature-hint"><span class="icon-shield-check" aria-hidden="true"></span><span>Choose how Navigator applies changes in its settings. Deletions always need approval. Set up a provider in the <strong>AI</strong> tab.</span></p>
               </div>
             </div>
           </article>
@@ -992,7 +1029,7 @@
     <section class="tab-panel" id="tab-ai">
       <div class="section">
         <div class="section-header">
-          <span class="section-icon icon-brain-circuit" aria-hidden="true"></span>
+          <span class="section-icon icon-brain-circuit ai-section-icon" aria-hidden="true"></span>
           <h2 class="section-title">AI connections</h2>
         </div>
         <p class="feature-desc ai-section-intro">For Navigator, Character Prefill, and Ultrascripts.</p>
@@ -1000,7 +1037,7 @@
         <section class="feature-card static-card ai-settings-card" id="ai-simple-panel" aria-labelledby="ai-simple-title">
           <div class="feature-row">
             <div class="feature-info">
-              <h3 class="feature-title" id="ai-simple-title">Gemini</h3>
+              <h3 class="feature-title ai-card-title" id="ai-simple-title"><span class="icon-sparkles ai-card-icon" aria-hidden="true"></span>Gemini</h3>
               <p class="feature-desc">Free to use on Google's free tier. Just add a key.</p>
             </div>
           </div>
@@ -1023,7 +1060,7 @@
         <section class="feature-card static-card ai-settings-card" id="ai-advanced-panel" aria-labelledby="ai-advanced-title">
           <div class="feature-row">
             <div class="feature-info">
-              <h3 class="feature-title" id="ai-advanced-title">Advanced</h3>
+              <h3 class="feature-title ai-card-title" id="ai-advanced-title"><span class="icon-sliders-horizontal ai-card-icon" aria-hidden="true"></span>Advanced</h3>
               <p class="feature-desc">Choose another provider for selected features.</p>
             </div>
             <label class="toggle sm">
@@ -1063,7 +1100,6 @@
               <label class="form-label form-label-check"><input type="checkbox" data-ai-consumer="navigator">Navigator</label>
               <label class="form-label form-label-check"><input type="checkbox" data-ai-consumer="ultrascripts">Ultrascripts AI</label>
               <label class="form-label form-label-check"><input type="checkbox" data-ai-consumer="characterPresets">Character Prefill</label>
-              <label hidden><input type="checkbox" data-ai-consumer="ambience">Ambience (future)</label>
             </fieldset>
             <details class="ai-more-options">
               <summary>More options</summary>
@@ -1517,6 +1553,7 @@
   <script src="services/tutorial-service.js"></script>
   <script src="utils/webview-polyfill.js"></script>
   <script src="services/ai/config.js"></script>
+  <script src="services/update-check.js"></script>
   <script src="popup-ai-endpoint.js"></script>
   <script src="popup.js"></script>
 </body>

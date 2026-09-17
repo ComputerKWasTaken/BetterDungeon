@@ -106,6 +106,19 @@ test('extension manifest files exist and stay inside the package allowlist', () 
   ].filter(Boolean);
 
   for (const relativePath of runtimePaths) {
+    if (relativePath.includes('*')) {
+      const prefix = relativePath.slice(0, relativePath.indexOf('*'));
+      const dirPart = prefix.slice(0, Math.max(prefix.lastIndexOf('/'), 0));
+      const regex = new RegExp('^' + relativePath.split('*')
+        .map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        .join('[^/]*') + '$');
+      const matches = filesBelow(path.join(root, dirPart), dirPart).filter(p => regex.test(p));
+      assert.ok(matches.length > 0, 'manifest glob matches nothing: ' + relativePath);
+      for (const match of matches) {
+        assert.ok(includedByPackage(match), 'not allowlisted: ' + match);
+      }
+      continue;
+    }
     assert.ok(fs.existsSync(path.join(root, relativePath)), 'missing manifest path: ' + relativePath);
     assert.ok(includedByPackage(relativePath), 'not allowlisted: ' + relativePath);
   }

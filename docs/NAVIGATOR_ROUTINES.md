@@ -10,6 +10,15 @@ There is no additional master switch or daily allowance. Provider quotas and
 any billing still apply; frequent scheduled Routines can consume substantial
 usage.
 
+By default the Enabled switches are shared by every adventure on this device:
+turning a Routine on or off in one adventure applies everywhere. Turn on
+**This adventure uses its own switches** at the top of Routines to give the
+current adventure independent switches. Entering copies the shared states, so
+nothing changes until you toggle a Routine there; from then on only that
+adventure's switches apply to it, and later shared changes do not leak in.
+Switching back to shared discards the adventure's switches. Routines
+themselves — names, intervals, and instructions — always stay shared.
+
 Six editable examples start disabled. The first four show how Routines can
 replace common script workflows; the last two are Navigator-native ideas:
 
@@ -93,7 +102,7 @@ its past activity.
 Use **Export** to save a JSON file, then **Import** on another installation.
 Android uses the system document picker. Imports add new, disabled copies and
 leave existing rules intact. Files contain rule names, triggers, and instructions, with no
-provider keys, adventure transcripts, or activity. Review imported instructions
+provider keys, adventure transcripts, activity, or per-adventure switches. Review imported instructions
 before enabling them. Rule libraries support up to 100 Routines and 1 MB;
 invalid imports leave the current library untouched. Older manual-only rules
 import as disabled every-5-actions Routines, preserving their instructions;

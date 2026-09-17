@@ -1,14 +1,14 @@
 {
-  "version": 1,
+  "version": 3,
   "product": "BetterDungeon",
   "brandMark": "icons/icon128.png",
   "font": "fonts/IBM_Plex_Sans/IBMPlexSans-VariableFont_wdth,wght.ttf",
   "slides": [
-    { "id": "01-more-from-every-adventure", "kind": "screenshot", "width": 1280, "height": 800, "headline": "More from every adventure", "capture": "captures/01-adventure.jpg", "position": "center" },
-    { "id": "02-shape-the-story-your-way", "kind": "screenshot", "width": 1280, "height": 800, "headline": "Shape the story your way", "capture": "captures/02-creative-control.jpg", "position": "center" },
-    { "id": "03-keep-your-world-in-focus", "kind": "screenshot", "width": 1280, "height": 800, "headline": "Keep your world in focus", "capture": "captures/03-world.jpg", "position": "center" },
-    { "id": "04-get-help-as-you-play", "kind": "screenshot", "width": 1280, "height": 800, "headline": "Get help as you play", "capture": "captures/04-assistance.jpg", "position": "center" },
-    { "id": "05-make-it-yours", "kind": "screenshot", "width": 1280, "height": 800, "headline": "Make it yours", "capture": "captures/05-personalization.jpg", "position": "center" },
+    { "id": "01-more-from-every-adventure", "kind": "screenshot", "width": 1280, "height": 800, "headline": "More from every adventure", "bullets": ["Write your way", "Helpful controls in play", "Made for AI Dungeon"], "capture": "captures/01-story-cards-closeup.png", "position": "center" },
+    { "id": "02-shape-the-story-your-way", "kind": "screenshot", "width": 1280, "height": 800, "headline": "Shape the story your way", "bullets": ["Choose the right action", "Move between modes easily", "Keep the momentum going"], "capture": "captures/02-input-modes-closeup.png", "position": "center" },
+    { "id": "03-keep-your-world-in-focus", "kind": "screenshot", "width": 1280, "height": 800, "headline": "Keep your world in focus", "bullets": ["Track what matters", "Support lasting details", "Keep the story coherent"], "capture": "captures/03-plot-essentials-closeup.png", "position": "center" },
+    { "id": "04-get-help-as-you-play", "kind": "screenshot", "width": 1280, "height": 800, "headline": "Get help as you play", "bullets": ["Ask with adventure context", "Run optional Routines", "Review changes clearly"], "capture": "captures/04-routines-closeup.png", "position": "center" },
+    { "id": "05-ai-that-fits-your-play", "kind": "screenshot", "width": 1280, "height": 800, "headline": "AI that fits your play", "bullets": ["Start with Gemini", "Bring your own provider", "Choose what uses AI"], "capture": "captures/05-ai-connections-closeup.png", "position": "center" },
     { "id": "06-small-promo", "kind": "small", "width": 440, "height": 280 },
     { "id": "07-marquee-promo", "kind": "marquee", "width": 1400, "height": 560 }
   ]

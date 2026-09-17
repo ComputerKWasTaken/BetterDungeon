@@ -742,11 +742,97 @@
     return true;
   });
 
+  // ── GitHub release update check ───────────────────────────────────
+  // Only manual installs run the check (see services/update-check.js);
+  // store-managed copies skip straight to a cleared badge.
+  const UPDATE_CHECK_ALARM = 'bd-update-check';
+  const UPDATE_CHECK_PERIOD_MINUTES = 720;
 
+  const actionApi =
+    (typeof browser !== 'undefined' && browser?.action) ? browser.action :
+    (typeof chrome !== 'undefined' && chrome?.action) ? chrome.action :
+    null;
+  const alarmsApi =
+    (typeof browser !== 'undefined' && browser?.alarms) ? browser.alarms :
+    (typeof chrome !== 'undefined' && chrome?.alarms) ? chrome.alarms :
+    null;
+
+  function refreshUpdateBadge(status) {
+    if (!actionApi?.setBadgeText) return;
+    const text = status?.shouldNotify ? '!' : '';
+    try {
+      const pending = actionApi.setBadgeText({ text });
+      if (pending?.then) pending.catch(() => {});
+      if (text && actionApi.setBadgeBackgroundColor) {
+        const colored = actionApi.setBadgeBackgroundColor({ color: '#7c3aed' });
+        if (colored?.then) colored.catch(() => {});
+      }
+    } catch { /* noop */ }
+  }
+
+  function runUpdateCheck(force) {
+    const updateCheck = globalThis.BetterDungeonUpdateCheck;
+    if (!updateCheck) return Promise.resolve(null);
+    const task = force ? updateCheck.checkNow() : updateCheck.checkIfDue();
+    return Promise.resolve(task)
+      .then((status) => {
+        refreshUpdateBadge(status);
+        return status;
+      })
+      .catch(() => null);
+  }
+
+  function scheduleUpdateCheck() {
+    try {
+      alarmsApi?.create?.(UPDATE_CHECK_ALARM, { periodInMinutes: UPDATE_CHECK_PERIOD_MINUTES });
+    } catch { /* noop */ }
+  }
+
+  async function handleUpdateCheckMessage(message) {
+    const updateCheck = globalThis.BetterDungeonUpdateCheck;
+    if (!updateCheck) throw { code: 'unavailable', message: 'Update check module is not loaded' };
+    const op = String(message.op || 'status');
+    let status = null;
+    if (op === 'checkNow') status = await runUpdateCheck(true);
+    else if (op === 'checkIfDue') status = await runUpdateCheck(false);
+    else if (op === 'dismiss') status = await updateCheck.dismiss(message.version);
+    else if (op === 'setEnabled') status = await updateCheck.setEnabled(message.enabled);
+    if (!status) status = await updateCheck.getStatus();
+    refreshUpdateBadge(status);
+    return status;
+  }
+
+  extensionRuntime.onInstalled?.addListener(() => {
+    scheduleUpdateCheck();
+    runUpdateCheck(false);
+  });
+
+  extensionRuntime.onStartup?.addListener(() => {
+    scheduleUpdateCheck();
+    runUpdateCheck(false);
+  });
+
+  alarmsApi?.onAlarm?.addListener((alarm) => {
+    if (alarm?.name === UPDATE_CHECK_ALARM) runUpdateCheck(false);
+  });
+
+  extensionRuntime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (!message || message.type !== 'BETTERDUNGEON_UPDATE_CHECK') return false;
+
+    handleUpdateCheckMessage(message)
+      .then((data) => sendResponse({ ok: true, data }))
+      .catch((error) => sendResponse({ ok: false, error: normalizeError(error) }));
+    return true;
+  });
 
 })();
 
 if (typeof importScripts === 'function') {
+  try {
+    importScripts('services/update-check.js');
+  } catch (error) {
+    console.error('[BetterDungeon/background] Failed to load update check:', error);
+  }
   try {
     importScripts('background-ai-openai-compatible.js');
   } catch (error) {

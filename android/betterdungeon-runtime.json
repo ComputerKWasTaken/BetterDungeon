@@ -78,6 +78,7 @@
     "popup-ai-endpoint.js",
     "utils/browser-polyfill.js",
     "services/tutorial-service.js",
+    "services/update-check.js",
     "fonts",
     "icons"
   ],

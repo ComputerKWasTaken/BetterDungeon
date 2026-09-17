@@ -122,6 +122,43 @@
       const actions = element('div', 'bd-routine-actions');
       actions.append(button('New Routine', () => this.editor()), button('Import', () => this.act(() => this.importFile())), button('Export', () => this.act(() => this.exportFile())));
       this.panel.append(actions);
+      const scope = element('fieldset', 'bd-routine-scope');
+      scope.append(element('legend', 'bd-navigator-sr-only', 'Enabled switches'));
+      const heading = element('div', 'bd-routine-scope-heading');
+      heading.append(
+        element('span', '', 'Enabled switches'),
+        element('span', 'bd-routine-scope-value', this.runner.overrideMode ? 'This adventure' : 'Every adventure')
+      );
+      scope.append(heading);
+      const group = element('div', 'bd-routine-scope-toggle');
+      group.setAttribute('role', 'radiogroup');
+      group.setAttribute('aria-label', 'Which adventures the Enabled switches apply to');
+      for (const [value, text, title] of [
+        ['shared', 'Every adventure', 'Share the Enabled switches across every adventure on this device'],
+        ['adventure', 'This adventure', 'Give only this adventure its own Enabled switches']
+      ]) {
+        const option = element('label', 'bd-routine-scope-option');
+        option.title = title;
+        const input = element('input');
+        input.type = 'radio';
+        input.name = 'bd-routine-scope';
+        input.value = value;
+        input.checked = (value === 'adventure') === (this.runner.overrideMode === true);
+        input.addEventListener('change', () => {
+          if (!input.checked) return;
+          this.act(async () => {
+            input.disabled = true;
+            try { await this.runner.setAdventureSwitches(value === 'adventure'); this.renderRules(); }
+            finally { input.disabled = false; }
+          });
+        });
+        option.append(input, element('span', 'bd-routine-scope-segment', text));
+        group.append(option);
+      }
+      scope.append(group, element('p', 'bd-routine-hint', this.runner.overrideMode
+        ? 'Toggling a Routine below changes only this adventure; other adventures keep the shared switches.'
+        : 'Toggling a Routine below changes it in every adventure on this device.'));
+      this.panel.append(scope);
       if (this.runner.error) this.panel.append(element('p', 'bd-routine-error', this.runner.error));
       if (!this.runner.rules.length) this.panel.append(element('p', 'bd-routine-hint', 'Create a Routine with instructions for Navigator.'));
       for (const rule of this.runner.rules) {
@@ -130,16 +167,19 @@
         const label = element('label', 'bd-routine-toggle');
         const input = element('input');
         input.type = 'checkbox';
-        input.checked = rule.enabled;
+        input.checked = this.runner.isEnabled(rule);
         input.setAttribute('aria-label', `Enable ${rule.name}`);
         input.addEventListener('change', () => this.act(async () => {
           input.disabled = true;
-          try { await this.runner.saveRule({ ...rule, enabled: input.checked }); this.renderRules(); }
+          try { await this.runner.setRuleEnabled(rule, input.checked); this.renderRules(); }
           finally { input.disabled = false; }
         }));
         label.append(input, element('strong', '', rule.name));
         row.append(label, button('Edit', () => this.editor(rule)));
-        card.append(row, element('p', 'bd-routine-hint', `Runs every ${rule.interval} action${rule.interval === 1 ? '' : 's'} · ${rule.enabled ? 'Enabled' : 'Off'}`));
+        const scopeText = this.runner.overrideMode
+          ? (this.runner.isEnabled(rule) !== rule.enabled ? `this adventure (shared: ${rule.enabled ? 'on' : 'off'})` : 'this adventure')
+          : 'every adventure';
+        card.append(row, element('p', 'bd-routine-hint', `Runs every ${rule.interval} action${rule.interval === 1 ? '' : 's'} · ${this.runner.isEnabled(rule) ? 'Enabled' : 'Off'} · ${scopeText}`));
         if (rule.interval <= 2) card.append(element('p', 'bd-routine-hint', 'Frequent runs can use substantial provider quota or paid usage.'));
         const preview = element('p', 'bd-routine-preview', rule.instruction);
         card.append(preview);
@@ -174,9 +214,10 @@
       intervalWrap.append(interval, element('span', '', 'actions'));
       intervalField.append(intervalLabel, intervalWrap);
       this.panel.append(intervalField);
-      const enabled = element('input'); enabled.type = 'checkbox'; enabled.checked = rule.enabled;
+      const enabled = element('input'); enabled.type = 'checkbox';
+      enabled.checked = existing ? this.runner.isEnabled(rule) : rule.enabled;
       const toggle = element('label', 'bd-routine-toggle');
-      toggle.append(enabled, element('span', '', 'Enabled'));
+      toggle.append(enabled, element('span', '', this.runner.overrideMode ? 'Enabled in this adventure' : 'Enabled'));
       this.panel.append(toggle);
       const warning = element('p', 'bd-routine-hint', 'Frequent runs can use substantial provider quota or paid usage.');
       const updateWarning = () => { warning.hidden = Number(interval.value) > 2; };
@@ -186,7 +227,7 @@
       const save = button('Save Routine', () => this.act(async () => {
         save.disabled = true;
         try {
-          await this.runner.saveRule({ id: rule.id, name: name.value, instruction: instruction.value, interval: Number(interval.value), enabled: enabled.checked });
+          await this.runner.saveScopedRule({ id: rule.id, name: name.value, instruction: instruction.value, interval: Number(interval.value), enabled: enabled.checked });
           this.show('routines');
         } finally { save.disabled = false; }
       }));

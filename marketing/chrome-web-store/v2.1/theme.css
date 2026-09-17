@@ -13,10 +13,17 @@ body { background: var(--background); color: var(--foreground); font-family: 'IB
 .brand-mark { width: 38px; height: 38px; object-fit: contain; }
 .wordmark { font-size: 25px; font-weight: 550; letter-spacing: -.7px; }
 .wordmark span { color: var(--accent); }
-.screenshot .brand { position: absolute; left: 48px; top: 29px; }
-h1 { position: absolute; left: 48px; right: 40px; top: 89px; margin: 0; font-size: 60px; line-height: 1.12; font-weight: 550; letter-spacing: -1.8px; }
-.product-frame { position: absolute; left: 48px; right: 48px; top: 210px; bottom: 70px; margin: 0; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--surface); }
-.product-capture { width: 100%; height: 100%; display: block; object-fit: contain; }
+.screenshot .brand { position: absolute; left: 50px; top: 44px; z-index: 2; }
+.caption { position: absolute; z-index: 1; left: 0; top: 0; bottom: 0; width: 43%; padding: 177px 48px 64px 50px; background: var(--background); }
+.caption::after { content: ''; position: absolute; top: 42px; right: 0; bottom: 42px; width: 2px; background: linear-gradient(#75441900, var(--accent), #75441900); }
+h1 { margin: 0; font-size: 54px; line-height: 1.08; font-weight: 550; letter-spacing: -1.7px; }
+.caption ul { display: grid; gap: 21px; margin: 52px 0 0; padding: 0; list-style: none; color: #cdc7c0; font-size: 25px; line-height: 1.25; }
+.caption li { position: relative; padding-left: 28px; }
+.caption li::before { content: ''; position: absolute; left: 0; top: .45em; width: 10px; height: 10px; border: 2px solid var(--accent); border-radius: 50%; }
+.product-frame { position: absolute; left: 43%; right: 0; top: 0; bottom: 0; margin: 0; overflow: hidden; background: var(--surface); }
+.product-frame::after { content: ''; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 36px 0 52px -48px #000, inset 0 0 0 1px #362b25; }
+.product-capture { display: block; width: 100%; height: 100%; object-fit: cover; }
+.popup-capture { width: 520px; height: 760px; border: 0; transform: scale(1.48); transform-origin: top left; background: var(--background); }
 .small .artboard, .marquee .artboard { display: flex; justify-content: center; align-items: center; background: radial-gradient(ellipse at 50% 110%, #241a13 0%, #0f0e11 70%); }
 .small .brand { flex-direction: column; gap: 16px; }
 .small .brand-mark { width: 84px; height: 84px; }

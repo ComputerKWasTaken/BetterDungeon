@@ -1,5 +1,6 @@
 /.build/
 /dist/
+/out/
 /android/.gradle/
 /android/.idea/
 /android/.kotlin/

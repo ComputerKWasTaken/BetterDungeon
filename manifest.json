@@ -5,6 +5,7 @@
   "description": "An all-in-one browser extension for AI Dungeon that enhances the experience with QOL additions and brand new features.",
   "permissions": [
     "activeTab",
+    "alarms",
     "declarativeNetRequestWithHostAccess",
     "webRequest",
     "storage"
@@ -16,6 +17,7 @@
     "service_worker": "background.js",
     "scripts": [
       "utils/browser-polyfill.js",
+      "services/update-check.js",
       "background.js",
       "services/ai/config.js",
       "modules/ai/executor.js",

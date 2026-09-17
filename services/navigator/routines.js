@@ -3,40 +3,41 @@
   'use strict';
   if (globalThis.NavigatorRoutines) return;
   const KEY = 'betterDungeon_navigator_routines_v1';
+  const OVERRIDES_PREFIX = 'betterDungeon_navigator_routine_overrides_';
   const MAX_FILE_BYTES = 1024 * 1024;
   const MAX_ACTIVITY = 100;
   const id = () => globalThis.crypto.randomUUID();
-  const TEMPLATE_CATALOG_VERSION = 5;
+  const TEMPLATE_CATALOG_VERSION = 6;
   const DEFAULT_TEMPLATES = [
     { name: 'NPC Brains', interval: 5, instruction: [
       'Review recent story context and the Story Card directory. Select only significant recurring NPCs with meaningful new experiences; otherwise make no change.',
-      'For each selected NPC, find and read any existing dedicated brain card and relevant character card before editing. Maintain one compact Story Card titled "NPC Brain — [name]" with Type "NPC Brain" and distinctive name or alias triggers; avoid duplicate brains and broad triggers.',
+      'For each selected NPC, use search_story_cards and get_story_card to find and read any existing dedicated brain card and relevant character card before editing. Maintain one compact Story Card titled "NPC Brain — [name]" with Type "NPC Brain" and distinctive name or alias triggers. Revise an existing brain with propose_story_card_update; use propose_story_card_create only when the NPC has none. Avoid duplicate brains and broad triggers.',
       'In the Entry, distinguish established experiences and outward behavior from inferred private beliefs, feelings, motives, perceptions, and relationships. Ground inferences in observed events, let them evolve, and never present them as canon facts or force their revelation in prose.',
       'Preserve the NPC’s identity card and unrelated lore. Update only when the new context materially changes the brain; do not invent events, delete cards, or write to Plot Essentials. Briefly report what changed or why nothing did.'
     ].join(' ') },
     { name: 'Automatic Story Cards', interval: 5, instruction: [
       'Review recent story developments and the Story Card directory. Identify durable characters, places, objects, or lore worth retrieving later; do not create a card for every passing detail.',
-      'Search for and read relevant existing cards before proposing a change. Update a matching card when possible; otherwise create a concise card with specific triggers and an Entry grounded in established story facts.',
+      'Use search_story_cards and get_story_card to find and read relevant existing cards before proposing a change. When a card already covers the subject, revise it with propose_story_card_update and preserve its other fields; reserve propose_story_card_create for subjects no existing card covers. Give new cards specific triggers and an Entry grounded in established story facts.',
       'Leave dedicated NPC Brain cards, Story Arc, and Adventure State to their own Routines. Preserve unrelated card fields and do not delete cards or change Plot Essentials. Make no change when nothing durable or materially new appeared; briefly report the result.'
     ].join(' ') },
     { name: 'Story Arcs', interval: 10, instruction: [
       'Review recent story progress and all current Plot Essentials. Find any existing Story Arc section before editing.',
-      'Maintain one concise, forward-looking Story Arc section with roughly 3–5 flexible plot beats that give the story model a direction to pursue. Retire completed beats rather than recording them as history; revise or replace beats when player choices change the direction.',
+      'Use propose_plot_component_change to maintain one concise, forward-looking Story Arc section in Plot Essentials with roughly 3–5 flexible plot beats that give the story model a direction to pursue. Retire completed beats rather than recording them as history; revise or replace beats when player choices change the direction.',
       'Suggest possible developments without declaring them already true or forcing the player down a fixed path. Preserve unrelated Plot Essentials exactly, and leave Adventure State and Story Cards to their own Routines. Make no change if the current arc still fits; briefly report the result.'
     ].join(' ') },
     { name: 'State Management', interval: 5, instruction: [
       'Review recent story events and all current Plot Essentials, including any Adventure State section. Compare established changes with recorded states; do not recompute the whole adventure from guesswork.',
-      'Maintain one compact, clearly labeled Adventure State section for story-relevant location, inventory, injuries, resources, commitments, abilities, or other evidenced categories. Add a category only when play establishes its relevance. Use numeric values or calculations only when the player or story has defined their rules.',
+      'Use propose_plot_component_change to maintain one compact, clearly labeled Adventure State section in Plot Essentials for story-relevant location, inventory, injuries, resources, commitments, abilities, or other evidenced categories. Add a category only when play establishes its relevance. Use numeric values or calculations only when the player or story has defined their rules.',
       'Treat player-added or edited states as authoritative until an explicit story event changes them. Flag contradictions or uncertainty instead of silently overwriting a value. Preserve unrelated Plot Essentials exactly; do not modify Story Cards or Story Arc. Skip when no supported state transition occurred and briefly report the result.'
     ].join(' ') },
     { name: 'Scene Compass', interval: 10, instruction: [
       'Review the recent scene, player choices, and current Author’s Note. Decide whether a meaningful shift in tension, pace, or tone needs gentle guidance; do nothing when the scene is already working.',
-      'Maintain at most one short, clearly labeled Scene Compass line in Author’s Note. Suggest a present-scene storytelling emphasis, not a plot event or outcome. Respect the player’s explicit style and boundaries; preserve every unrelated part of Author’s Note exactly.',
+      'Use propose_plot_component_change to maintain at most one short, clearly labeled Scene Compass line in Author’s Note. Suggest a present-scene storytelling emphasis, not a plot event or outcome. Respect the player’s explicit style and boundaries; preserve every unrelated part of Author’s Note exactly.',
       'Update or remove your line when it becomes stale. Avoid constant rewrites, railroading, repeating the Story Arc, or asserting facts not established by the story. Briefly report what changed or why no change was needed.'
     ].join(' ') },
     { name: 'Continuity Watch', interval: 10, instruction: [
       'Compare recent story evidence with existing Plot Essentials, Story Cards, and Story Summary. Look for a material, clearly demonstrable contradiction or stale fact that would mislead later play; do not treat ambiguity or a deliberate mystery as an error.',
-      'Read a relevant Story Card before correcting it. If evidence is strong, make the smallest correction to an existing card or Plot Essentials while preserving unrelated content. Do not create new lore, rewrite an entire scene, or delete anything.',
+      'Read a relevant Story Card with get_story_card before correcting it. If evidence is strong, make the smallest correction to an existing card or Plot Essentials with propose_story_card_update or propose_plot_component_change while preserving unrelated content. Do not create new lore, rewrite an entire scene, or delete anything.',
       'Auto Summarization may rewrite Story Summary, so report a summary-only issue rather than repeatedly fighting it unless the player specifically asks for a correction. If evidence is insufficient, report the concern without making a change; otherwise skip quietly. Briefly cite the story evidence for any correction.'
     ].join(' ') }
   ];
@@ -51,11 +52,49 @@
     { name: 'Stateboy / TAS', interval: 5, instruction: 'Review the recent story and existing Plot Essentials and Story Cards. Track only concrete, story-relevant state that the adventure actually establishes: location, inventory, injuries, resources, commitments, abilities, and active constraints. Reconcile changes against prior recorded state, never guess numbers or treat speculation as fact. Maintain a compact clearly labeled state section in Plot Essentials, or a relevant card when the state belongs to a specific character or place. Preserve unrelated material and player agency. Make no change if there is no verified state transition; briefly report updates and uncertainty.', replacement: 'State Management' }
   ].map(template => Object.freeze(template)));
 
+  // Exact prior-catalog prompts identify only untouched, disabled copies,
+  // which migrate to the current template of the same name.
+  const RETIRED_TEMPLATES = Object.freeze([
+    { name: 'NPC Brains', interval: 5, replacement: 'NPC Brains', instruction: [
+      'Review recent story context and the Story Card directory. Select only significant recurring NPCs with meaningful new experiences; otherwise make no change.',
+      'For each selected NPC, find and read any existing dedicated brain card and relevant character card before editing. Maintain one compact Story Card titled "NPC Brain — [name]" with Type "NPC Brain" and distinctive name or alias triggers; avoid duplicate brains and broad triggers.',
+      'In the Entry, distinguish established experiences and outward behavior from inferred private beliefs, feelings, motives, perceptions, and relationships. Ground inferences in observed events, let them evolve, and never present them as canon facts or force their revelation in prose.',
+      'Preserve the NPC’s identity card and unrelated lore. Update only when the new context materially changes the brain; do not invent events, delete cards, or write to Plot Essentials. Briefly report what changed or why nothing did.'
+    ].join(' ') },
+    { name: 'Automatic Story Cards', interval: 5, replacement: 'Automatic Story Cards', instruction: [
+      'Review recent story developments and the Story Card directory. Identify durable characters, places, objects, or lore worth retrieving later; do not create a card for every passing detail.',
+      'Search for and read relevant existing cards before proposing a change. Update a matching card when possible; otherwise create a concise card with specific triggers and an Entry grounded in established story facts.',
+      'Leave dedicated NPC Brain cards, Story Arc, and Adventure State to their own Routines. Preserve unrelated card fields and do not delete cards or change Plot Essentials. Make no change when nothing durable or materially new appeared; briefly report the result.'
+    ].join(' ') },
+    { name: 'Story Arcs', interval: 10, replacement: 'Story Arcs', instruction: [
+      'Review recent story progress and all current Plot Essentials. Find any existing Story Arc section before editing.',
+      'Maintain one concise, forward-looking Story Arc section with roughly 3–5 flexible plot beats that give the story model a direction to pursue. Retire completed beats rather than recording them as history; revise or replace beats when player choices change the direction.',
+      'Suggest possible developments without declaring them already true or forcing the player down a fixed path. Preserve unrelated Plot Essentials exactly, and leave Adventure State and Story Cards to their own Routines. Make no change if the current arc still fits; briefly report the result.'
+    ].join(' ') },
+    { name: 'State Management', interval: 5, replacement: 'State Management', instruction: [
+      'Review recent story events and all current Plot Essentials, including any Adventure State section. Compare established changes with recorded states; do not recompute the whole adventure from guesswork.',
+      'Maintain one compact, clearly labeled Adventure State section for story-relevant location, inventory, injuries, resources, commitments, abilities, or other evidenced categories. Add a category only when play establishes its relevance. Use numeric values or calculations only when the player or story has defined their rules.',
+      'Treat player-added or edited states as authoritative until an explicit story event changes them. Flag contradictions or uncertainty instead of silently overwriting a value. Preserve unrelated Plot Essentials exactly; do not modify Story Cards or Story Arc. Skip when no supported state transition occurred and briefly report the result.'
+    ].join(' ') },
+    { name: 'Scene Compass', interval: 10, replacement: 'Scene Compass', instruction: [
+      'Review the recent scene, player choices, and current Author’s Note. Decide whether a meaningful shift in tension, pace, or tone needs gentle guidance; do nothing when the scene is already working.',
+      'Maintain at most one short, clearly labeled Scene Compass line in Author’s Note. Suggest a present-scene storytelling emphasis, not a plot event or outcome. Respect the player’s explicit style and boundaries; preserve every unrelated part of Author’s Note exactly.',
+      'Update or remove your line when it becomes stale. Avoid constant rewrites, railroading, repeating the Story Arc, or asserting facts not established by the story. Briefly report what changed or why no change was needed.'
+    ].join(' ') },
+    { name: 'Continuity Watch', interval: 10, replacement: 'Continuity Watch', instruction: [
+      'Compare recent story evidence with existing Plot Essentials, Story Cards, and Story Summary. Look for a material, clearly demonstrable contradiction or stale fact that would mislead later play; do not treat ambiguity or a deliberate mystery as an error.',
+      'Read a relevant Story Card before correcting it. If evidence is strong, make the smallest correction to an existing card or Plot Essentials while preserving unrelated content. Do not create new lore, rewrite an entire scene, or delete anything.',
+      'Auto Summarization may rewrite Story Summary, so report a summary-only issue rather than repeatedly fighting it unless the player specifically asks for a correction. If evidence is insufficient, report the concern without making a change; otherwise skip quietly. Briefly cite the story evidence for any correction.'
+    ].join(' ') }
+  ].map(template => Object.freeze(template)));
+
+  const LEGACY_RULES = Object.freeze([...LEGACY_DEFAULTS, ...RETIRED_TEMPLATES]);
+
   function upgradeTemplates(data) {
     const untouched = [];
     const replacements = new Map();
     for (const rule of data.routines) {
-      const legacy = LEGACY_DEFAULTS.find(old => old.name === rule.name && old.interval === rule.interval && old.instruction === rule.instruction
+      const legacy = LEGACY_RULES.find(old => old.name === rule.name && old.interval === rule.interval && old.instruction === rule.instruction
         && rule.enabled === false && (rule.mode === undefined || rule.mode === 'scheduled') && (rule.command === undefined || rule.command === null));
       if (!legacy || replacements.has(legacy.replacement)) { untouched.push(rule); continue; }
       const current = DEFAULT_TEMPLATES.find(template => template.name === legacy.replacement);
@@ -106,6 +145,16 @@
     return JSON.stringify({ version: 1, routines: rules.map(raw => ({ ...validateRule(raw), enabled: false })) }, null, 2);
   }
 
+  function normalizeOverrideMap(value) {
+    const map = {};
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      for (const [ruleId, enabled] of Object.entries(value)) {
+        if (typeof enabled === 'boolean') map[ruleId] = enabled;
+      }
+    }
+    return map;
+  }
+
   function milestone(previous, current, interval) {
     if (!Number.isSafeInteger(previous) || !Number.isSafeInteger(current) || current <= previous) return null;
     return Math.floor(current / interval) > Math.floor(previous / interval)
@@ -144,6 +193,9 @@
       this.error = '';
       this.controller = new AbortController();
       this.stateKey = `betterDungeon_navigator_routine_state_${encodeURIComponent(adventureId)}`;
+      this.overridesKey = `${OVERRIDES_PREFIX}${encodeURIComponent(adventureId)}`;
+      this.overrideMode = false;
+      this.overrides = {};
       this.lockName = `betterdungeon:navigator:${adventureId}`;
       this.eventQueue = Promise.resolve();
       this.boundAction = event => {
@@ -154,6 +206,9 @@
         if (area !== 'local' || this.destroyed) return;
         if (changes[KEY]) {
           this.eventQueue = this.eventQueue.then(() => this.reloadRules()).catch(error => this.report(error));
+        }
+        if (changes[this.overridesKey]) {
+          this.eventQueue = this.eventQueue.then(() => this.reloadOverrides()).catch(error => this.report(error));
         }
         if (changes[this.stateKey]) this.changed();
       };
@@ -188,6 +243,7 @@
             await this.set(KEY, { ...upgraded, routines: upgraded.routines.map(migrateRule) });
           }
         });
+        await this.loadOverrides();
         await this.reloadRules(false);
         this.activity = (await this.get(this.stateKey))?.activity || [];
         if (this.destroyed) return;
@@ -199,17 +255,60 @@
     }
 
     async arm(ruleIds = null) {
-      if (!this.rules.some(rule => rule.enabled) || this.destroyed) return;
+      if (!this.rules.some(rule => this.isEnabled(rule)) || this.destroyed) return;
       if (!this.locks?.request && !this.android) throw new Error('Routines need Web Locks to coordinate adventure tabs. Update your browser to enable them.');
       const count = await this.readCount(this.controller.signal);
       if (!Number.isSafeInteger(count) || count < 0) throw new Error('Waiting for the adventure action count.');
       if (this.destroyed) return;
       this.count = Math.max(this.count ?? 0, count);
       for (const rule of this.rules) {
-        if (rule.enabled && (!ruleIds || ruleIds.includes(rule.id))) this.observed.set(rule.id, count);
+        if (this.isEnabled(rule) && (!ruleIds || ruleIds.includes(rule.id))) this.observed.set(rule.id, count);
       }
       this.armed = true;
       this.error = '';
+    }
+
+    // The effective Enabled switch for this adventure: the shared rule flag,
+    // or the adventure's own switch when it uses separate switches.
+    isEnabled(rule) {
+      return this.overrideMode ? (this.overrides[rule.id] ?? rule.enabled) : rule.enabled;
+    }
+
+    async loadOverrides() {
+      const stored = await this.get(this.overridesKey);
+      this.overrideMode = stored?.mode === 'adventure';
+      this.overrides = normalizeOverrideMap(stored?.enabled);
+    }
+
+    snapshotEnabled() {
+      return this.rules.map(rule => ({ id: rule.id, interval: rule.interval, on: this.isEnabled(rule) }));
+    }
+
+    // Reconcile queued work and baselines after rules or adventure switches
+    // change. Returns the rules that became enabled (or changed interval while
+    // enabled) and need a fresh milestone baseline.
+    syncSchedule(before) {
+      const prior = new Map(before.map(item => [item.id, item]));
+      const enabled = new Set();
+      const changedSchedule = [];
+      for (const rule of this.rules) {
+        if (!this.isEnabled(rule)) continue;
+        enabled.add(rule.id);
+        const old = prior.get(rule.id);
+        if (!old?.on || old.interval !== rule.interval) changedSchedule.push(rule.id);
+      }
+      for (const ruleId of this.pending.keys()) {
+        if (changedSchedule.includes(ruleId) || !enabled.has(ruleId)) this.pending.delete(ruleId);
+      }
+      for (const ruleId of this.observed.keys()) if (!enabled.has(ruleId)) this.observed.delete(ruleId);
+      if (!enabled.size) this.armed = false;
+      return changedSchedule;
+    }
+
+    async reschedule(before, rearm = true) {
+      const changedSchedule = this.syncSchedule(before);
+      if (rearm && changedSchedule.length) await this.arm(changedSchedule);
+      this.changed();
     }
 
     async reloadRules(rearm = true) {
@@ -217,15 +316,61 @@
       if (data?.version !== 1 || !Array.isArray(data.routines)) throw new Error('Saved Routines are invalid. Import a valid Routine file to add rules.');
       const next = data.routines.map(rule => validateRule(rule));
       if (new Set(next.map(rule => rule.id)).size !== next.length) throw new Error('Saved Routines contain duplicate IDs.');
-      const changedSchedule = next.filter(rule => rule.enabled && !this.rules.some(old => old.id === rule.id && old.enabled && old.interval === rule.interval)).map(rule => rule.id);
+      const before = this.snapshotEnabled();
       this.rules = next;
-      for (const ruleId of this.pending.keys()) {
-        if (changedSchedule.includes(ruleId) || !next.some(rule => rule.id === ruleId && rule.enabled)) this.pending.delete(ruleId);
-      }
-      for (const ruleId of this.observed.keys()) if (!next.some(rule => rule.id === ruleId && rule.enabled)) this.observed.delete(ruleId);
-      if (!next.some(rule => rule.enabled)) this.armed = false;
-      if (rearm && changedSchedule.length) await this.arm(changedSchedule);
-      this.changed();
+      await this.reschedule(before, rearm);
+    }
+
+    async reloadOverrides(rearm = true) {
+      const before = this.snapshotEnabled();
+      await this.loadOverrides();
+      await this.reschedule(before, rearm);
+    }
+
+    async updateOverrideMap(mode, edit = null) {
+      await this.locked('betterdungeon:navigator:routines:rules', async () => {
+        const stored = await this.get(this.overridesKey);
+        const map = normalizeOverrideMap(stored?.enabled);
+        const live = new Set(this.rules.map(rule => rule.id));
+        for (const ruleId of Object.keys(map)) if (!live.has(ruleId)) delete map[ruleId];
+        edit?.(map);
+        await this.set(this.overridesKey, { version: 1, mode, enabled: map });
+        await this.loadOverrides();
+      });
+    }
+
+    // Switch this adventure between the shared Enabled switches and its own.
+    // Switching to adventure switches snapshots the current shared states so a
+    // later shared change does not leak in; switching back discards them.
+    async setAdventureSwitches(use) {
+      const before = this.snapshotEnabled();
+      await this.updateOverrideMap(use ? 'adventure' : 'shared', use
+        ? map => { for (const rule of this.rules) if (typeof map[rule.id] !== 'boolean') map[rule.id] = rule.enabled; }
+        : map => { for (const ruleId of Object.keys(map)) delete map[ruleId]; });
+      await this.reschedule(before);
+    }
+
+    // Toggle the Enabled switch for this adventure: the shared flag, or the
+    // adventure's own switch while it uses separate switches.
+    async setRuleEnabled(rule, enabled) {
+      if (!this.overrideMode) return this.saveRule({ ...rule, enabled });
+      const before = this.snapshotEnabled();
+      await this.updateOverrideMap('adventure', map => { map[rule.id] = enabled === true; });
+      await this.reschedule(before);
+    }
+
+    // Save Routine fields the way the current scope expects: shared mode edits
+    // the shared rule including its Enabled switch; adventure mode edits the
+    // shared fields only and stores Enabled as this adventure's own switch.
+    async saveScopedRule(rule) {
+      const valid = validateRule(rule);
+      if (!this.overrideMode) return this.saveRule(valid);
+      await this.editRules(rules => {
+        const existing = rules.find(item => item.id === valid.id);
+        const stored = { ...valid, enabled: existing ? existing.enabled : false };
+        return existing ? rules.map(item => item.id === valid.id ? stored : item) : [...rules, stored];
+      });
+      await this.setRuleEnabled(valid, valid.enabled);
     }
 
     async editRules(transform) {
@@ -252,14 +397,14 @@
     }
     static navigatorDefinitions() {
       return [
-        { name: 'list_routines', description: 'List saved BetterDungeon Routines so you can identify one the player asked about or asked you to run. Includes disabled automatic Routines, which can still be run on request.', parameters: { type: 'object', properties: { query: { type: 'string', description: 'Optional name search.' } }, additionalProperties: false } },
+        { name: 'list_routines', description: 'List saved BetterDungeon Routines so you can identify one the player asked about or asked you to run. Includes disabled automatic Routines, which can still be run on request. Reports whether automatic switches are shared across adventures or set for this adventure.', parameters: { type: 'object', properties: { query: { type: 'string', description: 'Optional name search.' } }, additionalProperties: false } },
         { name: 'run_routine', description: 'Queue one saved Routine to run after this chat response. Use only when the player explicitly asks you to run that Routine; first identify it with list_routines if needed. An off automatic toggle does not block a requested run. This returns queued status, not the completed result; direct the player to Activity.', parameters: { type: 'object', properties: { routine: { type: 'string', description: 'Exact Routine ID or unambiguous name.' }, guidance: { type: 'string', description: 'Optional player guidance for this run.' } }, required: ['routine'], additionalProperties: false } }
       ];
     }
     makeProposal(args) {
       const rule = validateRule({ id: id(), name: args?.name, instruction: args?.instruction, interval: args?.interval, enabled: false });
       return { id: id(), kind: 'routine_create', action: 'create', status: 'pending', targetLabel: rule.name, reason: String(args?.reason || 'Create a reusable Routine for this device.').slice(0, 300), rule,
-        changes: [{ label: 'Trigger', before: '', after: `Every ${rule.interval} actions in every adventure on this device` }, { label: 'Instructions', before: '', after: rule.instruction }, { label: 'Initial state', before: '', after: 'Disabled until you enable it' }] };
+        changes: [{ label: 'Trigger', before: '', after: `Every ${rule.interval} actions in adventures where it is enabled` }, { label: 'Instructions', before: '', after: rule.instruction }, { label: 'Initial state', before: '', after: 'Disabled until you enable it' }] };
     }
     async applyProposedRule(proposal) {
       if (!proposal || proposal.kind !== 'routine_create' || proposal.restored || proposal.status !== 'applying') throw { code: 'invalid_proposal', message: 'This Routine proposal cannot be applied.' };
@@ -269,8 +414,9 @@
     listForNavigator(query = '') {
       const needle = String(query || '').trim().toLowerCase().slice(0, 80);
       const matches = this.rules.filter(rule => !needle || rule.name.toLowerCase().includes(needle));
-      return { total: matches.length, routines: matches.slice(0, 20).map(rule => ({
-        id: rule.id, name: rule.name, interval: rule.interval, automaticEnabled: rule.enabled,
+      return { total: matches.length, switches: this.overrideMode ? 'adventure' : 'shared', routines: matches.slice(0, 20).map(rule => ({
+        id: rule.id, name: rule.name, interval: rule.interval, automaticEnabled: this.isEnabled(rule),
+        ...(this.overrideMode ? { sharedEnabled: rule.enabled } : {}),
         summary: rule.instruction.slice(0, 120)
       })) };
     }
@@ -298,7 +444,7 @@
     exportRules() { return exportRules(this.rules); }
 
     async observe(detail) {
-      if (this.destroyed || !this.rules.some(rule => rule.enabled)) return;
+      if (this.destroyed || !this.rules.some(rule => this.isEnabled(rule))) return;
       if (detail?.shortId && detail.shortId !== this.adventureId) return;
       let next = actionCount(detail);
       if (next === null) return;
@@ -307,7 +453,7 @@
       if (!Number.isSafeInteger(next) || this.destroyed) return;
       this.count = Math.max(this.count ?? 0, next);
       for (const rule of this.rules) {
-        if (!rule.enabled) continue;
+        if (!this.isEnabled(rule)) continue;
         const previous = this.observed.get(rule.id);
         this.observed.set(rule.id, Math.max(previous ?? next, next));
         const due = milestone(previous, next, rule.interval);
@@ -388,8 +534,9 @@
         const execute = async () => {
           if (this.destroyed || task.controller.signal.aborted) return;
           const latestRules = ((await this.get(KEY))?.routines || this.rules).map(item => validateRule(item));
+          await this.loadOverrides();
           const rule = latestRules.find(item => item.id === task.ruleId);
-          if (task.kind === 'routine' && !rule?.enabled) return;
+          if (task.kind === 'routine' && !(rule && this.isEnabled(rule))) return;
           if (task.kind === 'requested' && !rule) return;
           let state = await this.get(this.stateKey) || {};
           if (task.kind === 'routine') {
@@ -493,7 +640,7 @@
       for (const session of this.sessions.values()) session.destroy();
     }
   }
-  Object.assign(NavigatorRoutines, { KEY, MAX_FILE_BYTES, templates, legacyDefaults: LEGACY_DEFAULTS, validateRule, parseImport, exportRules, milestone, actionCount, createId: id });
+  Object.assign(NavigatorRoutines, { KEY, OVERRIDES_PREFIX, TEMPLATE_CATALOG_VERSION, MAX_FILE_BYTES, templates, legacyDefaults: LEGACY_DEFAULTS, retiredTemplates: RETIRED_TEMPLATES, validateRule, parseImport, exportRules, milestone, actionCount, createId: id });
   globalThis.NavigatorRoutines = NavigatorRoutines;
   if (typeof module !== 'undefined') module.exports = NavigatorRoutines;
 })();

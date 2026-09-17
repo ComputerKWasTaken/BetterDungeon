@@ -709,12 +709,12 @@
       },
       getURL: function (path) {
         // In the main WebView (https:// origin), file:/// URLs are blocked
-        // by the browser security model. For image assets, use the native
+        // by the browser security model. For media assets, use the native
         // bridge to return a base64 data URI instead.
         if (window.location.protocol === 'https:' &&
             window.BetterDungeonBridge &&
             typeof window.BetterDungeonBridge.getAssetDataUri === 'function' &&
-            /\.(png|jpe?g|gif|svg|webp|ico)$/i.test(path)) {
+            /\.(png|jpe?g|gif|svg|webp|ico|ogg|mp3|wav)$/i.test(path)) {
           try {
             var dataUri = window.BetterDungeonBridge.getAssetDataUri(path);
             if (dataUri) return dataUri;

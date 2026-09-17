@@ -47,7 +47,7 @@ function session(log, name, gate = null) {
 
 async function harness({ initialCount = 0, rules = [rule()], store, lockManager, android = false, gate = null, adventure = 'adventure' } = {}) {
   const log = [];
-  store ||= storage({ [Routines.KEY]: { version: 1, templateCatalogVersion: 5, routines: rules } });
+  store ||= storage({ [Routines.KEY]: { version: 1, templateCatalogVersion: Routines.TEMPLATE_CATALOG_VERSION, routines: rules } });
   const chat = session(log, 'chat');
   let serverCount = initialCount;
   const runner = new Routines(adventure, chat, {
@@ -474,4 +474,80 @@ test('real Navigator sessions isolate rule histories and expire approvals on rel
   assert.equal(restored.getMessages().at(-1).status, 'aborted');
   assert.equal(restored.isBusy, false);
   [chat, routine, restored].forEach(s => s.destroy());
+});
+
+test('prior catalog instructions upgrade only untouched, disabled copies to the current templates', async () => {
+  const retired = Routines.retiredTemplates.map((template, index) => ({
+    id: `prior-${index}`, name: template.name, interval: template.interval, instruction: template.instruction, enabled: false
+  }));
+  const store = storage({ [Routines.KEY]: { version: 1, templateCatalogVersion: 5, routines: retired } });
+  const h = await harness({ store });
+  const current = Routines.templates();
+  assert.equal(h.runner.rules.length, current.length);
+  for (const [index, template] of current.entries()) {
+    const updated = h.runner.rules[index];
+    assert.equal(updated.id, `prior-${index}`);
+    assert.equal(updated.name, template.name);
+    assert.equal(updated.instruction, template.instruction);
+    assert.equal(updated.enabled, false);
+  }
+  h.runner.destroy();
+
+  const kept = { id: 'kept', name: retired[1].name, interval: retired[1].interval, instruction: retired[1].instruction, enabled: true };
+  const edited = { id: 'edited', name: retired[1].name, interval: retired[1].interval, instruction: 'My own instructions.', enabled: false };
+  const second = await harness({ store: storage({ [Routines.KEY]: { version: 1, templateCatalogVersion: 5, routines: [kept, edited] } }) });
+  assert.equal(second.runner.rules.find(item => item.id === 'kept').instruction, retired[1].instruction);
+  assert.equal(second.runner.rules.find(item => item.id === 'edited').instruction, edited.instruction);
+  second.runner.destroy();
+});
+
+test('adventure switches give one adventure its own Enabled state without changing the shared switches', async () => {
+  const store = storage({ [Routines.KEY]: { version: 1, templateCatalogVersion: Routines.TEMPLATE_CATALOG_VERSION, routines: [rule()] } });
+  const lockManager = locks();
+  const a = await harness({ store, lockManager });
+  const b = await harness({ store, lockManager, adventure: 'other' });
+  const cards = a.runner.rules.find(item => item.id === 'cards');
+  await a.runner.setAdventureSwitches(true);
+  assert.equal(a.runner.overrideMode, true);
+  assert.equal(a.runner.isEnabled(cards), true);
+  await a.runner.setRuleEnabled(cards, false);
+  assert.equal(a.runner.isEnabled(cards), false);
+  assert.equal(store.values[Routines.KEY].routines[0].enabled, true);
+  assert.equal(b.runner.isEnabled(b.runner.rules.find(item => item.id === 'cards')), true);
+  await a.runner.observe(event(5));
+  await b.runner.observe({ ...event(5), shortId: 'other' });
+  await idle(a.runner, b.runner);
+  assert.deepEqual(a.log, []);
+  assert.deepEqual(b.log, ['cards']);
+  await a.runner.setRuleEnabled(cards, true);
+  await a.runner.observe(event(10));
+  await idle(a.runner);
+  assert.deepEqual(a.log, ['cards']);
+  await a.runner.setAdventureSwitches(false);
+  assert.equal(a.runner.overrideMode, false);
+  assert.equal(a.runner.isEnabled(cards), true);
+  [a, b].forEach(h => h.runner.destroy());
+});
+
+test('adventure switches persist across reopening and scope new Routines to this adventure', async () => {
+  const h = await harness();
+  await h.runner.setAdventureSwitches(true);
+  await h.runner.saveScopedRule({ id: Routines.createId(), name: 'Local', instruction: 'Track local details.', interval: 5, enabled: true });
+  const stored = h.store.values[Routines.KEY].routines.find(item => item.name === 'Local');
+  assert.equal(stored.enabled, false);
+  const local = h.runner.rules.find(item => item.name === 'Local');
+  assert.equal(h.runner.isEnabled(local), true);
+  h.runner.destroy();
+  const reopened = await harness({ store: h.store });
+  assert.equal(reopened.runner.overrideMode, true);
+  assert.equal(reopened.runner.isEnabled(reopened.runner.rules.find(item => item.name === 'Local')), true);
+  assert.equal(reopened.runner.isEnabled(reopened.runner.rules.find(item => item.id === 'cards')), true);
+  const elsewhere = await harness({ store: h.store, adventure: 'other' });
+  assert.equal(elsewhere.runner.overrideMode, false);
+  assert.equal(elsewhere.runner.isEnabled(elsewhere.runner.rules.find(item => item.name === 'Local')), false);
+  const listed = reopened.runner.listForNavigator('Local');
+  assert.equal(listed.switches, 'adventure');
+  assert.equal(listed.routines[0].automaticEnabled, true);
+  assert.equal(listed.routines[0].sharedEnabled, false);
+  reopened.runner.destroy(); elsewhere.runner.destroy();
 });

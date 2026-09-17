@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src file: data:; font-src file:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src file: data:; frame-src file:; font-src file:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'">
   <title>BetterDungeon — Store artwork</title>
   <style>/*__STYLES__*/</style>
 </head>
 <body>
   <main class="artboard">
     <header class="brand"><img class="brand-mark" alt=""><span class="wordmark">Better<span>Dungeon</span></span></header>
-    <h1></h1>
+    <section class="caption"><h1></h1><ul></ul></section>
     <figure class="product-frame"><img class="product-capture" alt="BetterDungeon in AI Dungeon"></figure>
   </main>
   <script>
@@ -20,13 +20,29 @@
     document.documentElement.style.setProperty('--canvas-height', `${data.height}px`);
     document.body.className = data.kind;
     document.querySelector('.brand-mark').src = data.brandMark;
-    document.querySelector('h1').textContent = data.headline || '';
-    if (data.capture) {
-      document.querySelector('.product-capture').src = data.capture;
-      document.querySelector('.product-capture').style.objectPosition = data.position || 'center';
+    if (data.kind === 'screenshot') {
+      document.querySelector('h1').textContent = data.headline;
+      for (const bullet of data.bullets) {
+        const item = document.createElement('li');
+        item.textContent = bullet;
+        document.querySelector('.caption ul').append(item);
+      }
+      const frame = document.querySelector('.product-frame');
+      if (data.source === 'popup-ai') {
+        const popup = document.createElement('iframe');
+        popup.className = 'popup-capture';
+        popup.src = data.capture;
+        popup.addEventListener('load', () => {
+          popup.contentDocument?.querySelector('[data-tab="ai"]')?.click();
+        });
+        frame.replaceChildren(popup);
+      } else {
+        document.querySelector('.product-capture').src = data.capture;
+        document.querySelector('.product-capture').style.objectPosition = data.position || 'center';
+      }
     } else {
+      document.querySelector('.caption').remove();
       document.querySelector('.product-frame').remove();
-      document.querySelector('h1').remove();
     }
     const font = new FontFace('IBM Plex Sans', `url("${data.font}")`, { weight: '100 700' });
     document.fonts.add(font);

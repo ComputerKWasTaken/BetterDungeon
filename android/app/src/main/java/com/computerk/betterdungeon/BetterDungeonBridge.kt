@@ -262,6 +262,9 @@ class BetterDungeonBridge(private val context: Context) {
                 path.endsWith(".svg", ignoreCase = true) -> "image/svg+xml"
                 path.endsWith(".webp", ignoreCase = true) -> "image/webp"
                 path.endsWith(".ico", ignoreCase = true) -> "image/x-icon"
+                path.endsWith(".ogg", ignoreCase = true) -> "audio/ogg"
+                path.endsWith(".mp3", ignoreCase = true) -> "audio/mpeg"
+                path.endsWith(".wav", ignoreCase = true) -> "audio/wav"
                 else -> "application/octet-stream"
             }
             "data:$mimeType;base64,$base64"

@@ -3342,6 +3342,91 @@ html.bd-story-card-dock-active > body {
   outline: 2px solid var(--bd-accent-primary);
   outline-offset: 2px;
 }
+.bd-routine-scope {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bd-space-2);
+  min-width: 0;
+  min-inline-size: 0;
+  margin: var(--bd-space-4) 0 0;
+  padding: var(--bd-space-2) var(--bd-space-3);
+  border: 1px solid var(--bd-border-default);
+  border-radius: var(--bd-radius-lg);
+  background: var(--bd-surface-raised);
+}
+.bd-routine-scope-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--bd-space-2);
+  min-width: 0;
+  color: var(--bd-text-secondary);
+  font-size: var(--bd-font-size-sm);
+}
+.bd-routine-scope-value {
+  color: var(--bd-text-primary);
+  font-size: var(--bd-font-size-xs);
+  font-weight: var(--bd-font-weight-semibold);
+  white-space: nowrap;
+}
+.bd-routine-scope .bd-routine-hint { margin: 0; }
+.bd-routine-scope-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 3px;
+  border: 1px solid var(--bd-border-subtle);
+  border-radius: var(--bd-radius-lg);
+  background: var(--bd-bg-secondary);
+}
+.bd-routine-scope-option {
+  position: relative;
+  display: block;
+  min-width: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.bd-routine-scope-option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.bd-routine-scope-segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 34px;
+  padding: 0 var(--bd-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--bd-radius-md);
+  color: var(--bd-text-muted);
+  font-size: var(--bd-font-size-md);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease;
+}
+.bd-routine-scope-option:hover .bd-routine-scope-segment {
+  background: var(--bd-tag-hover-bg);
+  color: var(--bd-text-primary);
+}
+.bd-routine-scope-option input:checked + .bd-routine-scope-segment {
+  border-color: var(--bd-border-accent);
+  background: var(--bd-accent-muted);
+  color: var(--bd-accent-light);
+}
+.bd-routine-scope-option input:focus-visible + .bd-routine-scope-segment {
+  outline: none;
+  box-shadow: var(--bd-input-focus-ring);
+}
 .bd-routine-preview {
   color: var(--bd-text-secondary);
   white-space: pre-wrap;
@@ -5002,7 +5087,8 @@ html[data-bd-form-factor="mobile"] .bd-routine-button { min-height: 40px; }
 
   .bd-navigator-tool-trail-chevron,
   .bd-navigator-inspection-disclosure > summary::after,
-  .bd-navigator-change-segment { transition: none; }
+  .bd-navigator-change-segment,
+  .bd-routine-scope-segment { transition: none; }
 
   .bd-navigator-tool-trail-region { transition: none; }
 
@@ -5288,6 +5374,7 @@ html[data-bd-platform="android-webview"] .bd-navigator-drawer.bd-navigator-embed
 html[data-bd-platform="android-webview"] .bd-navigator-drawer.bd-navigator-embedded .bd-navigator-quick-actions button,
 html[data-bd-platform="android-webview"] .bd-navigator-inspection-back,
 html[data-bd-platform="android-webview"] .bd-navigator-change-segment,
+html[data-bd-platform="android-webview"] .bd-routine-scope-segment,
 html[data-bd-platform="android-webview"] .bd-navigator-proposal-buttons button,
 html[data-bd-platform="android-webview"] .bd-navigator-send,
 html[data-bd-platform="android-webview"] .bd-navigator-stop {

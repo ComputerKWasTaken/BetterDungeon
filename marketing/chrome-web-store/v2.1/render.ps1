@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$BrowserPath,
-    [string]$Only
+    [string]$Only,
+    [switch]$RefreshSources
 )
 
 $ErrorActionPreference = 'Stop'
@@ -9,6 +10,9 @@ $sourceRoot = $PSScriptRoot
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $sourceRoot '../../..'))
 $renderRoot = Join-Path $sourceRoot '.render'
 $outputRoot = Join-Path $sourceRoot 'exports'
+$closeupWidth = 730
+$closeupHeight = 800
+$captionWidth = 550
 $utf8 = [Text.UTF8Encoding]::new($false)
 
 function Get-LocalAsset([string]$Base, [string]$Relative) {
@@ -54,10 +58,16 @@ foreach ($slide in $slides) {
     if ($slide.kind -eq 'screenshot' -and (([string]$slide.headline -split '\s+').Count -gt 6 -or -not $slide.headline)) {
         throw 'Screenshot headlines must contain one to six words.'
     }
+    if ($slide.kind -eq 'screenshot' -and (@($slide.bullets).Count -ne 3 -or -not $slide.capture)) {
+        throw "Screenshot $($slide.id) requires three bullets and a local capture."
+    }
     $data = [ordered]@{ kind = $slide.kind; width = $slide.width; height = $slide.height; headline = $slide.headline; brandMark = $brand; font = $font }
     if ($slide.kind -eq 'screenshot') {
-        $data.capture = Get-LocalAsset $sourceRoot $slide.capture
+        $data.bullets = @($slide.bullets)
+        $captureBase = if ($slide.captureRoot -eq 'repo') { $repoRoot } else { $sourceRoot }
+        $data.capture = Get-LocalAsset $captureBase $slide.capture
         $data.position = $slide.position
+        $data.source = $slide.source
     }
     $encoded = [Convert]::ToBase64String($utf8.GetBytes(($data | ConvertTo-Json -Compress)))
     $html = $template.Replace('/*__STYLES__*/', $styles).Replace('/*__DATA__*/', $encoded)
@@ -67,7 +77,7 @@ foreach ($slide in $slides) {
     # A separate browser profile keeps rendering independent of the user's tabs.
     $arguments = @(
         '--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-background-networking',
-        '--disable-component-update', '--hide-scrollbars', '--force-device-scale-factor=1',
+        '--disable-component-update', '--hide-scrollbars', '--force-device-scale-factor=1', '--allow-file-access-from-files',
         '--run-all-compositor-stages-before-draw', '--virtual-time-budget=4000',
         "--user-data-dir=`"$(Join-Path $renderRoot 'browser-profile')`"",
         "--window-size=$($slide.width),$($slide.height)", "--screenshot=`"$pngPath`"", "`"$(([Uri]$pagePath).AbsoluteUri)`""
@@ -80,6 +90,33 @@ foreach ($slide in $slides) {
     $height = [Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($png, 20))
     if ($width -ne $slide.width -or $height -ne $slide.height) { throw "Incorrect PNG dimensions: $width x $height." }
     Write-Host "$($slide.id).png — $width x $height"
+}
+
+if ($RefreshSources) {
+    foreach ($slide in @($slides | Where-Object { $_.kind -eq 'screenshot' })) {
+        if (-not $slide.sourceCapture) { throw "Screenshot $($slide.id) needs sourceCapture when refreshing sources." }
+        $exportPath = Join-Path $outputRoot "$($slide.id).png"
+        $closeupPath = Join-Path $sourceRoot $slide.sourceCapture
+        $exportUri = ([Uri]$exportPath).AbsoluteUri
+        $closeupHtml = "<!doctype html><meta charset='utf-8'><style>html,body{margin:0;width:${closeupWidth}px;height:${closeupHeight}px;overflow:hidden;background:#0f0e11}img{display:block;width:1280px;height:800px;transform:translateX(-${captionWidth}px)}</style><img src='$exportUri' alt=''>"
+        $closeupPage = Join-Path $renderRoot "$($slide.id)-source.html"
+        [IO.File]::WriteAllText($closeupPage, $closeupHtml, $utf8)
+        $arguments = @(
+            '--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-background-networking',
+            '--disable-component-update', '--hide-scrollbars', '--force-device-scale-factor=1', '--allow-file-access-from-files',
+            '--run-all-compositor-stages-before-draw', '--virtual-time-budget=1000',
+            "--user-data-dir=`"$(Join-Path $renderRoot 'browser-profile')`"",
+            "--window-size=$closeupWidth,$closeupHeight", "--screenshot=`"$closeupPath`"", "`"$(([Uri]$closeupPage).AbsoluteUri)`""
+        )
+        $process = Start-Process -FilePath $BrowserPath -ArgumentList $arguments -PassThru -WindowStyle Hidden -RedirectStandardError (Join-Path $renderRoot 'browser.log')
+        if (-not $process.WaitForExit(30000)) { $process.Kill(); throw 'Close-up export exceeded 30 seconds.' }
+        if ($process.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $closeupPath)) { throw "Close-up export failed: $($slide.id)." }
+        $png = [IO.File]::ReadAllBytes($closeupPath)
+        $width = [Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($png, 16))
+        $height = [Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($png, 20))
+        if ($width -ne $closeupWidth -or $height -ne $closeupHeight) { throw "Incorrect close-up dimensions: $width x $height." }
+        Write-Host "$($slide.sourceCapture) — $width x $height"
+    }
 }
 
 $cards = foreach ($slide in $catalog.slides) {

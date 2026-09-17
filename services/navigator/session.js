@@ -854,7 +854,7 @@
           '=== NAVIGATOR CHANGES ===',
           'You may change Plot Components, Third Person, Story Cards, and Memory Bank edits/deletes through the change tools.',
           ...modeLines,
-          'Story Card changes use stable card IDs; Memory Bank changes use stable memory IDs. Navigator can edit/delete memories but cannot create them.',
+          'Story Card changes use stable card IDs. When an existing card covers the subject, revise it with propose_story_card_update instead of creating a new card; reserve propose_story_card_create for subjects no current card covers. Memory Bank changes use stable memory IDs. Navigator can edit/delete memories but cannot create them.',
         ].join('\n'));
       }
       if (routineRunAvailable) sections.push('\n=== NAVIGATOR ROUTINES ===\nWhen the player explicitly asks you to run a saved Routine, identify it with list_routines and call run_routine once per requested Routine. The request is queued behind this chat response and runs with current adventure context in that Routine’s separate conversation. Report only that it was queued, not that the work is complete, then direct the player to Activity. The Enabled toggle controls automatic action-count milestones; an off Routine can still be run on request, and asking does not enable it.');

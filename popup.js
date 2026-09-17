@@ -188,6 +188,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initModeColors();
   initUltrascriptsSettings();
   initWhatsNew();
+  initUpdateCheck();
   initCollapsibleSections();
   initFeatureSearch();
   initQuickToggles();
@@ -2512,6 +2513,130 @@ function initWhatsNew() {
       selectRelease(versionTabs[nextIndex].dataset.whatsNewVersion, true);
     });
   });
+}
+
+// ============================================
+// UPDATE CHECK
+// ============================================
+
+let updateStatusCache = null;
+
+function renderUpdateStatus(status) {
+  const banner = document.getElementById('update-banner');
+  const row = document.getElementById('update-checks-row');
+  if (!banner || !status) return;
+
+  const show = status.shouldNotify === true;
+  banner.hidden = !show;
+  if (show) {
+    const titleEl = document.getElementById('update-banner-title');
+    const detailEl = document.getElementById('update-banner-detail');
+    const viewLabel = document.getElementById('update-banner-view-label');
+    if (titleEl) titleEl.textContent = `BetterDungeon v${status.latestVersion} is available`;
+    if (detailEl) {
+      const hint = status.channel === 'android'
+        ? 'Download the latest APK from GitHub Releases.'
+        : 'A new release is available on GitHub.';
+      detailEl.textContent = status.releaseName ? `${status.releaseName} — ${hint}` : hint;
+    }
+    if (viewLabel) viewLabel.textContent = status.channel === 'android' ? 'Download' : 'View';
+  }
+
+  if (row) {
+    row.hidden = !status.manual;
+    const toggle = document.getElementById('update-checks-toggle');
+    if (toggle) toggle.checked = status.enabled !== false;
+  }
+}
+
+async function sendUpdateCheckOp(op, extra = {}) {
+  const updateCheck = window.BetterDungeonUpdateCheck;
+  if (!updateCheck) return null;
+
+  // Android has no background worker — run the module directly in the popup.
+  if (window.BetterDungeonPlatform?.kind === 'android-webview') {
+    try {
+      if (op === 'status') return await updateCheck.getStatus();
+      if (op === 'checkNow') return await updateCheck.checkNow();
+      if (op === 'checkIfDue') return await updateCheck.checkIfDue();
+      if (op === 'dismiss') return await updateCheck.dismiss(extra.version);
+      if (op === 'setEnabled') return await updateCheck.setEnabled(extra.enabled);
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  try {
+    const response = await window.BetterDungeonPlatform.runtime.sendMessage({
+      type: updateCheck.MESSAGE_TYPE,
+      op,
+      ...extra
+    });
+    return response?.ok ? response.data : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function initUpdateCheck() {
+  const banner = document.getElementById('update-banner');
+  if (!banner || !window.BetterDungeonUpdateCheck) return;
+
+  document.getElementById('update-banner-view')?.addEventListener('click', () => {
+    const url = updateStatusCache?.downloadUrl || updateStatusCache?.releaseUrl;
+    if (url) popupExtension.tabs.create({ url });
+  });
+
+  document.getElementById('update-banner-dismiss')?.addEventListener('click', async () => {
+    banner.hidden = true;
+    const status = await sendUpdateCheckOp('dismiss', { version: updateStatusCache?.latestVersion });
+    if (status) {
+      updateStatusCache = status;
+      renderUpdateStatus(status);
+    }
+  });
+
+  document.getElementById('update-checks-toggle')?.addEventListener('change', async (event) => {
+    const enabled = event.target.checked;
+    const status = await sendUpdateCheckOp('setEnabled', { enabled });
+    if (status) {
+      updateStatusCache = status;
+      renderUpdateStatus(status);
+    }
+    showToast(`Update checks ${enabled ? 'enabled' : 'disabled'}`, 'success');
+  });
+
+  document.getElementById('update-check-now')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      const status = await sendUpdateCheckOp('checkNow');
+      if (status) {
+        updateStatusCache = status;
+        renderUpdateStatus(status);
+        showToast(
+          status.updateAvailable ? `v${status.latestVersion} is available` : 'You are on the latest release',
+          status.updateAvailable ? 'success' : 'info'
+        );
+      }
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  sendUpdateCheckOp('status')
+    .then((status) => {
+      if (!status) return null;
+      updateStatusCache = status;
+      renderUpdateStatus(status);
+      return status.manual ? sendUpdateCheckOp('checkIfDue') : null;
+    })
+    .then((status) => {
+      if (!status) return;
+      updateStatusCache = status;
+      renderUpdateStatus(status);
+    });
 }
 
 // ============================================

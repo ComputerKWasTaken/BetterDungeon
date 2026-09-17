@@ -1,6 +1,6 @@
 # BetterDungeon Privacy Policy
 
-Effective date: September 14, 2026
+Effective date: September 15, 2026
 
 BetterDungeon is a browser extension and Android app that adds features to AI Dungeon. This policy explains the data BetterDungeon handles when you use those features. BetterDungeon does not operate an account system or a developer-controlled server that receives your adventure data, API keys, or usage analytics. It does not sell your data or use it for advertising.
 
@@ -16,6 +16,7 @@ BetterDungeon stores this information in browser extension storage or, on Androi
 - **Your selected AI provider:** If you configure and use an AI feature, BetterDungeon sends the request to your selected provider: Google's Gemini API, Mistral, OpenRouter, or a custom HTTPS endpoint you configure. Requests can contain your prompt, relevant adventure content, Navigator or Routine instructions, and information supplied by a permitted Ultrascript. The API key you provide is sent to its provider to authenticate the request. If Advanced-provider fallback is available and you have configured Gemini, the same request may also be sent to Google after the first provider fails. Each provider handles received data under its own terms and privacy policy. AI features can also run automatically when you enable a Navigator Routine.
 - **Weather:** When an Ultrascript uses BetterDungeon's Weather module, the requested place name or coordinates are sent to Open-Meteo for geocoding or forecast data.
 - **Script-selected web requests:** BetterDungeon's WebFetch module lets a permitted Ultrascript make bounded requests to public HTTPS destinations selected by that script. The destination receives the requested URL, including any information the script puts in it, and ordinary network information such as your IP address. WebFetch does not attach your browser cookies or authentication headers.
+- **Update checks:** On installs that did not come from a browser store — the Android app and manually installed extension copies — BetterDungeon periodically requests public release metadata (version tag and download links) from the GitHub Releases API to tell you when a newer release exists. The request sends no personal information; GitHub receives ordinary network information such as your IP address. You can turn this off from the update-checks toggle in the popup's What's New section.
 - **Browser sync:** If your browser syncs extension preferences, your browser provider processes the synced settings according to its own privacy policy. AI-provider keys and the locally stored adventure data described above are not placed in browser sync storage by BetterDungeon.
 
 Opening an external link in BetterDungeon, such as the AI-provider key pages or BetterRepository, takes you to that site's own service and privacy policy. BetterDungeon does not send your stored adventure data to those sites merely because you open a link.

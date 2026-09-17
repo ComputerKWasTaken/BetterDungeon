@@ -3,7 +3,7 @@
   'use strict';
   const KEY = 'betterdungeon_ai_config_v2';
   const LEGACY_KEY = 'ultrascripts_ai_endpoint_config_v1';
-  const consumers = ['navigator', 'ultrascripts', 'characterPresets', 'ambience'];
+  const consumers = ['navigator', 'ultrascripts', 'characterPresets'];
   const flash = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
   const gemma = ['gemma-4-31b-it', 'gemma-4-26b-a4b-it'];
   const mistral = [
@@ -65,7 +65,7 @@
       const s = settings(config, tier);
       return s.service === 'mistral' && s.modelMode === 'auto' ? mistral.map(m => m.id) : [s.model];
     }
-    const utility = ['characterPresets', 'ambience'].includes(consumerId(consumer));
+    const utility = consumerId(consumer) === 'characterPresets';
     const preferred = utility ? gemma : flash;
     const fallback = utility ? flash : gemma;
     return [...preferred, ...(config.simple.quotaStrategy === 'shared' ? fallback : [])]

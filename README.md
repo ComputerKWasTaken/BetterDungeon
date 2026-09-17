@@ -57,6 +57,8 @@ Android builds are distributed through the [GitHub Releases](../../releases) pag
 4. Click **Load unpacked** and select the BetterDungeon directory.
 5. Open [AI Dungeon](https://play.aidungeon.com/) and start playing.
 
+Manual ZIP and APK installs periodically check [GitHub Releases](../../releases) for newer versions and flag them in the BetterDungeon popup. Store installs update automatically and never check; the check can be disabled from the What's New section.
+
 ## The feature lineup
 
 ### Make writing feel better
