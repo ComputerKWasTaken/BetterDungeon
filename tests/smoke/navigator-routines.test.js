@@ -204,6 +204,44 @@ test('the feature script entry bootstraps real platform storage before Routines,
   runner.destroy();
 });
 
+test('Navigator schedules menu and viewport updates with the Window receiver required by Firefox', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../../features/navigator_feature.js'), 'utf8');
+  for (const animationFrames of [true, false]) {
+    const pending = [];
+    const context = { enqueue: callback => pending.push(callback), window: {
+      BetterDungeonPlatform: { has: capability => capability === 'imeViewportHandling' },
+    }, document: { createElement: () => ({ querySelector: () => ({ addEventListener() {} }) }) } };
+    vm.createContext(context);
+    vm.runInContext(`
+      window.${animationFrames ? 'requestAnimationFrame' : 'setTimeout'} = function (callback) {
+        'use strict';
+        if (this !== window) throw new TypeError('requestAnimationFrame requires a Window receiver');
+        return enqueue(callback);
+      };
+    `, context);
+    vm.runInContext(source, context);
+    const feature = new context.window.NavigatorFeature();
+    let menus = 0, viewports = 0, overflows = 0;
+    feature.currentAdventureId = 'adventure';
+    feature.drawer = {};
+    feature.syncSettingsIntegration = () => { menus++; };
+    feature.syncVisualViewport = () => { viewports++; };
+    feature.updateSettingsTabOverflow = () => { overflows++; };
+    feature.scheduleSettingsIntegrationSync();
+    feature.scheduleSettingsIntegrationSync();
+    assert.equal(pending.length, 1, 'menu updates stay coalesced');
+    feature.scheduleVisualViewportSync();
+    const tablist = { parentElement: { classList: { contains: () => false, add() {} }, appendChild() {} }, addEventListener() {} };
+    feature.createSettingsTabOverflowControls(tablist);
+    assert.equal(pending.length, 3);
+    for (const callback of pending.splice(0)) callback();
+    assert.deepEqual([menus, viewports, overflows], [1, 1, 1]);
+    feature.scheduleSettingsIntegrationSync();
+    pending.shift()();
+    assert.equal(menus, 2, 'later menu rendering can schedule another update');
+  }
+});
+
 test('a missing platform reports a recoverable startup error instead of preventing the Navigator UI', async () => {
   const runner = new Routines('adventure', session([], 'chat'));
   await runner.init();
