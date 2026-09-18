@@ -16,6 +16,8 @@ const packageEntries = fs.readFileSync(path.join(root, 'build', 'extension-files
   .map(value => value.trim())
   .filter(value => value && !value.startsWith('#'));
 const platformSource = fs.readFileSync(path.join(root, 'utils', 'platform.js'), 'utf8');
+const adventureReadSource = fs.readFileSync(path.join(root, 'services', 'adventure-read-service.js'), 'utf8');
+const storyCardScannerSource = fs.readFileSync(path.join(root, 'services', 'story-card-scanner.js'), 'utf8');
 
 function loadPlatform(overrides = {}) {
   const listeners = new Map();
@@ -35,6 +37,39 @@ function loadPlatform(overrides = {}) {
   context.globalThis = context;
   vm.runInNewContext(platformSource, context, { filename: 'utils/platform.js' });
   return { context, listeners, platform: context.BetterDungeonPlatform };
+}
+
+function loadAdventureReadService({ apolloData, graphqlCards }) {
+  const calls = { storyCards: 0 };
+  const context = {
+    console,
+    Promise,
+    Error,
+    Set,
+    AbortController,
+    location: { hostname: 'play.aidungeon.com', pathname: '/adventure/adv1' },
+    document: { addEventListener() {} },
+    Ultrascripts: {
+      ws: {
+        getAdventureShortId: () => 'adv1',
+        getActions: () => [],
+        getCards: () => []
+      }
+    },
+    BetterDungeonApolloCache: {
+      readAdventure: async () => ({ available: true, data: apolloData })
+    },
+    BetterDungeonGQL: {
+      getNavigatorStoryCards: async () => {
+        calls.storyCards += 1;
+        return { cards: graphqlCards };
+      }
+    }
+  };
+  context.window = context;
+  context.globalThis = context;
+  vm.runInNewContext(adventureReadSource, context, { filename: 'services/adventure-read-service.js' });
+  return { service: context.window.BetterDungeonAdventureRead, calls, context };
 }
 
 function includedByPackage(relativePath) {
@@ -165,4 +200,64 @@ test('Android runtime sources resolve and release-only files stay untracked', ()
     /(^|\/)(?:dist|\.build)(?:\/|$)|^android\/(?:.+\/)?build(?:\/|$)|\.(?:apk|aab|jks|keystore)$/im,
     'generated packages and signing files must not be tracked'
   );
+});
+
+test('adventure read falls back to GraphQL story cards when Apollo is incomplete', async () => {
+  const graphqlCards = [
+    { id: 'g1', type: 'character', title: 'Graph One', description: 'first', keys: 'alpha,beta', value: 'Graph One entry' },
+    { id: 'g2', type: 'location', title: 'Graph Two', description: 'second', keys: 'gamma', value: 'Graph Two entry' }
+  ];
+  const apolloData = storyCards => ({
+    adventure: { id: 'a1', shortId: 'adv1', title: 'Adventure', actionCount: 0, storyCardCount: 2 },
+    state: {},
+    storyCards,
+    actions: []
+  });
+
+  const empty = loadAdventureReadService({ apolloData: apolloData([]), graphqlCards });
+  const emptyRead = await empty.service.readAdventure({ shortId: 'adv1' });
+  assert.equal(empty.calls.storyCards, 1);
+  assert.deepEqual(Array.from(emptyRead.storyCards).map(card => card.id), ['g1', 'g2']);
+  assert.equal(emptyRead.provenance.storyCards.source, 'graphql');
+
+  const partial = loadAdventureReadService({ apolloData: apolloData([{ id: 'a1' }]), graphqlCards });
+  const partialRead = await partial.service.readCards({ shortId: 'adv1' });
+  assert.equal(partial.calls.storyCards, 1);
+  assert.deepEqual(Array.from(partialRead.cards).map(card => card.id), ['g1', 'g2']);
+  assert.equal(partialRead.provenance.source, 'graphql');
+
+  const complete = loadAdventureReadService({
+    apolloData: apolloData([{ id: 'a1' }, { id: 'a2' }]),
+    graphqlCards
+  });
+  const completeRead = await complete.service.readAdventure({ shortId: 'adv1' });
+  assert.equal(complete.calls.storyCards, 0);
+  assert.deepEqual(Array.from(completeRead.storyCards).map(card => card.id), ['a1', 'a2']);
+  assert.equal(completeRead.provenance.storyCards.source, 'apollo');
+});
+
+test('story card scanner consumes the shared adventure read fallback chain', async () => {
+  const graphqlCards = [
+    { id: 'g1', type: 'character', title: 'Graph One', keys: 'alpha,beta', value: 'Graph One entry' },
+    { id: 'g2', type: 'location', title: 'Graph Two', keys: 'gamma', value: 'Graph Two entry' }
+  ];
+  const harness = loadAdventureReadService({
+    apolloData: {
+      adventure: { id: 'a1', shortId: 'adv1', title: 'Adventure', actionCount: 0, storyCardCount: 2 },
+      state: {},
+      storyCards: [],
+      actions: []
+    },
+    graphqlCards
+  });
+  vm.runInNewContext(storyCardScannerSource, harness.context, { filename: 'services/story-card-scanner.js' });
+  const scanner = new harness.context.StoryCardScanner();
+  const result = await scanner.scanAllCards();
+  assert.equal(result.success, true);
+  assert.equal(result.source, 'graphql');
+  assert.equal(result.scannedCount, 2);
+  assert.equal(harness.calls.storyCards, 1);
+  const analytics = scanner.getAnalytics();
+  assert.equal(analytics.totalCards, 2);
+  assert.equal(analytics.withTriggers, 2);
 });

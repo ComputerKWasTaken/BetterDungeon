@@ -72,6 +72,12 @@
     });
   }
 
+  function isCardSetComplete(cards, expectedTotal) {
+    if (!Array.isArray(cards) || cards.length === 0) return false;
+    if (Number.isFinite(expectedTotal) && expectedTotal > 0 && cards.length < expectedTotal) return false;
+    return true;
+  }
+
   function normalizeAction(action) {
     const id = numericId(action?.id);
     const text = stringValue(action?.text).trim();
@@ -322,9 +328,11 @@
     }
 
     let cards = null;
-    if (!internal.actionsOnly && !internal.cardsOnly) {
-      cards = apolloSnapshot?.storyCards || null;
-      if (cards) {
+    if (!internal.actionsOnly) {
+      const apolloCards = apolloSnapshot?.storyCards || null;
+      const expectedCardTotal = apolloSnapshot?.identity?.storyCardCount;
+      if (isCardSetComplete(apolloCards, expectedCardTotal)) {
+        cards = apolloCards;
         provenance.storyCards.source = 'apollo';
       } else if (gql?.getNavigatorStoryCards) {
         try {
@@ -357,9 +365,6 @@
           normalNotFound: apolloNotFound,
         });
       }
-    } else if (internal.cardsOnly) {
-      cards = apolloSnapshot?.storyCards || [];
-      provenance.storyCards.source = apolloSnapshot ? 'apollo' : 'unavailable';
     } else {
       cards = [];
       provenance.storyCards.source = 'not_read';

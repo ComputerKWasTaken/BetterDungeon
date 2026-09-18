@@ -63,84 +63,13 @@ class StoryCardScanner {
     return window.storyCardCache || null;
   }
 
-  getWsStoryCards() {
-    const cards = window.Ultrascripts?.ws?.getCards?.();
-    if (!cards) return [];
-    return cards instanceof Map ? Array.from(cards.values()) : Array.from(cards);
-  }
-
-  async getApolloStoryCards(shortId) {
+  async readStoryCards(shortId) {
     const reader = window.BetterDungeonAdventureRead;
-    if (!reader?.readCards) return null;
-    try {
-      const snapshot = await reader.readCards({
-        shortId,
-        signal: this.abortController?.signal,
-      });
-      if (snapshot.provenance?.source !== 'apollo') return null;
-      const cards = Array.isArray(snapshot.cards) ? snapshot.cards : [];
-      const expectedTotal = Number(snapshot.coverage?.authoritativeTotal);
-      return { cards, expectedTotal: Number.isFinite(expectedTotal) ? expectedTotal : null };
-    } catch (error) {
-      if (error?.name === 'AbortError' || this.abortController?.signal.aborted) throw error;
-      this.log('Apollo Story Card read unavailable; using existing fallback chain.');
-      return null;
-    }
-  }
-
-  // A cached card set is only trusted when it is non-empty and, where the
-  // adventure advertises a total, at least matches it. Apollo can hold the
-  // adventure entity before its story card refs resolve, which reports zero
-  // cards for a story that has plenty - and an empty set used to end the
-  // lookup here rather than falling through to a source that has them.
-  isCardSetComplete(cards, expectedTotal) {
-    if (!Array.isArray(cards) || cards.length === 0) return false;
-    if (Number.isFinite(expectedTotal) && expectedTotal > 0 && cards.length < expectedTotal) return false;
-    return true;
-  }
-
-  async fetchStoryCardsViaGraphQL(shortId) {
-    const gql = window.BetterDungeonGQL;
-    if (!gql?.request) {
-      throw new Error('GraphQL service unavailable');
-    }
-
-    const result = await gql.request(
-      'GetBetterDungeonStoryCards',
-      { shortId },
-      window.BetterDungeonGQLService?.QUERIES?.storyCards || `query GetBetterDungeonStoryCards($shortId: String) {
-        adventure(shortId: $shortId) {
-          id
-          shortId
-          storyCardCount
-          storyCards {
-            id
-            type
-            title
-            description
-            keys
-            value
-            deletedAt
-            updatedAt
-            useForCharacterCreation
-            __typename
-          }
-          __typename
-        }
-      }`,
-      { timeoutMs: 30000, signal: this.abortController?.signal }
-    );
-
-    const adventure = result?.data?.adventure;
-    if (!adventure) {
-      throw new Error('GraphQL story-card lookup returned no adventure data.');
-    }
-    const cards = Array.isArray(adventure.storyCards) ? adventure.storyCards : [];
-    const advertised = Number(adventure.storyCardCount);
-    if (Number.isFinite(advertised) && cards.length < advertised) {
-      this.log(`Adventure advertises ${advertised} story cards but GraphQL returned ${cards.length}.`);
-    }
-    return cards;
+    if (!reader?.readCards) throw new Error('The BetterDungeon adventure reader is unavailable.');
+    return reader.readCards({
+      shortId,
+      signal: this.abortController?.signal,
+    });
   }
 
   async scanAllCards(onTriggerFound = null, onProgress = null, onCardScanned = null) {
@@ -158,32 +87,14 @@ class StoryCardScanner {
         return { success: false, error: 'Adventure shortId is unknown' };
       }
 
-      const apollo = await this.getApolloStoryCards(shortId);
-      const expectedTotal = apollo?.expectedTotal ?? null;
-
-      let cards;
-      let source;
-      if (apollo && this.isCardSetComplete(apollo.cards, expectedTotal)) {
-        cards = apollo.cards;
-        source = 'apollo';
-      } else {
-        const wsCards = this.getWsStoryCards();
-        if (this.isCardSetComplete(wsCards, expectedTotal)) {
-          cards = wsCards;
-          source = 'ws';
-        } else {
-          cards = await this.fetchStoryCardsViaGraphQL(shortId);
-          source = 'graphql';
-        }
-      }
-
+      const snapshot = await this.readStoryCards(shortId);
       return this.consumeStoryCards(
-        cards,
+        snapshot.cards,
         shortId,
         onTriggerFound,
         onProgress,
         onCardScanned,
-        source
+        snapshot.provenance?.source || 'unavailable'
       );
     } catch (error) {
       if (error.name === 'AbortError' || this.abortController?.signal.aborted) {
