@@ -1,186 +1,104 @@
 # Contributing to BetterDungeon
 
-Hey! Thanks for being interested in BetterDungeon.
+Thanks for helping improve BetterDungeon. A useful contribution can be a compatibility fix, a small polish change, clearer documentation, or an Ultrascripts example. AI Dungeon changes frequently, so explain the behavior you observed and test the affected surface in a real adventure.
 
-This project is a little unusual compared to a normal web app: the extension runs directly inside AI Dungeon, AI Dungeon can change underneath it, and a lot of the fun features are built around keeping those two systems talking to each other. Contributions that improve compatibility, polish an existing feature, or make Ultrascripts easier to use are all very welcome.
+| Quick link | Purpose |
+| --- | --- |
+| [Project overview](README.md) | Features, installation, and local builds |
+| [Monorepo guide](docs/MONOREPO.md) | Android asset composition and branch policy |
+| [AI service](docs/AI.md) | Provider configuration and routing |
+| [Navigator Routines](docs/NAVIGATOR_ROUTINES.md) | Scheduling, examples, and safety behavior |
+| [Ultrascripts examples](examples/README.md) | Starter scripts and module usage |
 
-## Contribution permissions
+## Choose the right branch
 
-BetterDungeon is source-available under the [BetterDungeon License](LICENSE). You may modify and build it privately. Public source forks, patches, and pull requests are also allowed solely to prepare, submit, and review contributions to the official project. Identify your fork as unofficial and preserve the license and attribution notices.
-
-This contribution exception does not authorize independent releases or sharing binaries and installable packages. Keep your test builds private; do not publish fork releases or make fork CI build artifacts available to others without prior written consent from computerK. Other redistribution, even of unchanged free copies, and selling or charging for access to BetterDungeon also require prior written consent. You can share links to official downloads instead.
-
-You retain ownership of your contributions. By intentionally submitting material for inclusion, you grant computerK the perpetual, irrevocable, worldwide, nonexclusive, royalty-free rights described in Section 3 of the license to use, modify, distribute, and sublicense it in official or authorized versions, including commercially and under different terms. Submit only material you have authority to contribute, and identify third-party material and its license; its existing terms still apply.
-
-Files in `examples/` remain MIT-licensed under Section 8, and contributions to that directory are also provided under those MIT terms. This section summarizes the [full license](LICENSE), which controls. For permission requests, contact `@computerK` on Discord.
-
-## Before you start
-
-You will need:
-
-- Git
-- Node.js 24 LTS for the repository smoke checks
-- A Chromium-based browser for primary testing
-- Firefox 109 or newer if you are testing the Firefox port
-- Android Studio with JDK 21 and the Android SDK when changing Mobile
-- A basic understanding of JavaScript, browser extensions, and DOM-based interfaces
-- An AI Dungeon account for testing features in a real adventure
-
-The test stack has no npm dependencies. The repository root can still be loaded directly as an unpacked extension.
-
-GitHub shows `preview` by default because it is the public, release-ready branch. Start normal work from `dev`. `preview` advances only through the **Promote preview** GitHub Actions workflow after the complete quality gate passes.
-
-## Run BetterDungeon locally
-
-### Chromium
-
-1. Fork and clone the repository.
-2. Open `chrome://extensions/`.
-3. Enable **Developer mode**.
-4. Click **Load unpacked** and select the repository folder.
-5. Open [AI Dungeon](https://play.aidungeon.com/) and test your change.
-6. After editing, return to the extensions page and click **Reload**.
-
-### Firefox
-
-1. Fork and clone the repository.
-2. Open `about:debugging#/runtime/this-firefox`.
-3. Click **Load Temporary Add-on...**.
-4. Select the repository's `manifest.json` file.
-5. Open [AI Dungeon](https://play.aidungeon.com/) and test your change.
-6. Click **Reload** in Firefox's debugging page after editing.
-
-When testing, try both the popup and the content-script experience. A feature can look correct in one context and still fail in another.
-
-## How the project is organized
-
-```text
-BetterDungeon/
-├── manifest.json              Extension metadata and script loading order
-├── main.js                    Content-script entry point and feature startup
-├── background.js              Background worker and cross-context messaging
-├── popup.html/js/css          Settings popup and feature controls
-├── styles.css                 Main injected styles
-├── core/                      Shared lifecycle and theme systems
-├── features/                  Self-contained user-facing features
-├── services/                  AI Dungeon, GraphQL, caching, and bridge services
-├── modules/                   Permission-gated Ultrascripts modules
-├── utils/                     Storage, DOM, and browser helpers
-├── examples/                  Ultrascripts starter templates and examples
-├── android/                   Android Studio project and unique WebView adapters
-├── build/                     Checked-in extension packaging allowlist
-├── tests/                     Minimal Node repository smoke checks
-├── build.ps1                  Unified test and artifact entry point
-├── icons/                     Extension icons
-└── fonts/                     Local fonts and icon assets
+```mermaid
+flowchart LR
+    Dev["dev<br/>daily work"] -->|"review + quality gate"| Preview["preview<br/>tested, GitHub default"]
+    Preview -->|"manual publication"| Release["release<br/>published source"]
 ```
 
-### A few important patterns
+Start normal changes from `dev`. A focused topic branch and pull request are welcome; maintainers may also work directly on `dev`. The manual **Promote preview** workflow checks an exact `dev` commit, runs the quality gate, and fast-forwards the protected `preview` branch. Store packages, version tags, and signed Android releases are published separately. Please do not target `release` for ordinary development.
 
-- `main.js` is the main content-script entry point.
-- `background.js` handles background work, API requests, routing, and communication across extension contexts.
-- `core/feature-manager.js` controls feature registration and lifecycle.
-- Files in `features/` should own their setup, observers, UI changes, and cleanup.
-- Files in `services/ultrascripts/` implement the communication pipeline between AI Dungeon scripts and BetterDungeon.
-- Files in `modules/` handle individual permission-gated operations exposed through Ultrascripts.
+## Get a working checkout
 
-Most features follow the same lifecycle shape:
+| Task | What you need |
+| --- | --- |
+| Browser extension | Git, a Chromium browser, and an AI Dungeon account for manual testing |
+| Repository checks | Node.js 24 and PowerShell; no npm install is needed |
+| Firefox compatibility | Firefox 109 or newer |
+| Android app | Android Studio, JDK 21, Android SDK, and an Android 8.1+ device or emulator |
 
-```javascript
-class MyFeature {
-  static id = 'my-feature';
+### Browser
 
-  init() {
-    // Set up listeners, observers, and UI.
-  }
+1. Clone the repository and switch to `dev` (or create your topic branch from it).
+2. In Chromium, open `chrome://extensions/`, enable **Developer mode**, and choose **Load unpacked** on the repository root. In Firefox, use `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on** → `manifest.json`.
+3. Open a test adventure at [AI Dungeon](https://play.aidungeon.com/). After code changes, reload the extension in the browser's extension page and refresh the adventure.
+4. Check both the popup and the in-adventure UI when your change touches both contexts.
 
-  destroy() {
-    // Remove everything created by init().
-  }
-}
+### Android
+
+Open `android/` as the project in Android Studio. Gradle composes shared web assets automatically for Sync, Run, and Debug. You can build the standard debug APK with `./build.ps1 android` from the repository root. See [Android setup](android/README.md) for details. Keep signing keys, `local.properties`, generated files, and store-ready packages out of Git.
+
+## Find the code
+
+```mermaid
+flowchart TD
+    Root["Repository root"] --> Extension["Extension<br/>manifest · popup · background · main"]
+    Root --> Shared["Shared web code<br/>core · features · services · modules · utils"]
+    Root --> Mobile["android/<br/>Android Studio project"]
+    Mobile --> Adapters["web/<br/>native WebView adapters"]
+    Root --> Checks["tests/<br/>focused offline checks"]
 ```
 
-If a feature adds an observer, event listener, timer, or injected element, it should also clean that resource up in `destroy()`. This matters because BetterDungeon can enable and disable features without reloading the page.
+| Area | Start with |
+| --- | --- |
+| Feature startup and lifecycle | `main.js`, `core/feature-manager.js`, `features/` |
+| Popup controls | `popup.html`, `popup.js`, `popup.css` |
+| AI Dungeon data and integration | `services/` |
+| AI providers and Navigator | `services/ai/`, `services/navigator/` |
+| Ultrascripts transport and modules | `services/ultrascripts/`, `modules/` |
+| Browser package and Android assets | `build/extension-files.txt`, `android/betterdungeon-runtime.json` |
 
-## Automated checks
+Keep shared JavaScript, CSS, fonts, and popup code at the root. Android-specific behavior should use `BetterDungeonPlatform` capabilities in shared files; reserve `android/web/` for adapters with no browser equivalent. If you add a shared runtime file, check its load order in the extension manifest and Android composition manifest. Avoid a copied Android version of a root implementation.
 
-Run the intentionally small zero-dependency baseline with `./build.ps1 test`. It checks release version parity, the shared platform contract, extension package boundaries, Android runtime composition, and forbidden tracked output. The project deliberately relies on focused manual browser and device checks instead of maintaining a comprehensive Playwright or live-DOM framework.
+Features commonly expose `init()` and `destroy()` through the feature manager. Remove listeners, observers, timers, and injected UI during teardown so toggling a feature or navigating an adventure does not leave stale behavior behind. Reuse existing services for storage, AI routing, and AI Dungeon data instead of adding another parallel path.
 
-Every push and pull request runs the Node suite, verifies the extension ZIP, runs Android unit tests, and builds a debug APK. Successful workflow runs retain both downloadable artifacts for 14 days. Tests must use mocks and fixtures rather than real AI providers or AI Dungeon requests.
+## Make and verify a change
 
-## Adding a feature
+1. Check for an existing issue or describe the problem you are solving. Keep unrelated cleanup out of the same change.
+2. Implement in the smallest shared layer that owns the behavior. Update the popup, manifest, Android composition, examples, or guides when the public behavior changes.
+3. Run the focused checks and build artifacts relevant to the change:
 
-1. Create the feature in `features/` using the existing naming style.
-2. Register it in the loading order in `manifest.json` if it needs to be loaded by the content script.
-3. Add its setting or toggle to `popup.html` and connect the control in `popup.js`.
-4. Reuse existing helpers in `utils/`, `core/`, and `services/` instead of creating a second version of the same system.
-5. Keep feature state scoped and clean up all resources in `destroy()`.
-6. Test with the feature enabled and disabled, then reload the extension and test again.
+   ```powershell
+   .\build.ps1 test
+   .\build.ps1 extension
+   .\build.ps1 android
+   # Or run .\build.ps1 all for all three steps.
+   ```
 
-For changes that touch AI Dungeon's UI or network behavior, test against the current live site and document any assumptions in the pull request. Those assumptions are often the first thing that breaks when AI Dungeon ships an update.
+4. Test the changed behavior in a live AI Dungeon adventure on the affected browser or Android device. Try it enabled, disabled, after navigation, and after an extension reload where relevant.
+5. Describe the outcome in a pull request or issue, including what you tested and any remaining limitation.
 
-## Working on Ultrascripts
+The Node checks deliberately cover stable repository boundaries and selected AI and Routine behavior. CI also packages the extension and builds a debug APK on every push and pull request, retaining artifacts for 14 days. It does not call live AI providers or AI Dungeon. UI behavior still needs a real browser or device check; the project does not maintain a comprehensive Playwright suite.
 
-Ultrascripts is permission-gated by design. New modules should:
+### Ultrascripts changes
 
-- Request only the permissions they actually need.
-- Validate incoming script data before using it.
-- Fail clearly when BetterDungeon, a capability, or user consent is unavailable.
-- Avoid leaking API keys or other sensitive values into story text, logs, or messages.
-- Keep external requests and paid AI calls explicit, bounded, and easy for users to understand.
-- Preserve graceful fallback behavior for scripts that can still function without Ultrascripts.
+Keep module permissions narrow. Validate script input, bound external requests and AI calls, and never include provider keys in messages, story text, errors, or logs. Scripts should receive a clear failure when BetterDungeon, permission, or a platform capability is unavailable. Preserve the existing `bd.us` helper contract unless the change intentionally updates that public interface. The [starter examples](examples/README.md) show both graceful fallback and BetterDungeon-required scripts.
 
-The `examples/aid-scripts/` directory contains two starting points:
+### Review checklist
 
-- `ultrascripts-starter-template` for scripts that should degrade gracefully.
-- `ultrascripts-required-template` for scripts that cannot function without BetterDungeon.
+- [ ] The extension loads without relevant console errors; the affected UI works in an adventure.
+- [ ] Feature teardown, reload, and platform differences were checked where relevant.
+- [ ] Popup settings still save correctly if controls or storage changed.
+- [ ] Firefox and Android were checked if browser APIs or shared platform behavior changed.
+- [ ] No credentials, personal adventure content, signing material, or generated packages were committed.
+- [ ] Documentation and examples reflect any changed behavior or public interface.
 
-Please keep the `bd.us` helper surface consistent unless a module-specific change genuinely requires otherwise.
+For a bug report, include BetterDungeon and browser versions, the affected AI Dungeon page, steps to reproduce, expected and actual behavior, and sanitized console output or screenshots. For a feature request, explain the player or creator problem first.
 
-## Testing checklist
+## Contribution and license terms
 
-Before opening a pull request, please check the parts relevant to your change:
+BetterDungeon uses the custom [BetterDungeon License](LICENSE); it is source-available rather than open source. Public source forks, patches, and pull requests are permitted to contribute to the official project. Mark forks as unofficial and keep attribution and license notices. This permission does not cover independent releases, shared installable builds, or selling access; obtain computerK's written consent for those uses. Keep test builds private and do not expose fork CI artifacts containing installable packages.
 
-- [ ] The extension loads without console errors.
-- [ ] The feature works on an active AI Dungeon adventure.
-- [ ] The feature can be disabled without leaving observers, timers, or UI behind.
-- [ ] The popup still opens and saves settings correctly.
-- [ ] Chromium behavior is verified.
-- [ ] Firefox behavior is verified when the change touches browser APIs or compatibility code.
-- [ ] Permission-gated features handle denial and unavailable capabilities cleanly.
-- [ ] No API keys, tokens, personal data, or generated secrets are committed.
-- [ ] Documentation and examples are updated when behavior or public APIs change.
-
-Before submitting work, run `./build.ps1 all`. Manual browser or device testing is still important for UI behavior that the contract suites cannot observe.
-
-## Pull requests
-
-A good pull request should explain:
-
-- What changed and why.
-- Which AI Dungeon surfaces or extension contexts it touches.
-- How you tested it.
-- Whether the change affects existing settings, scripts, or permissions.
-- Any screenshots or short recordings that make a UI change easier to review.
-
-Please keep pull requests focused when possible. A small, well-explained change is much easier to test and merge than a giant cleanup mixed with unrelated feature work.
-
-## Reporting bugs and suggesting features
-
-Before opening an issue, check whether it already exists. When reporting a bug, include:
-
-- Browser and browser version.
-- BetterDungeon version.
-- The AI Dungeon page or feature where it happened.
-- Reproduction steps.
-- Relevant console errors or screenshots, with private information removed.
-
-Feature ideas are welcome too. Tell me what problem you are trying to solve and how you imagine the feature fitting into the AI Dungeon experience.
-
-## A final note
-
-BetterDungeon is built by one person, but it has grown because people keep testing it, suggesting ideas, and building alongside it. Thank you for taking the time to contribute.
-
-Much love.
-
-— computerK
+You own your contribution. By submitting it for inclusion, you grant computerK the rights in Section 3 of the license to use and distribute it in official or authorized BetterDungeon versions. Submit only material you have authority to contribute and identify any third-party material and its license. Files in `examples/` use the MIT terms in Section 8. The [full license](LICENSE) controls if this summary differs; for permission requests, contact `@computerK` on Discord.
