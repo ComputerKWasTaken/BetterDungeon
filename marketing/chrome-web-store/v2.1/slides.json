@@ -1,14 +1,96 @@
-{
-  "version": 3,
+﻿{
+  "version": 4,
   "product": "BetterDungeon",
   "brandMark": "icons/icon128.png",
   "font": "fonts/IBM_Plex_Sans/IBMPlexSans-VariableFont_wdth,wght.ttf",
   "slides": [
-    { "id": "01-more-from-every-adventure", "kind": "screenshot", "width": 1280, "height": 800, "headline": "More from every adventure", "bullets": ["Write your way", "Helpful controls in play", "Made for AI Dungeon"], "capture": "captures/01-story-cards-closeup.png", "position": "center" },
-    { "id": "02-shape-the-story-your-way", "kind": "screenshot", "width": 1280, "height": 800, "headline": "Shape the story your way", "bullets": ["Choose the right action", "Move between modes easily", "Keep the momentum going"], "capture": "captures/02-input-modes-closeup.png", "position": "center" },
-    { "id": "03-keep-your-world-in-focus", "kind": "screenshot", "width": 1280, "height": 800, "headline": "Keep your world in focus", "bullets": ["Track what matters", "Support lasting details", "Keep the story coherent"], "capture": "captures/03-plot-essentials-closeup.png", "position": "center" },
-    { "id": "04-get-help-as-you-play", "kind": "screenshot", "width": 1280, "height": 800, "headline": "Get help as you play", "bullets": ["Ask with adventure context", "Run optional Routines", "Review changes clearly"], "capture": "captures/04-routines-closeup.png", "position": "center" },
-    { "id": "05-ai-that-fits-your-play", "kind": "screenshot", "width": 1280, "height": 800, "headline": "AI that fits your play", "bullets": ["Start with Gemini", "Bring your own provider", "Choose what uses AI"], "capture": "captures/05-ai-connections-closeup.png", "position": "center" },
+    {
+      "id": "01-more-from-every-adventure",
+      "kind": "screenshot",
+      "layout": "overview",
+      "width": 1280,
+      "height": 800,
+      "eyebrow": "",
+      "headline": "AI Dungeon, but Better",
+      "highlight": "Better",
+      "description": "The all-in-one, premier AI Dungeon browser extension to enhance the game.",
+      "bullets": [],
+      "features": [
+        { "title": "Navigator", "blurb": "An agent that knows your adventure and works while you play", "icon": "bot", "featured": true },
+        { "title": "Command & Try", "blurb": "New ways to steer the story", "icon": "gamepad-2" },
+        { "title": "Presets", "blurb": "Bring ideas into any adventure", "icon": "layers" },
+        { "title": "Story tools", "blurb": "Utilities that work while you play", "icon": "wrench" }
+      ],
+      "captures": []
+    },
+    {
+      "id": "02-navigator-and-routines",
+      "kind": "screenshot",
+      "layout": "navigator",
+      "width": 1280,
+      "height": 800,
+      "eyebrow": "",
+      "headline": "An agent for your adventure",
+      "description": "Ask about your story, request changes, or let Routines work while you play.",
+      "bullets": ["Ask questions about your story in plain language", "Routines handle upkeep on a schedule or on demand", "Recreate Auto Cards, Inner Self, and Story Arc workflows", "Review every run in Activity"],
+      "captures": [
+        { "path": "captures/02-navigator-chat.png", "label": "Navigator · Chat" }
+      ]
+    },
+    {
+      "id": "03-command-and-try",
+      "kind": "screenshot",
+      "layout": "modes",
+      "width": 1280,
+      "height": 800,
+      "eyebrow": "",
+      "headline": "Play with more control",
+      "description": "Command steers the story. Try adds real skill checks to your actions.",
+      "bullets": [],
+      "chips": [
+        { "group": "", "items": ["Nudge the story or go OOC", "D&D-style skill checks", "Adjustable success odds"] }
+      ],
+      "captures": [
+        { "path": "captures/03-command.png", "label": "Command Mode" },
+        { "path": "captures/03-try.png", "label": "Try Mode" }
+      ]
+    },
+    {
+      "id": "04-presets",
+      "kind": "screenshot",
+      "layout": "presets",
+      "width": 1280,
+      "height": 800,
+      "eyebrow": "",
+      "headline": "Carry ideas forward",
+      "description": "Save characters for AI Prefill. Reuse Plot Components in another adventure.",
+      "bullets": [],
+      "captures": [
+        { "path": "captures/04-character-presets.png", "label": "Character Presets" },
+        { "path": "captures/04-plot-presets.png", "label": "Plot Presets" }
+      ]
+    },
+    {
+      "id": "05-make-it-yours",
+      "kind": "screenshot",
+      "layout": "toolkit",
+      "width": 1280,
+      "height": 800,
+      "eyebrow": "",
+      "headline": "Make it yours",
+      "highlight": "yours",
+      "description": "Small tools that add up: faster input, smarter scenario building, and automations that run while you play.",
+      "bullets": [],
+      "chips": [
+        { "group": "Play faster", "icon": "zap", "items": ["Hotkeys", "Input History", "Mode Colors"] },
+        { "group": "Build smarter", "icon": "sparkles", "items": ["Trigger Highlighting", "Story Card Analytics", "Modal Dock"] },
+        { "group": "Go further", "icon": "rocket", "items": ["Custom Dynamic", "Auto See"] }
+      ],
+      "cta": "Get BetterDungeon",
+      "captures": [
+        { "path": "captures/05-scenario-tools.png", "label": "Settings · Scenario Building & Automations" }
+      ]
+    },
     { "id": "06-small-promo", "kind": "small", "width": 440, "height": 280 },
     { "id": "07-marquee-promo", "kind": "marquee", "width": 1400, "height": 560 }
   ]

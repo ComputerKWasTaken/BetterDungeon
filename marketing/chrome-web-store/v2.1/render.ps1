@@ -1,8 +1,7 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$BrowserPath,
-    [string]$Only,
-    [switch]$RefreshSources
+    [string]$Only
 )
 
 $ErrorActionPreference = 'Stop'
@@ -10,9 +9,6 @@ $sourceRoot = $PSScriptRoot
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $sourceRoot '../../..'))
 $renderRoot = Join-Path $sourceRoot '.render'
 $outputRoot = Join-Path $sourceRoot 'exports'
-$closeupWidth = 730
-$closeupHeight = 800
-$captionWidth = 550
 $utf8 = [Text.UTF8Encoding]::new($false)
 
 function Get-LocalAsset([string]$Base, [string]$Relative) {
@@ -22,6 +18,16 @@ function Get-LocalAsset([string]$Base, [string]$Relative) {
     $full = [IO.Path]::GetFullPath((Join-Path $Base $Relative))
     if (-not (Test-Path -LiteralPath $full -PathType Leaf)) { throw "Missing asset: $full" }
     return ([Uri]$full).AbsoluteUri
+}
+
+function Assert-PngSize([string]$Path, [int]$Width, [int]$Height) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "Missing export: $Path" }
+    $png = [IO.File]::ReadAllBytes($Path)
+    $actualWidth = [Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($png, 16))
+    $actualHeight = [Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($png, 20))
+    if ($actualWidth -ne $Width -or $actualHeight -ne $Height) {
+        throw "Incorrect PNG dimensions for $Path`: $actualWidth x $actualHeight."
+    }
 }
 
 if (-not $BrowserPath) {
@@ -54,27 +60,47 @@ foreach ($slide in $slides) {
         'marquee' { @(1400, 560) }
         default { throw "Unknown layout: $($slide.kind)" }
     }
-    if ($slide.width -ne $expected[0] -or $slide.height -ne $expected[1]) { throw "Wrong export dimensions for $($slide.id)." }
-    if ($slide.kind -eq 'screenshot' -and (([string]$slide.headline -split '\s+').Count -gt 6 -or -not $slide.headline)) {
-        throw 'Screenshot headlines must contain one to six words.'
+    if ($slide.width -ne $expected[0] -or $slide.height -ne $expected[1]) {
+        throw "Wrong export dimensions for $($slide.id)."
     }
-    if ($slide.kind -eq 'screenshot' -and (@($slide.bullets).Count -ne 3 -or -not $slide.capture)) {
-        throw "Screenshot $($slide.id) requires three bullets and a local capture."
+    $pngPath = Join-Path $outputRoot "$($slide.id).png"
+
+    $data = [ordered]@{
+        kind = $slide.kind
+        width = $slide.width
+        height = $slide.height
+        brandMark = $brand
+        font = $font
     }
-    $data = [ordered]@{ kind = $slide.kind; width = $slide.width; height = $slide.height; headline = $slide.headline; brandMark = $brand; font = $font }
     if ($slide.kind -eq 'screenshot') {
+        if ($slide.layout -notin @('overview', 'navigator', 'modes', 'presets', 'toolkit')) {
+            throw "Unsupported screenshot layout: $($slide.layout)"
+        }
+        if (-not $slide.headline -or (([string]$slide.headline -split '\s+').Count -gt 6)) {
+            throw "Screenshot $($slide.id) needs a headline of at most six words."
+        }
+        if (@($slide.bullets).Count -gt 4) {
+            throw "Screenshot $($slide.id) allows up to four bullets."
+        }
+        $data.layout = $slide.layout
+        $data.eyebrow = $slide.eyebrow
+        $data.headline = $slide.headline
+        $data.highlight = $slide.highlight
+        $data.description = $slide.description
         $data.bullets = @($slide.bullets)
-        $captureBase = if ($slide.captureRoot -eq 'repo') { $repoRoot } else { $sourceRoot }
-        $data.capture = Get-LocalAsset $captureBase $slide.capture
-        $data.position = $slide.position
-        $data.source = $slide.source
+        $data.chips = @($slide.chips | Where-Object { $null -ne $_ })
+        $data.features = @($slide.features | Where-Object { $null -ne $_ })
+        $data.cta = $slide.cta
+        $data.captures = @($slide.captures | ForEach-Object {
+            if (-not $_.label) { throw "Capture in $($slide.id) needs a label." }
+            [ordered]@{ path = Get-LocalAsset $sourceRoot $_.path; label = $_.label; chrome = ($_.chrome -ne $false) }
+        })
     }
-    $encoded = [Convert]::ToBase64String($utf8.GetBytes(($data | ConvertTo-Json -Compress)))
+
+    $encoded = [Convert]::ToBase64String($utf8.GetBytes(($data | ConvertTo-Json -Depth 6 -Compress)))
     $html = $template.Replace('/*__STYLES__*/', $styles).Replace('/*__DATA__*/', $encoded)
     $pagePath = Join-Path $renderRoot "$($slide.id).html"
-    $pngPath = Join-Path $outputRoot "$($slide.id).png"
     [IO.File]::WriteAllText($pagePath, $html, $utf8)
-    # A separate browser profile keeps rendering independent of the user's tabs.
     $arguments = @(
         '--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-background-networking',
         '--disable-component-update', '--hide-scrollbars', '--force-device-scale-factor=1', '--allow-file-access-from-files',
@@ -83,40 +109,12 @@ foreach ($slide in $slides) {
         "--window-size=$($slide.width),$($slide.height)", "--screenshot=`"$pngPath`"", "`"$(([Uri]$pagePath).AbsoluteUri)`""
     )
     $process = Start-Process -FilePath $BrowserPath -ArgumentList $arguments -PassThru -WindowStyle Hidden -RedirectStandardError (Join-Path $renderRoot 'browser.log')
-    if (-not $process.WaitForExit(30000)) { $process.Kill(); throw 'Browser export exceeded 30 seconds.' }
-    if ($process.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $pngPath)) { throw "Export failed: $($slide.id). See .render/browser.log." }
-    $png = [IO.File]::ReadAllBytes($pngPath)
-    $width = [Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($png, 16))
-    $height = [Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($png, 20))
-    if ($width -ne $slide.width -or $height -ne $slide.height) { throw "Incorrect PNG dimensions: $width x $height." }
-    Write-Host "$($slide.id).png — $width x $height"
-}
-
-if ($RefreshSources) {
-    foreach ($slide in @($slides | Where-Object { $_.kind -eq 'screenshot' })) {
-        if (-not $slide.sourceCapture) { throw "Screenshot $($slide.id) needs sourceCapture when refreshing sources." }
-        $exportPath = Join-Path $outputRoot "$($slide.id).png"
-        $closeupPath = Join-Path $sourceRoot $slide.sourceCapture
-        $exportUri = ([Uri]$exportPath).AbsoluteUri
-        $closeupHtml = "<!doctype html><meta charset='utf-8'><style>html,body{margin:0;width:${closeupWidth}px;height:${closeupHeight}px;overflow:hidden;background:#0f0e11}img{display:block;width:1280px;height:800px;transform:translateX(-${captionWidth}px)}</style><img src='$exportUri' alt=''>"
-        $closeupPage = Join-Path $renderRoot "$($slide.id)-source.html"
-        [IO.File]::WriteAllText($closeupPage, $closeupHtml, $utf8)
-        $arguments = @(
-            '--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-background-networking',
-            '--disable-component-update', '--hide-scrollbars', '--force-device-scale-factor=1', '--allow-file-access-from-files',
-            '--run-all-compositor-stages-before-draw', '--virtual-time-budget=1000',
-            "--user-data-dir=`"$(Join-Path $renderRoot 'browser-profile')`"",
-            "--window-size=$closeupWidth,$closeupHeight", "--screenshot=`"$closeupPath`"", "`"$(([Uri]$closeupPage).AbsoluteUri)`""
-        )
-        $process = Start-Process -FilePath $BrowserPath -ArgumentList $arguments -PassThru -WindowStyle Hidden -RedirectStandardError (Join-Path $renderRoot 'browser.log')
-        if (-not $process.WaitForExit(30000)) { $process.Kill(); throw 'Close-up export exceeded 30 seconds.' }
-        if ($process.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $closeupPath)) { throw "Close-up export failed: $($slide.id)." }
-        $png = [IO.File]::ReadAllBytes($closeupPath)
-        $width = [Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($png, 16))
-        $height = [Net.IPAddress]::NetworkToHostOrder([BitConverter]::ToInt32($png, 20))
-        if ($width -ne $closeupWidth -or $height -ne $closeupHeight) { throw "Incorrect close-up dimensions: $width x $height." }
-        Write-Host "$($slide.sourceCapture) — $width x $height"
-    }
+    if (-not $process.WaitForExit(30000)) { $process.Kill(); throw "Export exceeded 30 seconds: $($slide.id)" }
+    $exitCode = $null
+    try { $exitCode = $process.ExitCode } catch { }
+    if ($null -ne $exitCode -and $exitCode -ne 0) { throw "Export failed: $($slide.id). See .render/browser.log." }
+    Assert-PngSize $pngPath $slide.width $slide.height
+    Write-Host "$($slide.id).png — $($slide.width) x $($slide.height)"
 }
 
 $cards = foreach ($slide in $catalog.slides) {

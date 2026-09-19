@@ -1,27 +1,23 @@
-# Chrome Web Store artwork — BetterDungeon 2.1
+# BetterDungeon 2.1 Store images
 
-Five large-type capability illustrations, a small promotional tile, and a marquee tile. They use the local BetterDungeon star, IBM Plex Sans, and dark/amber palette. No captured account or adventure imagery is used; no marketing code or images ship in the extension ZIP.
+Five 1280 × 800 screenshots pair real, fictional BetterDungeon UI captures with a headline, a short description, and optional feature chips or bullets. Captures sit in floating window frames (titlebar with label) at exact 1:1 pixels — never upscaled — on a layered dark backdrop with a warm accent glow. The 440 × 280 small tile and 1400 × 560 marquee tile share the same backdrop and are brand-led. Nothing in this directory ships with the extension.
 
-## Update the set
+| Order | Image | Focus |
+| ---: | --- | --- |
+| 1 | `01-more-from-every-adventure.png` | BetterDungeon at a glance |
+| 2 | `02-navigator-and-routines.png` | Navigator and recurring Routines |
+| 3 | `03-command-and-try.png` | Command and Try modes |
+| 4 | `04-presets.png` | Character and Plot Presets |
+| 5 | `05-make-it-yours.png` | Supporting tools and call to action |
+| 6–7 | `06-small-promo.png`, `07-marquee-promo.png` | Brand identity |
 
-1. Edit `slides.json` to change a headline, supporting line, three labels, or the `visual` layout (`journey`, `branch`, `world`, `dialogue`, `customize`). Keep headlines to six words or fewer. Shared colors and geometry live in `theme.css`; structure is in `template.html`.
-2. Run `./marketing/chrome-web-store/v2.1/render.ps1` from the repository root. Add `-Only 02-shape-the-story-your-way` to export just one image. The script uses installed Chrome or Edge, repository-local assets, and no downloaded libraries or network services.
-3. Inspect `.render/review.html` at 100% zoom to judge the five illustrations at the Store's 640×400 display size. Commit source and changed PNGs together.
+## Edit and export
 
-The rendered images are in `exports/`. `.render/` is an ignored local workspace. The two promo tiles are brand-led compositions designed for their respective sizes.
+1. Change headlines, supporting copy, `chips` groups, `bullets`, `cta`, or capture references and titlebar labels in `slides.json`. Keep each screenshot focused on one idea. Per-layout frame positions, window heights, and image offsets are in `theme.css`; shared structure is in `template.html`.
+2. Replace a capture in `captures/` with a sanitized image from the real product, and update its natural width/height and crop offset in `theme.css` so it still renders at 1:1. Do not include account information, API keys, private stories, or provider usage. Keep different screens in visibly separate frames; never present them as one fabricated interface.
+3. From the repository root, run `powershell -NoProfile -File ./marketing/chrome-web-store/v2.1/render.ps1`. Use `-Only 03-command-and-try` to regenerate one image. The script uses installed Chrome or Edge and local assets only, and re-renders all seven images including the promo tiles. Source files carry a UTF-8 BOM so Windows PowerShell 5.1 reads the `—`, `·`, and `→` glyphs correctly; keep it when saving.
+4. Open `.render/review.html` at 100% browser zoom. It displays screenshots at the Store's 640 × 400 presentation size. Check legibility, capture fidelity, and the absence of sensitive information before uploading.
 
-## Important Store distinction
+Final PNGs live in `exports/`. `.render/` is ignored. Commit the source captures, editable files, and changed exports together. The source captures are deliberately close crops of genuine UI, while the surrounding text and framing are marketing design rather than simulated product UI.
 
-These five illustrations intentionally favor legibility over miniature UI captures. They are **not actual product screenshots**. [Chrome's image guidance](https://developer.chrome.com/docs/webstore/images) says the screenshot slots should demonstrate the actual extension experience. Treat the illustrations as a design proposal, not guaranteed compliant screenshot uploads. The promo tiles are the appropriate place for fully conceptual branding. If the Store requires literal screenshots, use close, readable captures of one real UI area per image rather than shrinking an entire interface.
-
-## Exports
-
-| Image | Size | Concept |
-| --- | --- | --- |
-| `01-more-from-every-adventure.png` | 1280×800 | Play, create, explore |
-| `02-shape-the-story-your-way.png` | 1280×800 | Player-directed story |
-| `03-keep-your-world-in-focus.png` | 1280×800 | People, places, ideas |
-| `04-get-help-as-you-play.png` | 1280×800 | Assistance beside play |
-| `05-make-it-yours.png` | 1280×800 | Personalization |
-| `06-small-promo.png` | 440×280 | Brand mark and wordmark |
-| `07-marquee-promo.png` | 1400×560 | Wide brand composition |
+Chrome's [screenshot guidance](https://developer.chrome.com/docs/webstore/images#screenshots) calls for actual extension experience, square corners, and 1280 × 800 or 640 × 400 images; it currently displays screenshots at 640 × 400. The canvases themselves have square corners; the rounded window frames are content inside them. These branded compositions use genuine product captures, but their text panels should be reviewed in the Developer Dashboard before treating them as approved Store screenshots. The two promotional tiles are separate assets. The same 1280 × 800 PNGs are suitable for Firefox Add-ons (AMO) screenshots, which accept any size and display captions separately.
