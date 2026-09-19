@@ -74,6 +74,9 @@ jobs:
       - name: Configure Android SDK
         uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
         with:
+          # The runner has the Android SDK licenses needed by this build. Running
+          # --licenses also prompts for unrelated preview SDKs (such as Android XR).
+          accept-android-sdk-licenses: false
           packages: platform-tools
       - name: Install declared Android platform
         shell: pwsh
