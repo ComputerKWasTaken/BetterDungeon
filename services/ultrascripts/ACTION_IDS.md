@@ -12,6 +12,23 @@ Source: Phase 0 instrumentation via `Project Management/ultrascripts/action-hunt
 - Retry is **Behavior A**: new action at `tail+1` with `retriedActionId` pointing to the original. See [Retry](#retry).
 - Ultrascripts keys per-turn state by **live count** (`actions.filter(!undoneAt).length`), which both sides compute independently. See [Live-count convention](#live-count-convention).
 
+## BetterDungeon module history API
+
+Module contexts preserve the existing synchronous `ctx.getActions()` contract,
+which exposes only the live WebSocket action collection. Modules that need the
+Apollo-backed merged history may opt into `await ctx.getHistory()`.
+
+`getHistory()` returns `actions`, `coverage`, `provenance`, `fallbacks`, and
+`degradations`, plus:
+
+- `historyIncomplete`: true when Apollo history was unavailable and the result
+  is WS-only.
+- `complete`: true only when history was not incomplete and no degradation was
+  reported.
+
+Scripts must inspect `complete` or `historyIncomplete` before treating the
+returned history as complete.
+
 ## Observation channels
 
 All three travel on a single GraphQL-over-WebSocket connection to `wss://api.aidungeon.com/graphql`. Payload shape under `msg.payload.data.<name>`.

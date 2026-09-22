@@ -11,7 +11,7 @@ Paste the files into the matching AI Dungeon script panes:
 
 The template is intentionally modest. It gives new scripts a stable foundation:
 
-- heartbeat-based runtime/module detection
+- heartbeat-beat runtime/module detection, including stale-card fallback
 - a `bd.us` helper surface that matches the public Ultrascripts docs
 - request queueing through `ultrascripts:out`
 - response polling and acknowledgement

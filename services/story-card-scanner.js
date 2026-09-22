@@ -63,49 +63,13 @@ class StoryCardScanner {
     return window.storyCardCache || null;
   }
 
-  getWsStoryCards() {
-    const cards = window.Ultrascripts?.ws?.getCards?.();
-    if (!cards) return [];
-    return cards instanceof Map ? Array.from(cards.values()) : Array.from(cards);
-  }
-
-  async fetchStoryCardsViaGraphQL(shortId) {
-    const gql = window.BetterDungeonGQL;
-    if (!gql?.request) {
-      throw new Error('GraphQL service unavailable');
-    }
-
-    const result = await gql.request(
-      'GetBetterDungeonStoryCards',
-      { shortId },
-      window.BetterDungeonGQLService?.QUERIES?.storyCards || `query GetBetterDungeonStoryCards($shortId: String) {
-        adventure(shortId: $shortId) {
-          id
-          shortId
-          storyCardCount
-          storyCards {
-            id
-            type
-            title
-            description
-            keys
-            value
-            deletedAt
-            updatedAt
-            useForCharacterCreation
-            __typename
-          }
-          __typename
-        }
-      }`,
-      { timeoutMs: 30000, signal: this.abortController?.signal }
-    );
-
-    const adventure = result?.data?.adventure;
-    if (!adventure) {
-      throw new Error('GraphQL story-card lookup returned no adventure data.');
-    }
-    return Array.isArray(adventure.storyCards) ? adventure.storyCards : [];
+  async readStoryCards(shortId) {
+    const reader = window.BetterDungeonAdventureRead;
+    if (!reader?.readCards) throw new Error('The BetterDungeon adventure reader is unavailable.');
+    return reader.readCards({
+      shortId,
+      signal: this.abortController?.signal,
+    });
   }
 
   async scanAllCards(onTriggerFound = null, onProgress = null, onCardScanned = null) {
@@ -123,18 +87,14 @@ class StoryCardScanner {
         return { success: false, error: 'Adventure shortId is unknown' };
       }
 
-      const wsCards = this.getWsStoryCards();
-      const cards = wsCards.length > 0
-        ? wsCards
-        : await this.fetchStoryCardsViaGraphQL(shortId);
-
+      const snapshot = await this.readStoryCards(shortId);
       return this.consumeStoryCards(
-        cards,
+        snapshot.cards,
         shortId,
         onTriggerFound,
         onProgress,
         onCardScanned,
-        wsCards.length > 0 ? 'ws' : 'graphql'
+        snapshot.provenance?.source || 'unavailable'
       );
     } catch (error) {
       if (error.name === 'AbortError' || this.abortController?.signal.aborted) {

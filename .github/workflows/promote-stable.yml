@@ -1,0 +1,93 @@
+name: Promote preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_branch:
+        description: dev for normal promotion
+        required: false
+        default: dev
+        type: string
+      target_sha:
+        description: Optional commit from the source branch; defaults to its current head
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  resolve-target:
+    name: Resolve promotion target
+    runs-on: ubuntu-latest
+    outputs:
+      target_sha: ${{ steps.resolve.outputs.target_sha }}
+      source_branch: ${{ steps.resolve.outputs.source_branch }}
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Resolve and validate target
+        id: resolve
+        env:
+          REQUESTED_SHA: ${{ inputs.target_sha }}
+          SOURCE_BRANCH: ${{ inputs.source_branch || 'dev' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git check-ref-format --branch "$SOURCE_BRANCH"
+          case "$SOURCE_BRANCH" in
+            dev) ;;
+            *) echo "Unsupported promotion source: $SOURCE_BRANCH" >&2; exit 1 ;;
+          esac
+          git fetch --no-tags origin "$SOURCE_BRANCH" preview
+          target="${REQUESTED_SHA:-$(git rev-parse "origin/$SOURCE_BRANCH")}"
+          target="$(git rev-parse "${target}^{commit}")"
+          git merge-base --is-ancestor "$target" "origin/$SOURCE_BRANCH" || {
+            echo "Target $target is not contained in $SOURCE_BRANCH." >&2
+            exit 1
+          }
+          git merge-base --is-ancestor origin/preview "$target" || {
+            echo "Target $target would rewind or diverge preview." >&2
+            exit 1
+          }
+          echo "Promoting exact commit: $target"
+          echo "target_sha=$target" >> "$GITHUB_OUTPUT"
+          echo "source_branch=$SOURCE_BRANCH" >> "$GITHUB_OUTPUT"
+          echo "### Preview promotion target" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`$target\`" >> "$GITHUB_STEP_SUMMARY"
+
+  quality-gate:
+    name: Validate exact target
+    needs: resolve-target
+    uses: ./.github/workflows/quality-gate.yml
+    with:
+      target_sha: ${{ needs.resolve-target.outputs.target_sha }}
+    permissions:
+      contents: read
+
+  promote:
+    name: Fast-forward preview
+    needs:
+      - resolve-target
+      - quality-gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ssh-key: ${{ secrets.STABLE_DEPLOY_KEY }}
+      - name: Atomically fast-forward preview
+        env:
+          TARGET_SHA: ${{ needs.resolve-target.outputs.target_sha }}
+          SOURCE_BRANCH: ${{ needs.resolve-target.outputs.source_branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$SOURCE_BRANCH" preview
+          test "$(git rev-parse "${TARGET_SHA}^{commit}")" = "$TARGET_SHA"
+          git merge-base --is-ancestor "$TARGET_SHA" "origin/$SOURCE_BRANCH"
+          git merge-base --is-ancestor origin/preview "$TARGET_SHA"
+          git push --atomic origin "$TARGET_SHA:refs/heads/preview"

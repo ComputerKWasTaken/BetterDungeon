@@ -2,7 +2,7 @@
 //
 // Hosts privileged operations that content scripts should not perform inside
 // the page context. Phase 5 uses this for WebFetch so Ultrascripts ops can access
-// http/https URLs without inheriting AI Dungeon page CORS.
+// public HTTPS URLs without inheriting AI Dungeon page CORS.
 
 (function () {
   if (globalThis.__BetterDungeonBackground) return;
@@ -20,39 +20,36 @@
 
   const WEBFETCH_MESSAGE = 'ULTRASCRIPTS_WEBFETCH_FETCH';
   const SDK_MESSAGE = 'ULTRASCRIPTS_SDK_REQUEST';
-  const GEMINI_MESSAGE = 'ULTRASCRIPTS_AI_GEMINI';
   const DEFAULT_TIMEOUT_MS = 15000;
   const MAX_TIMEOUT_MS = 30000;
-  const GEMINI_DEFAULT_TIMEOUT_MS = 120000;
-  const GEMINI_PROMPT_MAX_CHARS = 12000;
-  const GEMINI_DEFAULT_MODEL = 'gemini-3.1-flash-lite';
-  const GEMINI_DEFAULT_MODEL_MODE = 'auto';
-  const GEMINI_DEFAULT_THINKING_LEVEL = 'minimal';
-  const GEMINI_THINKING_LEVELS = Object.freeze(['minimal', 'low', 'medium', 'high']);
-  const GEMINI_OUTPUT_TYPES = Object.freeze(['text', 'json']);
-  const GEMINI_AUTO_STEPDOWN_MODELS = Object.freeze([
-    'gemini-3.1-flash-lite',
-    'gemma-4-31b-it',
-    'gemma-4-26b-a4b-it',
-  ]);
-  const GEMINI_STORAGE_KEYS = {
-    apiKey: 'ultrascripts_ai_gemini_api_key',
-    model: 'ultrascripts_ai_gemini_model',
-    modelMode: 'ultrascripts_ai_gemini_model_mode',
-  };
   const DEFAULT_MAX_BODY_BYTES = 50000;
   const MAX_BODY_BYTES = 100000;
-  const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+  const MAX_WEBFETCH_REDIRECTS = 5;
+  const MAX_WEBFETCH_URL_CHARS = 8192;
+  const MAX_WEBFETCH_HEADER_COUNT = 20;
+  const MAX_WEBFETCH_HEADER_NAME_CHARS = 128;
+  const MAX_WEBFETCH_HEADER_VALUE_CHARS = 2048;
+  const MAX_WEBFETCH_HEADER_TOTAL_CHARS = 8192;
+  const WEBFETCH_DNR_BLOCK_RULE_ID = 910001;
+  const WEBFETCH_DNR_ALLOW_RULE_ID = 910002;
+  const SAFE_METHODS = new Set(['GET', 'HEAD']);
+
+  const extensionApi =
+    (typeof browser !== 'undefined' && browser?.declarativeNetRequest) ? browser :
+    (typeof chrome !== 'undefined') ? chrome :
+    null;
+  const declarativeNetRequestApi = extensionApi?.declarativeNetRequest || null;
+  const webRequestApi = extensionApi?.webRequest || null;
+  let privilegedNetworkQueue = Promise.resolve();
+  let webFetchGuardReady = Promise.resolve();
 
   const SDK_SYNC_STORAGE_KEYS = {
     features: 'betterDungeonFeatures',
     ultrascriptsModules: 'ultrascripts_enabled_modules',
     ultrascriptsDebug: 'ultrascripts_debug',
-    webfetchAllowlist: 'ultrascripts_webfetch_allowlist',
   };
   const SDK_DEFAULT_FEATURES = {
     ultrascripts: true,
-    markdown: true,
     command: true,
     try: true,
     triggerHighlight: true,
@@ -64,8 +61,8 @@
     notes: true,
     storyCardModalDock: true,
     inputHistory: true,
-    textToSpeech: false,
     customDynamic: false,
+    navigator: true,
   };
   const SDK_ULTRASCRIPTS_MODULES = [
     'widget',
@@ -83,21 +80,38 @@
     'authorization',
     'proxy-authorization',
   ]);
-  const geminiRuntimeState = {
-    lastResolvedModel: null,
-    lastProviderModel: null,
-    lastResolvedAtIso: null,
-    lastFallbackMode: null,
-    lastAttemptedModels: [],
-  };
-
+  const BLOCKED_REQUEST_HEADERS = new Set([
+    'accept-encoding',
+    'authorization',
+    'connection',
+    'content-length',
+    'cookie',
+    'forwarded',
+    'host',
+    'origin',
+    'proxy-authorization',
+    'referer',
+    'referrer',
+    'te',
+    'trailer',
+    'transfer-encoding',
+    'upgrade',
+    'user-agent',
+    'via',
+    'x-forwarded-for',
+    'x-forwarded-host',
+    'x-forwarded-proto',
+    'x-real-ip',
+  ]);
+  const HEADER_NAME_PATTERN = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+  const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
   function normalizeError(error) {
     if (error && typeof error === 'object') {
       const normalized = {
         code: typeof error.code === 'string' ? error.code : 'webfetch_failed',
         message: typeof error.message === 'string' ? error.message : 'WebFetch failed',
       };
-      for (const key of ['retryable', 'status', 'statusText', 'retryAfterMs', 'backend', 'phase', 'task', 'detail']) {
+      for (const key of ['retryable', 'status', 'statusText', 'retryAfterMs', 'backend', 'service', 'phase', 'task', 'detail', 'model', 'providerReason']) {
         if (error[key] !== undefined) normalized[key] = error[key];
       }
       return normalized;
@@ -111,26 +125,327 @@
     return Math.max(min, Math.min(max, n));
   }
 
+  function withPrivilegedNetworkLock(task) {
+    const run = privilegedNetworkQueue.then(task, task);
+    privilegedNetworkQueue = run.catch(() => {});
+    return run;
+  }
+
+  function updateSessionRules(update) {
+    if (!declarativeNetRequestApi?.updateSessionRules) {
+      return Promise.reject(new Error('declarativeNetRequest is unavailable'));
+    }
+
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (error) => {
+        if (settled) return;
+        settled = true;
+        if (error) reject(error);
+        else resolve();
+      };
+      const callback = () => {
+        const lastError =
+          (typeof chrome !== 'undefined' && chrome?.runtime?.lastError) ||
+          (typeof browser !== 'undefined' && browser?.runtime?.lastError) ||
+          null;
+        finish(lastError ? new Error(lastError.message || 'Failed to update redirect guard') : null);
+      };
+
+      try {
+        const maybePromise = declarativeNetRequestApi.updateSessionRules(update, callback);
+        if (maybePromise && typeof maybePromise.then === 'function') {
+          maybePromise.then(() => finish(), finish);
+        }
+      } catch (callbackError) {
+        try {
+          const maybePromise = declarativeNetRequestApi.updateSessionRules(update);
+          if (maybePromise && typeof maybePromise.then === 'function') {
+            maybePromise.then(() => finish(), finish);
+          } else {
+            finish();
+          }
+        } catch (promiseError) {
+          finish(promiseError || callbackError);
+        }
+      }
+    });
+  }
+
+  function webFetchNetworkUrl(url) {
+    const value = url instanceof URL ? url.href : String(url || '');
+    const hashIndex = value.indexOf('#');
+    return hashIndex >= 0 ? value.slice(0, hashIndex) : value;
+  }
+
+  function escapeDnrRegex(value) {
+    return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  async function removeWebFetchRedirectGuard() {
+    if (!declarativeNetRequestApi?.updateSessionRules) return;
+    await updateSessionRules({
+      removeRuleIds: [WEBFETCH_DNR_BLOCK_RULE_ID, WEBFETCH_DNR_ALLOW_RULE_ID],
+    });
+  }
+
+  async function installWebFetchRedirectGuard(url) {
+    if (!declarativeNetRequestApi?.updateSessionRules || !webRequestApi?.onBeforeRedirect) {
+      return false;
+    }
+
+    const networkUrl = webFetchNetworkUrl(url);
+    const initiatorDomains = extensionRuntime?.id ? [String(extensionRuntime.id).toLowerCase()] : undefined;
+    if (!initiatorDomains) return false;
+
+    await updateSessionRules({
+      removeRuleIds: [WEBFETCH_DNR_BLOCK_RULE_ID, WEBFETCH_DNR_ALLOW_RULE_ID],
+      addRules: [
+        {
+          id: WEBFETCH_DNR_BLOCK_RULE_ID,
+          priority: 1,
+          action: { type: 'block' },
+          condition: {
+            regexFilter: '^https?://',
+            initiatorDomains,
+            resourceTypes: ['xmlhttprequest'],
+          },
+        },
+        {
+          id: WEBFETCH_DNR_ALLOW_RULE_ID,
+          priority: 2,
+          action: { type: 'allow' },
+          condition: {
+            regexFilter: `^${escapeDnrRegex(networkUrl)}$`,
+            initiatorDomains,
+            resourceTypes: ['xmlhttprequest'],
+          },
+        },
+      ],
+    });
+    return true;
+  }
+
+  async function fetchWebFetchHop(url, options, timeoutMs) {
+    let guarded = false;
+    try {
+      guarded = await installWebFetchRedirectGuard(url);
+    } catch {
+      guarded = false;
+    }
+
+    let redirectUrl = null;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const networkUrl = webFetchNetworkUrl(url);
+    const redirectListener = (details) => {
+      if (webFetchNetworkUrl(details?.url) !== networkUrl) return;
+      if (typeof details?.tabId === 'number' && details.tabId !== -1) return;
+      redirectUrl = typeof details?.redirectUrl === 'string' ? details.redirectUrl : null;
+      controller.abort();
+    };
+
+    if (guarded) {
+      webRequestApi.onBeforeRedirect.addListener(
+        redirectListener,
+        { urls: ['<all_urls>'], types: ['xmlhttprequest'] },
+      );
+    }
+
+    try {
+      const response = await fetch(url.href, {
+        ...options,
+        redirect: guarded ? 'follow' : 'manual',
+        signal: controller.signal,
+      });
+      if (redirectUrl) return { redirectUrl };
+      if (!guarded && response.type === 'opaqueredirect') {
+        throw {
+          code: 'redirect_unavailable',
+          message: 'This browser did not expose redirect metadata for validation',
+        };
+      }
+      return { response };
+    } catch (error) {
+      if (redirectUrl) return { redirectUrl };
+      throw error;
+    } finally {
+      clearTimeout(timer);
+      if (guarded) {
+        try { webRequestApi.onBeforeRedirect.removeListener(redirectListener); } catch { /* noop */ }
+        try { await removeWebFetchRedirectGuard(); } catch { /* noop */ }
+      }
+    }
+  }
+
+  // Session rules can survive service-worker suspension. Clear any interrupted
+  // redirect guard immediately whenever the background runtime starts again.
+  webFetchGuardReady = removeWebFetchRedirectGuard().catch(() => {});
+
   function isTextContentType(contentType) {
     const lower = String(contentType || '').toLowerCase();
     return (
+      lower === '' ||
       lower.startsWith('text/') ||
-      lower.includes('json') ||
-      lower.includes('xml') ||
-      lower.includes('javascript') ||
-      lower.includes('svg') ||
-      lower.includes('x-www-form-urlencoded')
+      lower.includes('/json') ||
+      lower.includes('+json') ||
+      lower.includes('/xml') ||
+      lower.includes('+xml')
     );
   }
 
-  function bytesToBase64(bytes) {
-    let binary = '';
-    const chunkSize = 0x8000;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      const chunk = bytes.subarray(i, i + chunkSize);
-      binary += String.fromCharCode.apply(null, chunk);
+  function invalidWebFetchArgs(message) {
+    return { code: 'invalid_args', message };
+  }
+
+  function parseIpv4(host) {
+    const match = String(host || '').match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (!match) return null;
+    const parts = match.slice(1).map(Number);
+    if (parts.some((value) => value < 0 || value > 255)) {
+      throw invalidWebFetchArgs('url contains an invalid IPv4 host');
     }
-    return btoa(binary);
+    return parts;
+  }
+
+  function ipv4IsBlocked(host) {
+    const parts = parseIpv4(host);
+    if (!parts) return false;
+    const [a, b, c] = parts;
+    return (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 0 && c === 0) ||
+      (a === 192 && b === 0 && c === 2) ||
+      (a === 192 && b === 88 && c === 99) ||
+      (a === 192 && b === 168) ||
+      (a === 198 && (b === 18 || b === 19)) ||
+      (a === 198 && b === 51 && c === 100) ||
+      (a === 203 && b === 0 && c === 113) ||
+      a >= 224
+    );
+  }
+
+  function parseIpv6(host) {
+    let source = String(host || '').toLowerCase();
+    if (source.includes('%')) throw invalidWebFetchArgs('IPv6 zone identifiers are blocked');
+
+    let ipv4Tail = null;
+    const lastColon = source.lastIndexOf(':');
+    if (source.includes('.') && lastColon >= 0) {
+      ipv4Tail = parseIpv4(source.slice(lastColon + 1));
+      if (!ipv4Tail) throw invalidWebFetchArgs('url contains an invalid IPv6 host');
+      source = `${source.slice(0, lastColon)}:${((ipv4Tail[0] << 8) | ipv4Tail[1]).toString(16)}:${((ipv4Tail[2] << 8) | ipv4Tail[3]).toString(16)}`;
+    }
+
+    if ((source.match(/::/g) || []).length > 1) {
+      throw invalidWebFetchArgs('url contains an invalid IPv6 host');
+    }
+    const halves = source.split('::');
+    const left = halves[0] ? halves[0].split(':') : [];
+    const right = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+    const missing = 8 - left.length - right.length;
+    if ((halves.length === 1 && missing !== 0) || (halves.length === 2 && missing < 1)) {
+      throw invalidWebFetchArgs('url contains an invalid IPv6 host');
+    }
+    const groups = halves.length === 2
+      ? [...left, ...Array(missing).fill('0'), ...right]
+      : left;
+    if (groups.length !== 8 || groups.some((part) => !/^[0-9a-f]{1,4}$/.test(part))) {
+      throw invalidWebFetchArgs('url contains an invalid IPv6 host');
+    }
+    return { groups: groups.map((part) => parseInt(part, 16)), ipv4Tail };
+  }
+
+  function ipv6IsBlocked(host) {
+    const parsed = parseIpv6(host);
+    const groups = parsed.groups;
+    const globalUnicast = (groups[0] & 0xe000) === 0x2000;
+    const protocolAssignments = groups[0] === 0x2001 && groups[1] < 0x0200;
+    const documentation = groups[0] === 0x2001 && groups[1] === 0x0db8;
+    const sixToFour = groups[0] === 0x2002;
+    const documentationV2 = groups[0] === 0x3fff && (groups[1] & 0xf000) === 0;
+    return (
+      !globalUnicast ||
+      protocolAssignments ||
+      documentation ||
+      sixToFour ||
+      documentationV2
+    );
+  }
+
+  function validateWebFetchUrl(value) {
+    const raw = String(value || '').trim();
+    if (!raw) throw invalidWebFetchArgs('url is required');
+    if (raw.length > MAX_WEBFETCH_URL_CHARS) {
+      throw invalidWebFetchArgs(`url must not exceed ${MAX_WEBFETCH_URL_CHARS} characters`);
+    }
+
+    let url;
+    try {
+      url = new URL(raw);
+    } catch {
+      throw invalidWebFetchArgs('url must be an absolute URL');
+    }
+    if (url.protocol !== 'https:') {
+      throw { code: 'scheme_blocked', message: 'WebFetch only supports HTTPS URLs' };
+    }
+    if (url.username || url.password) {
+      throw { code: 'credentials_blocked', message: 'URLs containing credentials are blocked' };
+    }
+
+    const host = String(url.hostname || '').toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+    if (!host) throw invalidWebFetchArgs('url hostname is required');
+    if (host === 'localhost' || host.endsWith('.localhost') || host === 'local' || host.endsWith('.local')) {
+      throw { code: 'host_blocked', message: `Host '${url.hostname}' is blocked` };
+    }
+    if ((host.includes(':') && ipv6IsBlocked(host)) || (!host.includes(':') && ipv4IsBlocked(host))) {
+      throw { code: 'host_blocked', message: `Host '${url.hostname}' is blocked` };
+    }
+    return url;
+  }
+
+  function sanitizeWebFetchHeaders(value) {
+    if (value === undefined || value === null) return {};
+    if (typeof value !== 'object' || Array.isArray(value)) {
+      throw invalidWebFetchArgs('headers must be an object');
+    }
+    const entries = Object.entries(value);
+    if (entries.length > MAX_WEBFETCH_HEADER_COUNT) {
+      throw invalidWebFetchArgs(`headers must not contain more than ${MAX_WEBFETCH_HEADER_COUNT} entries`);
+    }
+
+    const headers = {};
+    let totalChars = 0;
+    for (const [rawName, rawValue] of entries) {
+      const name = String(rawName || '').trim();
+      if (!name || !HEADER_NAME_PATTERN.test(name) || name.length > MAX_WEBFETCH_HEADER_NAME_CHARS) {
+        throw invalidWebFetchArgs(`header name '${name || '(empty)'}' is invalid or too long`);
+      }
+      const lower = name.toLowerCase();
+      if (rawValue === undefined || rawValue === null) continue;
+      const headerValue = String(rawValue);
+      if (headerValue.length > MAX_WEBFETCH_HEADER_VALUE_CHARS || /[\r\n]/.test(headerValue)) {
+        throw invalidWebFetchArgs(`header '${name}' has an invalid or oversized value`);
+      }
+      totalChars += name.length + headerValue.length;
+      if (totalChars > MAX_WEBFETCH_HEADER_TOTAL_CHARS) {
+        throw invalidWebFetchArgs(`headers must not exceed ${MAX_WEBFETCH_HEADER_TOTAL_CHARS} combined characters`);
+      }
+      if (BLOCKED_REQUEST_HEADERS.has(lower) || lower.startsWith('sec-') || lower.startsWith('proxy-')) {
+        continue;
+      }
+      headers[name] = headerValue;
+    }
+    return headers;
+  }
+
+  function urlOrigin(url) {
+    return `${url.protocol}//${url.hostname.toLowerCase()}${url.port ? `:${url.port}` : ''}`;
   }
 
   function concatBytes(chunks, totalLength) {
@@ -202,35 +517,64 @@
     };
   }
 
-  async function handleWebFetch(request = {}) {
-    const url = String(request.url || '');
+  async function handleWebFetchUnlocked(request = {}) {
+    let url = validateWebFetchUrl(request.url);
     const method = String(request.method || 'GET').toUpperCase();
-    const headers = request.headers && typeof request.headers === 'object'
-      ? request.headers
-      : {};
+    let headers = sanitizeWebFetchHeaders(request.headers);
     const timeoutMs = clampNumber(request.timeoutMs, DEFAULT_TIMEOUT_MS, 1000, MAX_TIMEOUT_MS);
     const maxBodyBytes = clampNumber(request.maxBodyBytes, DEFAULT_MAX_BODY_BYTES, 1024, MAX_BODY_BYTES);
 
     if (!SAFE_METHODS.has(method)) {
-      throw { code: 'invalid_args', message: `method '${method}' is not supported in WebFetch v1` };
+      throw { code: 'invalid_args', message: `method '${method}' is not supported; use GET or HEAD` };
     }
     if (request.body !== undefined && request.body !== null) {
-      throw { code: 'invalid_args', message: `${method} requests cannot include a body in WebFetch v1` };
+      throw { code: 'invalid_args', message: `${method} requests cannot include a body` };
     }
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const deadline = Date.now() + timeoutMs;
+    const visited = new Set([url.href]);
+    let redirectCount = 0;
 
     try {
-      const response = await fetch(url, {
-        method,
-        headers,
-        body: request.body === undefined ? undefined : String(request.body),
-        redirect: 'follow',
-        credentials: 'omit',
-        cache: 'no-store',
-        signal: controller.signal,
-      });
+      let response;
+      while (true) {
+        const remainingMs = deadline - Date.now();
+        if (remainingMs <= 0) {
+          throw { code: 'timeout', message: `WebFetch timed out after ${timeoutMs} ms` };
+        }
+        const hop = await fetchWebFetchHop(url, {
+          method,
+          headers,
+          credentials: 'omit',
+          cache: 'no-store',
+          referrer: '',
+          referrerPolicy: 'no-referrer',
+        }, remainingMs);
+
+        response = hop.response || null;
+        const redirectLocation = hop.redirectUrl || (
+          response && REDIRECT_STATUSES.has(response.status)
+            ? response.headers.get('location')
+            : null
+        );
+
+        if (!hop.redirectUrl && (!response || !REDIRECT_STATUSES.has(response.status))) break;
+        if (!redirectLocation) {
+          throw { code: 'redirect_blocked', message: 'Redirect response did not include a readable Location header' };
+        }
+        if (redirectCount >= MAX_WEBFETCH_REDIRECTS) {
+          throw { code: 'redirect_limit', message: `WebFetch exceeded ${MAX_WEBFETCH_REDIRECTS} redirects` };
+        }
+
+        const nextUrl = validateWebFetchUrl(new URL(redirectLocation, url).href);
+        if (visited.has(nextUrl.href)) {
+          throw { code: 'redirect_loop', message: 'WebFetch detected a redirect loop' };
+        }
+        if (urlOrigin(nextUrl) !== urlOrigin(url)) headers = {};
+        url = nextUrl;
+        visited.add(url.href);
+        redirectCount++;
+      }
 
       const responseHeaders = {};
       response.headers.forEach((value, key) => {
@@ -239,20 +583,27 @@
       });
 
       const contentType = response.headers.get('content-type') || '';
-      const body = await readBodyBytes(response, maxBodyBytes);
-      const bytes = body.bytes;
-      const textLike = isTextContentType(contentType);
+      if (!isTextContentType(contentType)) {
+        throw {
+          code: 'content_type_blocked',
+          message: `WebFetch only returns text-like content; received '${contentType || 'unknown'}'`,
+        };
+      }
+      const body = method === 'HEAD'
+        ? { bytes: new Uint8Array(0), totalBytes: 0, returnedBytes: 0, truncated: false }
+        : await readBodyBytes(response, maxBodyBytes);
 
       return {
-        url: response.url,
-        redirected: response.redirected,
+        url: response.url || url.href,
+        redirected: redirectCount > 0,
+        redirectCount,
         status: response.status,
         statusText: response.statusText,
         ok: response.ok,
         headers: responseHeaders,
         contentType,
-        bodyEncoding: textLike ? 'text' : 'base64',
-        body: textLike ? new TextDecoder().decode(bytes) : bytesToBase64(bytes),
+        bodyEncoding: 'text',
+        body: method === 'HEAD' ? '' : new TextDecoder().decode(body.bytes),
         bytes: body.totalBytes,
         returnedBytes: body.returnedBytes,
         truncated: body.truncated,
@@ -261,10 +612,16 @@
       if (err?.name === 'AbortError') {
         throw { code: 'timeout', message: `WebFetch timed out after ${timeoutMs} ms` };
       }
+      if (err && typeof err === 'object' && typeof err.code === 'string') throw err;
       throw { code: 'webfetch_failed', message: err?.message || 'WebFetch failed' };
-    } finally {
-      clearTimeout(timer);
     }
+  }
+
+  function handleWebFetch(request = {}) {
+    return withPrivilegedNetworkLock(async () => {
+      await webFetchGuardReady;
+      return handleWebFetchUnlocked(request);
+    });
   }
 
   function storageArea(areaName) {
@@ -348,23 +705,6 @@
     return out;
   }
 
-  function summarizeSdkWebFetchAllowlist(raw) {
-    const entries = raw && typeof raw === 'object' ? Object.entries(raw) : [];
-    let allowCount = 0;
-    let denyCount = 0;
-    for (let i = 0; i < entries.length; i++) {
-      const entry = entries[i][1];
-      if (!entry || typeof entry !== 'object') continue;
-      if (entry.decision === 'allow') allowCount++;
-      else if (entry.decision === 'deny') denyCount++;
-    }
-    return {
-      savedOriginCount: allowCount + denyCount,
-      allowCount,
-      denyCount,
-    };
-  }
-
   async function getSdkConfigSnapshot() {
     const syncResult = await storageGet('sync', Object.values(SDK_SYNC_STORAGE_KEYS));
     return {
@@ -372,509 +712,8 @@
       ultrascripts: {
         debug: !!syncResult[SDK_SYNC_STORAGE_KEYS.ultrascriptsDebug],
         modulePreferences: normalizeSdkUltrascriptsModules(syncResult[SDK_SYNC_STORAGE_KEYS.ultrascriptsModules]),
-        webfetch: summarizeSdkWebFetchAllowlist(syncResult[SDK_SYNC_STORAGE_KEYS.webfetchAllowlist]),
       },
     };
-  }
-
-  function normalizeGeminiModel(value) {
-    const model = String(value || GEMINI_DEFAULT_MODEL).trim().replace(/^models\//, '');
-    return model || GEMINI_DEFAULT_MODEL;
-  }
-
-  function normalizeGeminiModelMode(value) {
-    return String(value || '').trim().toLowerCase() === 'manual'
-      ? 'manual'
-      : GEMINI_DEFAULT_MODEL_MODE;
-  }
-
-  function normalizeGeminiFallbackChain(value) {
-    const seen = new Set();
-    const out = [];
-    const raw = Array.isArray(value) ? value : GEMINI_AUTO_STEPDOWN_MODELS;
-    for (let i = 0; i < raw.length; i++) {
-      const model = normalizeGeminiModel(raw[i]);
-      if (!model || seen.has(model)) continue;
-      seen.add(model);
-      out.push(model);
-    }
-    if (!out.length) out.push(GEMINI_DEFAULT_MODEL);
-    return out;
-  }
-
-  async function getGeminiSettings() {
-    const local = await storageGet('local', Object.values(GEMINI_STORAGE_KEYS));
-    const apiKey = String(local[GEMINI_STORAGE_KEYS.apiKey] || '').trim();
-    const modelMode = normalizeGeminiModelMode(local[GEMINI_STORAGE_KEYS.modelMode]);
-    const model = normalizeGeminiModel(local[GEMINI_STORAGE_KEYS.model]);
-    const fallbackChain = normalizeGeminiFallbackChain(GEMINI_AUTO_STEPDOWN_MODELS);
-    return {
-      apiKey,
-      model,
-      modelMode,
-      fallbackChain,
-      keyConfigured: !!apiKey,
-    };
-  }
-
-  function geminiQueryModels(settings) {
-    if (settings?.modelMode === 'manual') return [normalizeGeminiModel(settings?.model)];
-    return normalizeGeminiFallbackChain(settings?.fallbackChain);
-  }
-
-  function geminiRememberSuccess(result) {
-    geminiRuntimeState.lastResolvedModel = typeof result?.model === 'string' ? result.model : null;
-    geminiRuntimeState.lastProviderModel =
-      typeof result?.providerModel === 'string' ? result.providerModel : null;
-    geminiRuntimeState.lastResolvedAtIso =
-      typeof result?.generatedAtIso === 'string' ? result.generatedAtIso : new Date().toISOString();
-    geminiRuntimeState.lastFallbackMode =
-      typeof result?.fallback?.mode === 'string' ? result.fallback.mode : GEMINI_DEFAULT_MODEL_MODE;
-    geminiRuntimeState.lastAttemptedModels = Array.isArray(result?.fallback?.attemptedModels)
-      ? result.fallback.attemptedModels.filter(model => typeof model === 'string' && model)
-      : [];
-  }
-
-  function geminiResetRuntimeState() {
-    geminiRuntimeState.lastResolvedModel = null;
-    geminiRuntimeState.lastProviderModel = null;
-    geminiRuntimeState.lastResolvedAtIso = null;
-    geminiRuntimeState.lastFallbackMode = null;
-    geminiRuntimeState.lastAttemptedModels = [];
-  }
-
-  function geminiStatus(settings, actualModel = null) {
-    const ready = !!settings?.keyConfigured;
-    const models = geminiQueryModels(settings);
-    const selectedModel = models[0] || GEMINI_DEFAULT_MODEL;
-    const activeModel = actualModel || geminiRuntimeState.lastResolvedModel || null;
-    return {
-      backend: 'gemini',
-      backendLabel: 'Gemini',
-      ready,
-      available: ready,
-      reason: ready ? null : 'ai_backend_not_configured',
-      supports: { text: true, json: true, thinking: true },
-      config: {
-        provider: 'gemini',
-        keyConfigured: ready,
-        modelMode: normalizeGeminiModelMode(settings?.modelMode),
-        model: selectedModel,
-        selectedModel,
-        activeModel,
-        fallbackModels: models,
-        thinkingDefault: GEMINI_DEFAULT_THINKING_LEVEL,
-        thinkingLevels: [...GEMINI_THINKING_LEVELS],
-        lastResolvedModel: geminiRuntimeState.lastResolvedModel,
-        lastProviderModel: geminiRuntimeState.lastProviderModel,
-        lastResolvedAtIso: geminiRuntimeState.lastResolvedAtIso,
-        lastFallbackMode: geminiRuntimeState.lastFallbackMode,
-        lastAttemptedModels: [...geminiRuntimeState.lastAttemptedModels],
-      },
-      message: ready
-        ? 'Gemini backend is configured.'
-        : 'Add a Gemini API key in BetterDungeon to enable AI queries.',
-    };
-  }
-
-  function isObject(value) {
-    return value !== null && typeof value === 'object' && !Array.isArray(value);
-  }
-
-  function cloneJson(value) {
-    if (value === undefined) return undefined;
-    return JSON.parse(JSON.stringify(value));
-  }
-
-  function normalizeGeminiTask(task) {
-    if (!isObject(task)) {
-      throw { code: 'invalid_args', message: 'Gemini query task must be an object', retryable: false };
-    }
-    if (typeof task.prompt !== 'string' || !task.prompt.trim()) {
-      throw { code: 'invalid_args', message: 'prompt is required', retryable: false };
-    }
-    if (task.prompt.length > GEMINI_PROMPT_MAX_CHARS) {
-      throw {
-        code: 'invalid_args',
-        message: `prompt must be ${GEMINI_PROMPT_MAX_CHARS} characters or less`,
-        retryable: false,
-        maxChars: GEMINI_PROMPT_MAX_CHARS,
-        actualChars: task.prompt.length,
-      };
-    }
-    const output = isObject(task.output) ? task.output : { type: 'text' };
-    const rawType = output.type === undefined ? 'text' : output.type;
-    if (typeof rawType !== 'string' || GEMINI_OUTPUT_TYPES.indexOf(rawType) === -1) {
-      throw {
-        code: 'invalid_args',
-        message: `output.type must be one of: ${GEMINI_OUTPUT_TYPES.join(', ')}`,
-        retryable: false,
-      };
-    }
-    const type = rawType;
-    if (type === 'json' && !isObject(output.schema)) {
-      throw {
-        code: 'invalid_args',
-        message: 'output.schema is required when output.type is json',
-        retryable: false,
-      };
-    }
-    return {
-      id: typeof task.id === 'string' ? task.id : null,
-      prompt: task.prompt,
-      promptChars: Number(task.promptChars || task.prompt.length),
-      thinking: normalizeGeminiThinking(task.thinking),
-      output: {
-        type,
-        schema: output.schema ? cloneJson(output.schema) : undefined,
-      },
-    };
-  }
-
-  function normalizeGeminiThinking(thinking) {
-    if (thinking === undefined || thinking === null) return { level: GEMINI_DEFAULT_THINKING_LEVEL };
-    if (typeof thinking === 'string') thinking = { level: thinking };
-    if (!isObject(thinking)) {
-      throw { code: 'invalid_args', message: 'thinking must be a string or object', retryable: false };
-    }
-
-    const rawLevel = thinking.level === undefined ? GEMINI_DEFAULT_THINKING_LEVEL : thinking.level;
-    if (typeof rawLevel !== 'string') {
-      throw { code: 'invalid_args', message: 'thinking.level must be a string', retryable: false };
-    }
-
-    const level = rawLevel.trim().toLowerCase();
-    if (GEMINI_THINKING_LEVELS.indexOf(level) === -1) {
-      throw {
-        code: 'invalid_args',
-        message: `thinking.level must be one of: ${GEMINI_THINKING_LEVELS.join(', ')}`,
-        retryable: false,
-      };
-    }
-    return { level };
-  }
-
-  function geminiThinkingFamily(model) {
-    const id = String(model || '').trim().toLowerCase().replace(/^models\//, '');
-    if (/^gemini-3\.1-pro(?:[.-]|$)/.test(id)) return 'gemini-3-pro';
-    if (/^gemini-3(?:[.-]|$)/.test(id)) return 'gemini-3';
-    if (/^gemini-2\.5(?:[.-]|$)/.test(id)) return 'gemini-2.5';
-    if (/^gemma-4(?:[.-]|$)/.test(id)) return 'gemma-4';
-    return 'unknown';
-  }
-
-  function geminiThinkingBudget(model, level) {
-    const id = String(model || '').toLowerCase();
-    if (level === 'minimal') return 0;
-    if (level === 'low') return id.indexOf('flash-lite') !== -1 ? 512 : 1024;
-    if (level === 'medium') return -1;
-    return 8192;
-  }
-
-  function geminiThinkingConfigForModel(model, thinking) {
-    const level = normalizeGeminiThinking(thinking).level;
-    const family = geminiThinkingFamily(model);
-    if (family === 'gemini-3' || family === 'gemini-3-pro') {
-      const appliedLevel = family === 'gemini-3-pro' && level === 'minimal' ? 'low' : level;
-      return {
-        config: { thinkingLevel: appliedLevel },
-        appliedLevel,
-        appliedBudget: null,
-        family,
-      };
-    }
-    if (family === 'gemini-2.5') {
-      const appliedBudget = geminiThinkingBudget(model, level);
-      return {
-        config: { thinkingBudget: appliedBudget },
-        appliedLevel: null,
-        appliedBudget,
-        family,
-      };
-    }
-    // Gemma 4 exposes thinking as an on/off toggle in the Gemini API:
-    // omit thinkingConfig for off, or send thinkingLevel: "high" for on.
-    if (family === 'gemma-4' && level !== 'minimal') {
-      return {
-        config: { thinkingLevel: 'high' },
-        appliedLevel: 'high',
-        appliedBudget: null,
-        family,
-        toggle: true,
-      };
-    }
-    return {
-      config: null,
-      appliedLevel: null,
-      appliedBudget: null,
-      family,
-    };
-  }
-
-  function geminiPayload(task, model) {
-    const payload = {
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: task.prompt }],
-        },
-      ],
-    };
-    const generationConfig = {};
-
-    if (task.output.type === 'json') {
-      generationConfig.responseMimeType = 'application/json';
-      generationConfig.responseJsonSchema = task.output.schema;
-    }
-
-    const thinking = geminiThinkingConfigForModel(model, task.thinking);
-    if (thinking.config) generationConfig.thinkingConfig = thinking.config;
-
-    if (Object.keys(generationConfig).length) payload.generationConfig = generationConfig;
-
-    return { payload, thinking };
-  }
-
-  function geminiThinkingMeta(task, model, thinking, options = {}) {
-    const requestedLevel = normalizeGeminiThinking(task.thinking).level;
-    const meta = {
-      requestedLevel,
-      applied: !!thinking?.config,
-      family: thinking?.family || geminiThinkingFamily(model),
-      defaulted: requestedLevel === GEMINI_DEFAULT_THINKING_LEVEL,
-    };
-    if (thinking?.appliedLevel) meta.appliedLevel = thinking.appliedLevel;
-    if (Number.isFinite(thinking?.appliedBudget)) meta.appliedBudget = thinking.appliedBudget;
-    if (thinking?.toggle) meta.toggle = true;
-    if (options.fallbackReason) meta.fallbackReason = options.fallbackReason;
-    return meta;
-  }
-
-  function geminiHttpError(status, statusText, bodyText) {
-    let parsed = null;
-    try { parsed = JSON.parse(bodyText || '{}'); } catch { parsed = null; }
-    const providerMessage = parsed?.error?.message || statusText || `HTTP ${status}`;
-    const base = {
-      status,
-      statusText,
-      backend: 'gemini',
-      detail: providerMessage,
-    };
-
-    if (status === 401 || status === 403) {
-      return { ...base, code: 'auth_failed', message: 'Gemini API key was rejected.', retryable: false };
-    }
-    if (status === 429) {
-      return { ...base, code: 'rate_limit', message: 'Gemini rate limit reached.', retryable: true };
-    }
-    if (status >= 500) {
-      return { ...base, code: 'backend_failed', message: 'Gemini service failed.', retryable: true };
-    }
-    if (status === 400) {
-      return { ...base, code: 'invalid_args', message: providerMessage, retryable: false };
-    }
-    return { ...base, code: 'backend_failed', message: providerMessage, retryable: status >= 500 };
-  }
-
-  function extractGeminiText(data) {
-    const candidates = Array.isArray(data?.candidates) ? data.candidates : [];
-    if (!candidates.length) {
-      const blockReason = data?.promptFeedback?.blockReason || null;
-      throw {
-        code: blockReason ? 'blocked' : 'invalid_response',
-        message: blockReason ? `Gemini blocked the prompt: ${blockReason}` : 'Gemini returned no candidates.',
-        retryable: false,
-        backend: 'gemini',
-      };
-    }
-
-    const candidate = candidates[0];
-    const parts = Array.isArray(candidate?.content?.parts) ? candidate.content.parts : [];
-    const text = parts
-      .map(part => (!part?.thought && typeof part?.text === 'string' ? part.text : ''))
-      .filter(Boolean)
-      .join('');
-
-    if (!text) {
-      const finishReason = candidate?.finishReason || data?.promptFeedback?.blockReason || null;
-      throw {
-        code: finishReason && finishReason !== 'STOP' ? 'blocked' : 'invalid_response',
-        message: finishReason
-          ? `Gemini returned no text output (${finishReason}).`
-          : 'Gemini returned no text output.',
-        retryable: false,
-        backend: 'gemini',
-      };
-    }
-
-    return text;
-  }
-
-  async function callGeminiGenerateContent(settings, task) {
-    if (!settings.keyConfigured) {
-      throw {
-        code: 'not_configured',
-        message: 'No Gemini API key is configured.',
-        retryable: false,
-        backend: 'gemini',
-      };
-    }
-
-    const models = geminiQueryModels(settings);
-    let lastError = null;
-
-    for (let modelIndex = 0; modelIndex < models.length; modelIndex++) {
-      const currentModel = models[modelIndex];
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), GEMINI_DEFAULT_TIMEOUT_MS);
-      const url =
-        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent`;
-      const payloadInfo = geminiPayload(task, currentModel);
-
-      try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': settings.apiKey,
-          },
-          body: JSON.stringify(payloadInfo.payload),
-          credentials: 'omit',
-          cache: 'no-store',
-          signal: controller.signal,
-        });
-
-        const bodyText = await response.text();
-        if (!response.ok) {
-          const err = geminiHttpError(response.status, response.statusText, bodyText);
-          const retryAfter = response.headers.get('retry-after');
-          if (retryAfter) {
-            const seconds = Number(retryAfter);
-            if (Number.isFinite(seconds)) err.retryAfterMs = Math.max(0, seconds * 1000);
-          }
-          err.model = currentModel;
-          if (
-            err.code === 'rate_limit' &&
-            settings?.modelMode !== 'manual' &&
-            modelIndex + 1 < models.length
-          ) {
-            lastError = err;
-            continue;
-          }
-          throw err;
-        }
-
-        let data = null;
-        try {
-          data = JSON.parse(bodyText || '{}');
-        } catch (err) {
-          throw {
-            code: 'invalid_response',
-            message: 'Gemini returned invalid JSON.',
-            retryable: false,
-            backend: 'gemini',
-            detail: err?.message || 'invalid_json',
-            model: currentModel,
-          };
-        }
-
-        const text = extractGeminiText(data);
-        const base = {
-          backend: 'gemini',
-          generatedAtIso: new Date().toISOString(),
-          model: currentModel,
-          providerModel: data?.modelVersion || currentModel,
-          usage: data?.usageMetadata || null,
-          status: geminiStatus(settings, currentModel),
-          thinking: geminiThinkingMeta(task, currentModel, payloadInfo.thinking),
-          fallback: {
-            mode: settings?.modelMode || GEMINI_DEFAULT_MODEL_MODE,
-            attemptedModels: models.slice(0, modelIndex + 1),
-          },
-        };
-        geminiRememberSuccess(base);
-
-        if (task.output.type === 'json') {
-          try {
-            return { ...base, json: JSON.parse(text), text };
-          } catch (err) {
-            throw {
-              code: 'invalid_response',
-              message: 'Gemini returned invalid JSON text.',
-              retryable: false,
-              backend: 'gemini',
-              detail: err?.message || 'invalid_json',
-              model: currentModel,
-            };
-          }
-        }
-
-        return { ...base, text };
-      } catch (err) {
-        if (err?.name === 'AbortError') {
-          throw {
-            code: 'timeout',
-            message: `Gemini query timed out after ${GEMINI_DEFAULT_TIMEOUT_MS} ms.`,
-            retryable: true,
-            backend: 'gemini',
-            model: currentModel,
-          };
-        }
-        if (err?.code) throw err;
-        throw {
-          code: 'backend_failed',
-          message: err?.message || 'Gemini request failed.',
-          retryable: true,
-          backend: 'gemini',
-          model: currentModel,
-        };
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-
-    throw lastError || {
-      code: 'rate_limit',
-      message: 'Gemini rate limit reached.',
-      retryable: true,
-      backend: 'gemini',
-    };
-  }
-
-  async function handleGemini(request = {}) {
-    const op = String(request.op || '').trim();
-    if (op === 'settings:set') {
-      const next = {};
-      if (request.apiKey !== undefined) {
-        next[GEMINI_STORAGE_KEYS.apiKey] = String(request.apiKey || '').trim();
-      }
-      if (request.model !== undefined) {
-        next[GEMINI_STORAGE_KEYS.model] = normalizeGeminiModel(request.model);
-      }
-      if (request.modelMode !== undefined) {
-        next[GEMINI_STORAGE_KEYS.modelMode] = normalizeGeminiModelMode(request.modelMode);
-      }
-      await storageSet('local', next);
-      geminiResetRuntimeState();
-      return geminiStatus(await getGeminiSettings());
-    }
-
-    const settings = await getGeminiSettings();
-    if (op === 'status') return geminiStatus(settings);
-    if (op === 'test') {
-      const task = normalizeGeminiTask({
-        id: 'popup-test',
-        prompt: 'Reply with exactly: BetterDungeon Gemini ready',
-        output: { type: 'text' },
-      });
-      return callGeminiGenerateContent(settings, task);
-    }
-    if (op === 'query') {
-      const task = normalizeGeminiTask(request.task);
-      return callGeminiGenerateContent(settings, task);
-    }
-
-    throw { code: 'invalid_args', message: `Gemini op '${op || '(empty)'}' is not supported`, retryable: false };
   }
 
   async function handleSdk(request = {}) {
@@ -903,13 +742,100 @@
     return true;
   });
 
-  extensionRuntime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (!message || message.type !== GEMINI_MESSAGE) return false;
+  // ── GitHub release update check ───────────────────────────────────
+  // Only manual installs run the check (see services/update-check.js);
+  // store-managed copies skip straight to a cleared badge.
+  const UPDATE_CHECK_ALARM = 'bd-update-check';
+  const UPDATE_CHECK_PERIOD_MINUTES = 720;
 
-    handleGemini(message.request)
+  const actionApi =
+    (typeof browser !== 'undefined' && browser?.action) ? browser.action :
+    (typeof chrome !== 'undefined' && chrome?.action) ? chrome.action :
+    null;
+  const alarmsApi =
+    (typeof browser !== 'undefined' && browser?.alarms) ? browser.alarms :
+    (typeof chrome !== 'undefined' && chrome?.alarms) ? chrome.alarms :
+    null;
+
+  function refreshUpdateBadge(status) {
+    if (!actionApi?.setBadgeText) return;
+    const text = status?.shouldNotify ? '!' : '';
+    try {
+      const pending = actionApi.setBadgeText({ text });
+      if (pending?.then) pending.catch(() => {});
+      if (text && actionApi.setBadgeBackgroundColor) {
+        const colored = actionApi.setBadgeBackgroundColor({ color: '#7c3aed' });
+        if (colored?.then) colored.catch(() => {});
+      }
+    } catch { /* noop */ }
+  }
+
+  function runUpdateCheck(force) {
+    const updateCheck = globalThis.BetterDungeonUpdateCheck;
+    if (!updateCheck) return Promise.resolve(null);
+    const task = force ? updateCheck.checkNow() : updateCheck.checkIfDue();
+    return Promise.resolve(task)
+      .then((status) => {
+        refreshUpdateBadge(status);
+        return status;
+      })
+      .catch(() => null);
+  }
+
+  function scheduleUpdateCheck() {
+    try {
+      alarmsApi?.create?.(UPDATE_CHECK_ALARM, { periodInMinutes: UPDATE_CHECK_PERIOD_MINUTES });
+    } catch { /* noop */ }
+  }
+
+  async function handleUpdateCheckMessage(message) {
+    const updateCheck = globalThis.BetterDungeonUpdateCheck;
+    if (!updateCheck) throw { code: 'unavailable', message: 'Update check module is not loaded' };
+    const op = String(message.op || 'status');
+    let status = null;
+    if (op === 'checkNow') status = await runUpdateCheck(true);
+    else if (op === 'checkIfDue') status = await runUpdateCheck(false);
+    else if (op === 'dismiss') status = await updateCheck.dismiss(message.version);
+    else if (op === 'setEnabled') status = await updateCheck.setEnabled(message.enabled);
+    if (!status) status = await updateCheck.getStatus();
+    refreshUpdateBadge(status);
+    return status;
+  }
+
+  extensionRuntime.onInstalled?.addListener(() => {
+    scheduleUpdateCheck();
+    runUpdateCheck(false);
+  });
+
+  extensionRuntime.onStartup?.addListener(() => {
+    scheduleUpdateCheck();
+    runUpdateCheck(false);
+  });
+
+  alarmsApi?.onAlarm?.addListener((alarm) => {
+    if (alarm?.name === UPDATE_CHECK_ALARM) runUpdateCheck(false);
+  });
+
+  extensionRuntime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (!message || message.type !== 'BETTERDUNGEON_UPDATE_CHECK') return false;
+
+    handleUpdateCheckMessage(message)
       .then((data) => sendResponse({ ok: true, data }))
       .catch((error) => sendResponse({ ok: false, error: normalizeError(error) }));
     return true;
   });
 
 })();
+
+if (typeof importScripts === 'function') {
+  try {
+    importScripts('services/update-check.js');
+  } catch (error) {
+    console.error('[BetterDungeon/background] Failed to load update check:', error);
+  }
+  try {
+    importScripts('background-ai-openai-compatible.js');
+  } catch (error) {
+    console.error('[BetterDungeon/background] Failed to load AI runtime:', error);
+  }
+}

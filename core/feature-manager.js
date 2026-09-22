@@ -27,10 +27,6 @@ class FeatureManager {
       this.featureClasses.set('ultrascripts', UltrascriptsFeature);
     }
 
-    if (typeof MarkdownFeature !== 'undefined') {
-      this.featureClasses.set('markdown', MarkdownFeature);
-    }
-
     if (typeof CommandFeature !== 'undefined') {
       this.featureClasses.set('command', CommandFeature);
     }
@@ -69,14 +65,6 @@ class FeatureManager {
       this.featureClasses.set('storyCardAnalytics', StoryCardAnalyticsFeature);
     }
 
-    if (typeof NotesFeature !== 'undefined') {
-      this.featureClasses.set('notes', NotesFeature);
-    }
-
-    if (typeof AutoEnableScriptsFeature !== 'undefined') {
-      this.featureClasses.set('autoEnableScripts', AutoEnableScriptsFeature);
-    }
-
     if (typeof StoryCardModalDockFeature !== 'undefined') {
       this.featureClasses.set('storyCardModalDock', StoryCardModalDockFeature);
     }
@@ -85,12 +73,19 @@ class FeatureManager {
       this.featureClasses.set('inputHistory', InputHistoryFeature);
     }
 
-    if (typeof TextToSpeechFeature !== 'undefined') {
-      this.featureClasses.set('textToSpeech', TextToSpeechFeature);
-    }
-
     if (typeof CustomDynamicFeature !== 'undefined') {
       this.featureClasses.set('customDynamic', CustomDynamicFeature);
+    }
+
+    if (typeof NavigatorFeature !== 'undefined') {
+      this.featureClasses.set('navigator', NavigatorFeature);
+    }
+
+    const platform = window.BetterDungeonPlatform;
+    if (platform?.supportsFeature) {
+      for (const id of this.featureClasses.keys()) {
+        if (!platform.supportsFeature(id)) this.featureClasses.delete(id);
+      }
     }
   }
 
@@ -99,9 +94,9 @@ class FeatureManager {
 
     this.featureClasses.forEach((FeatureClass, id) => {
       // Always-on QOL features that don't need user toggling
-      const alwaysEnabled = ['storyCardAnalytics', 'autoEnableScripts'];
+      const alwaysEnabled = ['storyCardAnalytics'];
       // Features that are disabled by default
-      const defaultOff = ['autoSee', 'textToSpeech', 'customDynamic'];
+      const defaultOff = ['autoSee', 'customDynamic'];
       
       const enabled = alwaysEnabled.includes(id) || 
                       savedStates[id] === true || 

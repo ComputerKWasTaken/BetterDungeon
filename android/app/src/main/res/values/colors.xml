@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- BetterDungeon Brand Colors -->
+    <color name="bd_background">#0F0E11</color>
+    <color name="bd_surface">#17161B</color>
+    <color name="bd_surface_light">#1E1D23</color>
+    <color name="bd_accent">#E8850A</color>
+    <color name="bd_accent_light">#F29520</color>
+    <color name="bd_text">#E8E8EC</color>
+    <color name="bd_text_secondary">#A0A0A8</color>
+
+    <!-- Standard Android colors -->
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- Launcher icon background -->
+    <color name="ic_launcher_background">#0F0E11</color>
+</resources>

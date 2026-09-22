@@ -22,8 +22,17 @@ class HotkeyFeature {
     'modeTry': { selector: '[aria-label="Set to \'Try\' mode"]', description: 'Try Mode', requiresMenu: true, featureDependent: 'try', category: 'modes' },
     'modeSay': { selector: '[aria-label="Set to \'Say\' mode"]', description: 'Say Mode', requiresMenu: true, category: 'modes' },
     'modeStory': { selector: '[aria-label="Set to \'Story\' mode"]', description: 'Story Mode', requiresMenu: true, category: 'modes' },
-    'modeSee': { selector: '[aria-label="Set to \'See\' mode"]', description: 'See Mode', requiresMenu: true, category: 'modes' },
+    'modeGuide': { selector: '[aria-label="Set to \'Guide\' mode"]', description: 'Guide Mode', requiresMenu: true, category: 'modes' },
+    'generateImage': { selector: '[aria-label="Generate an image"]', description: 'Generate Image', requiresMenu: true, category: 'modes' },
+    'generateVideo': { selector: '[aria-label="Generate a video"]', description: 'Generate Video', requiresMenu: true, category: 'modes' },
     'modeCommand': { selector: '[aria-label="Set to \'Command\' mode"]', description: 'Command Mode', requiresMenu: true, featureDependent: 'command', category: 'modes' }
+  };
+
+  // AI Dungeon dropped the See input mode and put Generate image/video actions
+  // in the same menu. Saved bindings still name the old action, so carry them
+  // forward instead of silently dropping the key.
+  static RENAMED_ACTIONS = {
+    modeSee: 'generateImage'
   };
 
   // Default key bindings (key -> action ID)
@@ -39,11 +48,14 @@ class HotkeyFeature {
     '2': 'modeTry',
     '3': 'modeSay',
     '4': 'modeStory',
-    '5': 'modeSee',
-    '6': 'modeCommand'
+    '5': 'modeGuide',
+    '6': 'generateImage',
+    '7': 'modeCommand',
+    '8': 'generateVideo'
   };
 
   constructor() {
+    this.aid = new AIDungeonService();
     this.boundKeyHandler = null;
     this.boundMessageListener = null;
     // hotkeyMap maps key -> action config (built from bindings)
@@ -88,7 +100,7 @@ class HotkeyFeature {
           // Use custom bindings as-is (full replacement, not merge).
           // This allows users to unbind individual hotkeys — merging
           // with defaults would silently re-add any key the user removed.
-          this.keyBindings = { ...customBindings };
+          this.keyBindings = HotkeyFeature.migrateBindings(customBindings);
           this.log('[Hotkey] Loaded custom bindings', this.keyBindings);
         } else {
           this.keyBindings = { ...HotkeyFeature.DEFAULT_BINDINGS };
@@ -96,6 +108,15 @@ class HotkeyFeature {
         resolve();
       });
     });
+  }
+
+  // Point saved bindings at the current action IDs
+  static migrateBindings(bindings) {
+    const migrated = {};
+    for (const [key, actionId] of Object.entries(bindings)) {
+      migrated[key] = HotkeyFeature.RENAMED_ACTIONS[actionId] || actionId;
+    }
+    return migrated;
   }
 
   // Build the hotkeyMap from current keyBindings
@@ -113,7 +134,7 @@ class HotkeyFeature {
   listenForBindingUpdates() {
     this.boundMessageListener = (message, sender, sendResponse) => {
       if (message.type === 'HOTKEY_BINDINGS_UPDATED') {
-        this.keyBindings = message.bindings;
+        this.keyBindings = HotkeyFeature.migrateBindings(message.bindings);
         this.buildHotkeyMap();
         this.log('[Hotkey] Bindings updated', this.keyBindings);
         sendResponse({ success: true });
@@ -230,54 +251,30 @@ class HotkeyFeature {
   isFeatureEnabled(featureId) {
     // Check if the feature-dependent button exists in DOM (means feature is enabled)
     if (featureId === 'try') {
-      return !!document.querySelector('[aria-label="Set to \'Try\' mode"]');
+      return !!this.aid.getModeButtonByName('try');
     }
     if (featureId === 'command') {
-      return !!document.querySelector('[aria-label="Set to \'Command\' mode"]');
+      return !!this.aid.getModeButtonByName('command');
     }
     return true;
   }
 
   async openInputModeMenu(operationId = null) {
-    const menuButton = document.querySelector('[aria-label="Change input mode"]');
-    if (!menuButton) return false;
-    
-    // Check if menu is already open
-    const existingMenu = document.querySelector('[aria-label="Set to \'Do\' mode"]');
-    if (existingMenu) return true;
-    
-    // Click to open the menu
-    menuButton.click();
-    
-    // Wait for menu to appear with operation validation
-    return new Promise(resolve => {
-      let attempts = 0;
-      const checkMenu = setInterval(() => {
-        // Check if operation was cancelled
-        if (operationId !== null && !this.isOperationValid(operationId)) {
-          clearInterval(checkMenu);
-          resolve(false);
-          return;
-        }
-        
-        attempts++;
-        const menu = document.querySelector('[aria-label="Set to \'Do\' mode"]');
-        if (menu) {
-          clearInterval(checkMenu);
-          resolve(true);
-        } else if (attempts > 20) {
-          clearInterval(checkMenu);
-          resolve(false);
-        }
-      }, 50);
-    });
+    if (operationId !== null && !this.isOperationValid(operationId)) return false;
+    const opened = await this.aid.openModeMenu();
+    return opened && (operationId === null || this.isOperationValid(operationId));
+  }
+
+  getMenuActionTarget(config) {
+    if (config.actionId === 'generateImage') {
+      return this.aid.getGenerateButton('image') || this.aid.getModeButtonByName('see');
+    }
+    if (config.actionId === 'generateVideo') return this.aid.getGenerateButton('video');
+    return this.aid.getModeButtonByName(config.actionId.replace(/^mode/, '').toLowerCase());
   }
 
   closeInputModeMenu() {
-    const closeButton = document.querySelector('[aria-label="Close \'Input Mode\' menu"]');
-    if (closeButton) {
-      closeButton.click();
-    }
+    this.aid.closeModeMenu();
   }
 
   closeInputArea() {
@@ -357,6 +354,13 @@ class HotkeyFeature {
       const hotkeyConfig = this.hotkeyMap[key];
       
       if (!hotkeyConfig) return;
+
+      // Escape dismisses the menu first; don't close the whole input drawer.
+      if (key === 'escape' && this.aid.isModeMenuOpen()) {
+        e.preventDefault();
+        this.aid.closeModeMenu();
+        return;
+      }
       
       e.preventDefault();
       e.stopPropagation();
@@ -427,10 +431,10 @@ class HotkeyFeature {
           }
           
           // Find and click the target element
-          const targetElement = document.querySelector(hotkeyConfig.selector);
+          const targetElement = this.getMenuActionTarget(hotkeyConfig);
           if (targetElement) {
             // Check if element is disabled
-            const isDisabled = targetElement.getAttribute('aria-disabled') === 'true';
+            const isDisabled = targetElement.getAttribute('aria-disabled') === 'true' || targetElement.hasAttribute('data-disabled');
             if (!isDisabled) {
               targetElement.click();
             }

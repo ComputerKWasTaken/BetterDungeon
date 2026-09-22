@@ -14,11 +14,9 @@
     features: 'betterDungeonFeatures',
     ultrascriptsModules: 'ultrascripts_enabled_modules',
     ultrascriptsDebug: 'ultrascripts_debug',
-    webfetchAllowlist: 'ultrascripts_webfetch_allowlist',
   };
   const DEFAULT_FEATURES = {
     ultrascripts: true,
-    markdown: true,
     command: true,
     try: true,
     triggerHighlight: true,
@@ -30,13 +28,15 @@
     notes: true,
     storyCardModalDock: true,
     inputHistory: true,
-    textToSpeech: false,
+    customDynamic: false,
+    navigator: true,
   };
   const ULTRASCRIPTS_MODULES = [
     'widget',
     'webfetch',
     'clock',
     'sdk',
+    'audio',
     'weather',
     'network',
     'system',
@@ -161,7 +161,14 @@
   }
 
   function normalizeFeatures(raw) {
-    return { ...DEFAULT_FEATURES, ...(raw && typeof raw === 'object' ? raw : {}) };
+    const features = { ...DEFAULT_FEATURES, ...(raw && typeof raw === 'object' ? raw : {}) };
+    const platform = window.BetterDungeonPlatform;
+    if (platform?.supportsFeature) {
+      for (const feature of Object.keys(features)) {
+        if (!platform.supportsFeature(feature)) features[feature] = false;
+      }
+    }
+    return features;
   }
 
   function normalizeUltrascriptsModules(raw) {
@@ -174,23 +181,6 @@
       if (ULTRASCRIPTS_MODULES.includes(key)) out[key] = !!value;
     }
     return out;
-  }
-
-  function summarizeWebFetchAllowlist(raw) {
-    const entries = raw && typeof raw === 'object' ? Object.entries(raw) : [];
-    let allowCount = 0;
-    let denyCount = 0;
-    for (let i = 0; i < entries.length; i++) {
-      const entry = entries[i][1];
-      if (!entry || typeof entry !== 'object') continue;
-      if (entry.decision === 'allow') allowCount++;
-      else if (entry.decision === 'deny') denyCount++;
-    }
-    return {
-      savedOriginCount: allowCount + denyCount,
-      allowCount,
-      denyCount,
-    };
   }
 
   async function configOp(args = {}, ctx) {
@@ -216,7 +206,6 @@
       STORAGE_KEYS.features,
       STORAGE_KEYS.ultrascriptsModules,
       STORAGE_KEYS.ultrascriptsDebug,
-      STORAGE_KEYS.webfetchAllowlist,
     ]);
 
     const features = normalizeFeatures(syncResult[STORAGE_KEYS.features]);
@@ -233,7 +222,6 @@
         runtimeEnabled: typeof getCore()?.isEnabled === 'function' ? !!getCore().isEnabled() : !!getCore()?.inspect?.()?.enabled,
         debug: !!syncResult[STORAGE_KEYS.ultrascriptsDebug],
         modulePreferences: ultrascriptsModules,
-        webfetch: summarizeWebFetchAllowlist(syncResult[STORAGE_KEYS.webfetchAllowlist]),
       },
     };
   }

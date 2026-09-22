@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/main_container"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bd_background">
+
+    <!-- Main WebView for play.aidungeon.com -->
+    <com.computerk.betterdungeon.BetterDungeonWebView
+        android:id="@+id/webview_main"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Full Screen Popup UI -->
+    <FrameLayout
+        android:id="@+id/popup_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/bd_surface"
+        android:visibility="gone"
+        android:translationY="0dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:elevation="16dp">
+
+        <!-- Popup WebView -->
+        <com.computerk.betterdungeon.BetterDungeonWebView
+            android:id="@+id/webview_popup"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+    </FrameLayout>
+
+</FrameLayout>

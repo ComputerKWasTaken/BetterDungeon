@@ -6,6 +6,9 @@ class TryFeature {
 
   constructor() {
     this.observer = null;
+    this.aid = new AIDungeonService();
+    this.activationTimer = null;
+    this.pendingInjection = null;
     this.tryButton = null;
     this.isTryMode = false;
     this.boundKeyHandler = null;
@@ -27,40 +30,68 @@ class TryFeature {
         'achieve it perfectly',
         'pull it off with incredible style',
         'succeed spectacularly',
-        'masterfully succeed'
+        'masterfully succeed',
+        'accomplish it with flair',
+        'execute it flawlessly',
+        'triumph with brilliance',
+        'excel beyond measure',
+        'perform with extraordinary skill'
       ],
       success: [
         'manage to do it',
         'are successful',
         'pull it off',
         'succeed',
-        'make it happen'
+        'make it happen',
+        'get it done',
+        'accomplish the task',
+        'achieve your goal',
+        'bring it to fruition',
+        'complete it successfully'
       ],
       failure: [
         'can\'t quite manage it',
         'fall short',
         'don\'t succeed',
         'fail',
-        'falter'
+        'falter',
+        'miss the mark',
+        'come up empty',
+        'are unable to do it',
+        'fall short of success',
+        'don\'t make the cut'
       ],
       crit_fail: [
         'fail catastrophically',
         'make a complete mess of it',
         'fail in the worst way possible',
         'fail miserably',
-        'suffer a disastrous failure'
+        'suffer a disastrous failure',
+        'botch it completely',
+        'fail spectacularly',
+        'suffer a total collapse',
+        'fail beyond all hope',
+        'end in utter disaster'
       ]
     };
 
     // Sentence templates for variety
     // {action} = the user's action
-    // {outcome} = the result phrase (usually bolded)
+    // {outcome} = the result phrase
     // {connector} = 'and' or 'but'
     this.templates = [
       'try to {action}, {connector} you {outcome}.',
       'In an attempt to {action}, you {outcome}.',
       'You {outcome} in your attempt to {action}.',
-      '{action}... you {outcome}.'
+      '{action}... you {outcome}.',
+      'Attempting to {action}, you {outcome}.',
+      'You try to {action}, {connector} you {outcome}.',
+      'As you try to {action}, you {outcome}.',
+      'While trying to {action}, you {outcome}.',
+      'You make an attempt to {action} {connector} {outcome}.',
+      'When you try to {action}, you {outcome}.',
+      'Your attempt to {action} results in you {outcome}.',
+      'You set out to {action}, {connector} you {outcome}.'
     ];
   }
 
@@ -78,9 +109,15 @@ class TryFeature {
   }
 
   destroy() {
+    clearTimeout(this.activationTimer);
+    this.activationTimer = null;
     if (this.observer) {
       this.observer.disconnect();
       this.observer = null;
+    }
+    if (this.pendingInjection !== null) {
+      cancelAnimationFrame(this.pendingInjection);
+      this.pendingInjection = null;
     }
     if (this.actionIconObserver) {
       this.actionIconObserver.disconnect();
@@ -102,10 +139,10 @@ class TryFeature {
       document.removeEventListener('keydown', this.weightKeyHandler, true);
       this.weightKeyHandler = null;
     }
-    this.removeTryButton();
     this.removeSuccessBar();
-    this.restoreModeDisplay();
+    if (this.isTryMode) this.restoreModeDisplay();
     this.isTryMode = false;
+    this.removeTryButton();
     this.pendingTryText = null;
     this.weight = 0;
   }
@@ -129,8 +166,12 @@ class TryFeature {
   }
 
   setupObserver() {
-    this.observer = new MutationObserver((mutations) => {
-      this.injectTryButton();
+    this.observer = new MutationObserver(() => {
+      if (this.pendingInjection !== null) return;
+      this.pendingInjection = requestAnimationFrame(() => {
+        this.pendingInjection = null;
+        this.injectTryButton();
+      });
     });
 
     this.observer.observe(document.body, {
@@ -139,97 +180,18 @@ class TryFeature {
     });
   }
 
-  findInputModeMenu() {
-    // Find the input mode menu by looking for the container with the mode buttons
-    const doButton = document.querySelector('[aria-label="Set to \'Do\' mode"]');
-    if (doButton) {
-      return doButton.parentElement;
-    }
-    return null;
-  }
-
-  // Check whether a native button has a sprite-based theme active
-  _isSpriteActive(nativeButton) {
-    if (!nativeButton) return false;
-    const wrapper = nativeButton.querySelector('div[style*="position: absolute"]');
-    if (!wrapper) return false;
-    const viewport = wrapper.querySelector('div[class*="_ox-hidden"]');
-    if (!viewport) return false;
-    return parseFloat(window.getComputedStyle(viewport).width) > 0;
-  }
-
   injectTryButton() {
-    const menu = this.findInputModeMenu();
-    if (!menu) return;
-
-    // Find the reference buttons for positioning
-    const doButton = menu.querySelector('[aria-label="Set to \'Do\' mode"]');
-    if (!doButton) return;
-    const sayButton = menu.querySelector('[aria-label="Set to \'Say\' mode"]');
-
-    // Detect theme switches (sprite <-> dynamic) and force re-inject
-    const isSpriteNow = this._isSpriteActive(doButton);
-    if (this._lastSpriteState !== null && this._lastSpriteState !== isSpriteNow) {
-      const stale = menu.querySelector('[aria-label="Set to \'Try\' mode"]');
-      if (stale) stale.remove();
-      this.tryButton = null;
-    }
-    this._lastSpriteState = isSpriteNow;
-
-    // Check if we already added the button
-    const existingButton = menu.querySelector('[aria-label="Set to \'Try\' mode"]');
-    if (existingButton) {
-      // Verify it's in the correct position (should be between Do and Say)
-      // Correct position: doButton -> tryButton -> sayButton
-      if (existingButton.previousElementSibling === doButton) {
-        return; // Already in correct position
-      }
-      // Wrong position - remove and re-add
-      existingButton.remove();
-    }
-
-    // Clone the Do button as a template
-    const tryButton = doButton.cloneNode(true);
-    
-    // Update aria-label
-    tryButton.setAttribute('aria-label', "Set to 'Try' mode");
-    
-    // Update the icon text - use controller icon (w_controller)
-    const iconElement = tryButton.querySelector('.font_icons');
-    if (iconElement) {
-      iconElement.textContent = 'w_controller'; // Using controller icon
-    }
-    
-    // Update the label text
-    const labelElement = tryButton.querySelector('.font_body');
-    if (labelElement) {
-      labelElement.textContent = 'Try';
-    }
-
-    // Remove any existing click handlers by cloning without event listeners
-    const cleanButton = tryButton.cloneNode(true);
-    
-    // Add our click handler
-    cleanButton.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      this.activateTryMode();
+    this.tryButton = this.aid.injectCustomModeButton(this, {
+      name: 'try', base: 'do', label: 'Try', icon: 'w_controller',
+      activate: () => this.activateTryMode()
     });
-
-    // Insert the button after the Do button (between Do and Say)
-    if (sayButton) {
-      menu.insertBefore(cleanButton, sayButton);
-    } else if (doButton.nextSibling) {
-      menu.insertBefore(cleanButton, doButton.nextSibling);
-    } else {
-      menu.appendChild(cleanButton);
+    if (this.isTryMode && !this.activationTimer && this.aid.detectCurrentMode() === 'do') {
+      this.updateModeDisplay();
     }
-
-    this.tryButton = cleanButton;
-
-    // Scale sprite viewport if a sprite theme is active (pass Do as reference
-    // in case the clone was created before AI Dungeon populated the sprite)
-    this.applySpriteTheming(cleanButton, doButton);
+    const bar = document.getElementById('bd-success-bar-container');
+    if (this.isTryMode && !this.activationTimer && !bar) {
+      this.injectSuccessBar();
+    }
   }
 
   // Scale the cloned button's sprite viewport to match its rendered width,
@@ -240,6 +202,7 @@ class TryFeature {
     if (!customButton || !referenceButton) return;
 
     setTimeout(() => {
+      if (!customButton.isConnected || !referenceButton.isConnected) return;
       // Check the reference button to determine if a sprite theme is active
       const refWrapper = referenceButton.querySelector('div[style*="position: absolute"]');
       if (!refWrapper) return;
@@ -328,6 +291,7 @@ class TryFeature {
   }
 
   removeTryButton() {
+    this.aid.removeCustomModeButton('try');
     const button = document.querySelector('[aria-label="Set to \'Try\' mode"]');
     if (button) {
       button.remove();
@@ -336,30 +300,20 @@ class TryFeature {
   }
 
   activateTryMode() {
+    const baseButton = this.aid.getModeButtonByName('do');
+    if (!baseButton || baseButton.getAttribute('aria-disabled') === 'true') return;
+    // Let existing mode-change handlers restore the previous mode before the
+    // native click changes React state, then enable our overlay.
+    baseButton.click();
     this.isTryMode = true;
-
-    // Click the Do button first to set the base mode (action text, not story text)
-    const doButton = document.querySelector('[aria-label="Set to \'Do\' mode"]');
-    if (doButton) {
-      doButton.click();
-    }
-
-    // Close the menu by clicking the back arrow
-    setTimeout(() => {
-      const closeButton = document.querySelector('[aria-label="Close \'Input Mode\' menu"]');
-      if (closeButton) {
-        closeButton.click();
-      }
-      
-      // After menu closes, update the UI to show "Try" mode
-      setTimeout(() => {
-        this.updateModeDisplay();
-        this.injectSuccessBar();
-        
-        // Show first-use hint
-        this.showFirstUseHint();
-      }, 50);
-    }, 50);
+    clearTimeout(this.activationTimer);
+    this.activationTimer = setTimeout(() => {
+      this.activationTimer = null;
+      if (!this.isTryMode) return;
+      this.aid.closeModeMenu();
+      this.updateModeDisplay();
+      this.injectSuccessBar();
+    }, 100);
 
     // Setup interception for the next submission
     this.setupSubmitInterception();
@@ -426,43 +380,38 @@ class TryFeature {
     const textarea = document.querySelector('#game-text-input');
     if (!textarea) return;
 
-    // The input row (textarea's parent) has position:absolute and 32px bottom padding
+    // The input row (textarea's parent) clips overflow — the pill docks to
+    // the controller on every layout instead.
     const inputRow = textarea.parentElement;
     if (!inputRow) return;
 
     const bar = document.createElement('div');
     bar.id = 'bd-success-bar-container';
-    bar.style.cssText = `
-      position: absolute;
-      bottom: 6px;
-      left: 32px;
-      right: 32px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 5px 14px;
-      background: rgba(0, 0, 0, 0.3);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      border-radius: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      font-family: var(--bd-font-family-primary, 'IBM Plex Sans', sans-serif);
-      font-size: 11px;
-      color: rgba(255, 255, 255, 0.45);
-      z-index: 2;
-      pointer-events: none;
-    `;
-
+    bar.className = 'bd-compact-mode-controls bd-try-controls';
+    bar.setAttribute('role', 'group');
+    bar.setAttribute('aria-label', 'Try success chance');
+    bar.title = 'Adjust with ↑ and ↓';
     bar.innerHTML = `
-      <span style="white-space:nowrap; font-weight:600; font-size:10px; letter-spacing:0.4px; text-transform:uppercase;">Success</span>
-      <div style="flex:1; height:5px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden;">
-        <div id="bd-success-bar-fill" style="height:100%; border-radius:3px; transition:width .3s cubic-bezier(.4,0,.2,1), background .3s;"></div>
+      <button type="button" id="bd-weight-down" aria-label="Decrease success chance"><span class="icon-minus" aria-hidden="true"></span></button>
+      <div class="bd-mode-control-value">
+        <div class="bd-mode-control-caption"><span>Success</span><span id="bd-success-percent" aria-live="polite"></span></div>
+        <div class="bd-success-track" aria-hidden="true"><div id="bd-success-bar-fill"></div></div>
       </div>
-      <span id="bd-success-percent" style="min-width:28px; text-align:right; font-weight:700; font-size:12px; font-variant-numeric:tabular-nums; transition:color .3s;"></span>
-      <span style="opacity:0.3; font-size:9px;">↑↓</span>
+      <button type="button" id="bd-weight-up" aria-label="Increase success chance"><span class="icon-plus" aria-hidden="true"></span></button>
     `;
 
-    inputRow.appendChild(bar);
+    const wireButton = (element, delta) => {
+      if (!element) return;
+      element.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.adjustWeight(delta);
+      });
+    };
+    wireButton(bar.querySelector('#bd-weight-down'), -1);
+    wireButton(bar.querySelector('#bd-weight-up'), 1);
+
+    (inputRow.closest('#game-text-input-controller') || inputRow.parentElement).appendChild(bar);
     this.successBar = bar;
     this.updateSuccessBar();
   }
@@ -473,6 +422,10 @@ class TryFeature {
     if (!fill || !percentText) return;
 
     const chance = this.getSuccessChance();
+    const down = document.getElementById('bd-weight-down');
+    const up = document.getElementById('bd-weight-up');
+    if (down) down.disabled = chance <= 5;
+    if (up) up.disabled = chance >= 95;
     percentText.textContent = `${chance}%`;
     fill.style.width = `${chance}%`;
 
@@ -512,14 +465,10 @@ class TryFeature {
     const handleModeChange = (e) => {
       if (!this.isTryMode) return;
 
-      const target = e.target.closest('[aria-label]');
-      if (!target) return;
-
-      const ariaLabel = target.getAttribute('aria-label') || '';
-      
-      // If user clicks "Change input mode" or selects a different mode, cancel try mode
-      if (ariaLabel === 'Change input mode' ||
-          ariaLabel.startsWith("Set to '") && !ariaLabel.includes("Try")) {
+      const selected = this.aid.getInputMenuEntryName(e.target);
+      // Opening/dismissing the menu or generating media doesn't change the
+      // underlying text mode. Only selecting another mode ends the overlay.
+      if (selected && Object.hasOwn(AIDungeonService.MODES, selected) && selected !== 'try') {
         this.deactivateTryMode();
       }
     };
@@ -606,7 +555,18 @@ class TryFeature {
     this.setupSubmitButtonListener();
   }
 
+  _setTextareaValue(textarea, value) {
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype, 'value'
+    )?.set;
+    if (setter) setter.call(textarea, value);
+    else textarea.value = value;
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    textarea.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
   setupKeyboardListener() {
+    if (window.BetterDungeonPlatform?.has('touchControls')) return;
     const handleKeyDown = (e) => {
       if (!this.isTryMode) {
         document.removeEventListener('keydown', handleKeyDown, true);
@@ -622,10 +582,7 @@ class TryFeature {
           if (content.trim()) {
             // Format the content as a try with RNG result
             const formattedContent = this.formatAsTry(content);
-            textarea.value = formattedContent;
-            
-            // Trigger input event so React picks up the change
-            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            this._setTextareaValue(textarea, formattedContent);
             
             // Watch for the new action element to appear and update its icon
             this.watchForTryAction(formattedContent);
@@ -659,10 +616,7 @@ class TryFeature {
         if (content.trim()) {
           // Format the content as a try with RNG result
           const formattedContent = this.formatAsTry(content);
-          textarea.value = formattedContent;
-          
-          // Trigger input event so React picks up the change
-          textarea.dispatchEvent(new Event('input', { bubbles: true }));
+          this._setTextareaValue(textarea, formattedContent);
           
           // Watch for the new action element to appear and update its icon
           this.watchForTryAction(formattedContent);
@@ -680,41 +634,15 @@ class TryFeature {
     this.submitClickHandler = handleClick;
     document.addEventListener('click', handleClick, true);
     
-    // Auto-cleanup after 30 seconds, but only if user isn't actively using the input
-    this.scheduleAutoCleanup();
-  }
-
-  scheduleAutoCleanup() {
-    if (this.autoCleanupTimer) {
-      clearTimeout(this.autoCleanupTimer);
-    }
-    
-    this.autoCleanupTimer = setTimeout(() => {
-      if (!this.isTryMode) return;
-      
-      const textarea = document.querySelector('#game-text-input');
-      const isUserTyping = textarea && (document.activeElement === textarea || textarea.value.trim().length > 0);
-      const isInStorySection = document.querySelector('#gameplay-output') !== null;
-      
-      // Don't auto-deactivate if user is actively typing, has content, or is not in story section
-      if (isUserTyping || !isInStorySection) {
-        // Reschedule check - user is still active or not in story section
-        this.scheduleAutoCleanup();
-      } else {
-        this.deactivateTryMode();
-      }
-    }, 30000);
+    // Try stays active until the user submits or picks a native mode — an
+    // idle auto-revert made the mode feel like it dropped on its own.
   }
 
   deactivateTryMode() {
+    clearTimeout(this.activationTimer);
+    this.activationTimer = null;
     this.isTryMode = false;
     this.restoreModeDisplay();
-    
-    // Clean up auto-cleanup timer
-    if (this.autoCleanupTimer) {
-      clearTimeout(this.autoCleanupTimer);
-      this.autoCleanupTimer = null;
-    }
     
     // Reset weight for next try
     this.weight = 0;
@@ -766,7 +694,7 @@ class TryFeature {
       status,
       succeeded,
       isCrit,
-      phrase: `**${phrase}**` // Apply Markdown bolding (we use standard because we aren't actually formatting)
+      phrase
     };
   }
 

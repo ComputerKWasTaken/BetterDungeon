@@ -4,6 +4,7 @@
 class BetterDungeon {
   constructor() {
     this.debug = false;
+    this.destroyed = false;
     this.aiDungeonService = new AIDungeonService();
     this.featureManager = new FeatureManager({
       aiDungeonService: this.aiDungeonService,
@@ -21,7 +22,18 @@ class BetterDungeon {
     console.log('[BetterDungeon] Initializing...');
     this.injectStyles();
     this.setupMessageListener();
+    this.initializePlatformFeatures();
     this.featureManager.initialize();
+  }
+
+  initializePlatformFeatures() {
+    if (!window.BetterDungeonPlatform?.has('caretScrollFix')) return;
+    if (!window.BetterDungeonCaretScrollFix || !chrome.storage?.sync) return;
+
+    chrome.storage.sync.get('betterDungeon_androidCaretScrollFix', (result) => {
+      const enabled = (result || {}).betterDungeon_androidCaretScrollFix === true;
+      window.BetterDungeonCaretScrollFix.setEnabled(enabled);
+    });
   }
 
   // Setup listener for messages from popup
@@ -29,22 +41,16 @@ class BetterDungeon {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message.type === 'FEATURE_TOGGLE') {
         this.handleFeatureToggle(message.featureId, message.enabled);
-      } else if (message.type === 'APPLY_INSTRUCTIONS') {
-        this.handleApplyInstructions().then(sendResponse);
-        return true;
-      } else if (message.type === 'SET_AUTO_APPLY') {
-        this.handleSetAutoApply(message.enabled);
       } else if (message.type === 'SET_AUTO_SEE_TRIGGER_MODE') {
         this.handleSetAutoSeeTriggerMode(message.mode);
       } else if (message.type === 'SET_AUTO_SEE_TURN_INTERVAL') {
         this.handleSetAutoSeeTurnInterval(message.interval);
-      } else if (message.type === 'SET_TEXT_TO_SPEECH_SETTINGS') {
-        this.handleSetTextToSpeechSettings(message.settings);
-      } else if (message.type === 'STOP_TEXT_TO_SPEECH') {
-        this.handleStopTextToSpeech();
-      } else if (message.type === 'APPLY_INSTRUCTIONS_WITH_LOADING') {
-        this.handleApplyInstructionsWithLoading().then(sendResponse);
-        return true;
+      } else if (
+        message.type === 'SET_ANDROID_CARET_SCROLL_FIX'
+        && window.BetterDungeonPlatform?.has('caretScrollFix')
+      ) {
+        const enabled = this.handleSetAndroidCaretScrollFix(message.enabled);
+        sendResponse({ success: true, enabled });
       } else if (message.type === 'GET_PRESETS') {
         this.handleGetPresets().then(sendResponse);
         return true;
@@ -105,11 +111,8 @@ class BetterDungeon {
           modules: window.Ultrascripts?.registry?.list?.() || [],
         });
         return true;
-      } else if (message.type === 'GET_WEBFETCH_CONSENT') {
-        this.handleGetWebFetchConsent().then(sendResponse);
-        return true;
-      } else if (message.type === 'SET_WEBFETCH_CONSENT') {
-        this.handleSetWebFetchConsent(message.origin, message.decision).then(sendResponse);
+      } else if (message.type === 'GET_ACTIVE_ADVENTURE') {
+        sendResponse(this.handleGetActiveAdventure());
         return true;
       } else if (message.type === 'REFRESH_CUSTOM_DYNAMIC_MODELS') {
         this.handleRefreshCustomDynamicModels(message.force !== false).then(sendResponse);
@@ -118,24 +121,11 @@ class BetterDungeon {
     });
   }
 
-  async handleGetWebFetchConsent() {
-    try {
-      const consent = window.UltrascriptsWebFetchConsent;
-      if (!consent?.inspect) return { success: false, error: 'WebFetch consent broker not available' };
-      return { success: true, consent: await consent.inspect() };
-    } catch (error) {
-      return { success: false, error: error?.message || String(error) };
-    }
-  }
-
-  async handleSetWebFetchConsent(origin, decision) {
-    try {
-      const consent = window.UltrascriptsWebFetchConsent;
-      if (!consent?.setOrigin) return { success: false, error: 'WebFetch consent broker not available' };
-      return { success: true, result: await consent.setOrigin(origin, decision) };
-    } catch (error) {
-      return { success: false, error: error?.message || String(error) };
-    }
+  handleGetActiveAdventure() {
+    // Keep the raw route segment so existing betterDungeon_notes_<id> keys
+    // remain byte-for-byte compatible with the former injected Notes feature.
+    const adventureId = window.location.pathname.match(/\/adventure\/([^/]+)/)?.[1] || '';
+    return { success: Boolean(adventureId), adventureId };
   }
 
   async handleRefreshCustomDynamicModels(force = true) {
@@ -160,13 +150,6 @@ class BetterDungeon {
     }
   }
 
-  handleSetAutoApply(enabled) {
-    const markdownFeature = this.featureManager.features.get('markdown');
-    if (markdownFeature && typeof markdownFeature.setAutoApply === 'function') {
-      markdownFeature.setAutoApply(enabled);
-    }
-  }
-
   handleSetAutoSeeTriggerMode(mode) {
     const autoSeeFeature = this.featureManager.features.get('autoSee');
     if (autoSeeFeature && typeof autoSeeFeature.setTriggerMode === 'function') {
@@ -179,28 +162,6 @@ class BetterDungeon {
     if (autoSeeFeature && typeof autoSeeFeature.setTurnInterval === 'function') {
       autoSeeFeature.setTurnInterval(interval);
     }
-  }
-
-  handleSetTextToSpeechSettings(settings) {
-    const textToSpeechFeature = this.featureManager.features.get('textToSpeech');
-    if (textToSpeechFeature && typeof textToSpeechFeature.setSettings === 'function') {
-      textToSpeechFeature.setSettings(settings);
-    }
-  }
-
-  handleStopTextToSpeech() {
-    const textToSpeechFeature = this.featureManager.features.get('textToSpeech');
-    if (textToSpeechFeature && typeof textToSpeechFeature.stop === 'function') {
-      textToSpeechFeature.stop();
-    }
-  }
-
-  async handleApplyInstructionsWithLoading() {
-    const markdownFeature = this.featureManager.features.get('markdown');
-    if (markdownFeature && typeof markdownFeature.applyInstructionsWithLoadingScreen === 'function') {
-      return await markdownFeature.applyInstructionsWithLoadingScreen();
-    }
-    return { success: false, error: 'Markdown feature not available' };
   }
 
   async handleGetPresets() {
@@ -332,47 +293,50 @@ class BetterDungeon {
     await this.featureManager.toggleFeature(featureId, enabled);
   }
 
-
-  async handleApplyInstructions() {
-    try {
-      const instructionsResult = await this.aiDungeonService.fetchInstructionsFile();
-      if (!instructionsResult.success) {
-        return { success: false, error: instructionsResult.error };
-      }
-
-      return await this.aiDungeonService.applyInstructionsToTextareas(instructionsResult.data, {
-        forceApply: true,
-        authorsNoteText: instructionsResult.authorsNoteData || null,
-      });
-    } catch (error) {
-      console.error('[BetterDungeon] Error applying instructions:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
-
   injectStyles() {
     DOMUtils.injectStyles(chrome.runtime.getURL('styles.css'), 'better-dungeon-styles');
   }
 
   destroy() {
+    this.destroyed = true;
     this.featureManager.destroy();
   }
-}
 
-// Global instance
-let betterDungeonInstance = null;
+  handleSetAndroidCaretScrollFix(enabled) {
+    const nextEnabled = enabled === true;
+    window.BetterDungeonCaretScrollFix?.setEnabled(nextEnabled);
+
+    try {
+      window.BetterDungeonBridge?.setCaretScrollFixEnabled(nextEnabled);
+    } catch (error) {
+      console.warn('[BetterDungeon] Native caret fix toggle unavailable:', error);
+    }
+
+    return nextEnabled;
+  }
+}
 
 // Initialize when DOM is ready
 function initBetterDungeon() {
-  if (betterDungeonInstance) {
-    betterDungeonInstance.destroy();
+  const existing = window.betterDungeonInstance;
+  if (existing && existing.destroyed !== true) {
+    console.log('[BetterDungeon] Existing instance detected; skipping duplicate initialization');
+    return existing;
   }
-  betterDungeonInstance = new BetterDungeon();
+
+  const instance = new BetterDungeon();
+  window.betterDungeonInstance = instance;
+  return instance;
 }
 
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initBetterDungeon);
+  if (!window.__betterDungeonInitListenerRegistered) {
+    window.__betterDungeonInitListenerRegistered = true;
+    document.addEventListener('DOMContentLoaded', () => {
+      window.__betterDungeonInitListenerRegistered = false;
+      initBetterDungeon();
+    }, { once: true });
+  }
 } else {
   initBetterDungeon();
 }

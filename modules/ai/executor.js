@@ -1,20 +1,27 @@
 // modules/ai/executor.js
 //
-// Backend-agnostic execution layer for Ultrascripts AI requests. It validates
+// Backend-agnostic execution layer for BetterDungeon AI requests. It validates
 // public query args, creates normalized query tasks, and adapts backend results
 // into the public response contract. Provider transport lives elsewhere.
 
-(function () {
-  if (window.UltrascriptsAIExecutor) return;
+// Firefox content scripts have a globalThis distinct from window. Publish on
+// window for feature consumers, while workers and Node use their global object.
+(function (root) {
+  if (root.BetterDungeonAI) return;
 
-  const VERSION = '0.4.0-gemini-meta';
+  const VERSION = '2.0.0-shared';
   const PROMPT_MAX_CHARS = 12000;
   const OUTPUT_TYPES = Object.freeze(['text', 'json']);
   const THINKING_LEVELS = Object.freeze(['minimal', 'low', 'medium', 'high']);
   const DEFAULT_THINKING_LEVEL = 'minimal';
+  const CHAT_MAX_TOOLS = 16;
+  const CHAT_MAX_TOOL_RESULTS = 16;
 
   const state = {
-    backend: null,
+    providers: new Map(),
+    providerOrder: [],
+    defaultProviderId: null,
+    consumerProviders: new Map(),
   };
 
   function isObject(value) {
@@ -123,6 +130,174 @@
     return task;
   }
 
+  function normalizeChatBudget(budget) {
+    if (!isObject(budget)) {
+      throw invalidArgs('budget is required and must be an object');
+    }
+
+    const maxInputChars = Number(budget.maxInputChars);
+    const maxOutputTokens = Number(budget.maxOutputTokens);
+    if (!Number.isSafeInteger(maxInputChars) || maxInputChars <= 0) {
+      throw invalidArgs('budget.maxInputChars must be a positive integer');
+    }
+    if (!Number.isSafeInteger(maxOutputTokens) || maxOutputTokens <= 0) {
+      throw invalidArgs('budget.maxOutputTokens must be a positive integer');
+    }
+    return { maxInputChars, maxOutputTokens };
+  }
+
+  function normalizeChatMessages(messages) {
+    if (!Array.isArray(messages) || messages.length === 0) {
+      throw invalidArgs('messages is required and must be a non-empty array');
+    }
+
+    const normalized = messages.map((message, index) => {
+      if (!isObject(message)) {
+        throw invalidArgs(`messages[${index}] must be an object`);
+      }
+      if (message.role !== 'user' && message.role !== 'assistant') {
+        throw invalidArgs(`messages[${index}].role must be user or assistant`);
+      }
+      if (typeof message.content !== 'string' || !message.content.trim()) {
+        throw invalidArgs(`messages[${index}].content must be a non-empty string`);
+      }
+      return { role: message.role, content: message.content };
+    });
+
+    if (normalized[normalized.length - 1].role !== 'user') {
+      throw invalidArgs('the final chat message must have role user');
+    }
+    return normalized;
+  }
+
+  function normalizeChatTools(tools) {
+    if (tools === undefined || tools === null) return [];
+    if (!Array.isArray(tools) || tools.length > CHAT_MAX_TOOLS) {
+      throw invalidArgs(`tools must be an array with at most ${CHAT_MAX_TOOLS} entries`);
+    }
+    const names = new Set();
+    return tools.map((tool, index) => {
+      if (!isObject(tool)) throw invalidArgs(`tools[${index}] must be an object`);
+      const name = typeof tool.name === 'string' ? tool.name.trim() : '';
+      if (!/^[a-z][a-z0-9_]{0,63}$/.test(name)) {
+        throw invalidArgs(`tools[${index}].name must be a stable lowercase function name`);
+      }
+      if (names.has(name)) throw invalidArgs(`tools contains duplicate name '${name}'`);
+      names.add(name);
+      if (typeof tool.description !== 'string' || !tool.description.trim()) {
+        throw invalidArgs(`tools[${index}].description must be a non-empty string`);
+      }
+      if (!isObject(tool.parameters)) {
+        throw invalidArgs(`tools[${index}].parameters must be a JSON schema object`);
+      }
+      return {
+        name,
+        description: tool.description.trim(),
+        parameters: cloneJson(tool.parameters),
+      };
+    });
+  }
+
+  function normalizeChatToolResults(results) {
+    if (results === undefined || results === null) return [];
+    if (!Array.isArray(results) || results.length > CHAT_MAX_TOOL_RESULTS) {
+      throw invalidArgs(`toolResults must be an array with at most ${CHAT_MAX_TOOL_RESULTS} entries`);
+    }
+    return results.map((result, index) => {
+      if (!isObject(result)) throw invalidArgs(`toolResults[${index}] must be an object`);
+      const callId = typeof result.callId === 'string' ? result.callId.trim() : '';
+      const name = typeof result.name === 'string' ? result.name.trim() : '';
+      if (!callId) throw invalidArgs(`toolResults[${index}].callId is required`);
+      if (!/^[a-z][a-z0-9_]{0,63}$/.test(name)) {
+        throw invalidArgs(`toolResults[${index}].name must be a stable lowercase function name`);
+      }
+      return {
+        callId,
+        name,
+        result: cloneJson(result.result),
+        isError: result.isError === true,
+      };
+    });
+  }
+
+  function normalizeChatContinuation(value) {
+    if (value === undefined || value === null) return null;
+    if (!isObject(value)) throw invalidArgs('continuation must be an object');
+    const provider = typeof value.provider === 'string' ? value.provider.trim().toLowerCase() : '';
+    if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(provider)) {
+      throw invalidArgs('continuation.provider must be a stable provider id');
+    }
+    return { ...cloneJson(value), provider };
+  }
+
+  function normalizeChat(args) {
+    const normalized = normalizeArgs(args);
+    if (typeof normalized.systemInstruction !== 'string' || !normalized.systemInstruction.trim()) {
+      throw invalidArgs('systemInstruction is required and must be a non-empty string');
+    }
+
+    const messages = normalizeChatMessages(normalized.messages);
+    const budget = normalizeChatBudget(normalized.budget);
+    const tools = normalizeChatTools(normalized.tools);
+    const toolResults = normalizeChatToolResults(normalized.toolResults);
+    const continuation = normalizeChatContinuation(normalized.continuation);
+    if (toolResults.length && !continuation) {
+      throw invalidArgs('continuation is required when toolResults are supplied');
+    }
+    const systemInstructionChars = normalized.systemInstruction.length;
+    const messageChars = messages.reduce((total, message) => total + message.content.length, 0);
+    const toolsChars = JSON.stringify(tools).length;
+    const toolResultsChars = JSON.stringify(toolResults).length;
+    const continuationChars = continuation ? JSON.stringify(continuation).length : 0;
+    const inputChars = systemInstructionChars + messageChars + toolsChars + toolResultsChars + continuationChars;
+    if (inputChars > budget.maxInputChars) {
+      throw invalidArgs(`chat input must be ${budget.maxInputChars} characters or less`, {
+        maxChars: budget.maxInputChars,
+        actualChars: inputChars,
+      });
+    }
+
+    return {
+      messages,
+      systemInstruction: normalized.systemInstruction,
+      systemInstructionChars,
+      inputChars,
+      budget,
+      thinking: normalizeThinking(normalized.thinking),
+      tools,
+      toolResults,
+      continuation,
+    };
+  }
+
+  function createChatTask(args, meta = {}) {
+    const chat = normalizeChat(args);
+    return {
+      v: 1,
+      id: typeof meta.requestId === 'string' && meta.requestId ? meta.requestId : null,
+      module: 'ai',
+      op: 'chat',
+      createdAtIso: new Date().toISOString(),
+      messages: cloneJson(chat.messages),
+      systemInstruction: chat.systemInstruction,
+      systemInstructionChars: chat.systemInstructionChars,
+      inputChars: chat.inputChars,
+      messageCount: chat.messages.length,
+      budget: cloneJson(chat.budget),
+      thinking: cloneJson(chat.thinking),
+      tools: cloneJson(chat.tools),
+      toolResults: cloneJson(chat.toolResults),
+      continuation: cloneJson(chat.continuation),
+      responseContract: {
+        type: 'text',
+        streaming: true,
+        tools: chat.tools.map(tool => tool.name),
+        thinking: cloneJson(chat.thinking),
+        budget: cloneJson(chat.budget),
+      },
+    };
+  }
+
   function normalizeSupports(value) {
     const supports = isObject(value) ? value : {};
     return {
@@ -132,41 +307,144 @@
     };
   }
 
-  function backendInfo() {
-    const backend = state.backend;
-    if (!backend) return null;
-    const rawStatus = typeof backend.status === 'function' ? backend.status() : null;
+  function providerSupports(provider) {
+    if (!provider) return normalizeSupports(null);
+    const raw = typeof provider.supports === 'function'
+      ? provider.supports()
+      : provider.supports;
+    return normalizeSupports(raw);
+  }
+
+  function normalizeId(value, label) {
+    const id = typeof value === 'string' ? value.trim().toLowerCase() : '';
+    if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(id)) {
+      throw new TypeError(`${label} must be a stable lowercase id`);
+    }
+    return id;
+  }
+
+  function normalizeConsumer(value) {
+    return normalizeId(value || 'default', 'consumer');
+  }
+
+  function normalizeProvider(provider) {
+    if (!isObject(provider)) throw new TypeError('provider must be an object');
+    if (typeof provider.query !== 'function') throw new TypeError('provider.query(task) is required');
+    const id = normalizeId(provider.id, 'provider.id');
+    return {
+      ...provider,
+      id,
+      label: typeof provider.label === 'string' && provider.label.trim()
+        ? provider.label.trim()
+        : id,
+      supports: typeof provider.supports === 'function'
+        ? provider.supports
+        : normalizeSupports(provider.supports),
+    };
+  }
+
+  function registerProvider(provider, options = {}) {
+    const normalized = normalizeProvider(provider);
+    const isNew = !state.providers.has(normalized.id);
+    state.providers.set(normalized.id, normalized);
+    if (isNew) state.providerOrder.push(normalized.id);
+    if (!state.defaultProviderId || options.default === true) {
+      state.defaultProviderId = normalized.id;
+    }
+    return providerStatus(normalized.id);
+  }
+
+  function unregisterProvider(providerId) {
+    const id = normalizeId(providerId, 'provider id');
+    const removed = state.providers.delete(id);
+    if (!removed) return false;
+    state.providerOrder = state.providerOrder.filter(candidate => candidate !== id);
+    if (state.defaultProviderId === id) {
+      state.defaultProviderId = state.providerOrder[0] || null;
+    }
+    for (const [consumer, selectedId] of state.consumerProviders.entries()) {
+      if (selectedId === id) state.consumerProviders.delete(consumer);
+    }
+    return true;
+  }
+
+  function setDefaultProvider(providerId) {
+    const id = normalizeId(providerId, 'provider id');
+    if (!state.providers.has(id)) throw new TypeError(`AI provider '${id}' is not registered`);
+    state.defaultProviderId = id;
+    return providerStatus(id);
+  }
+
+  function setProviderForConsumer(consumer, providerId) {
+    const consumerId = normalizeConsumer(consumer);
+    if (providerId === undefined || providerId === null || providerId === '') {
+      state.consumerProviders.delete(consumerId);
+      return status({ consumer: consumerId });
+    }
+    const id = normalizeId(providerId, 'provider id');
+    if (!state.providers.has(id)) throw new TypeError(`AI provider '${id}' is not registered`);
+    state.consumerProviders.set(consumerId, id);
+    return status({ consumer: consumerId });
+  }
+
+  function resolveProvider(consumer = 'default') {
+    const consumerId = normalizeConsumer(consumer);
+    const selectedId = state.consumerProviders.get(consumerId);
+    if (selectedId && state.providers.has(selectedId)) {
+      return { consumer: consumerId, provider: state.providers.get(selectedId), selection: 'consumer' };
+    }
+    if (state.defaultProviderId && state.providers.has(state.defaultProviderId)) {
+      return { consumer: consumerId, provider: state.providers.get(state.defaultProviderId), selection: 'default' };
+    }
+    const fallbackId = state.providerOrder.find(id => state.providers.has(id));
+    return {
+      consumer: consumerId,
+      provider: fallbackId ? state.providers.get(fallbackId) : null,
+      selection: fallbackId ? 'fallback' : 'none',
+    };
+  }
+
+  function providerStatus(providerId, consumer) {
+    const provider = state.providers.get(providerId);
+    if (!provider) return null;
+    const rawStatus = typeof provider.status === 'function' ? provider.status(consumer) : null;
     const status = isObject(rawStatus) ? rawStatus : {};
     return {
-      id: backend.id || 'custom',
-      label: backend.label || backend.id || 'Custom',
-      supports: normalizeSupports(backend.supports),
+      id: provider.id,
+      label: provider.label,
+      supports: providerSupports(provider),
       status,
     };
   }
 
-  function status() {
-    const backend = backendInfo();
-    const supports = backend ? backend.supports : { text: false, json: false, thinking: false };
-    const backendReady = backend?.status?.ready;
+  function status(meta = {}) {
+    const resolved = resolveProvider(meta.consumer);
+    const provider = resolved.provider ? providerStatus(resolved.provider.id, resolved.consumer) : null;
+    const supports = provider ? provider.supports : { text: false, json: false, thinking: false };
+    const providerReady = provider?.status?.ready;
     const ready = !!(
-      state.backend &&
-      typeof state.backend.query === 'function' &&
+      resolved.provider &&
+      typeof resolved.provider.query === 'function' &&
       (supports.text || supports.json) &&
-      (backendReady === undefined ? true : backendReady === true)
+      (providerReady === undefined ? true : providerReady === true)
     );
     const reason = ready
       ? null
-      : (backend?.status?.reason || 'ai_backend_not_configured');
+      : (provider?.status?.reason || 'ai_provider_not_configured');
     return {
-      backend: backend ? backend.id : null,
-      backendLabel: backend ? backend.label : null,
+      provider: provider ? provider.id : null,
+      providerLabel: provider ? provider.label : null,
+      backend: provider ? provider.id : null,
+      backendLabel: provider ? provider.label : null,
+      consumer: resolved.consumer,
+      selection: resolved.selection,
       ready,
       available: ready,
       phase: ready ? 'live' : 'executor',
       reason,
       supports,
-      config: backend?.status?.config || null,
+      limits: cloneJson(provider?.status?.limits || provider?.status?.config?.limits || null),
+      config: provider?.status?.config || null,
       contract: {
         ops: ['status', 'query'],
         outputTypes: [...OUTPUT_TYPES],
@@ -177,14 +455,23 @@
       executor: {
         version: VERSION,
         promptMaxChars: PROMPT_MAX_CHARS,
-        backendConfigured: !!backend,
+        providerConfigured: !!provider,
+        backendConfigured: !!provider,
       },
-      message: backend?.status?.message || (
+      message: provider?.status?.message || (
         ready
           ? 'AI querying is available.'
-          : 'The AI execution layer is available, but no callable generation backend is configured right now.'
+          : 'The AI execution layer is available, but no callable provider is configured right now.'
       ),
     };
+  }
+
+  async function refreshStatus(meta = {}) {
+    const resolved = resolveProvider(meta.consumer);
+    if (typeof resolved.provider?.refreshStatus === 'function') {
+      await resolved.provider.refreshStatus(resolved.consumer);
+    }
+    return status({ consumer: resolved.consumer });
   }
 
   function normalizeTextResult(result) {
@@ -207,23 +494,32 @@
     throw invalidResponse('AI backend did not return JSON output');
   }
 
-  function normalizeResultMeta(result, task) {
+  function normalizeResultMeta(result, task, provider) {
+    const providerId = result?.provider || result?.backend || provider?.id || null;
     const meta = {
-      backend: result?.backend || backendInfo()?.id || null,
+      provider: providerId,
+      providerLabel: provider?.label || null,
+      backend: providerId,
       outputType: task.output.type,
       promptChars: task.promptChars,
       generatedAtIso: result?.generatedAtIso || new Date().toISOString(),
     };
     if (typeof result?.model === 'string') meta.model = result.model;
     if (typeof result?.providerModel === 'string') meta.providerModel = result.providerModel;
+    if (typeof result?.service === 'string') meta.service = result.service;
     if (result?.thinking) meta.thinking = cloneJson(result.thinking);
     if (result?.fallback) meta.fallback = cloneJson(result.fallback);
+    for (const key of ['consumer', 'providerTier', 'attemptedModels', 'advancedFallback']) {
+      if (result?.[key] !== undefined) meta[key] = cloneJson(result[key]);
+    }
     if (result?.usage) meta.usage = cloneJson(result.usage);
+    if (typeof result?.finishReason === 'string') meta.finishReason = result.finishReason;
+    if (result?.outputTruncated === true) meta.outputTruncated = true;
     return meta;
   }
 
-  function normalizeBackendResult(result, task) {
-    const meta = normalizeResultMeta(result, task);
+  function normalizeProviderResult(result, task, provider) {
+    const meta = normalizeResultMeta(result, task, provider);
 
     if (task.output.type === 'json') {
       return { json: normalizeJsonResult(result), meta };
@@ -231,30 +527,72 @@
     return { text: normalizeTextResult(result), meta };
   }
 
-  function setBackend(backend) {
-    if (!isObject(backend)) throw new TypeError('backend must be an object');
-    if (typeof backend.query !== 'function') throw new TypeError('backend.query(task) is required');
-    state.backend = {
-      ...backend,
-      supports: normalizeSupports(backend.supports),
+  function normalizeChatResultMeta(result, task, provider) {
+    const providerId = result?.provider || result?.backend || provider?.id || null;
+    const meta = {
+      provider: providerId,
+      providerLabel: provider?.label || null,
+      backend: providerId,
+      outputType: 'text',
+      inputChars: task.inputChars,
+      systemInstructionChars: task.systemInstructionChars,
+      messageCount: task.messageCount,
+      budget: cloneJson(task.budget),
+      toolCount: Array.isArray(task.tools) ? task.tools.length : 0,
+      generatedAtIso: result?.generatedAtIso || new Date().toISOString(),
     };
-    return status();
+    if (typeof result?.model === 'string') meta.model = result.model;
+    if (typeof result?.providerModel === 'string') meta.providerModel = result.providerModel;
+    if (typeof result?.service === 'string') meta.service = result.service;
+    if (result?.thinking) meta.thinking = cloneJson(result.thinking);
+    if (result?.fallback) meta.fallback = cloneJson(result.fallback);
+    for (const key of ['consumer', 'providerTier', 'attemptedModels', 'advancedFallback']) {
+      if (result?.[key] !== undefined) meta[key] = cloneJson(result[key]);
+    }
+    if (result?.usage) meta.usage = cloneJson(result.usage);
+    if (typeof result?.finishReason === 'string') meta.finishReason = result.finishReason;
+    if (result?.outputTruncated === true) meta.outputTruncated = true;
+    return meta;
+  }
+
+  function normalizeToolCalls(result) {
+    if (result?.toolCalls === undefined || result?.toolCalls === null) return [];
+    if (!Array.isArray(result.toolCalls) || result.toolCalls.length > CHAT_MAX_TOOL_RESULTS) {
+      throw invalidResponse('AI backend returned an invalid toolCalls collection');
+    }
+    return result.toolCalls.map((call, index) => {
+      if (!isObject(call)) throw invalidResponse(`AI backend toolCalls[${index}] must be an object`);
+      const id = typeof call.id === 'string' ? call.id.trim() : '';
+      const name = typeof call.name === 'string' ? call.name.trim() : '';
+      if (!id || !/^[a-z][a-z0-9_]{0,63}$/.test(name) || !isObject(call.arguments)) {
+        throw invalidResponse(`AI backend toolCalls[${index}] is malformed`);
+      }
+      return { id, name, arguments: cloneJson(call.arguments) };
+    });
+  }
+
+  function setBackend(backend) {
+    return registerProvider(backend, { default: true });
   }
 
   function clearBackend() {
-    state.backend = null;
+    if (state.defaultProviderId) unregisterProvider(state.defaultProviderId);
     return status();
   }
 
   async function query(args, meta = {}) {
     const task = createTask(args, meta);
-    if (!state.backend) {
+    task.consumer = meta.consumer || 'ultrascripts';
+    const resolved = resolveProvider(meta.consumer);
+    const provider = resolved.provider;
+    if (!provider) {
       throw {
         code: 'not_configured',
-        message: 'No AI backend is configured yet.',
+        message: 'No AI provider is configured yet.',
         retryable: false,
+        provider: null,
         backend: null,
-        phase: status().phase,
+        phase: status({ consumer: resolved.consumer }).phase,
         task: {
           id: task.id,
           outputType: task.output.type,
@@ -263,19 +601,94 @@
       };
     }
 
-    const supports = normalizeSupports(state.backend.supports);
+    const supports = providerSupports(provider);
     if (supports[task.output.type] !== true) {
       throw {
         code: 'unavailable',
-        message: `The configured AI backend does not support ${task.output.type} output.`,
+        message: `The selected AI provider does not support ${task.output.type} output.`,
         retryable: false,
-        backend: backendInfo()?.id || null,
+        provider: provider.id,
+        backend: provider.id,
         outputType: task.output.type,
       };
     }
 
-    const result = await state.backend.query(cloneJson(task));
-    return normalizeBackendResult(result, task);
+    const result = await provider.query(cloneJson(task));
+    return normalizeProviderResult(result, task, provider);
+  }
+
+  async function chat(args, options = {}) {
+    if (!isObject(options)) throw invalidArgs('chat options must be an object');
+    const task = createChatTask(args, options);
+    task.consumer = options.consumer || 'navigator';
+    const resolved = resolveProvider(options.consumer);
+    const provider = resolved.provider;
+    if (!provider) {
+      throw {
+        code: 'not_configured',
+        message: 'No AI provider is configured yet.',
+        retryable: false,
+        provider: null,
+        backend: null,
+        phase: status({ consumer: resolved.consumer }).phase,
+        task: {
+          id: task.id,
+          inputChars: task.inputChars,
+          messageCount: task.messageCount,
+        },
+      };
+    }
+
+    if (typeof provider.streamChat !== 'function') {
+      throw {
+        code: 'unavailable',
+        message: 'The selected AI provider does not support streaming chat.',
+        retryable: false,
+        provider: provider.id,
+        backend: provider.id,
+      };
+    }
+
+    if (options.signal !== undefined && (
+      !options.signal ||
+      typeof options.signal !== 'object' ||
+      typeof options.signal.addEventListener !== 'function' ||
+      typeof options.signal.aborted !== 'boolean'
+    )) {
+      throw invalidArgs('signal must be an AbortSignal');
+    }
+    if (options.onDelta !== undefined && typeof options.onDelta !== 'function') {
+      throw invalidArgs('onDelta must be a function');
+    }
+    if (options.signal?.aborted) {
+      throw {
+        code: 'aborted',
+        message: 'AI chat request was aborted.',
+        retryable: false,
+        provider: provider.id,
+        backend: provider.id,
+      };
+    }
+
+    const result = await provider.streamChat(cloneJson(task), {
+      signal: options.signal || null,
+      onDelta: options.onDelta || null,
+    });
+    const toolCalls = normalizeToolCalls(result);
+    const responseText = typeof result?.text === 'string' ? result.text : '';
+    if (!responseText && !toolCalls.length) {
+      throw invalidResponse('AI backend returned neither text nor tool calls');
+    }
+    const continuation = toolCalls.length ? normalizeChatContinuation(result?.continuation) : null;
+    if (toolCalls.length && !continuation) {
+      throw invalidResponse('AI backend returned tool calls without continuation state');
+    }
+    return {
+      text: responseText,
+      toolCalls,
+      continuation,
+      meta: normalizeChatResultMeta(result, task, provider),
+    };
   }
 
   const executor = {
@@ -283,19 +696,42 @@
     PROMPT_MAX_CHARS,
     OUTPUT_TYPES,
     createTask,
+    createChatTask,
     query,
+    chat,
     status,
+    refreshStatus,
+    registerProvider,
+    unregisterProvider,
+    setDefaultProvider,
+    setProviderForConsumer,
+    resolveProvider: consumer => {
+      const resolved = resolveProvider(consumer);
+      return {
+        consumer: resolved.consumer,
+        provider: resolved.provider?.id || null,
+        providerLabel: resolved.provider?.label || null,
+        selection: resolved.selection,
+      };
+    },
     setBackend,
     clearBackend,
     inspect: () => ({
       ...status(),
-      hasBackend: !!state.backend,
+      hasProvider: state.providers.size > 0,
+      hasBackend: state.providers.size > 0,
+      defaultProvider: state.defaultProviderId,
+      providers: state.providerOrder
+        .map(id => providerStatus(id))
+        .filter(Boolean),
+      consumerProviders: Object.fromEntries(state.consumerProviders),
     }),
   };
 
-  window.UltrascriptsAIExecutor = executor;
+  root.BetterDungeonAI = executor;
+  root.UltrascriptsAIExecutor = executor; // Temporary compatibility alias.
 
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = executor;
   }
-})();
+})(typeof window !== 'undefined' ? window : globalThis);

@@ -1,143 +1,105 @@
-# ![BetterDungeon Icon](icons/icon16.png) BetterDungeon
+<p align="center"><img src="icons/icon128.png" width="88" height="88" alt="BetterDungeon star icon"></p>
 
-<div align="center">
+<h1 align="center">BetterDungeon</h1>
 
-**AI Dungeon, but with a whole lot more control.**
+<p align="center"><strong>Make more of every AI Dungeon adventure.</strong></p>
 
-An all-in-one browser extension for AI Dungeon that adds quality-of-life improvements, powerful scenario tools, and features I genuinely wished the game had built in.
+<p align="center">BetterDungeon brings better input controls, world-building tools, an adventure-aware assistant, and new possibilities for AI Dungeon scripts to the game you already play.</p>
 
-[![Version](https://img.shields.io/badge/version-2.0.3-7c3aed?style=for-the-badge)](manifest.json)
-[![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-install-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/betterdungeon/ppliljfopejamemejnnchehpbacpebjf)
+<p align="center"><a href="https://chromewebstore.google.com/detail/betterdungeon/ppliljfopejamemejnnchehpbacpebjf">Chrome Web Store</a> · <a href="https://addons.mozilla.org/firefox/addon/betterdungeon/">Firefox Add-ons</a> · <a href="https://github.com/ComputerKWasTaken/BetterDungeon/releases">Android downloads</a></p>
 
-</div>
+<p align="center"><a href="manifest.json"><img alt="Source version 2.1.0" src="https://img.shields.io/badge/source-v2.1.0-eda449"></a> <a href="https://github.com/ComputerKWasTaken/BetterDungeon/actions/workflows/quality-gate.yml"><img alt="Preview quality gate" src="https://github.com/ComputerKWasTaken/BetterDungeon/actions/workflows/quality-gate.yml/badge.svg?branch=preview"></a> <a href="LICENSE"><img alt="Source-available license" src="https://img.shields.io/badge/license-source--available-333238"></a></p>
 
-> BetterDungeon is built for players, scenario creators, and scripters who want to push AI Dungeon a little further.
+[Get BetterDungeon](#get-betterdungeon) · [Start playing](#start-playing) · [Explore the toolkit](#explore-the-toolkit) · [Work from this repository](#work-from-this-repository)
 
-## What is BetterDungeon?
+## Get BetterDungeon
 
-Hey everyone, it's computerK here. BetterDungeon is my attempt to turn AI Dungeon into a more flexible, more personal, and honestly just more fun writing platform.
-
-It started as a collection of small quality-of-life features. It has grown into a full ecosystem of tools for input, formatting, scenario building, automation, and script-to-extension communication. Whether you want cleaner formatting, smarter presets, a better way to manage Story Cards, or completely new capabilities inside your scripts, BetterDungeon is built to get out of your way and let you play.
-
-The current release is **BetterDungeon v2.0.3**, an emergency compatibility patch for the current public build while v2.1 remains in development. BetterDungeon V2 introduced Ultrascripts, the Firefox port, the Android port, a major UI refresh, and a pretty serious rework of several original features.
-
-### What's new in v2.0.3
-
-This emergency patch updates Command mode for AI Dungeon's redesigned action input selector, preventing a PC-only tab freeze when changing action modes. The broader v2.1 update is still in development and will be released when it is ready.
-
-### What's new in v2.0.2
-
-Custom Dynamic was revamped with:
-
-- The latest AI Dungeon models.
-- The ability to select different versions of the same model.
-- Configurable model-switch frequency from 1–20 turns.
-- A simplified setup with redundant options removed.
-- An icon replacement that makes it clear when Custom Dynamic is enabled.
-- Versioned release history in the What's New panel, with previous notes still available.
-
-## Install BetterDungeon
-
-### Chrome, Edge, and other Chromium browsers
-
-Install the official release from the [Chrome Web Store](https://chromewebstore.google.com/detail/betterdungeon/ppliljfopejamemejnnchehpbacpebjf). It should also work in Chromium-based browsers that support Chrome extensions.
-
-### Firefox
-
-Install the official release from [Firefox Browser Add-ons](https://addons.mozilla.org). The extension requires Firefox 109 or newer.
-
-For development builds, load the repository through `about:debugging#/runtime/this-firefox` and select `manifest.json` with **Load Temporary Add-on...**.
-
-### Android
-
-Android builds are distributed through the [GitHub Releases](../../releases) page when available. Download the latest APK, install it on your device, and launch BetterDungeon from there.
-
-### Manual installation
-
-1. Clone or download this repository.
-2. Open `chrome://extensions/` in a Chromium-based browser.
-3. Turn on **Developer mode**.
-4. Click **Load unpacked** and select the BetterDungeon directory.
-5. Open [AI Dungeon](https://play.aidungeon.com/) and start playing.
-
-## The feature lineup
-
-### Make writing feel better
-
-- **Markdown** — Add reliable formatting to generated text with six instruction presets designed for different writing styles.
-- **Command Mode** — Send direct narrative instructions without cluttering the story. Subtle and OOC sub-modes are included.
-- **Try Mode** — Add configurable, RNG-based action checks with live rolls, critical success, and critical failure margins.
-- **Text to Speech** — Have new story text narrated using the voices available through your browser or device.
-- **Adventure Notes** — Keep private notes attached to each adventure, saved locally in your browser.
-
-### Take control of your input
-
-- **Custom Hotkeys** — Remap common actions and input mode switches to the keys you prefer.
-- **Input History** — Cycle through your previous 50 inputs with `Ctrl`/`Cmd` + `Up` and `Down`.
-- **Input Mode Colors** — Give each action mode its own customizable color so you always know what you are about to send.
-
-### Build better scenarios
-
-- **Plot Presets** — Save and swap Plot Essentials, AI Instructions, and Author's Notes.
-- **Character Presets** — Save character descriptions and use the Ultrascripts AI module to generate scenario prefill answers.
-- **Story Card Scanner** — Quickly index Story Cards through AI Dungeon's GraphQL systems, including large scenarios.
-- **Story Card Analytics** — Find card counts, overlapping triggers, empty descriptors, and other cleanup opportunities.
-- **Trigger Highlighting** — See which Story Card keys are active directly in the View Context window.
-- **Story Card Modal Dock** — Keep the adventure visible while editing Story Cards in a docked editor.
-
-### Automate the boring bits
-
-- **Custom Dynamic** — Build a weighted-random model pool, choose exact model versions, and control how many turns each selection stays active.
-- **Auto See** — Automatically send See requests after a configurable number of turns.
-- **Auto Enable Scripts** — Keep scenario scripts enabled when AI Dungeon tries to turn them off.
-
-## Ultrascripts: the part I'm really excited about
-
-Ultrascripts is BetterDungeon's two-way communication layer between the extension and AI Dungeon scripts. Instead of hiding protocol messages inside story text or relying on fragile DOM tricks, it exposes permission-gated modules that scripts can call directly.
-
-That gives scenario creators access to things that normally live outside the scripting sandbox: interactive widgets, external model calls, real-world context, and more. BetterDungeon handles the transport, lifecycle, permissions, and fallback behavior so scripts can focus on what they are actually trying to do.
-
-Available modules include:
-
-| Module | What it enables |
+| Platform | Download |
 | --- | --- |
-| `ai` | Asynchronous Gemini requests for script-side logic |
-| `widget` | RPG HUDs, stat bars, inventories, buttons, and status panels |
-| `webfetch` | Consent-gated HTTP requests and basic web searches |
-| `clock` | Local time, timestamps, offsets, and IANA timezones |
-| `weather` | Current conditions and short-term forecasts |
-| `system` | Screen, touch, browser, and battery information |
-| `network` | Connection status, downlink, RTT, and data-saver state |
-| `sdk` | Curated BetterDungeon state and configuration |
+| Chrome, Edge, and compatible Chromium browsers | [Chrome Web Store](https://chromewebstore.google.com/detail/betterdungeon/ppliljfopejamemejnnchehpbacpebjf) |
+| Firefox 109+ | [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/betterdungeon/) |
+| Android | Signed APKs, when published, from [GitHub Releases](https://github.com/ComputerKWasTaken/BetterDungeon/releases) |
 
-Check out the [Ultrascripts examples](examples/README.md) if you want to start building a script.
+> [!NOTE]
+> Store versions may lag behind the source while v2.1 is submitted and reviewed. The default `preview` branch holds the newest tested source; `release` tracks published source. [How releases work](docs/MONOREPO.md#branches-and-releases)
 
-## Basic usage
+## Start playing
 
-1. Install BetterDungeon and open [AI Dungeon](https://play.aidungeon.com/).
-2. Open the BetterDungeon popup from your browser toolbar or the in-game sidebar.
-3. Enable the features you want to use.
-4. If you want to use Gemini-powered features or script-side AI, configure your API key in the **Ultrascripts** settings.
+1. Install BetterDungeon for your platform and open an [AI Dungeon adventure](https://play.aidungeon.com/).
+2. Open the BetterDungeon popup to switch on and configure the features you want.
+3. For Navigator, Character Prefill, or Ultrascripts AI, add your own provider key in **AI Connections**. Gemini is the simple setup; OpenRouter, Mistral, and custom endpoints are available in Advanced. [AI setup guide](docs/AI.md)
 
-WebFetch requests remain consent-gated, so players approve external origins before scripts can access them.
+You can use BetterDungeon's non-AI features without configuring an AI provider. Most features have their own switch, so you can keep the experience as light or as involved as you like.
 
-## For contributors
+## Explore the toolkit
 
-BetterDungeon is open source, and contributions are welcome. If you want to work on a feature, fix compatibility with AI Dungeon, or build an Ultrascripts example, start with the [contributing guide](CONTRIBUTING.md).
+| What you want to do | Tools to try |
+| --- | --- |
+| **Play with more control** | Command and Try modes, input history, mode colors, and customizable desktop hotkeys. |
+| **Keep a growing world organized** | Per-adventure Notes, Plot and Character Presets, Story Card scanning and analytics, trigger highlighting, and a docked editor. |
+| **Get help with the adventure** | Navigator's context-aware chat, research, and reviewable edits. |
+| **Put recurring work on autopilot** | Navigator Routines, Custom Dynamic model pools, and optional automatic See requests. |
+| **Extend AI Dungeon scripts** | Permission-controlled Ultrascripts modules for widgets, AI, audio, public web reads, time, weather, and more. |
 
-The project is intentionally dependency-light: there is no build step or package installation required for the extension itself. Load the repository as an unpacked extension, make your changes, and reload it in the browser.
+Some controls differ between desktop browsers and Android. The [input-menu guide](docs/INPUT-MENU.md) covers the current desktop and compact layouts; [Ultrascripts examples](examples/README.md) are a starting point for script authors.
 
-## Support and feedback
+### New in v2.1: Navigator and Routines
 
-- Found a bug? [Open an issue](../../issues/new/choose).
-- Have an idea? [Open a feature request](../../issues/new).
-- Want to discuss the project? Find me on Discord at `@computerK`.
-- Want to support continued development? [Visit my Ko-fi page](https://ko-fi.com/computerk).
+Navigator is an assistant grounded in your adventure. Ask it questions, have it look through Story Cards, or request changes to adventure content. Its change setting lets you choose automatic verified edits, proposals to review, or conversation without edits.
 
-If BetterDungeon makes AI Dungeon more enjoyable for you, I would love to hear what you are building with it.
+Routines take that help into the background. Write an instruction, choose how many completed actions should pass between runs, and Navigator handles it while you play. Each Routine keeps a separate conversation; the Activity view shows its work and any changes needing attention. You can also ask Navigator in Chat to run a saved Routine immediately.
 
----
+```mermaid
+flowchart LR
+    Actions["Completed adventure actions"] --> Milestone["Routine milestone"]
+    Milestone --> Navigator["Navigator works with adventure context"]
+    Navigator --> Activity["Activity records the result"]
+    Navigator --> Policy["Changes follow your approval setting"]
+```
 
-**Made with love for the AI Dungeon community.**
+Six editable examples start disabled, including NPC Brains, Automatic Story Cards, Story Arcs, and State Management. They are prompts, not rigid script engines: you decide which to enable, and Navigator decides whether the current story calls for a change. [Read the Routines guide](docs/NAVIGATOR_ROUTINES.md).
 
-— computerK
+Version 2.1 also brings shared AI configuration, input-control refinements, and Ultrascripts reliability, audio, and web-request improvements. BetterDungeon's former Markdown and text-to-speech features have been removed; AI Dungeon now handles Markdown natively. The popup's **What's New** section has the fuller release notes.
+
+## Work from this repository
+
+The browser extension and Android app share one source tree. The repository root loads directly as an unpacked browser extension; `android/` is a complete Android Studio project. Shared web code stays at the root, while Android keeps only its native app and unique WebView adapters.
+
+```text
+BetterDungeon/
+├── manifest.json, popup.*       Browser extension entry points
+├── core/, features/, services/  Shared behavior and integrations
+├── modules/, utils/             Shared modules and utilities
+├── android/                     Android Studio project
+│   ├── app/                     Native Android application
+│   └── web/                     Unique WebView adapters
+├── tests/                       Focused offline checks
+└── build.ps1                    Local build interface
+```
+
+Use PowerShell from the repository root:
+
+```powershell
+.\build.ps1 test       # Focused offline checks
+.\build.ps1 extension  # Extension ZIP in dist/
+.\build.ps1 android    # Debug APK in dist/
+.\build.ps1 all        # Checks and both artifacts
+```
+
+The checks use Node.js 24. Android builds also require JDK 21 and the Android SDK; open `android/` in Android Studio to sync, run, or debug. CI runs the same basic checks and builds on pushes, but product behavior still needs hands-on testing in AI Dungeon. [Contributing guide](CONTRIBUTING.md)
+
+Daily development happens on `dev`. Tested commits move to `preview`, then published source moves to `release`; store submission and signed releases are manual. See the [monorepo and delivery guide](docs/MONOREPO.md) for composition and branch details.
+
+## More information
+
+| Guide | Use it for |
+| --- | --- |
+| [AI Connections](docs/AI.md) | Gemini setup, Advanced providers, and per-feature routing |
+| [Navigator Routines](docs/NAVIGATOR_ROUTINES.md) | Scheduling, examples, activity, and approval behavior |
+| [Ultrascripts examples](examples/README.md) | Script templates and module usage |
+| [Contributing](CONTRIBUTING.md) | Development setup, testing, and contribution rules |
+| [Privacy policy](PRIVACY.md) | Local storage and optional third-party requests |
+
+Have a bug or an idea? [Open an issue](https://github.com/ComputerKWasTaken/BetterDungeon/issues), or reach computerK on Discord at `@computerK`. You can [support development on Ko-fi](https://ko-fi.com/computerk).
+
+BetterDungeon is **source-available, not open source**. You may use and privately modify it; public source forks are allowed for contributions to the official project. Independent releases and redistributed builds require permission. Files in `examples/` have the MIT terms described in the [full license](LICENSE).

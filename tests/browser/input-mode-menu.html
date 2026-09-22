@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>BetterDungeon input menu regression checks</title>
+<link rel="stylesheet" href="../../core/theme-variables.css">
+<link rel="stylesheet" href="../../styles.css">
+<link rel="stylesheet" href="../../fonts/lucide/lucide.css">
+<style>
+body { font: 16px system-ui; background: #151820; color: white; padding: 24px; }
+h1 { font-size:22px; }
+#results { white-space:pre-wrap; overflow-wrap:anywhere; font-size:13px; }
+#fixture { margin-top: 24px; }
+#fixture [role=menu] { width: 256px; padding: 8px; background: #252935; }
+#fixture [role=menuitemradio], #fixture [role=menuitem] { display:flex; position:relative; gap:12px; padding:12px 32px; cursor:pointer; }
+#fixture [role=button] { display:inline-flex; padding:12px; cursor:pointer; }
+#fixture [role=menuitemradio]:focus { outline:2px solid white; }
+#fixture.demo { margin: 100px 0 0; max-width:100%; }
+.demo #game-text-input-controller { position:relative; height:150px; border:1px solid #566071; border-radius:12px; background:#252935; }
+.demo #game-text-input-controller > div:first-child { position:absolute; bottom:0; left:0; right:0; overflow:hidden; padding:12px; display:flex; gap:8px; }
+.demo textarea { flex:1; min-width:0; min-height:64px; padding:8px; border:1px solid #566071; background:#17161b; color:white; font:16px system-ui; resize:vertical; }
+.demo button[aria-label="Change input mode"] { margin:8px 12px; padding:8px 16px; border:1px solid #566071; border-radius:8px; background:#17161b; color:white; }
+.demo button[aria-label="Submit action"] { width:44px; border:1px solid #566071; border-radius:8px; background:#17161b; color:white; }
+.demo [role=menu] { position:absolute; z-index:100; top:200px; box-shadow:0 4px 16px black; }
+</style>
+<h1>Input menu regression checks</h1>
+<p>Offline fixtures based on Alpha desktop and mobile markup. No AI Dungeon requests or paid generation.</p>
+<pre id="results">Running…</pre>
+<div id="fixture"></div>
+<script src="../../services/ai-dungeon-service.js"></script>
+<script src="../../features/command_feature.js"></script>
+<script src="../../features/try_feature.js"></script>
+<script src="../../features/hotkey_feature.js"></script>
+<script src="../../features/input_mode_color_feature.js"></script>
+<script src="../../features/input_history_feature.js"></script>
+<script src="input-mode-menu.js"></script>
+</html>

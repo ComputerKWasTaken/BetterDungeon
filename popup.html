@@ -2,11 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=380">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>BetterDungeon</title>
+  <script src="utils/platform.js"></script>
   <link rel="stylesheet" href="fonts/lucide/lucide.css">
   <link rel="stylesheet" href="core/theme-variables.css">
   <link rel="stylesheet" href="popup.css">
+  <link rel="stylesheet" href="utils/android-editable-scroll-fix.css">
 </head>
 <body>
   <!-- Header -->
@@ -15,7 +17,7 @@
       <img src="icons/icon48.png" alt="" class="header-logo">
       <div class="header-title">
         <span class="header-name">BetterDungeon</span>
-        <span class="header-version"><span id="app-version">v2.0.3</span> <span class="header-badge pc">PC</span></span>
+        <span class="header-version"><span id="app-version">v2.1.0</span> <span class="header-badge pc" id="platform-badge">PC</span></span>
       </div>
     </div>
     <div class="header-actions">
@@ -24,6 +26,9 @@
       </a>
       <button class="header-action" id="tutorial-help-btn" aria-label="Start Tutorial" title="Help">
         <span class="icon-circle-question-mark"></span>
+      </button>
+      <button class="header-action" id="app-settings-btn" aria-label="Open BetterDungeon settings" title="Settings" data-bd-requires-capability="androidSettings" hidden>
+        <span class="icon-settings"></span>
       </button>
     </div>
   </header>
@@ -38,6 +43,7 @@
       <span class="nav-icon icon-radio-tower"></span>
       <span class="nav-label">Ultrascripts</span>
     </button>
+    <button class="nav-item" data-tab="ai"><span class="nav-icon icon-brain-circuit"></span><span class="nav-label">AI</span></button>
     <button class="nav-item" data-tab="presets">
       <span class="nav-icon icon-bookmark"></span>
       <span class="nav-label">Presets</span>
@@ -46,6 +52,24 @@
 
   <!-- Fading Glow Divider Bar -->
   <div class="accent-bar"></div>
+
+  <!-- Update Available Banner -->
+  <div class="update-banner" id="update-banner" hidden>
+    <span class="update-banner-icon"><span class="icon-rocket"></span></span>
+    <div class="update-banner-content">
+      <strong id="update-banner-title">Update available</strong>
+      <span id="update-banner-detail">A new release is on GitHub.</span>
+    </div>
+    <div class="update-banner-actions">
+      <button class="btn btn-primary btn-sm" id="update-banner-view" type="button">
+        <span class="icon-download"></span>
+        <span id="update-banner-view-label">View</span>
+      </button>
+      <button class="btn btn-icon btn-ghost" id="update-banner-dismiss" type="button" aria-label="Dismiss update notification" title="Dismiss">
+        <span class="icon-x"></span>
+      </button>
+    </div>
+  </div>
 
   <!-- Main Content -->
   <main class="main">
@@ -60,7 +84,7 @@
             <span class="whats-new-compact-icon icon-sparkles"></span>
             <span class="whats-new-compact-text">
               <strong id="whats-new-title">What's New</strong>
-              <span class="whats-new-compact-summary">Emergency Alpha compatibility patch &middot; v2.1 coming later</span>
+              <span class="whats-new-compact-summary">Navigator Routines &middot; AI setup &middot; Input controls</span>
             </span>
           </span>
           <span class="whats-new-compact-right">
@@ -70,8 +94,8 @@
         </button>
         <div class="whats-new-expandable" id="whats-new-expandable" aria-hidden="true">
           <div class="whats-new-version-tabs" role="tablist" aria-label="Release notes versions">
-            <button class="whats-new-version-tab active" id="whats-new-tab-203" type="button" role="tab" aria-selected="true" aria-controls="whats-new-release-203" data-whats-new-version="2.0.3">
-              v2.0.3 <span>Current</span>
+            <button class="whats-new-version-tab active" id="whats-new-tab-210" type="button" role="tab" aria-selected="true" aria-controls="whats-new-release-210" data-whats-new-version="2.1.0">
+              v2.1.0 <span>Current</span>
             </button>
             <button class="whats-new-version-tab" id="whats-new-tab-202" type="button" role="tab" aria-selected="false" aria-controls="whats-new-release-202" data-whats-new-version="2.0.2" tabindex="-1">
               v2.0.2
@@ -82,32 +106,96 @@
           </div>
 
           <div class="whats-new-release-panels">
-            <section class="whats-new-release" id="whats-new-release-203" role="tabpanel" aria-labelledby="whats-new-tab-203" data-whats-new-panel="2.0.3">
-              <div class="whats-new-archive-list">
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-triangle-alert" style="color: #f97316;"></span>
-                  <div><strong>Emergency Patch Before v2.1</strong>: BetterDungeon v2.0.3 is a focused compatibility hotfix for the current public release. v2.1 is still in development and will be released when it is ready.</div>
+            <section class="whats-new-release" id="whats-new-release-210" role="tabpanel" aria-labelledby="whats-new-tab-210" data-whats-new-panel="2.1.0">
+              <div class="whats-new-release-hero">
+                <span class="whats-new-release-icon icon-telescope" aria-hidden="true"></span>
+                <div>
+                  <span class="whats-new-eyebrow">Headline feature</span>
+                  <h3>Meet Navigator</h3>
+                  <p>Chat about your adventure or let Routines handle recurring work as you play.</p>
                 </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-wrench" style="color: #22c55e;"></span>
-                  <div><strong>Action Selector Freeze Fixed</strong>: Updated Command mode for AI Dungeon's redesigned action input selector, preventing the PC tab from freezing when changing action modes.</div>
+              </div>
+
+              <div class="whats-new-navigator-features">
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-navigator icon-bot" aria-hidden="true"></span>
+                  <div>
+                    <h4>Routines work while you play</h4>
+                    <p>Write an instruction once and Navigator can run it every few completed actions. Start with editable examples for Story Cards, NPCs, story arcs, and adventure state.</p>
+                    <span class="whats-new-detail">Per-Routine history &middot; Activity view &middot; Reviewable changes</span>
+                  </div>
+                </article>
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-navigator icon-book-open-text" aria-hidden="true"></span>
+                  <div>
+                    <h4>Understands your adventure</h4>
+                    <p>Navigator always attempts a bounded snapshot of your Plot Components, recent story, Memory Bank, and Story Cards, then researches omitted details when needed.</p>
+                    <span class="whats-new-detail">Multi-turn chat &middot; Always-on grounding &middot; Story Card and Memory research</span>
+                  </div>
+                </article>
+
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-navigator icon-shield-check" aria-hidden="true"></span>
+                  <div>
+                    <h4>Keeps you in the know</h4>
+                    <p>Automatic mode applies verified non-deletion edits immediately. Permanent Story Card and Memory Bank deletions still require approval; choose Proposed changes to approve every edit or No changes to disable mutation tools.</p>
+                    <span class="whats-new-detail">Automatic by default &middot; Deletion approval &middot; Conflict checks &middot; Server verification</span>
+                  </div>
+                </article>
+              </div>
+
+              <!-- Artisan teaser hidden while the product decision is pending. -->
+              <aside class="whats-new-teaser" hidden>
+                <span class="whats-new-teaser-icon icon-paintbrush" aria-hidden="true"></span>
+                <div>
+                  <span class="whats-new-eyebrow">Coming later</span>
+                  <strong>Artisan</strong>
+                  <p>Navigator's future counterpart for helping creators build, organize, and polish AI Dungeon scenarios.</p>
                 </div>
+              </aside>
+
+              <div class="whats-new-section-label">Also in V2.1</div>
+
+              <div class="whats-new-highlight-list">
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-input icon-gamepad-2" aria-hidden="true"></span>
+                  <div>
+                    <h4>Ready for Alpha's new input menu</h4>
+                    <p>Try and Command support the desktop strip and mobile dropdown, with floating touch pills. Image and Video have separate colors and hotkeys, and opening the menu no longer clears your custom mode.</p>
+                  </div>
+                </article>
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-ai icon-brain-circuit" aria-hidden="true"></span>
+                  <div>
+                    <h4>Simpler AI setup</h4>
+                    <p>A dedicated AI tab offers Simple Gemini setup and per-feature Advanced providers, including automatic Mistral fallback.</p>
+                  </div>
+                </article>
+
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-ultrascripts icon-radio-tower" aria-hidden="true"></span>
+                  <div>
+                    <h4>Stronger Ultrascripts</h4>
+                    <p>V2.1 improves connection reliability, adds synthesized audio, simplifies safe web requests, and upgrades AI responses without changing the public script contract.</p>
+                  </div>
+                </article>
+
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-native icon-sparkles" aria-hidden="true"></span>
+                  <div>
+                    <h4>Native feature cleanup</h4>
+                    <p>AI Dungeon now handles Markdown natively. BetterDungeon's text-to-speech feature has been removed on both platforms, and Android now supports native AI streaming.</p>
+                  </div>
+                </article>
               </div>
             </section>
 
             <section class="whats-new-release whats-new-release-archive" id="whats-new-release-202" role="tabpanel" aria-labelledby="whats-new-tab-202" data-whats-new-panel="2.0.2" hidden>
               <div class="whats-new-archive-list">
-                <div class="whats-new-archive-item whats-new-archive-item-group">
+                <div class="whats-new-archive-item">
                   <span class="whats-new-item-icon icon-route" style="color: #a855f7;"></span>
                   <div>
-                    <div><strong>Revamped Custom Dynamic</strong>: The fan-favorite feature Custom Dynamic has received some excellent additions with v2.0.2.</div>
-                    <ul class="whats-new-sublist">
-                      <li><strong>Latest Models</strong>: Custom Dynamic has been updated to support the latest AI Dungeon models.</li>
-                      <li><strong>Model Versions</strong>: You can now switch between different model versions in the pool rather than using the last used model version.</li>
-                      <li><strong>Switch Frequency</strong>: You can now configure how long it will take before Custom Dynamic causes a model switch, between 1–20 turns.</li>
-                      <li><strong>Simplification</strong>: Some redundant or unnecessary options were removed for ease of use and clarity, including model switch mechanism and continue if failed.</li>
-                      <li><strong>Enabled Icon</strong>: Custom Dynamic now replaces the current model icon with a Custom Dynamic model icon to indicate that the feature is enabled.</li>
-                    </ul>
+                    <div><strong>Improved Custom Dynamic</strong>: Added current AI Dungeon models, model-version selection, configurable 1–20 turn switching, simpler settings, and a clear enabled indicator.</div>
                   </div>
                 </div>
                 <div class="whats-new-archive-item">
@@ -121,91 +209,99 @@
               <div class="whats-new-archive-list">
                 <div class="whats-new-archive-item">
                   <span class="whats-new-item-icon icon-radio-tower" style="color: #a855f7;"></span>
-                  <div><strong>Ultrascripts</strong>: My new two-way communication system between AI Dungeon scripts and BetterDungeon, giving scripts SUPERPOWERS, like calling AI models or rendering UI widgets. The natural replacement to BetterScripts, Ultrascripts no longer requires DOM manipulation, uses up story context, or requires the script creator to manually disable their systems when BetterScripts isn't available. It's smarter, more capable, and the future of scripting.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-coffee" style="color: #f97316;"></span>
-                  <div><strong>Ko-fi Page</strong>: I've launched a Ko-fi page for BetterDungeon, BetterRepository, and my other projects! Supporting is completely optional, but if you enjoy what I make and want to help me keep building, you can <a href="https://ko-fi.com/computerk" target="_blank" rel="noopener noreferrer">check it out here</a>. Every bit of support is greatly appreciated.</div>
+                  <div><strong>Ultrascripts</strong>: Introduced direct two-way communication between AI Dungeon scripts and BetterDungeon, enabling widgets, AI requests, web access, weather, device information, and more without story-context tricks or page manipulation.</div>
                 </div>
                 <div class="whats-new-archive-item">
                   <span class="whats-new-item-icon icon-smartphone" style="color: #22c55e;"></span>
-                  <div><strong>Android Port</strong>: BetterDungeon is now available on Android devices! Simply head to the Github releases tab or the pins in the thread to download the APK.</div>
+                  <div><strong>More Platforms</strong>: Added the Android app and officially brought BetterDungeon to Firefox.</div>
                 </div>
                 <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-globe-lock" style="color: #3b82f6;"></span>
-                  <div><strong>Firefox Port</strong>: BetterDungeon has been officially released on to the Firefox Browser Add-ons Store! No more reinstalling it as a temporary extension, it's here to stay.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-route" style="color: #fbbf24;"></span>
-                  <div><strong>Custom Dynamic</strong>: Your very own, customizable version of the Dynamic models is here! Choose from any available model, configure your pool, and have fun. Directly inspired by the great work of Zoocata's PRISM browser extension.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-volume-2" style="color: #ec4899;"></span>
-                  <div><strong>Text to Speech</strong>: Your story, narrated like an audio book. Select a voice, configure the settings, and enjoy listening to your story as you play. Will likely be seeing improvements in the future.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-palette" style="color: #06b6d4;"></span>
-                  <div><strong>Revamped UI</strong>: A redesigned UI for all features and the popup menus, looking sleeker and less smelly. It's also got reduced clutter and is easier to navigate.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-pilcrow" style="color: #a855f7;"></span>
-                  <div><strong>Revamped Markdown</strong>: Markdown has been revamped from the ground up to be more intelligent, easier to use, and have less refusals. High quality story formatting without any compromises, with 6 new instructions sets and a rewritten backend to maximize usage.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-user" style="color: #3b82f6;"></span>
-                  <div><strong>Revamped Character Presets</strong>: Rebuilt from the ground up and powered by my AI module from Ultrascripts, Character Presets takes away the burden of having to answer 47 scenario prefill questions, by leveraging the power of AI to intelligently answer the questions proposed.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-eye" style="color: #6366f1;"></span>
-                  <div><strong>Revamped Auto See</strong>: Using a reworked GQL backend, Auto See has been improved to be less fragile and disruptive, feeling much more natural and preventing blockages. Will likely be seeing improvements in the future.</div>
+                  <span class="whats-new-item-icon icon-route" style="color: #f59e0b;"></span>
+                  <div><strong>Custom Dynamic</strong>: Added customizable model pools and automatic model switching inspired by Zoocata's PRISM extension.</div>
                 </div>
                 <div class="whats-new-archive-item">
                   <span class="whats-new-item-icon icon-activity" style="color: #14b8a6;"></span>
-                  <div><strong>Revamped Story Card Scanner</strong>: Using the magic of GQL, the Story Card Scanner is now instant, non-disruptive, and more intelligent. Less fragile and capable of handling even scenarios upwards of many hundreds of story cards. A massive plus for anybody designing scenarios.</div>
+                  <div><strong>Faster Story Tools</strong>: Rebuilt Story Card scanning, trigger highlighting, and analytics around direct adventure data for quicker, less disruptive results.</div>
                 </div>
                 <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-sparkle" style="color: #eab308;"></span>
-                  <div><strong>Revamped Trigger Highlighting</strong>: Thanks to the revamped Story Card Scanner, trigger highlighting is now instant and enabled in all scenarios.</div>
+                  <span class="whats-new-item-icon icon-user" style="color: #3b82f6;"></span>
+                  <div><strong>Smarter Character Prefill</strong>: Rebuilt Character Presets with Ultrascripts AI to help answer large sets of scenario questions.</div>
                 </div>
                 <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-chart-bar" style="color: #ef4444;"></span>
-                  <div><strong>Revamped Story Card Analytics</strong>: Another improvement due to the revamped Story Card Scanner, the Story Card Analytics is instant and improved. Underrated feature that's now even better.</div>
+                  <span class="whats-new-item-icon icon-eye" style="color: #6366f1;"></span>
+                  <div><strong>More Reliable Auto See</strong>: Reworked adventure integration made automatic See actions more natural and less disruptive.</div>
                 </div>
                 <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-book-open-text" style="color: #8b5cf6;"></span>
-                  <div><strong>Ultrascripts Widget Module</strong>: Originally what BetterScripts was, Widget is now one piece of the many capabilities of Ultrascripts. Now featuring interactive widgets for elements like interactable buttons, better sizing, mobile support, and the ability to collapse widgets.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-globe-lock" style="color: #3b82f6;"></span>
-                  <div><strong>Ultrascripts WebFetch Module</strong>: Allows scripts powered by Ultrascripts to send GET requests, and basic search. Allowed domains operated by the users of the script. Will likely be seeing improvements in the future.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-clock" style="color: #eab308;"></span>
-                  <div><strong>Ultrascripts Clock Module</strong>: Clock gives scripts the user's current local time, IANA time-zone conversion, ISO timestamps, offsets, and deterministic formatted dates, for real time grounding. Imagine an AI Dungeon scenario, synced to your real time in the world.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-layers" style="color: #f97316;"></span>
-                  <div><strong>Ultrascripts SDK Module</strong>: The SDK module allows scripts to get toggle and configuration info about BetterDungeon, excluding secrets. Enables scripts to intelligently alter their behavior depending on what features are available.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-bot-message-square" style="color: #6366f1;"></span>
-                  <div><strong>Ultrascripts AI Module</strong>: The magnum opus of Ultrascripts, the AI module allows scripts to asynchronously query the Gemini API. No need to hijack the story or embed zero-width encoded messages, like AC or IS. The AI module also powers the revamped Character Presets feature. Highly recommend you all check this out, it is incredibly cool.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-cloud-sun" style="color: #06b6d4;"></span>
-                  <div><strong>Ultrascripts Weather Module</strong>: Allows scripts to get the real life weather data for locations, without the need for web scraping. Enables AI Dungeon scripts to be synced with real weather conditions.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-wifi" style="color: #22c55e;"></span>
-                  <div><strong>Ultrascripts Network Module</strong>: Allows scripts to request online status and network quality information. Not sure what this might be used for but it's here if scripters want it.</div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-cpu" style="color: #f97316;"></span>
-                  <div><strong>Ultrascripts System Module</strong>: Enables scripts to get info such as device class, platform family, locale, screen size, touch support, browser family, and battery state, to enable scripts to alter its behavior depending on the system/device the user is on.</div>
+                  <span class="whats-new-item-icon icon-palette" style="color: #06b6d4;"></span>
+                  <div><strong>Redesigned Interface</strong>: Simplified the popup and feature controls with clearer navigation and less clutter.</div>
                 </div>
               </div>
             </section>
           </div>
+          <div class="whats-new-update-checks" id="update-checks-row" hidden>
+            <div class="whats-new-update-info">
+              <span class="icon-bell"></span>
+              <span>Update checks<span class="whats-new-update-note"> — GitHub Releases on manual installs</span></span>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="update-check-now" type="button">Check now</button>
+            <label class="toggle" for="update-checks-toggle">
+              <input id="update-checks-toggle" type="checkbox" role="switch">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Agents -->
+      <div class="section section-collapsible" data-section="ai-agents">
+        <button class="section-header section-header-collapsible" data-collapse="ai-agents" aria-expanded="true">
+          <span class="section-icon icon-bot" style="color: var(--bd-cyan);"></span>
+          <h2 class="section-title">AI Agents</h2>
+          <span class="section-chevron icon-chevron-down"></span>
+        </button>
+        <div class="section-body" id="collapse-ai-agents">
+
+          <article class="feature-card" data-feature="navigator">
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-icon-navigator);">
+                    <span class="icon-telescope"></span>
+                  </span>
+                  <h3 class="feature-title">Navigator</h3>
+                </div>
+                <p class="feature-desc">Chat with your adventure agent and automate recurring work with Routines.</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="feature-navigator">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="feature-details">
+              <p>Ask Navigator about your adventure, request changes, or create Routines that run after a set number of completed actions.</p>
+              <div class="feature-hints">
+                <p class="feature-hint"><span class="icon-lightbulb" aria-hidden="true"></span><span>Open from <strong>Game Menu &gt; Gameplay &gt; Navigator</strong>. Create and manage Routines there.</span></p>
+                <p class="feature-hint"><span class="icon-shield-check" aria-hidden="true"></span><span>Choose how Navigator applies changes in its settings. Deletions always need approval. Set up a provider in the <strong>AI</strong> tab.</span></p>
+              </div>
+            </div>
+          </article>
+
+          <!-- Artisan teaser hidden while the product decision is pending. -->
+          <article class="feature-card static-card" data-feature="artisan" hidden>
+            <div class="feature-row">
+              <div class="feature-info">
+                <div class="feature-title-row">
+                  <span class="feature-icon" style="color: var(--bd-pink);">
+                    <span class="icon-paintbrush"></span>
+                  </span>
+                  <h3 class="feature-title">Artisan</h3>
+                </div>
+                <p class="feature-desc">Your future AI agent for creating and polishing scenarios</p>
+              </div>
+              <span class="teaser">Teaser</span>
+            </div>
+          </article>
+
         </div>
       </div>
 
@@ -244,7 +340,7 @@
                 <div class="syntax-row"><span>Subtle</span><code>[## Your Command:]</code></div>
                 <div class="syntax-row"><span>OOC</span><code>((OOC ... | User: Your Question?))</code></div>
               </div>
-              <p class="feature-hint"><span class="icon-lightbulb"></span> Use <strong>&#x2191;&#x2193; arrow keys</strong> while in Command mode to switch between Standard, Subtle, and OOC sub-modes.</p>
+              <p class="feature-hint"><span class="icon-lightbulb"></span> <span data-bd-browser-copy>Use <strong>&#x2191;&#x2193; arrow keys</strong> while in Command mode to switch between Standard, Subtle, and OOC sub-modes.</span><span data-bd-android-copy hidden>Tap the previous and next buttons above the input while in Command mode to switch between Standard, Subtle, and OOC.</span></p>
               <p class="feature-hint"><span class="icon-terminal"></span> <strong>Standard</strong> &mdash; direct story instructions. <strong>Subtle</strong> &mdash; indirect guidance via brackets. <strong>OOC</strong> &mdash; ask the AI a direct question.</p>
             </div>
           </article>
@@ -292,7 +388,7 @@
         <div class="section-body" id="collapse-controls">
 
           <!-- Hotkeys -->
-          <article class="feature-card" data-feature="hotkey">
+          <article class="feature-card" data-feature="hotkey" data-bd-requires-feature="hotkey">
             <div class="feature-row">
               <div class="feature-info">
                 <div class="feature-title-row">
@@ -324,13 +420,15 @@
                   <div class="hotkey" data-action="redo"><kbd>Y</kbd> Redo</div>
                 </div>
                 <div class="hotkey-group">
-                  <h4>Input Modes</h4>
+                  <h4>Input Mode Menu</h4>
                   <div class="hotkey" data-action="modeDo"><kbd>1</kbd> Do</div>
                   <div class="hotkey" data-action="modeTry"><kbd>2</kbd> Try*</div>
                   <div class="hotkey" data-action="modeSay"><kbd>3</kbd> Say</div>
                   <div class="hotkey" data-action="modeStory"><kbd>4</kbd> Story</div>
-                  <div class="hotkey" data-action="modeSee"><kbd>5</kbd> See</div>
-                  <div class="hotkey" data-action="modeCommand"><kbd>6</kbd> Command*</div>
+                  <div class="hotkey" data-action="modeGuide"><kbd>5</kbd> Guide</div>
+                  <div class="hotkey" data-action="generateImage"><kbd>6</kbd> Image</div>
+                  <div class="hotkey" data-action="modeCommand"><kbd>7</kbd> Command*</div>
+                  <div class="hotkey" data-action="generateVideo"><kbd>8</kbd> Video</div>
                 </div>
               </div>
               <p class="feature-footnote">*Requires feature to be enabled</p>
@@ -351,7 +449,7 @@
                   </span>
                   <h3 class="feature-title">Input History</h3>
                 </div>
-                <p class="feature-desc">Cycle through past inputs with arrow keys</p>
+                <p class="feature-desc"><span data-bd-browser-copy>Cycle through past inputs with arrow keys</span><span data-bd-android-copy hidden>Browse sent inputs with the history buttons</span></p>
               </div>
               <label class="toggle">
                 <input type="checkbox" id="feature-inputHistory" checked>
@@ -359,7 +457,7 @@
               </label>
             </div>
             <div class="feature-details">
-              <p>Press <strong>Ctrl</strong> + <strong>Up/Down</strong> arrow keys while the input box is focused to cycle through your previously sent inputs.</p>
+              <p><span data-bd-browser-copy>Press <strong>Ctrl</strong> + <strong>Up/Down</strong> arrow keys while the input box is focused to cycle through your previously sent inputs.</span><span data-bd-android-copy hidden>Use the touch-friendly history controls beside the action input to cycle through recently sent inputs for the current adventure.</span></p>
               <p class="feature-hint"><span class="icon-history"></span> Remembers up to 50 of your recent actions and their respective input modes.</p>
             </div>
           </article>
@@ -387,7 +485,9 @@
                 <div class="color-chip" data-mode="try" style="--chip-color: #a855f7"><span>Try</span></div>
                 <div class="color-chip" data-mode="say" style="--chip-color: #22c55e"><span>Say</span></div>
                 <div class="color-chip" data-mode="story" style="--chip-color: #fbbf24"><span>Story</span></div>
-                <div class="color-chip" data-mode="see" style="--chip-color: #06b6d4"><span>See</span></div>
+                <div class="color-chip" data-mode="guide" style="--chip-color: #ec4899"><span>Guide</span></div>
+                <div class="color-chip" data-mode="image" style="--chip-color: #06b6d4"><span>Image</span></div>
+                <div class="color-chip" data-mode="video" style="--chip-color: #6366f1"><span>Video</span></div>
                 <div class="color-chip" data-mode="command" style="--chip-color: #f97316"><span>Command</span></div>
               </div>
               <button class="btn btn-action" id="customize-colors-btn">
@@ -409,67 +509,8 @@
         </button>
         <div class="section-body" id="collapse-writing">
 
-          <!-- Markdown -->
-          <article class="feature-card" data-feature="markdown">
-            <div class="feature-row">
-              <div class="feature-info">
-                <div class="feature-title-row">
-                  <span class="feature-icon" style="color: var(--bd-icon-markdown);">
-                    <span class="icon-pilcrow"></span>
-                  </span>
-                  <h3 class="feature-title">Markdown Formatting</h3>
-                </div>
-                <p class="feature-desc">Render rich text emphasis in AI responses</p>
-              </div>
-              <label class="toggle">
-                <input type="checkbox" id="feature-markdown" checked>
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="feature-details">
-              <p>Renders AID-safe Markdown emphasis using focused custom syntax that AI Dungeon does not strip.</p>
-
-              <div class="md-options-header">
-                <span class="md-options-title">Syntax</span>
-                <span class="md-options-hint">Used by rendering and AI instructions</span>
-              </div>
-              <div class="md-cheatsheet" id="markdown-cheatsheet">
-                <!-- Populated dynamically by popup.js -->
-              </div>
-
-              <div class="md-preset-control">
-                <label class="md-preset-label" for="markdown-instruction-preset">Instruction Style</label>
-                <select class="form-select form-select-sm" id="markdown-instruction-preset">
-                  <!-- Populated dynamically by popup.js -->
-                </select>
-                <p class="md-preset-desc" id="markdown-instruction-preset-desc"></p>
-                <div class="md-instruction-preview" aria-live="polite">
-                  <div class="md-instruction-preview-title">Preview</div>
-                  <pre id="markdown-instruction-preview"></pre>
-                </div>
-              </div>
-
-              <div class="md-actions">
-                <div class="feature-option">
-                  <span class="option-label">Auto-apply on adventure</span>
-                  <label class="toggle sm">
-                    <input type="checkbox" id="auto-apply-instructions">
-                    <span class="toggle-slider"></span>
-                  </label>
-                </div>
-
-                <button class="btn btn-action" id="apply-instructions-btn">
-                  <span class="icon-wand"></span>
-                  Apply Instructions
-                </button>
-              </div>
-
-              <p class="feature-credit">Thanks to <a href="https://play.aidungeon.com/profile/OffMetaGamer">OffMetaGamer</a> & <a href="https://play.aidungeon.com/profile/effortlyss">Shiny</a></p>
-            </div>
-          </article>
-
           <!-- Adventure Notes -->
-          <article class="feature-card" data-feature="notes">
+          <article class="feature-card expanded static-card adventure-notes-card" data-feature="notes">
             <div class="feature-row">
               <div class="feature-info">
                 <div class="feature-title-row">
@@ -478,16 +519,14 @@
                   </span>
                   <h3 class="feature-title">Adventure Notes</h3>
                 </div>
-                <p class="feature-desc">Write and save notes per adventure</p>
+                <p class="feature-desc">Private notes for the active adventure</p>
               </div>
-              <label class="toggle">
-                <input type="checkbox" id="feature-notes" checked>
-                <span class="toggle-slider"></span>
-              </label>
+              <span class="adventure-notes-state" id="adventure-notes-state">Connecting&hellip;</span>
             </div>
             <div class="feature-details">
-              <p>An embedded Plot Components notes card that saves per adventure. Notes are <strong>saved per adventure</strong>.</p>
-              <p class="feature-hint"><span class="icon-lightbulb"></span> Notes appear at the bottom of the Plot Components section when enabled.</p>
+              <label class="form-label" for="adventure-notes-editor">Notes</label>
+              <textarea class="form-textarea adventure-notes-editor" id="adventure-notes-editor" aria-describedby="adventure-notes-help" placeholder="Write your private notes here&hellip;" disabled></textarea>
+              <p class="feature-hint" id="adventure-notes-help"><span class="icon-lock-keyhole"></span> Stored locally per adventure and never sent to AI Dungeon or an AI provider.</p>
             </div>
           </article>
 
@@ -551,7 +590,7 @@
           </article>
 
           <!-- Story Card Modal Dock -->
-          <article class="feature-card" data-feature="storyCardModalDock">
+          <article class="feature-card" data-feature="storyCardModalDock" data-bd-requires-feature="storyCardModalDock">
             <div class="feature-row">
               <div class="feature-info">
                 <div class="feature-title-row">
@@ -640,7 +679,7 @@
               </div>
 
               <div class="custom-dynamic-actions">
-                <span class="option-value" id="custom-dynamic-status">Changes stay local to this browser.</span>
+                <span class="option-value" id="custom-dynamic-status">Changes stay local to this <span data-bd-browser-copy>browser</span><span data-bd-android-copy hidden>device</span>.</span>
                 <button class="btn btn-action" id="custom-dynamic-save" type="button">
                   <span class="icon-save"></span>
                   Save
@@ -655,7 +694,7 @@
             <div class="feature-row">
               <div class="feature-info">
                 <div class="feature-title-row">
-                  <span class="feature-icon" style="color: var(--bd-mode-see);">
+                  <span class="feature-icon" style="color: var(--bd-mode-image);">
                     <span class="icon-eye"></span>
                   </span>
                   <h3 class="feature-title">Auto See</h3>
@@ -669,7 +708,7 @@
             </div>
             <div class="feature-details">
               <div class="automation-info">
-                <p>Submits a background <strong>See</strong> action after AI output without changing your input mode.</p>
+                <p>Generates an image after AI output without changing your text input mode.</p>
               </div>
 
               <div class="feature-option-inline">
@@ -692,96 +731,6 @@
                 <span class="icon-triangle-alert"></span>
                 <span>Uses Credits per trigger if using a premium image model</span>
               </div>
-            </div>
-          </article>
-
-          <!-- Text To Speech -->
-          <article class="feature-card" data-feature="textToSpeech">
-            <div class="feature-row">
-              <div class="feature-info">
-                <div class="feature-title-row">
-                  <span class="feature-icon" style="color: var(--accent);">
-                    <span class="icon-volume-2"></span>
-                  </span>
-                  <h3 class="feature-title">Text To Speech</h3>
-                </div>
-                <p class="feature-desc">Narrate the latest AI adventure text</p>
-              </div>
-              <label class="toggle">
-                <input type="checkbox" id="feature-textToSpeech">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="feature-details">
-              <div class="automation-info">
-                <p>Reads new story output aloud after it settles. User action text is skipped.</p>
-              </div>
-
-              <div class="feature-option-inline">
-                <span class="option-label-inline">Voice</span>
-                <select class="form-select form-select-sm" id="tts-voice-select">
-                  <option value="auto">Auto natural voice</option>
-                </select>
-              </div>
-
-              <div class="feature-option-inline">
-                <span class="option-label-inline">Rate</span>
-                <div class="interval-control">
-                  <input type="range" class="slider slider-sm" id="tts-rate" min="0.65" max="1.35" step="0.01" value="0.96">
-                  <span class="interval-value" id="tts-rate-value">0.96</span>
-                </div>
-              </div>
-
-              <div class="feature-option-inline">
-                <span class="option-label-inline">Pitch</span>
-                <div class="interval-control">
-                  <input type="range" class="slider slider-sm" id="tts-pitch" min="0.75" max="1.35" step="0.01" value="1.00">
-                  <span class="interval-value" id="tts-pitch-value">1.00</span>
-                </div>
-              </div>
-
-              <div class="feature-option-inline">
-                <span class="option-label-inline">Volume</span>
-                <div class="interval-control">
-                  <input type="range" class="slider slider-sm" id="tts-volume" min="0" max="1" step="0.01" value="1.00">
-                  <span class="interval-value" id="tts-volume-value">100%</span>
-                </div>
-              </div>
-
-              <div class="tts-actions">
-                <button class="btn btn-action tts-action-btn" id="tts-test-voice">
-                  <span class="icon-speech"></span>
-                  Test Voice
-                </button>
-                <button class="btn btn-action tts-action-btn" id="tts-stop">
-                  <span class="icon-volume-x"></span>
-                  Stop
-                </button>
-              </div>
-
-              <div class="alert alert-info alert-compact">
-                <span class="icon-sparkles"></span>
-                <span>Uses free browser voices, no API key or paid service required.</span>
-              </div>
-            </div>
-          </article>
-
-          <!-- Auto Enable Scripts -->
-          <article class="feature-card" data-feature="autoEnableScripts">
-            <div class="feature-row">
-              <div class="feature-info">
-                <div class="feature-title-row">
-                  <span class="feature-icon" style="color: var(--bd-icon-auto-scripts);">
-                    <span class="icon-terminal"></span>
-                  </span>
-                  <h3 class="feature-title">Auto Enable Scripts</h3>
-                </div>
-                <p class="feature-desc">Re-enable scripts in the scenario editor</p>
-              </div>
-            </div>
-            <div class="feature-details">
-              <p>Automatically retoggles the "Enable Scripts" option in the <strong>Scenario Creation page</strong> when it gets disabled.</p>
-              <p class="feature-hint"><span class="icon-lightbulb"></span> Saves you from manually re-enabling scripts every time.</p>
             </div>
           </article>
 
@@ -868,6 +817,28 @@
               </div>
             </article>
 
+            <article class="feature-card ultrascripts-module-card" data-ultrascripts-module-card="audio">
+              <div class="feature-row">
+                <div class="feature-info">
+                  <div class="feature-title-row">
+                    <span class="feature-icon" style="color: var(--bd-pink);">
+                      <span class="icon-volume-2"></span>
+                    </span>
+                    <h3 class="feature-title">Audio</h3>
+                  </div>
+                  <p class="feature-desc">Synthesized sound effects for scripts</p>
+                </div>
+                <label class="toggle sm">
+                  <input type="checkbox" data-ultrascripts-module-toggle="audio" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="feature-details">
+                <p>Audio lets scripts play bounded oscillator and generated-noise effects through a simple state card.</p>
+                <p class="feature-hint"><span class="icon-volume-2"></span> Supports tones, pitch sweeps, noise, and volume envelopes. Disabling this module immediately stops playback.</p>
+              </div>
+            </article>
+
             <article class="feature-card ultrascripts-module-card" data-ultrascripts-module-card="webfetch">
               <div class="feature-row">
                 <div class="feature-info">
@@ -877,7 +848,7 @@
                     </span>
                     <h3 class="feature-title">WebFetch</h3>
                   </div>
-                  <p class="feature-desc">Consent-gated web requests and simple search</p>
+                  <p class="feature-desc">Bounded public HTTPS reads</p>
                 </div>
                 <label class="toggle sm">
                   <input type="checkbox" data-ultrascripts-module-toggle="webfetch" checked>
@@ -885,28 +856,8 @@
                 </label>
               </div>
               <div class="feature-details">
-                <p>WebFetch gives scripts conservative web access for live context: safe GET requests, basic search, origin allow/deny decisions, rate limits, and blocked local/private targets.</p>
-                <p class="feature-hint"><span class="icon-globe-lock"></span> Useful for current facts, public reference pages, lightweight lookups, and web-aware scripted tools.</p>
-                <div class="ultrascripts-consent-panel">
-                  <div class="ultrascripts-panel-heading">
-                    <span><span class="icon-shield-check"></span> Origin Permissions</span>
-                    <button class="btn btn-icon btn-ghost" id="webfetch-consent-refresh" aria-label="Refresh WebFetch origins" title="Refresh origins">
-                      <span class="icon-refresh-cw"></span>
-                    </button>
-                  </div>
-                  <div class="ultrascripts-consent-list" id="webfetch-consent-list"></div>
-                  <div class="ultrascripts-consent-editor">
-                    <input type="text" class="form-input" id="webfetch-origin-input" placeholder="https://example.com">
-                    <select class="form-select form-select-sm" id="webfetch-decision-select" aria-label="WebFetch origin decision">
-                      <option value="allow">Allow</option>
-                      <option value="deny">Deny</option>
-                      <option value="clear">Clear</option>
-                    </select>
-                    <button class="btn btn-icon btn-primary" id="webfetch-consent-save" aria-label="Save WebFetch origin" title="Save origin">
-                      <span class="icon-check"></span>
-                    </button>
-                  </div>
-                </div>
+                <p>WebFetch lets scripts read bounded text, JSON, HTML, and XML from public HTTPS resources. It never sends browser cookies or credentials.</p>
+                <p class="feature-hint"><span class="icon-globe-lock"></span> Enabling this module permits safe GET and HEAD requests. Disable it at any time to stop script web access.</p>
               </div>
             </article>
 
@@ -964,7 +915,7 @@
         </div>
         <div class="section-body">
           <div class="ultrascripts-module-list">
-            <article class="feature-card ultrascripts-module-card" id="ai-gemini-settings-card" data-ultrascripts-module-card="ai">
+            <article class="feature-card ultrascripts-module-card" id="ai-settings-card" data-ultrascripts-module-card="ai">
               <div class="feature-row">
                 <div class="feature-info">
                   <div class="feature-title-row">
@@ -981,41 +932,8 @@
                 </label>
               </div>
               <div class="feature-details">
-                <p>AI lets scripts send asynchronous model queries and receive text or schema-backed JSON results on a later turn.</p>
-                <p class="feature-hint"><span class="icon-brain-circuit"></span> Add an API key to enable <code>ai.query</code>. Get a key from <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer">Google AI Studio</a>.</p>
-                <div class="form-group">
-                  <label class="form-label" for="ai-gemini-api-key">Gemini API Key</label>
-                  <input type="password" class="form-input" id="ai-gemini-api-key" placeholder="AIza...">
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="ai-gemini-model-mode">Model Selection</label>
-                  <select class="form-input" id="ai-gemini-model-mode">
-                    <option value="auto">Best available (automatic stepdown)</option>
-                    <option value="manual">Manual model</option>
-                  </select>
-                </div>
-                <div class="form-group" id="ai-gemini-model-group">
-                  <label class="form-label" for="ai-gemini-model">Model</label>
-                  <input type="text" class="form-input" id="ai-gemini-model" placeholder="gemini-3.1-flash-lite">
-                </div>
-                <div class="feature-option">
-                  <span class="option-label">Status</span>
-                  <span class="option-value" id="ai-gemini-status">Not checked</span>
-                </div>
-                <div class="btn-row">
-                  <button class="btn btn-action" id="ai-gemini-save" type="button">
-                    <span class="icon-save"></span>
-                    Save
-                  </button>
-                  <button class="btn btn-ghost" id="ai-gemini-clear-key" type="button">
-                    <span class="icon-eraser"></span>
-                    Clear Key
-                  </button>
-                  <button class="btn btn-ghost" id="ai-gemini-test" type="button">
-                    <span class="icon-circle-check"></span>
-                    Test
-                  </button>
-                </div>
+                <p>Allow adventure scripts to request AI responses. Configure providers for all features in the AI tab.</p>
+                <button type="button" class="btn btn-ghost" id="ai-open-settings">Open AI settings</button>
               </div>
             </article>
 
@@ -1107,22 +1025,172 @@
       </div>
     </section>
 
-    <!-- Presets Tab -->
-    <section class="tab-panel" id="tab-presets">
-      
-      <!-- Plot Presets -->
+    <!-- AI Tab -->
+    <section class="tab-panel" id="tab-ai">
       <div class="section">
         <div class="section-header">
-<span class="section-icon icon-star" style="color: var(--bd-accent-primary);"></span>
-          <h2 class="section-title">Plot Presets</h2>
+          <span class="section-icon icon-brain-circuit ai-section-icon" aria-hidden="true"></span>
+          <h2 class="section-title">AI connections</h2>
+        </div>
+        <p class="feature-desc ai-section-intro">For Navigator, Character Prefill, and Ultrascripts.</p>
+
+        <section class="feature-card static-card ai-settings-card" id="ai-simple-panel" aria-labelledby="ai-simple-title">
+          <div class="feature-row">
+            <div class="feature-info">
+              <h3 class="feature-title ai-card-title" id="ai-simple-title"><span class="icon-sparkles ai-card-icon" aria-hidden="true"></span>Gemini</h3>
+              <p class="feature-desc">Free to use on Google's free tier. Just add a key.</p>
+            </div>
+          </div>
+          <div class="ai-settings-body">
+            <div class="form-group">
+              <div class="ai-label-row">
+                <label class="form-label" for="ai-simple-key">API key</label>
+                <a class="ai-text-link" href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer">Get a free Gemini key <span class="icon-external-link" aria-hidden="true"></span></a>
+              </div>
+              <input type="password" class="form-input" id="ai-simple-key" autocomplete="off" spellcheck="false" aria-describedby="ai-simple-free-help">
+            </div>
+            <div class="btn-row ai-actions">
+              <button type="button" class="btn btn-action" id="ai-simple-test"><span class="icon-circle-check" aria-hidden="true"></span>Save &amp; connect</button>
+              <button type="button" class="btn btn-ghost ai-clear-button" id="ai-simple-clear">Clear key</button>
+            </div>
+            <p class="form-help ai-test-feedback" id="ai-simple-test-feedback" role="status" aria-live="polite" hidden></p>
+          </div>
+        </section>
+
+        <section class="feature-card static-card ai-settings-card" id="ai-advanced-panel" aria-labelledby="ai-advanced-title">
+          <div class="feature-row">
+            <div class="feature-info">
+              <h3 class="feature-title ai-card-title" id="ai-advanced-title"><span class="icon-sliders-horizontal ai-card-icon" aria-hidden="true"></span>Advanced</h3>
+              <p class="feature-desc">Choose another provider for selected features.</p>
+            </div>
+            <label class="toggle sm">
+              <input type="checkbox" id="ai-advanced-enabled" aria-label="Enable Advanced AI" aria-controls="ai-advanced-fields" aria-expanded="false">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="ai-settings-body" id="ai-advanced-fields" hidden>
+            <div class="form-group">
+              <label class="form-label" for="ai-endpoint-service">Provider</label>
+              <select class="form-input" id="ai-endpoint-service"><option value="openrouter">OpenRouter</option><option value="mistral">Mistral</option><option value="custom">Custom endpoint</option></select>
+            </div>
+            <div class="form-group" id="ai-endpoint-base-url-group" hidden>
+              <label class="form-label" for="ai-endpoint-base-url">Base URL</label>
+              <input type="url" class="form-input" id="ai-endpoint-base-url" spellcheck="false" aria-describedby="ai-endpoint-base-url-help">
+              <p class="form-help" id="ai-endpoint-base-url-help">Use HTTPS. BetterDungeon adds /chat/completions.</p>
+            </div>
+            <div class="form-group">
+              <div class="ai-label-row">
+                <label class="form-label" for="ai-endpoint-api-key">API key</label>
+                <button type="button" class="ai-text-link" id="ai-endpoint-clear-key">Clear key</button>
+              </div>
+              <input type="password" class="form-input" id="ai-endpoint-api-key" autocomplete="off" spellcheck="false">
+              <p class="form-help"><a class="ai-text-link" id="ai-endpoint-key-link" target="_blank" rel="noopener noreferrer" hidden><span id="ai-endpoint-key-link-label"></span> <span class="icon-external-link" aria-hidden="true"></span></a></p>
+            </div>
+            <div class="form-group" id="ai-mistral-model-group" hidden>
+              <label class="form-label" for="ai-mistral-model">Model</label>
+              <select class="form-input" id="ai-mistral-model" aria-describedby="ai-mistral-model-help"></select>
+              <p class="form-help" id="ai-mistral-model-help">Automatic switches models when one reaches its limit.</p>
+            </div>
+            <div class="form-group" id="ai-endpoint-model-group">
+              <label class="form-label" for="ai-endpoint-model">Model ID</label>
+              <input type="text" class="form-input" id="ai-endpoint-model" spellcheck="false">
+            </div>
+            <fieldset id="ai-feature-routes">
+              <legend class="form-label">Use this provider for</legend>
+              <label class="form-label form-label-check"><input type="checkbox" data-ai-consumer="navigator">Navigator</label>
+              <label class="form-label form-label-check"><input type="checkbox" data-ai-consumer="ultrascripts">Ultrascripts AI</label>
+              <label class="form-label form-label-check"><input type="checkbox" data-ai-consumer="characterPresets">Character Prefill</label>
+            </fieldset>
+            <details class="ai-more-options">
+              <summary>More options</summary>
+              <div class="form-group">
+                <label class="form-label" for="ai-endpoint-max-input-tokens">Input-token cap</label>
+                <input type="number" min="0" max="2000000" step="1" class="form-input" id="ai-endpoint-max-input-tokens" aria-describedby="ai-input-cap-help">
+                <p class="form-help" id="ai-input-cap-help">0 uses the default. Requests above your cap are rejected.</p>
+              </div>
+            </details>
+            <p class="form-help ai-fallback-note">If this provider is unavailable, requests are also sent to Google when a Gemini key is saved.</p>
+            <button type="button" class="btn btn-action" id="ai-endpoint-test"><span class="icon-circle-check" aria-hidden="true"></span>Save &amp; test provider</button>
+            <p class="form-help ai-test-feedback" id="ai-advanced-test-feedback" role="status" aria-live="polite" hidden></p>
+          </div>
+        </section>
+
+        <div class="ai-settings-footer">
+          <div class="btn-row" id="ai-save-row" hidden><button type="button" class="btn btn-action" id="ai-endpoint-save"><span class="icon-save" aria-hidden="true"></span>Save changes</button></div>
+          <p class="form-help ai-feedback" id="ai-endpoint-validation" role="status" aria-live="polite">Loading settings…</p>
+          <p class="form-help" id="ai-last-result" role="status" hidden></p>
+          <p class="form-help">Keys stay on this device. Usage follows your provider’s plan.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Presets Tab -->
+
+    <section class="tab-panel" id="tab-presets">
+      
+      <div class="preset-view-tabs" role="tablist" aria-label="Preset type">
+        <button class="preset-view-tab active" id="preset-view-tab-characters" type="button" role="tab" aria-selected="true" aria-controls="preset-view-characters" data-preset-view="characters">
+          <span class="icon-users" aria-hidden="true"></span>
+          Characters
+        </button>
+        <button class="preset-view-tab" id="preset-view-tab-plot" type="button" role="tab" aria-selected="false" aria-controls="preset-view-plot" data-preset-view="plot" tabindex="-1">
+          <span class="icon-star" aria-hidden="true"></span>
+          Plot Presets
+        </button>
+      </div>
+
+      <!-- Character Presets -->
+      <section class="preset-view-panel" id="preset-view-characters" role="tabpanel" aria-labelledby="preset-view-tab-characters" data-preset-panel="characters">
+        <div class="section-header preset-panel-heading">
+          <span class="section-icon icon-user" style="color: var(--bd-accent-primary);" aria-hidden="true"></span>
+          <div class="preset-panel-copy">
+            <h2 class="section-title">Character Presets</h2>
+            <p>Save reusable characters and choose which one should answer scenario-start questions.</p>
+          </div>
+          <label class="character-prefill-toggle" title="Enable Character Prefill">
+            <span>Prefill</span>
+            <span class="toggle sm">
+              <input type="checkbox" id="feature-characterPreset" checked aria-label="Enable Character Prefill">
+              <span class="toggle-slider"></span>
+            </span>
+          </label>
         </div>
 
-        <button class="btn btn-full" id="save-current-preset-btn">
+        <button class="btn btn-full" id="create-character-btn" type="button">
+          <span class="icon-user-plus"></span>
+          New Character
+        </button>
+
+        <div class="character-list-heading">
+          <h3>Saved characters</h3>
+          <span id="character-count">0 saved</span>
+        </div>
+
+        <div class="character-list" id="character-list">
+          <div class="empty-state character-empty-state" id="character-empty">
+            <span class="empty-icon icon-user-plus"></span>
+            <p class="empty-title">No characters yet</p>
+            <p class="empty-desc">Create a character, then select it for automatic scenario prefill.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Plot Presets -->
+      <section class="preset-view-panel" id="preset-view-plot" role="tabpanel" aria-labelledby="preset-view-tab-plot" data-preset-panel="plot" hidden>
+        <div class="section-header preset-panel-heading">
+          <span class="section-icon icon-star" style="color: var(--bd-accent-primary);" aria-hidden="true"></span>
+          <div class="preset-panel-copy">
+            <h2 class="section-title">Plot Presets</h2>
+            <p>Save your current Plot Components and reuse them in another adventure.</p>
+          </div>
+        </div>
+
+        <button class="btn btn-full" id="save-current-preset-btn" type="button">
           <span class="icon-plus"></span>
           Save Current Plot
         </button>
-        
-        <button class="btn btn-ghost" id="undo-preset-btn" style="display: none;">
+
+        <button class="btn btn-ghost" id="undo-preset-btn" type="button" style="display: none;">
           <span class="icon-undo-2"></span>
           Undo Last Apply
         </button>
@@ -1130,62 +1198,11 @@
         <div class="preset-list" id="preset-list">
           <div class="empty-state" id="preset-empty">
             <span class="empty-icon icon-clipboard"></span>
-            <p class="empty-title">No presets saved</p>
-            <p class="empty-desc">Save your current plot configuration to reuse it later.</p>
+            <p class="empty-title">No plot presets yet</p>
+            <p class="empty-desc">Save the current plot configuration to reuse it later.</p>
           </div>
         </div>
-      </div>
-
-      <!-- Character Presets -->
-      <div class="section">
-        <div class="section-header">
-<span class="section-icon icon-user" style="color: var(--bd-accent-primary);"></span>
-          <h2 class="section-title">Characters</h2>
-          <label class="toggle sm section-toggle">
-            <input type="checkbox" id="feature-characterPreset" checked>
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-
-        <button class="btn btn-full" id="create-character-btn">
-          <span class="icon-plus"></span>
-          Create Character
-        </button>
-
-        <div class="character-ai-dependency">
-          <div class="character-ai-dependency-main">
-            <span class="icon-brain-circuit"></span>
-            <div>
-              <strong>Gemini powers Character Prefill</strong>
-              <span>Add a Gemini API key in Ultrascripts > AI before generating scenario answers. Get one from <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer">Google AI Studio</a>.</span>
-            </div>
-          </div>
-          <div class="character-ai-dependency-footer">
-            <span class="character-ai-status" id="character-gemini-status">Checking Gemini...</span>
-            <button class="btn btn-ghost btn-sm" id="character-open-ai-settings" type="button">
-              <span class="icon-key-round"></span>
-              Gemini Key
-            </button>
-          </div>
-        </div>
-
-        <div class="character-generation-guidance">
-          <label class="character-generation-guidance-label" for="character-generation-instructions">Generation instructions</label>
-          <textarea id="character-generation-instructions" class="character-generation-guidance-input" maxlength="1500" placeholder="Optional guidance for Character Prefill's style and content."></textarea>
-          <div class="character-generation-guidance-footer">
-            <span>Applies only to Character Presets.</span>
-            <span id="character-generation-instructions-count">0/1500</span>
-          </div>
-        </div>
-
-        <div class="character-list" id="character-list">
-          <div class="empty-state" id="character-empty">
-            <span class="empty-icon icon-user-plus"></span>
-            <p class="empty-title">No characters saved</p>
-            <p class="empty-desc">Create a character description to generate scenario prefill answers.</p>
-          </div>
-        </div>
-      </div>
+      </section>
 
       <!-- BetterRepository Link -->
       <div class="section section-compact">
@@ -1295,20 +1312,22 @@
         </button>
       </div>
       <div class="modal-body">
+        <p class="character-modal-intro">Describe the character once. Character Prefill uses this profile to answer scenario-start questions.</p>
         <div class="form-group">
-          <label class="form-label">Character Name</label>
-          <input type="text" class="form-input" id="character-name-input" placeholder="Enter character name">
+          <label class="form-label" for="character-name-input">Name</label>
+          <input type="text" class="form-input" id="character-name-input" placeholder="Character name" autocomplete="off">
         </div>
         <div class="form-group">
-          <label class="form-label">Character Description</label>
-          <textarea class="form-textarea character-description-textarea" id="character-description-input" placeholder="Describe the character in natural language. Include identity, appearance, personality, background, role, abilities, gear, relationships, or anything else Gemini should know."></textarea>
+          <label class="form-label" for="character-description-input">Character profile</label>
+          <p class="form-help">Write naturally. Include appearance, personality, background, role, abilities, relationships, or any details the AI should preserve.</p>
+          <textarea class="form-textarea character-description-textarea" id="character-description-input" placeholder="Example: Mara is a cautious elven cartographer with a dry sense of humor. She carries an enchanted compass and is searching for her missing mentor."></textarea>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-danger" id="character-delete-btn">Delete</button>
+        <button class="btn btn-danger" id="character-delete-btn">Delete Character</button>
         <div class="modal-footer-spacer"></div>
         <button class="btn btn-ghost" id="character-modal-cancel">Cancel</button>
-        <button class="btn btn-primary" id="character-modal-save">Save</button>
+        <button class="btn btn-primary" id="character-modal-save">Save Changes</button>
       </div>
     </div>
   </div>
@@ -1336,7 +1355,7 @@
         </div>
         
         <div class="hotkey-editor-section">
-          <h4 class="hotkey-editor-title">Input Modes</h4>
+          <h4 class="hotkey-editor-title">Input Mode Menu</h4>
           <div class="hotkey-editor-list" id="hotkey-editor-modes"></div>
         </div>
       </div>
@@ -1381,9 +1400,17 @@
             <span class="color-editor-label">Story</span>
             <input type="color" class="color-editor-input" data-mode="story" value="#fbbf24">
           </div>
-          <div class="color-editor-item" data-mode="see">
-            <span class="color-editor-label">See</span>
-            <input type="color" class="color-editor-input" data-mode="see" value="#06b6d4">
+          <div class="color-editor-item" data-mode="guide">
+            <span class="color-editor-label">Guide</span>
+            <input type="color" class="color-editor-input" data-mode="guide" value="#ec4899">
+          </div>
+          <div class="color-editor-item" data-mode="image">
+            <span class="color-editor-label">Image</span>
+            <input type="color" class="color-editor-input" data-mode="image" value="#06b6d4">
+          </div>
+          <div class="color-editor-item" data-mode="video">
+            <span class="color-editor-label">Video</span>
+            <input type="color" class="color-editor-input" data-mode="video" value="#6366f1">
           </div>
           <div class="color-editor-item" data-mode="command">
             <span class="color-editor-label">Command</span>
@@ -1402,6 +1429,38 @@
     </div>
   </div>
 
+  <!-- Android App Settings Modal -->
+  <div class="modal-backdrop" id="app-settings-modal" data-bd-requires-capability="androidSettings" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="app-settings-title">
+      <div class="modal-header">
+        <h3 class="modal-title" id="app-settings-title">Settings</h3>
+        <button class="modal-close" id="app-settings-close" aria-label="Close settings">
+          <span class="icon-x"></span>
+        </button>
+      </div>
+      <div class="modal-body app-settings-body">
+        <article class="feature-card expanded app-settings-feature-card">
+          <div class="feature-row">
+            <div class="feature-info">
+              <div class="feature-title-row">
+                <span class="feature-icon app-settings-feature-icon"><span class="icon-text-cursor-input"></span></span>
+                <h3 class="feature-title">Caret scroll stabilization</h3>
+              </div>
+              <p class="feature-desc">Reduce snapping in tall WebView text editors</p>
+            </div>
+            <label class="toggle" for="caret-scroll-fix-toggle">
+              <input id="caret-scroll-fix-toggle" type="checkbox" role="switch">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="feature-details">
+            <p>Experimental WebView workaround. A small visual correction may still be noticeable while editing.</p>
+          </div>
+        </article>
+      </div>
+    </div>
+  </div>
+
   <!-- Tutorial Welcome Banner -->
   <div class="tutorial-banner hidden" id="tutorial-welcome-banner">
     <div class="tutorial-banner-icon">
@@ -1409,11 +1468,11 @@
     </div>
     <div class="tutorial-banner-content">
       <strong>Welcome to BetterDungeon!</strong>
-      <span>Take a quick tour to learn the features.</span>
+      <span>Learn what BetterDungeon is and what it can do.</span>
     </div>
     <div class="tutorial-banner-actions">
       <button class="btn btn-ghost btn-sm" id="tutorial-banner-dismiss">Later</button>
-      <button class="btn btn-primary btn-sm" id="tutorial-banner-start">Start</button>
+      <button class="btn btn-primary btn-sm" id="tutorial-banner-start">Start Tutorial</button>
     </div>
   </div>
 
@@ -1423,14 +1482,14 @@
   </div>
 
   <!-- Tutorial Tooltip -->
-  <div class="tutorial-tooltip" id="tutorial-tooltip" data-position="bottom">
+  <div class="tutorial-tooltip" id="tutorial-tooltip" data-position="bottom" role="dialog" aria-modal="true" aria-labelledby="tutorial-tooltip-title" tabindex="-1">
     <div class="tutorial-tooltip-arrow"></div>
     <div class="tutorial-tooltip-header">
       <div class="tutorial-tooltip-icon">
         <span class="icon-lightbulb" id="tutorial-tooltip-icon"></span>
       </div>
       <h4 class="tutorial-tooltip-title" id="tutorial-tooltip-title">Feature Title</h4>
-      <button class="btn btn-icon btn-ghost tutorial-topic-toggle" id="tutorial-topics" type="button" aria-label="Browse tutorial topics" title="Topics">
+      <button class="btn btn-icon btn-ghost tutorial-topic-toggle" id="tutorial-topics" type="button" aria-label="Browse tutorial topics" aria-expanded="false" aria-controls="tutorial-topic-panel" title="Topics">
         <span class="icon-list"></span>
       </button>
     </div>
@@ -1440,13 +1499,13 @@
     </div>
     <div class="tutorial-tooltip-footer">
       <div class="tutorial-progress">
-        <div class="tutorial-progress-bar">
+        <div class="tutorial-progress-bar" role="progressbar" aria-label="Tutorial progress" aria-valuemin="1" aria-valuenow="1" aria-valuemax="5">
           <div class="tutorial-progress-fill" id="tutorial-progress-fill"></div>
         </div>
-        <span class="tutorial-progress-text" id="tutorial-progress-text">1/12</span>
+        <span class="tutorial-progress-text" id="tutorial-progress-text">Step 1 of 5</span>
       </div>
       <div class="tutorial-nav">
-        <button class="btn btn-ghost btn-sm" id="tutorial-skip">Skip</button>
+        <button class="btn btn-ghost btn-sm" id="tutorial-skip">Exit Tutorial</button>
         <button class="btn btn-ghost btn-sm" id="tutorial-prev">Back</button>
         <button class="btn btn-primary btn-sm" id="tutorial-next">Next</button>
       </div>
@@ -1454,17 +1513,17 @@
   </div>
 
   <!-- Tutorial Modal -->
-  <div class="tutorial-modal" id="tutorial-modal">
+  <div class="tutorial-modal" id="tutorial-modal" role="dialog" aria-modal="true" aria-labelledby="tutorial-modal-title">
     <div class="tutorial-modal-content">
       <div class="tutorial-modal-icon" id="tutorial-modal-icon">
         <span class="icon-wand-sparkles"></span>
       </div>
       <h3 class="tutorial-modal-title" id="tutorial-modal-title">Welcome to BetterDungeon!</h3>
-      <p class="tutorial-modal-text" id="tutorial-modal-text">This quick tour will introduce you to the features.</p>
+      <p class="tutorial-modal-text" id="tutorial-modal-text">This tutorial will introduce you to BetterDungeon.</p>
       <div class="tutorial-modal-topics" id="tutorial-modal-topics"></div>
       <div class="tutorial-modal-actions">
-        <button class="btn btn-primary" id="tutorial-modal-primary">Start Tour</button>
-        <button class="btn btn-ghost" id="tutorial-modal-secondary">Maybe Later</button>
+        <button class="btn btn-primary" id="tutorial-modal-primary">Start Premise</button>
+        <button class="btn btn-ghost" id="tutorial-modal-secondary">Not Now</button>
       </div>
     </div>
   </div>
@@ -1489,9 +1548,13 @@
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
+  <script src="utils/android-editable-scroll-fix.js"></script>
   <script src="utils/browser-polyfill.js"></script>
   <script src="services/tutorial-service.js"></script>
-  <script src="utils/markdown-config.js"></script>
+  <script src="utils/webview-polyfill.js"></script>
+  <script src="services/ai/config.js"></script>
+  <script src="services/update-check.js"></script>
+  <script src="popup-ai-endpoint.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

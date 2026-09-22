@@ -6,9 +6,7 @@
 // ============================================
 
 const DEBUG = false;
-const AI_GEMINI_MESSAGE = 'ULTRASCRIPTS_AI_GEMINI';
-const AI_DEFAULT_GEMINI_MODEL = 'gemini-3.1-flash-lite';
-const AI_DEFAULT_GEMINI_MODEL_MODE = 'auto';
+const popupExtension = window.BetterDungeonPlatform.extension;
 
 const STORAGE_KEYS = {
   features: 'betterDungeonFeatures',
@@ -16,18 +14,15 @@ const STORAGE_KEYS = {
   presets: 'betterDungeon_favoritePresets',
   characters: 'betterDungeon_characterPresets',
   activeCharacter: 'betterDungeon_activeCharacterPreset',
-  characterGenerationInstructions: 'betterDungeon_characterPresetGenerationInstructions',
-  autoApply: 'betterDungeon_autoApplyInstructions',
-  markdownInstructionPreset: 'betterDungeon_markdownInstructionPreset',
   ultrascriptsDebug: 'ultrascripts_debug',
   ultrascriptsModules: 'ultrascripts_enabled_modules',
-  webfetchAllowlist: 'ultrascripts_webfetch_allowlist',
   customHotkeys: 'betterDungeon_customHotkeys',
   customModeColors: 'betterDungeon_customModeColors',
   commandSubMode: 'betterDungeon_commandSubMode',
-  textToSpeech: 'betterDungeon_textToSpeechSettings',
   customDynamicConfig: 'betterDungeon_customDynamicConfig',
   customDynamicRuntime: 'betterDungeon_customDynamicRuntime',
+  androidCaretScrollFix: 'betterDungeon_androidCaretScrollFix',
+  adventureNotesPrefix: 'betterDungeon_notes_',
 };
 
 // Default mode colors (hex format)
@@ -36,7 +31,9 @@ const DEFAULT_MODE_COLORS = {
   try: '#a855f7',      // Purple - Uncertainty, magic, RNG
   say: '#22c55e',      // Green - Dialogue, communication
   story: '#fbbf24',    // Amber/Gold - Authorial, creativity
-  see: '#06b6d4',      // Cyan - Clarity, vision, perception
+  guide: '#ec4899',    // Pink - Direction, guidance, navigation
+  image: '#06b6d4',    // Cyan - Image generation (formerly See)
+  video: '#6366f1',    // Indigo - Video generation
   command: '#f97316'   // Orange - Authority, directives
 };
 
@@ -53,7 +50,9 @@ const HOTKEY_ACTIONS = {
   'modeTry': { description: 'Try Mode*', category: 'modes' },
   'modeSay': { description: 'Say Mode', category: 'modes' },
   'modeStory': { description: 'Story Mode', category: 'modes' },
-  'modeSee': { description: 'See Mode', category: 'modes' },
+  'modeGuide': { description: 'Guide Mode', category: 'modes' },
+  'generateImage': { description: 'Generate Image', category: 'modes' },
+  'generateVideo': { description: 'Generate Video', category: 'modes' },
   'modeCommand': { description: 'Command Mode*', category: 'modes' }
 };
 
@@ -70,13 +69,28 @@ const DEFAULT_HOTKEY_BINDINGS = {
   '2': 'modeTry',
   '3': 'modeSay',
   '4': 'modeStory',
-  '5': 'modeSee',
-  '6': 'modeCommand'
+  '5': 'modeGuide',
+  '6': 'generateImage',
+  '7': 'modeCommand',
+  '8': 'generateVideo'
 };
+
+// Saved bindings may still name actions that have since been renamed
+// (must match hotkey_feature.js)
+const RENAMED_HOTKEY_ACTIONS = {
+  modeSee: 'generateImage'
+};
+
+function migrateHotkeyBindings(bindings) {
+  const migrated = {};
+  for (const [key, actionId] of Object.entries(bindings)) {
+    migrated[key] = RENAMED_HOTKEY_ACTIONS[actionId] || actionId;
+  }
+  return migrated;
+}
 
 const DEFAULT_FEATURES = {
   ultrascripts: true,
-  markdown: true,
   command: true,
   try: true,
   triggerHighlight: true,
@@ -88,8 +102,8 @@ const DEFAULT_FEATURES = {
   notes: true,
   storyCardModalDock: true,
   inputHistory: true,
-  textToSpeech: false,
-  customDynamic: false
+  customDynamic: false,
+  navigator: true
 };
 
 const ULTRASCRIPTS_PUBLIC_MODULES = [
@@ -100,6 +114,7 @@ const ULTRASCRIPTS_PUBLIC_MODULES = [
   'weather',
   'network',
   'system',
+  'audio',
   'ai'
 ];
 
@@ -127,18 +142,6 @@ const DEFAULT_CUSTOM_DYNAMIC_RUNTIME = {
   visibleVersionsRefreshedAt: ''
 };
 
-const DEFAULT_TEXT_TO_SPEECH_SETTINGS = {
-  voiceURI: 'auto',
-  voiceName: '',
-  rate: 0.96,
-  pitch: 1,
-  volume: 1,
-  stableDelay: 1600,
-  maxCharacters: 4500,
-  minCharacters: 8,
-  interrupt: true
-};
-
 // State
 let currentEditingPreset = null;
 let currentEditingCharacter = null;
@@ -153,35 +156,39 @@ let hotkeyKeyListener = null;
 // Mode color editor state
 let currentModeColors = { ...DEFAULT_MODE_COLORS };
 
-// Text To Speech settings state
-let currentTextToSpeechSettings = { ...DEFAULT_TEXT_TO_SPEECH_SETTINGS };
-
 // Custom Dynamic settings state
 let currentCustomDynamicConfig = { ...DEFAULT_CUSTOM_DYNAMIC_CONFIG };
 let currentCustomDynamicRuntime = { ...DEFAULT_CUSTOM_DYNAMIC_RUNTIME };
 let customDynamicCatalogLoading = false;
 
+// Adventure Notes state
+let activeAdventureNotesKey = null;
+let adventureNotesSaveTimer = null;
+
 // ============================================
 // INITIALIZATION
 // ============================================
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   console.log('[Popup] Initializing popup...');
+  initPlatformSurface();
+  await window.BetterDungeonPlatform?.whenReady?.();
   initNavigation();
   initFeatureCards();
   initToggles();
+  void initAdventureNotes();
   initSettings();
+  initAppSettings();
   initCustomDynamicSettings();
   initPresets();
   initCharacters();
   initModals();
   initTools();
-  initMarkdownOptions();
-  initTextToSpeechSettings();
-  initHotkeys();
+  if (window.BetterDungeonPlatform?.supportsFeature('hotkey') !== false) initHotkeys();
   initModeColors();
   initUltrascriptsSettings();
   initWhatsNew();
+  initUpdateCheck();
   initCollapsibleSections();
   initFeatureSearch();
   initQuickToggles();
@@ -228,18 +235,83 @@ function activateTab(tab) {
 
 function initFeatureCards() {
   const cards = document.querySelectorAll('.feature-card');
-  
+
   cards.forEach(card => {
     const row = card.querySelector('.feature-row');
-    if (!row) return;
-    
+    if (!row || card.classList.contains('static-card')) return;
+
     row.addEventListener('click', (e) => {
       // Don't toggle if clicking on the toggle switch
       if (e.target.closest('.toggle')) return;
-      
+
       card.classList.toggle('expanded');
     });
   });
+}
+
+// ============================================
+// ADVENTURE NOTES
+// ============================================
+
+function setAdventureNotesState(label, state = '') {
+  const status = document.getElementById('adventure-notes-state');
+  if (!status) return;
+  status.textContent = label;
+  status.classList.toggle('ready', state === 'ready');
+  status.classList.toggle('error', state === 'error');
+}
+
+async function initAdventureNotes() {
+  const editor = document.getElementById('adventure-notes-editor');
+  if (!editor) return;
+
+  try {
+    const response = await sendToActiveAIDungeon('GET_ACTIVE_ADVENTURE');
+    if (!response?.success || !response.adventureId) {
+      throw new Error('Open an adventure to use Notes');
+    }
+
+    activeAdventureNotesKey = `${STORAGE_KEYS.adventureNotesPrefix}${response.adventureId}`;
+    const stored = await window.BetterDungeonPlatform.storage.get('local', activeAdventureNotesKey);
+    editor.value = typeof stored?.[activeAdventureNotesKey] === 'string'
+      ? stored[activeAdventureNotesKey]
+      : '';
+    editor.disabled = false;
+    setAdventureNotesState('Saved', 'ready');
+
+    editor.addEventListener('input', scheduleAdventureNotesSave);
+    editor.addEventListener('blur', () => void saveAdventureNotes());
+    window.addEventListener('pagehide', () => void saveAdventureNotes());
+  } catch (error) {
+    activeAdventureNotesKey = null;
+    editor.disabled = true;
+    editor.placeholder = 'Open an AI Dungeon adventure to use Notes.';
+    setAdventureNotesState('No adventure', 'error');
+    log('[Popup] Adventure Notes unavailable:', error);
+  }
+}
+
+function scheduleAdventureNotesSave() {
+  setAdventureNotesState('Unsaved');
+  clearTimeout(adventureNotesSaveTimer);
+  adventureNotesSaveTimer = setTimeout(() => void saveAdventureNotes(), 400);
+}
+
+async function saveAdventureNotes() {
+  const editor = document.getElementById('adventure-notes-editor');
+  const storageKey = activeAdventureNotesKey;
+  if (!editor || editor.disabled || !storageKey) return;
+
+  clearTimeout(adventureNotesSaveTimer);
+  adventureNotesSaveTimer = null;
+  setAdventureNotesState('Saving');
+  try {
+    await window.BetterDungeonPlatform.storage.set('local', { [storageKey]: editor.value });
+    if (storageKey === activeAdventureNotesKey) setAdventureNotesState('Saved', 'ready');
+  } catch (error) {
+    setAdventureNotesState('Save failed', 'error');
+    console.error('[Popup] Unable to save Adventure Notes:', error);
+  }
 }
 
 // ============================================
@@ -249,7 +321,7 @@ function initFeatureCards() {
 function initToggles() {
   console.log('[Popup] Initializing toggles...');
   // Load saved states
-  chrome.storage.sync.get(STORAGE_KEYS.features, (result) => {
+  popupExtension.storage.sync.get(STORAGE_KEYS.features, (result) => {
     const savedFeatures = (result || {})[STORAGE_KEYS.features] || {};
     const features = { ...DEFAULT_FEATURES, ...savedFeatures };
     
@@ -268,12 +340,6 @@ function initToggles() {
     setUltrascriptsModuleControlsEnabled(features.ultrascripts !== false);
   });
 
-  // Load auto-apply setting
-  chrome.storage.sync.get(STORAGE_KEYS.autoApply, (result) => {
-    const toggle = document.getElementById('auto-apply-instructions');
-    if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.autoApply] ?? false;
-  });
-
   // Setup change handlers
   document.querySelectorAll('input[type="checkbox"][id^="feature-"]').forEach(toggle => {
     toggle.addEventListener('change', () => {
@@ -282,20 +348,14 @@ function initToggles() {
     });
   });
 
-  // Auto-apply toggle
-  document.getElementById('auto-apply-instructions')?.addEventListener('change', (e) => {
-    chrome.storage.sync.set({ [STORAGE_KEYS.autoApply]: e.target.checked });
-    notifyContentScript('SET_AUTO_APPLY', { enabled: e.target.checked });
-  });
-
   // Ultrascripts debug toggle
-  chrome.storage.sync.get(STORAGE_KEYS.ultrascriptsDebug, (result) => {
+  popupExtension.storage.sync.get(STORAGE_KEYS.ultrascriptsDebug, (result) => {
     const toggle = document.getElementById('ultrascripts-debug');
     if (toggle) toggle.checked = (result || {})[STORAGE_KEYS.ultrascriptsDebug] ?? false;
   });
 
   document.getElementById('ultrascripts-debug')?.addEventListener('change', (e) => {
-    chrome.storage.sync.set({ [STORAGE_KEYS.ultrascriptsDebug]: e.target.checked });
+    popupExtension.storage.sync.set({ [STORAGE_KEYS.ultrascriptsDebug]: e.target.checked });
     notifyContentScript('SET_ULTRASCRIPTS_DEBUG', { enabled: e.target.checked });
   });
 
@@ -303,8 +363,7 @@ function initToggles() {
 
 function initUltrascriptsSettings() {
   loadUltrascriptsModuleToggles();
-  loadWebFetchConsentList();
-  initGeminiSettings();
+  initAIEndpointSettings();
   refreshUltrascriptsState();
 
   document.querySelectorAll('[data-ultrascripts-module-toggle]').forEach(toggle => {
@@ -314,165 +373,6 @@ function initUltrascriptsSettings() {
   });
 
   document.getElementById('ultrascripts-refresh')?.addEventListener('click', refreshUltrascriptsState);
-  document.getElementById('webfetch-consent-refresh')?.addEventListener('click', loadWebFetchConsentList);
-  document.getElementById('webfetch-consent-save')?.addEventListener('click', saveWebFetchConsentFromForm);
-}
-
-function sendGeminiMessage(request) {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({ type: AI_GEMINI_MESSAGE, request }, (response) => {
-      const lastError = chrome.runtime.lastError;
-      if (lastError) {
-        reject(new Error(lastError.message || 'Gemini backend request failed'));
-        return;
-      }
-      if (response?.ok) {
-        resolve(response.data);
-        return;
-      }
-      reject(response?.error || { code: 'backend_failed', message: 'Gemini backend request failed' });
-    });
-  });
-}
-
-function setGeminiStatusText(status, pendingText) {
-  const el = document.getElementById('ai-gemini-status');
-  if (pendingText) {
-    if (el) el.textContent = pendingText;
-    setCharacterGeminiStatus(pendingText, 'pending');
-    return;
-  }
-  if (!status) {
-    if (el) el.textContent = 'Not checked';
-    setCharacterGeminiStatus('Gemini not checked', 'unknown');
-    return;
-  }
-  const modelMode = status.config?.modelMode || AI_DEFAULT_GEMINI_MODEL_MODE;
-  const selectedModel = status.config?.selectedModel || status.config?.model || AI_DEFAULT_GEMINI_MODEL;
-  const activeModel = status.config?.activeModel || status.config?.lastResolvedModel || null;
-  const text = status.ready
-    ? (
-      modelMode === 'manual'
-        ? `Ready (manual: ${selectedModel})`
-        : `Ready (auto: ${activeModel || selectedModel})`
-    )
-    : 'API key required';
-  if (el) el.textContent = text;
-  setCharacterGeminiStatus(status.ready ? 'Gemini ready' : 'Gemini key required', status.ready ? 'ready' : 'missing');
-}
-
-function setCharacterGeminiStatus(text, state = 'unknown') {
-  const el = document.getElementById('character-gemini-status');
-  if (!el) return;
-  el.textContent = text;
-  el.dataset.state = state;
-}
-
-function openGeminiSettingsFromCharacters() {
-  activateTab('ultrascripts');
-  requestAnimationFrame(() => {
-    const card = document.getElementById('ai-gemini-settings-card');
-    card?.classList.add('expanded');
-    card?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    setTimeout(() => document.getElementById('ai-gemini-api-key')?.focus(), 250);
-  });
-}
-
-function updateGeminiModelModeUi(mode) {
-  const normalized = mode === 'manual' ? 'manual' : AI_DEFAULT_GEMINI_MODEL_MODE;
-  const modelGroup = document.getElementById('ai-gemini-model-group');
-  const modelInput = document.getElementById('ai-gemini-model');
-  const modelMode = document.getElementById('ai-gemini-model-mode');
-  if (modelMode) modelMode.value = normalized;
-  if (modelGroup) modelGroup.style.display = normalized === 'manual' ? '' : 'none';
-  if (modelInput) modelInput.disabled = normalized !== 'manual';
-}
-
-async function loadGeminiSettings() {
-  try {
-    const status = await sendGeminiMessage({ op: 'status' });
-    const keyInput = document.getElementById('ai-gemini-api-key');
-    const modelInput = document.getElementById('ai-gemini-model');
-    const modelMode = document.getElementById('ai-gemini-model-mode');
-    if (keyInput) {
-      keyInput.value = '';
-      keyInput.placeholder = status.config?.keyConfigured ? 'Saved locally' : 'AIza...';
-    }
-    if (modelInput) modelInput.value = status.config?.model || AI_DEFAULT_GEMINI_MODEL;
-    if (modelMode) {
-      updateGeminiModelModeUi(status.config?.modelMode || AI_DEFAULT_GEMINI_MODEL_MODE);
-    }
-    setGeminiStatusText(status);
-  } catch {
-    setGeminiStatusText(null, 'Unavailable');
-  }
-}
-
-async function saveGeminiSettings() {
-  const keyInput = document.getElementById('ai-gemini-api-key');
-  const modelInput = document.getElementById('ai-gemini-model');
-  const modelModeInput = document.getElementById('ai-gemini-model-mode');
-  const modelMode = modelModeInput?.value === 'manual' ? 'manual' : AI_DEFAULT_GEMINI_MODEL_MODE;
-  const request = {
-    op: 'settings:set',
-    modelMode,
-    model: modelInput?.value || AI_DEFAULT_GEMINI_MODEL,
-  };
-  const apiKey = keyInput?.value?.trim();
-  if (apiKey) request.apiKey = apiKey;
-
-  setGeminiStatusText(null, 'Saving...');
-  try {
-    const status = await sendGeminiMessage(request);
-    if (keyInput) {
-      keyInput.value = '';
-      keyInput.placeholder = status.config?.keyConfigured ? 'Saved locally' : 'AIza...';
-    }
-    setGeminiStatusText(status);
-    showToast('Gemini settings saved', 'success');
-  } catch (err) {
-    setGeminiStatusText(null, 'Save failed');
-    showToast(err?.message || 'Gemini settings failed to save', 'error');
-  }
-}
-
-async function clearGeminiApiKey() {
-  const keyInput = document.getElementById('ai-gemini-api-key');
-  setGeminiStatusText(null, 'Clearing key...');
-  try {
-    const status = await sendGeminiMessage({ op: 'settings:set', apiKey: '' });
-    if (keyInput) {
-      keyInput.value = '';
-      keyInput.placeholder = 'AIza...';
-    }
-    setGeminiStatusText(status);
-    showToast('Gemini API key cleared', 'success');
-  } catch (err) {
-    await loadGeminiSettings();
-    showToast(err?.message || 'Gemini API key could not be cleared', 'error');
-  }
-}
-
-async function testGeminiSettings() {
-  setGeminiStatusText(null, 'Testing...');
-  try {
-    const result = await sendGeminiMessage({ op: 'test' });
-    setGeminiStatusText(result.status);
-    showToast('Gemini test succeeded', 'success');
-  } catch (err) {
-    await loadGeminiSettings();
-    showToast(err?.message || 'Gemini test failed', 'error');
-  }
-}
-
-function initGeminiSettings() {
-  loadGeminiSettings();
-  document.getElementById('ai-gemini-model-mode')?.addEventListener('change', (event) => {
-    updateGeminiModelModeUi(event.target.value);
-  });
-  document.getElementById('ai-gemini-save')?.addEventListener('click', saveGeminiSettings);
-  document.getElementById('ai-gemini-clear-key')?.addEventListener('click', clearGeminiApiKey);
-  document.getElementById('ai-gemini-test')?.addEventListener('click', testGeminiSettings);
 }
 
 function defaultUltrascriptsModuleState() {
@@ -492,7 +392,7 @@ function normalizeUltrascriptsModuleState(saved = {}) {
 }
 
 function loadUltrascriptsModuleToggles() {
-  chrome.storage.sync.get(STORAGE_KEYS.ultrascriptsModules, (result) => {
+  popupExtension.storage.sync.get(STORAGE_KEYS.ultrascriptsModules, (result) => {
     const saved = (result || {})[STORAGE_KEYS.ultrascriptsModules] || {};
     const modules = normalizeUltrascriptsModuleState(saved);
 
@@ -501,7 +401,7 @@ function loadUltrascriptsModuleToggles() {
       toggle.checked = modules[moduleId] !== false;
     });
     if (Object.keys(saved).some(key => !ULTRASCRIPTS_PUBLIC_MODULES.includes(key))) {
-      chrome.storage.sync.set({ [STORAGE_KEYS.ultrascriptsModules]: modules });
+      popupExtension.storage.sync.set({ [STORAGE_KEYS.ultrascriptsModules]: modules });
     }
   });
 }
@@ -509,11 +409,11 @@ function loadUltrascriptsModuleToggles() {
 function saveUltrascriptsModuleState(moduleId, enabled) {
   if (!ULTRASCRIPTS_PUBLIC_MODULES.includes(moduleId)) return;
 
-  chrome.storage.sync.get(STORAGE_KEYS.ultrascriptsModules, (result) => {
+  popupExtension.storage.sync.get(STORAGE_KEYS.ultrascriptsModules, (result) => {
     const saved = (result || {})[STORAGE_KEYS.ultrascriptsModules] || {};
     const modules = { ...normalizeUltrascriptsModuleState(saved), [moduleId]: !!enabled };
 
-    chrome.storage.sync.set({ [STORAGE_KEYS.ultrascriptsModules]: modules }, () => {
+    popupExtension.storage.sync.set({ [STORAGE_KEYS.ultrascriptsModules]: modules }, () => {
       sendToActiveAIDungeon('SET_ULTRASCRIPTS_MODULE_ENABLED', { moduleId, enabled: !!enabled })
         .then(refreshUltrascriptsState)
         .catch(() => {
@@ -556,119 +456,14 @@ function updateUltrascriptsStatus(state, fallbackDetail = '') {
   detail.textContent = `${mounted.length}/${ULTRASCRIPTS_PUBLIC_MODULES.length} modules mounted, ${enabled.length} enabled.`;
 }
 
-function normalizeWebFetchStore(value) {
-  const out = {};
-  if (!value || typeof value !== 'object') return out;
-  Object.entries(value).forEach(([origin, entry]) => {
-    if (!entry || typeof entry !== 'object') return;
-    if (entry.decision !== 'allow' && entry.decision !== 'deny') return;
-    out[origin] = {
-      decision: entry.decision,
-      updatedAt: Number(entry.updatedAt || Date.now())
-    };
-  });
-  return out;
-}
-
-function loadWebFetchConsentList() {
-  chrome.storage.sync.get(STORAGE_KEYS.webfetchAllowlist, (result) => {
-    const store = normalizeWebFetchStore((result || {})[STORAGE_KEYS.webfetchAllowlist]);
-    renderWebFetchConsentList(store);
-  });
-}
-
-function renderWebFetchConsentList(store) {
-  const list = document.getElementById('webfetch-consent-list');
-  if (!list) return;
-
-  list.innerHTML = '';
-  const entries = Object.entries(store).sort(([a], [b]) => a.localeCompare(b));
-  if (!entries.length) {
-    const empty = document.createElement('div');
-    empty.className = 'ultrascripts-consent-empty';
-    empty.textContent = 'No saved origins';
-    list.appendChild(empty);
-    return;
-  }
-
-  entries.forEach(([origin, entry]) => {
-    const row = document.createElement('div');
-    row.className = 'ultrascripts-consent-row';
-
-    const originEl = document.createElement('span');
-    originEl.className = 'ultrascripts-consent-origin';
-    originEl.title = origin;
-    originEl.textContent = origin;
-
-    const badge = document.createElement('span');
-    badge.className = `ultrascripts-consent-badge ${entry.decision}`;
-    badge.textContent = entry.decision;
-
-    const clearBtn = document.createElement('button');
-    clearBtn.className = 'btn btn-icon btn-ghost';
-    clearBtn.type = 'button';
-    clearBtn.title = 'Clear origin';
-    clearBtn.setAttribute('aria-label', `Clear ${origin}`);
-    clearBtn.innerHTML = '<span class="icon-x"></span>';
-    clearBtn.addEventListener('click', () => setWebFetchConsent(origin, 'clear'));
-
-    row.append(originEl, badge, clearBtn);
-    list.appendChild(row);
-  });
-}
-
-function saveWebFetchConsentFromForm() {
-  const input = document.getElementById('webfetch-origin-input');
-  const select = document.getElementById('webfetch-decision-select');
-  if (!input || !select) return;
-
-  let origin = '';
-  try {
-    origin = new URL(input.value.trim()).origin;
-  } catch {
-    showToast('Enter a valid origin', 'error');
-    return;
-  }
-
-  setWebFetchConsent(origin, select.value).then(() => {
-    input.value = '';
-  });
-}
-
-async function setWebFetchConsent(origin, decision) {
-  try {
-    const response = await sendToActiveAIDungeon('SET_WEBFETCH_CONSENT', { origin, decision });
-    if (response?.success === false) throw new Error(response.error || 'WebFetch consent update failed');
-  } catch {
-    await setWebFetchConsentInStorage(origin, decision);
-  }
-
-  loadWebFetchConsentList();
-  showToast('WebFetch origin updated', 'success');
-}
-
-function setWebFetchConsentInStorage(origin, decision) {
-  return new Promise((resolve) => {
-    chrome.storage.sync.get(STORAGE_KEYS.webfetchAllowlist, (result) => {
-      const store = normalizeWebFetchStore((result || {})[STORAGE_KEYS.webfetchAllowlist]);
-      if (decision === 'clear') {
-        delete store[origin];
-      } else {
-        store[origin] = { decision, updatedAt: Date.now() };
-      }
-      chrome.storage.sync.set({ [STORAGE_KEYS.webfetchAllowlist]: store }, resolve);
-    });
-  });
-}
-
 function saveFeatureState(featureId, enabled) {
   log('[Popup] Saving feature state:', featureId, enabled);
-  chrome.storage.sync.get(STORAGE_KEYS.features, (result) => {
+  popupExtension.storage.sync.get(STORAGE_KEYS.features, (result) => {
     const savedFeatures = (result || {})[STORAGE_KEYS.features] || {};
     const features = { ...DEFAULT_FEATURES, ...savedFeatures };
     features[featureId] = enabled;
     
-    chrome.storage.sync.set({ [STORAGE_KEYS.features]: features }, () => {
+    popupExtension.storage.sync.set({ [STORAGE_KEYS.features]: features }, () => {
       notifyContentScript('FEATURE_TOGGLE', { featureId, enabled });
       if (featureId === 'ultrascripts') {
         setUltrascriptsModuleControlsEnabled(enabled);
@@ -679,13 +474,10 @@ function saveFeatureState(featureId, enabled) {
 }
 
 function setUltrascriptsModuleControlsEnabled(enabled) {
-  document.querySelectorAll('[data-ultrascripts-module-toggle], #ultrascripts-debug, #webfetch-origin-input, #webfetch-decision-select, #webfetch-consent-save, #ai-gemini-api-key, #ai-gemini-model-mode, #ai-gemini-model, #ai-gemini-save, #ai-gemini-test')
+  document.querySelectorAll('[data-ultrascripts-module-toggle], #ultrascripts-debug')
     .forEach(control => {
       control.disabled = !enabled;
     });
-  if (enabled) {
-    updateGeminiModelModeUi(document.getElementById('ai-gemini-model-mode')?.value);
-  }
 }
 
 // ============================================
@@ -694,7 +486,7 @@ function setUltrascriptsModuleControlsEnabled(enabled) {
 
 function initSettings() {
   // Load settings
-  chrome.storage.sync.get(STORAGE_KEYS.settings, (result) => {
+  popupExtension.storage.sync.get(STORAGE_KEYS.settings, (result) => {
     const settings = (result || {})[STORAGE_KEYS.settings] || DEFAULT_SETTINGS;
     
     const slider = document.getElementById('critical-chance');
@@ -715,16 +507,59 @@ function initSettings() {
       const value = parseInt(slider.value);
       display.textContent = `${value}%`;
       
-      chrome.storage.sync.get(STORAGE_KEYS.settings, (result) => {
+      popupExtension.storage.sync.get(STORAGE_KEYS.settings, (result) => {
         const settings = (result || {})[STORAGE_KEYS.settings] || DEFAULT_SETTINGS;
         settings.tryCriticalChance = value;
-        chrome.storage.sync.set({ [STORAGE_KEYS.settings]: settings });
+        popupExtension.storage.sync.set({ [STORAGE_KEYS.settings]: settings });
       });
     });
   }
 
   // Auto See settings
   initAutoSeeSettings();
+}
+
+function updateCaretScrollFixUi(enabled) {
+  const toggle = document.getElementById('caret-scroll-fix-toggle');
+  if (toggle) toggle.checked = enabled;
+}
+
+function applyCaretScrollFixSetting(enabled) {
+  window.BetterDungeonCaretScrollFix?.setEnabled(enabled);
+  try {
+    window.BetterDungeonBridge?.setCaretScrollFixEnabled(enabled);
+  } catch (error) {
+    console.warn('[Popup] Native caret fix toggle unavailable:', error);
+  }
+  notifyContentScript('SET_ANDROID_CARET_SCROLL_FIX', { enabled });
+}
+
+function initAppSettings() {
+  if (!window.BetterDungeonPlatform?.has('androidSettings')) return;
+  const openButton = document.getElementById('app-settings-btn');
+  const toggle = document.getElementById('caret-scroll-fix-toggle');
+  if (!openButton || !toggle) return;
+
+  openButton.addEventListener('click', () => {
+    openModal('app-settings-modal');
+    requestAnimationFrame(() => document.getElementById('app-settings-close')?.focus());
+  });
+
+  popupExtension.storage.sync.get(STORAGE_KEYS.androidCaretScrollFix, (result) => {
+    const enabled = (result || {})[STORAGE_KEYS.androidCaretScrollFix] === true;
+    updateCaretScrollFixUi(enabled);
+    window.BetterDungeonCaretScrollFix?.setEnabled(enabled);
+  });
+
+  toggle.addEventListener('change', () => {
+    const enabled = toggle.checked;
+    toggle.disabled = true;
+    popupExtension.storage.sync.set({ [STORAGE_KEYS.androidCaretScrollFix]: enabled }, () => {
+      applyCaretScrollFixSetting(enabled);
+      toggle.disabled = false;
+      showToast(`Caret scroll stabilization ${enabled ? 'enabled' : 'disabled'}`, 'success');
+    });
+  });
 }
 
 function initCustomDynamicSettings() {
@@ -778,10 +613,10 @@ function initCustomDynamicSettings() {
 }
 
 function loadCustomDynamicSettings() {
-  chrome.storage.sync.get(STORAGE_KEYS.customDynamicConfig, (configResult) => {
+  popupExtension.storage.sync.get(STORAGE_KEYS.customDynamicConfig, (configResult) => {
     currentCustomDynamicConfig = normalizeCustomDynamicConfig((configResult || {})[STORAGE_KEYS.customDynamicConfig]);
 
-    chrome.storage.local.get(STORAGE_KEYS.customDynamicRuntime, (runtimeResult) => {
+    popupExtension.storage.local.get(STORAGE_KEYS.customDynamicRuntime, (runtimeResult) => {
       currentCustomDynamicRuntime = normalizeCustomDynamicRuntime((runtimeResult || {})[STORAGE_KEYS.customDynamicRuntime]);
       renderCustomDynamicConfig();
       updateCustomDynamicRuntimeStatus();
@@ -979,7 +814,7 @@ function saveCustomDynamicSettings() {
     return;
   }
 
-  chrome.storage.sync.set({ [STORAGE_KEYS.customDynamicConfig]: config }, () => {
+  popupExtension.storage.sync.set({ [STORAGE_KEYS.customDynamicConfig]: config }, () => {
     currentCustomDynamicConfig = config;
     renderCustomDynamicConfig();
     setCustomDynamicStatus('Custom Dynamic saved.');
@@ -1219,7 +1054,7 @@ function updateCustomDynamicRuntimeStatus() {
     setCustomDynamicStatus(`Loaded ${getCustomDynamicModelGroups().length} current AI Dungeon models.`);
     return;
   }
-  setCustomDynamicStatus('Changes stay local to this browser.');
+  setCustomDynamicStatus(`Changes stay local to this ${window.BetterDungeonPlatform?.kind === 'android-webview' ? 'device' : 'browser'}.`);
 }
 
 function setCustomDynamicStatus(message, isError = false) {
@@ -1284,7 +1119,7 @@ function initAutoSeeSettings() {
   const intervalOption = document.getElementById('auto-see-interval-option');
 
   // Load saved Auto See settings
-  chrome.storage.sync.get([
+  popupExtension.storage.sync.get([
     'betterDungeon_autoSeeTriggerMode',
     'betterDungeon_autoSeeTurnInterval'
   ], (result) => {
@@ -1307,7 +1142,7 @@ function initAutoSeeSettings() {
   if (triggerModeSelect) {
     triggerModeSelect.addEventListener('change', () => {
       const mode = triggerModeSelect.value;
-      chrome.storage.sync.set({ betterDungeon_autoSeeTriggerMode: mode });
+      popupExtension.storage.sync.set({ betterDungeon_autoSeeTriggerMode: mode });
       notifyContentScript('SET_AUTO_SEE_TRIGGER_MODE', { mode });
       updateAutoSeeIntervalVisibility(mode);
     });
@@ -1318,7 +1153,7 @@ function initAutoSeeSettings() {
     intervalSlider.addEventListener('input', () => {
       const value = parseInt(intervalSlider.value);
       intervalDisplay.textContent = value;
-      chrome.storage.sync.set({ betterDungeon_autoSeeTurnInterval: value });
+      popupExtension.storage.sync.set({ betterDungeon_autoSeeTurnInterval: value });
       notifyContentScript('SET_AUTO_SEE_TURN_INTERVAL', { interval: value });
     });
   }
@@ -1331,266 +1166,14 @@ function initAutoSeeSettings() {
 }
 
 // ============================================
-// TEXT TO SPEECH SETTINGS
-// ============================================
-
-function initTextToSpeechSettings() {
-  const voiceSelect = document.getElementById('tts-voice-select');
-  if (!voiceSelect) return;
-
-  const rateSlider = document.getElementById('tts-rate');
-  const pitchSlider = document.getElementById('tts-pitch');
-  const volumeSlider = document.getElementById('tts-volume');
-  const testBtn = document.getElementById('tts-test-voice');
-  const stopBtn = document.getElementById('tts-stop');
-
-  chrome.storage.sync.get(STORAGE_KEYS.textToSpeech, (result) => {
-    const saved = (result || {})[STORAGE_KEYS.textToSpeech];
-    currentTextToSpeechSettings = normalizeTextToSpeechSettings(saved);
-    updateTextToSpeechControls();
-    populateTextToSpeechVoices();
-  });
-
-  if ('speechSynthesis' in window && window.speechSynthesis?.addEventListener) {
-    window.speechSynthesis.addEventListener('voiceschanged', populateTextToSpeechVoices);
-  }
-
-  voiceSelect.addEventListener('change', () => {
-    const selectedOption = voiceSelect.selectedOptions[0];
-    currentTextToSpeechSettings.voiceURI = voiceSelect.value;
-    currentTextToSpeechSettings.voiceName = selectedOption?.dataset.voiceName || '';
-    saveTextToSpeechSettings();
-  });
-
-  rateSlider?.addEventListener('input', () => {
-    currentTextToSpeechSettings.rate = Number(rateSlider.value);
-    updateTextToSpeechDisplay();
-    saveTextToSpeechSettings();
-  });
-
-  pitchSlider?.addEventListener('input', () => {
-    currentTextToSpeechSettings.pitch = Number(pitchSlider.value);
-    updateTextToSpeechDisplay();
-    saveTextToSpeechSettings();
-  });
-
-  volumeSlider?.addEventListener('input', () => {
-    currentTextToSpeechSettings.volume = Number(volumeSlider.value);
-    updateTextToSpeechDisplay();
-    saveTextToSpeechSettings();
-  });
-
-  testBtn?.addEventListener('click', () => testTextToSpeechVoice(testBtn));
-  stopBtn?.addEventListener('click', () => {
-    stopPopupTextToSpeech();
-    notifyContentScript('STOP_TEXT_TO_SPEECH');
-  });
-}
-
-function normalizeTextToSpeechSettings(settings = {}) {
-  const merged = { ...DEFAULT_TEXT_TO_SPEECH_SETTINGS, ...(settings || {}) };
-  return {
-    ...merged,
-    voiceURI: typeof merged.voiceURI === 'string' ? merged.voiceURI : 'auto',
-    voiceName: typeof merged.voiceName === 'string' ? merged.voiceName : '',
-    rate: clampNumber(merged.rate, 0.65, 1.35, DEFAULT_TEXT_TO_SPEECH_SETTINGS.rate),
-    pitch: clampNumber(merged.pitch, 0.75, 1.35, DEFAULT_TEXT_TO_SPEECH_SETTINGS.pitch),
-    volume: clampNumber(merged.volume, 0, 1, DEFAULT_TEXT_TO_SPEECH_SETTINGS.volume)
-  };
-}
-
-function clampNumber(value, min, max, fallback) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return fallback;
-  return Math.min(max, Math.max(min, number));
-}
-
-function updateTextToSpeechControls() {
-  const rateSlider = document.getElementById('tts-rate');
-  const pitchSlider = document.getElementById('tts-pitch');
-  const volumeSlider = document.getElementById('tts-volume');
-
-  if (rateSlider) rateSlider.value = currentTextToSpeechSettings.rate;
-  if (pitchSlider) pitchSlider.value = currentTextToSpeechSettings.pitch;
-  if (volumeSlider) volumeSlider.value = currentTextToSpeechSettings.volume;
-
-  updateTextToSpeechDisplay();
-}
-
-function updateTextToSpeechDisplay() {
-  const rateValue = document.getElementById('tts-rate-value');
-  const pitchValue = document.getElementById('tts-pitch-value');
-  const volumeValue = document.getElementById('tts-volume-value');
-
-  if (rateValue) rateValue.textContent = currentTextToSpeechSettings.rate.toFixed(2);
-  if (pitchValue) pitchValue.textContent = currentTextToSpeechSettings.pitch.toFixed(2);
-  if (volumeValue) volumeValue.textContent = `${Math.round(currentTextToSpeechSettings.volume * 100)}%`;
-}
-
-function saveTextToSpeechSettings() {
-  currentTextToSpeechSettings = normalizeTextToSpeechSettings(currentTextToSpeechSettings);
-  chrome.storage.sync.set({ [STORAGE_KEYS.textToSpeech]: currentTextToSpeechSettings }, () => {
-    notifyContentScript('SET_TEXT_TO_SPEECH_SETTINGS', { settings: currentTextToSpeechSettings });
-  });
-}
-
-function populateTextToSpeechVoices() {
-  const voiceSelect = document.getElementById('tts-voice-select');
-  if (!voiceSelect || !('speechSynthesis' in window)) return;
-
-  const voices = window.speechSynthesis.getVoices() || [];
-  const selectedValue = currentTextToSpeechSettings.voiceURI || 'auto';
-
-  voiceSelect.innerHTML = '';
-  const autoOption = document.createElement('option');
-  autoOption.value = 'auto';
-  autoOption.textContent = 'Auto natural voice';
-  voiceSelect.appendChild(autoOption);
-
-  voices
-    .slice()
-    .sort((a, b) => `${a.lang} ${a.name}`.localeCompare(`${b.lang} ${b.name}`))
-    .forEach((voice) => {
-      const option = document.createElement('option');
-      option.value = voice.voiceURI || `${voice.name}|${voice.lang}`;
-      option.dataset.voiceName = voice.name || '';
-      option.textContent = formatTextToSpeechVoiceLabel(voice);
-      voiceSelect.appendChild(option);
-    });
-
-  const hasSelectedVoice = Array.from(voiceSelect.options).some((option) => option.value === selectedValue);
-  voiceSelect.value = hasSelectedVoice ? selectedValue : 'auto';
-}
-
-function formatTextToSpeechVoiceLabel(voice) {
-  const badges = [];
-  if (voice.default) badges.push('default');
-  if (voice.localService) badges.push('local');
-  const suffix = badges.length > 0 ? ` (${badges.join(', ')})` : '';
-  return `${voice.name} - ${voice.lang}${suffix}`;
-}
-
-function testTextToSpeechVoice(btn) {
-  const originalText = btn.innerHTML;
-
-    if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
-    showButtonStatus(btn, 'error', 'Unavailable', originalText);
-    return;
-  }
-
-  stopPopupTextToSpeech();
-
-  const utterance = new SpeechSynthesisUtterance('The storm rolls over the mountains as your adventure continues.');
-  const voice = resolvePopupTextToSpeechVoice();
-
-  if (voice) {
-    utterance.voice = voice;
-    utterance.lang = voice.lang || navigator.language || 'en-US';
-  } else {
-    utterance.lang = navigator.language || 'en-US';
-  }
-
-  utterance.rate = currentTextToSpeechSettings.rate;
-  utterance.pitch = currentTextToSpeechSettings.pitch;
-  utterance.volume = currentTextToSpeechSettings.volume;
-
-  window.speechSynthesis.speak(utterance);
-  showButtonStatus(btn, 'success', 'Playing', originalText);
-}
-
-function stopPopupTextToSpeech() {
-  if ('speechSynthesis' in window) {
-    window.speechSynthesis.cancel();
-  }
-}
-
-function resolvePopupTextToSpeechVoice() {
-  if (!('speechSynthesis' in window)) return null;
-
-  const voices = window.speechSynthesis.getVoices() || [];
-  const selected = currentTextToSpeechSettings.voiceURI;
-
-  if (selected && selected !== 'auto') {
-    const selectedVoice = voices.find((voice) => voice.voiceURI === selected) ||
-      voices.find((voice) => `${voice.name}|${voice.lang}` === selected) ||
-      voices.find((voice) => voice.name === currentTextToSpeechSettings.voiceName);
-
-    if (selectedVoice) return selectedVoice;
-  }
-
-  return pickBestPopupTextToSpeechVoice(voices);
-}
-
-function pickBestPopupTextToSpeechVoice(voices) {
-  if (!voices.length) return null;
-
-  const preferredLanguage = (navigator.language || 'en-US').toLowerCase();
-  const preferredBase = preferredLanguage.split('-')[0];
-
-  return voices.slice().sort((a, b) => {
-    return scorePopupTextToSpeechVoice(b, preferredLanguage, preferredBase) -
-      scorePopupTextToSpeechVoice(a, preferredLanguage, preferredBase);
-  })[0];
-}
-
-function scorePopupTextToSpeechVoice(voice, preferredLanguage, preferredBase) {
-  const name = `${voice.name || ''} ${voice.voiceURI || ''}`.toLowerCase();
-  const lang = (voice.lang || '').toLowerCase();
-  let score = 0;
-
-  if (lang === preferredLanguage) score += 50;
-  if (lang.split('-')[0] === preferredBase) score += 30;
-  if (preferredBase === 'en' && lang.startsWith('en')) score += 15;
-  if (voice.default) score += 8;
-  if (voice.localService) score += 4;
-  if (/natural|neural|premium|enhanced|online|google|microsoft|samantha|alex|ava|jenny|aria|guy|libby|sonia|daniel/.test(name)) score += 25;
-  if (/compact|novelty|whisper|robot|zarvox/.test(name)) score -= 20;
-
-  return score;
-}
-
-// ============================================
 // TOOLS
 // ============================================
 
 function initTools() {
-  // Apply Instructions button (in Markdown feature card)
-  const applyBtn = document.getElementById('apply-instructions-btn');
-  if (applyBtn) {
-    applyBtn.addEventListener('click', () => applyInstructions(applyBtn));
-  }
-
   // Open Analytics button (in Tools section)
   const analyticsBtn = document.getElementById('open-analytics-btn');
   if (analyticsBtn) {
     analyticsBtn.addEventListener('click', () => openAnalyticsDashboard(analyticsBtn));
-  }
-}
-
-async function applyInstructions(btn) {
-  const originalText = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = '<span class="icon-loader"></span> Applying...';
-
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
-    if (!tab?.url?.includes('aidungeon.com')) {
-      showButtonStatus(btn, 'error', 'Not on AI Dungeon', originalText);
-      return;
-    }
-
-    const response = await chrome.tabs.sendMessage(tab.id, {
-      type: 'APPLY_INSTRUCTIONS_WITH_LOADING'
-    });
-
-    if (response?.success) {
-      showButtonStatus(btn, 'success', 'Done!', originalText);
-    } else {
-      showButtonStatus(btn, 'error', response?.error || 'Failed', originalText);
-    }
-  } catch (error) {
-    showButtonStatus(btn, 'error', 'Error', originalText);
   }
 }
 
@@ -1600,15 +1183,15 @@ async function openAnalyticsDashboard(btn) {
   btn.innerHTML = '<span class="icon-loader"></span> Opening...';
 
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await popupExtension.tabs.query({ active: true, currentWindow: true });
     
     if (!tab?.url?.includes('aidungeon.com')) {
       showButtonStatus(btn, 'error', 'Not on AI Dungeon', originalText);
       return;
     }
 
-    chrome.tabs.sendMessage(tab.id, { type: 'OPEN_STORY_CARD_ANALYTICS' }, (response) => {
-      if (chrome.runtime.lastError || !response?.success) {
+    popupExtension.tabs.sendMessage(tab.id, { type: 'OPEN_STORY_CARD_ANALYTICS' }, (response) => {
+      if (popupExtension.runtime.lastError || !response?.success) {
         showButtonStatus(btn, 'error', response?.error || 'Failed', originalText);
       } else {
         // Close the popup after opening the dashboard
@@ -1620,89 +1203,6 @@ async function openAnalyticsDashboard(btn) {
   } catch (error) {
     showButtonStatus(btn, 'error', 'Error', originalText);
   }
-}
-
-// ============================================
-// MARKDOWN CHEAT SHEET
-// ============================================
-
-const LEGACY_MARKDOWN_OPTIONS_KEY = 'betterDungeon_markdownOptions';
-
-function initMarkdownOptions() {
-  const container = document.getElementById('markdown-cheatsheet');
-  if (!container) return;
-
-  chrome.storage.sync.remove(LEGACY_MARKDOWN_OPTIONS_KEY);
-  renderMarkdownOptions(container);
-  initMarkdownInstructionPreset();
-}
-
-function renderMarkdownOptions(container) {
-  container.innerHTML = '';
-  const formats = window.BetterDungeonMarkdownConfig?.formats || [];
-
-  for (const opt of formats) {
-    const item = document.createElement('div');
-    item.className = 'md-cheatsheet-item';
-    item.innerHTML = `
-      <code class="md-cheatsheet-syntax">${escapeHtml(opt.syntax)}</code>
-      <div class="md-cheatsheet-content">
-        <span class="md-cheatsheet-label">${escapeHtml(opt.label)}</span>
-        <span class="md-cheatsheet-role">${escapeHtml(opt.role)}</span>
-      </div>
-      <span class="md-cheatsheet-preview">${opt.preview}</span>
-    `;
-
-    container.appendChild(item);
-  }
-}
-
-function initMarkdownInstructionPreset() {
-  const select = document.getElementById('markdown-instruction-preset');
-  if (!select) return;
-
-  const config = window.BetterDungeonMarkdownConfig;
-  const presets = config?.instructionPresets || [];
-  const defaultPreset = config?.defaultInstructionPreset || presets[0]?.id || '';
-
-  select.innerHTML = '';
-  for (const preset of presets) {
-    const option = document.createElement('option');
-    option.value = preset.id;
-    option.textContent = preset.label;
-    select.appendChild(option);
-  }
-
-  const updatePresetDetails = () => {
-    const desc = document.getElementById('markdown-instruction-preset-desc');
-    const preview = document.getElementById('markdown-instruction-preview');
-    const preset = presets.find(item => item.id === select.value);
-    if (desc) desc.textContent = preset?.description || '';
-
-    if (preview) {
-      const instructions = config?.buildInstructions?.(select.value) || '';
-      const authorsNote = config?.buildAuthorsNote?.(select.value) || '';
-      preview.textContent = [
-        'AI Instructions',
-        instructions,
-        '',
-        'Author\'s Note',
-        authorsNote,
-      ].join('\n');
-    }
-  };
-
-  chrome.storage.sync.get(STORAGE_KEYS.markdownInstructionPreset, (result) => {
-    const saved = (result || {})[STORAGE_KEYS.markdownInstructionPreset];
-    select.value = presets.some(item => item.id === saved) ? saved : defaultPreset;
-    updatePresetDetails();
-  });
-
-  select.addEventListener('change', () => {
-    const presetId = presets.some(item => item.id === select.value) ? select.value : defaultPreset;
-    chrome.storage.sync.set({ [STORAGE_KEYS.markdownInstructionPreset]: presetId });
-    updatePresetDetails();
-  });
 }
 
 function showButtonStatus(btn, status, text, originalText) {
@@ -1741,12 +1241,12 @@ function initHotkeys() {
 
 // Load hotkey bindings from storage
 function loadHotkeyBindings() {
-  chrome.storage.sync.get(STORAGE_KEYS.customHotkeys, (result) => {
+  popupExtension.storage.sync.get(STORAGE_KEYS.customHotkeys, (result) => {
     const customBindings = (result || {})[STORAGE_KEYS.customHotkeys];
     if (customBindings && typeof customBindings === 'object') {
       // Use custom bindings as-is (full replacement, not merge)
       // so that unbound hotkeys stay unbound.
-      currentHotkeyBindings = { ...customBindings };
+      currentHotkeyBindings = migrateHotkeyBindings(customBindings);
     } else {
       currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS };
     }
@@ -1806,12 +1306,12 @@ function formatKeyDisplay(key) {
 // Open the hotkey customization modal
 function openHotkeyModal() {
   // Reset to current saved bindings
-  chrome.storage.sync.get(STORAGE_KEYS.customHotkeys, (result) => {
+  popupExtension.storage.sync.get(STORAGE_KEYS.customHotkeys, (result) => {
     const customBindings = (result || {})[STORAGE_KEYS.customHotkeys];
     if (customBindings && typeof customBindings === 'object') {
       // Use custom bindings as-is (full replacement, not merge)
       // so that unbound hotkeys stay unbound.
-      currentHotkeyBindings = { ...customBindings };
+      currentHotkeyBindings = migrateHotkeyBindings(customBindings);
     } else {
       currentHotkeyBindings = { ...DEFAULT_HOTKEY_BINDINGS };
     }
@@ -1957,13 +1457,13 @@ function removeKeyBinding(key) {
 async function saveHotkeyBindings() {
   log('[Popup] Saving hotkey bindings:', currentHotkeyBindings);
   // Save to storage
-  await chrome.storage.sync.set({ [STORAGE_KEYS.customHotkeys]: currentHotkeyBindings });
+  await popupExtension.storage.sync.set({ [STORAGE_KEYS.customHotkeys]: currentHotkeyBindings });
   
   // Notify content script
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await popupExtension.tabs.query({ active: true, currentWindow: true });
     if (tab?.url?.includes('aidungeon.com')) {
-      chrome.tabs.sendMessage(tab.id, {
+      popupExtension.tabs.sendMessage(tab.id, {
         type: 'HOTKEY_BINDINGS_UPDATED',
         bindings: currentHotkeyBindings
       });
@@ -2026,10 +1526,11 @@ function initModeColors() {
 
 // Load mode colors from storage
 function loadModeColors() {
-  chrome.storage.sync.get(STORAGE_KEYS.customModeColors, (result) => {
+  popupExtension.storage.sync.get(STORAGE_KEYS.customModeColors, (result) => {
     const customColors = (result || {})[STORAGE_KEYS.customModeColors];
     if (customColors && typeof customColors === 'object') {
-      currentModeColors = { ...DEFAULT_MODE_COLORS, ...customColors };
+      currentModeColors = { ...DEFAULT_MODE_COLORS, ...customColors,
+        image: customColors.image || customColors.see || DEFAULT_MODE_COLORS.image };
     } else {
       currentModeColors = { ...DEFAULT_MODE_COLORS };
     }
@@ -2066,10 +1567,11 @@ function updateColorEditorInputs() {
 // Open the color customization modal
 function openColorModal() {
   // Reload from storage to ensure we have latest
-  chrome.storage.sync.get(STORAGE_KEYS.customModeColors, (result) => {
+  popupExtension.storage.sync.get(STORAGE_KEYS.customModeColors, (result) => {
     const customColors = (result || {})[STORAGE_KEYS.customModeColors];
     if (customColors && typeof customColors === 'object') {
-      currentModeColors = { ...DEFAULT_MODE_COLORS, ...customColors };
+      currentModeColors = { ...DEFAULT_MODE_COLORS, ...customColors,
+        image: customColors.image || customColors.see || DEFAULT_MODE_COLORS.image };
     } else {
       currentModeColors = { ...DEFAULT_MODE_COLORS };
     }
@@ -2082,13 +1584,13 @@ function openColorModal() {
 async function saveModeColors() {
   log('[Popup] Saving mode colors:', currentModeColors);
   // Save to storage
-  await chrome.storage.sync.set({ [STORAGE_KEYS.customModeColors]: currentModeColors });
+  await popupExtension.storage.sync.set({ [STORAGE_KEYS.customModeColors]: currentModeColors });
   
   // Notify content script
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await popupExtension.tabs.query({ active: true, currentWindow: true });
     if (tab?.url?.includes('aidungeon.com')) {
-      chrome.tabs.sendMessage(tab.id, {
+      popupExtension.tabs.sendMessage(tab.id, {
         type: 'MODE_COLORS_UPDATED',
         colors: currentModeColors
       });
@@ -2120,6 +1622,7 @@ async function resetModeColors() {
 // ============================================
 
 function initPresets() {
+  initPresetViews();
   loadPresets();
   
   // Save button
@@ -2132,9 +1635,79 @@ function initPresets() {
   document.getElementById('undo-preset-btn')?.addEventListener('click', undoLastApply);
 }
 
+function initPlatformSurface() {
+  const platform = window.BetterDungeonPlatform;
+  if (!platform) return;
+
+  document.body.classList.toggle('mobile', platform.formFactor === 'mobile');
+  document.querySelectorAll('[data-bd-requires-capability]').forEach(element => {
+    element.hidden = !platform.has(element.dataset.bdRequiresCapability);
+  });
+  document.querySelectorAll('[data-bd-requires-feature]').forEach(element => {
+    const supported = platform.supportsFeature(element.dataset.bdRequiresFeature);
+    element.hidden = !supported;
+    element.querySelectorAll('input, button, select, textarea').forEach(control => {
+      control.disabled = !supported;
+    });
+  });
+  document.querySelectorAll('[data-bd-browser-copy]').forEach(element => {
+    element.hidden = platform.kind !== 'browser';
+  });
+  document.querySelectorAll('[data-bd-android-copy]').forEach(element => {
+    element.hidden = platform.kind !== 'android-webview';
+  });
+
+  const badge = document.getElementById('platform-badge');
+  if (badge) {
+    const android = platform.kind === 'android-webview';
+    badge.textContent = android ? 'Android' : 'PC';
+    badge.classList.toggle('android', android);
+    badge.classList.toggle('pc', !android);
+  }
+}
+
+function switchPresetView(view, shouldFocus = false) {
+  const tabs = [...document.querySelectorAll('[data-preset-view]')];
+  const panels = [...document.querySelectorAll('[data-preset-panel]')];
+  const selectedView = tabs.some(tab => tab.dataset.presetView === view) ? view : 'characters';
+
+  tabs.forEach((tab) => {
+    const isSelected = tab.dataset.presetView === selectedView;
+    tab.classList.toggle('active', isSelected);
+    tab.setAttribute('aria-selected', String(isSelected));
+    tab.tabIndex = isSelected ? 0 : -1;
+    if (isSelected && shouldFocus) tab.focus();
+  });
+
+  panels.forEach((panel) => {
+    panel.hidden = panel.dataset.presetPanel !== selectedView;
+  });
+}
+
+function initPresetViews() {
+  const tabs = [...document.querySelectorAll('[data-preset-view]')];
+  if (tabs.length === 0) return;
+
+  tabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => switchPresetView(tab.dataset.presetView));
+    tab.addEventListener('keydown', (event) => {
+      let nextIndex = null;
+      if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length;
+      if (event.key === 'ArrowLeft') nextIndex = (index - 1 + tabs.length) % tabs.length;
+      if (event.key === 'Home') nextIndex = 0;
+      if (event.key === 'End') nextIndex = tabs.length - 1;
+      if (nextIndex === null) return;
+      event.preventDefault();
+      switchPresetView(tabs[nextIndex].dataset.presetView, true);
+    });
+  });
+
+  switchPresetView('characters');
+}
+
 async function loadPresets() {
   // Read from local storage (content script writes here after sync→local migration)
-  chrome.storage.local.get(STORAGE_KEYS.presets, (localResult) => {
+  popupExtension.storage.local.get(STORAGE_KEYS.presets, (localResult) => {
     const localPresets = (localResult || {})[STORAGE_KEYS.presets];
 
     if (localPresets && localPresets.length > 0) {
@@ -2143,11 +1716,13 @@ async function loadPresets() {
     }
 
     // One-time migration: pull legacy presets from sync storage
-    chrome.storage.sync.get(STORAGE_KEYS.presets, (syncResult) => {
+    popupExtension.storage.sync.get(STORAGE_KEYS.presets, (syncResult) => {
       const syncPresets = (syncResult || {})[STORAGE_KEYS.presets] || [];
       if (syncPresets.length > 0) {
-        chrome.storage.local.set({ [STORAGE_KEYS.presets]: syncPresets }, () => {
-          chrome.storage.sync.remove(STORAGE_KEYS.presets);
+        popupExtension.storage.local.set({ [STORAGE_KEYS.presets]: syncPresets }, () => {
+          if (!window.BetterDungeonPlatform?.has('storageAreasAliased')) {
+            popupExtension.storage.sync.remove(STORAGE_KEYS.presets);
+          }
           log('[Popup] Migrated presets from sync to local storage');
         });
       }
@@ -2255,14 +1830,14 @@ function createPresetCard(preset) {
 async function applyPreset(presetId, mode) {
   log('[Popup] Applying preset:', presetId, mode);
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await popupExtension.tabs.query({ active: true, currentWindow: true });
     
     if (!tab?.url?.includes('aidungeon.com')) {
       showToast('Navigate to AI Dungeon first', 'error');
       return;
     }
 
-    const response = await chrome.tabs.sendMessage(tab.id, {
+    const response = await popupExtension.tabs.sendMessage(tab.id, {
       type: 'APPLY_PRESET',
       presetId,
       mode
@@ -2302,7 +1877,7 @@ async function saveNewPreset() {
   }
 
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await popupExtension.tabs.query({ active: true, currentWindow: true });
     
     if (!tab?.url?.includes('aidungeon.com')) {
       showToast('Navigate to AI Dungeon first', 'error');
@@ -2311,7 +1886,7 @@ async function saveNewPreset() {
 
     closeModal('save-modal');
 
-    const response = await chrome.tabs.sendMessage(tab.id, {
+    const response = await popupExtension.tabs.sendMessage(tab.id, {
       type: 'SAVE_CURRENT_AS_PRESET',
       name,
       includeComponents: {
@@ -2366,13 +1941,13 @@ function savePresetChanges() {
     updates.components.authorsNote = document.getElementById('modal-authors-note').value;
   }
 
-  chrome.storage.local.get(STORAGE_KEYS.presets, (result) => {
+  popupExtension.storage.local.get(STORAGE_KEYS.presets, (result) => {
     const presets = (result || {})[STORAGE_KEYS.presets] || [];
     const index = presets.findIndex(p => p.id === currentEditingPreset.id);
     
     if (index !== -1) {
       presets[index] = { ...presets[index], ...updates, updatedAt: Date.now() };
-      chrome.storage.local.set({ [STORAGE_KEYS.presets]: presets }, () => {
+      popupExtension.storage.local.set({ [STORAGE_KEYS.presets]: presets }, () => {
         loadPresets();
         showToast('Preset updated', 'success');
         closeModal('preset-modal');
@@ -2382,9 +1957,9 @@ function savePresetChanges() {
 }
 
 function deletePreset(presetId) {
-  chrome.storage.local.get(STORAGE_KEYS.presets, (result) => {
+  popupExtension.storage.local.get(STORAGE_KEYS.presets, (result) => {
     const presets = ((result || {})[STORAGE_KEYS.presets] || []).filter(p => p.id !== presetId);
-    chrome.storage.local.set({ [STORAGE_KEYS.presets]: presets }, () => {
+    popupExtension.storage.local.set({ [STORAGE_KEYS.presets]: presets }, () => {
       loadPresets();
       showToast('Preset deleted', 'success');
     });
@@ -2395,14 +1970,14 @@ async function undoLastApply() {
   if (!lastUndoState) return;
 
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await popupExtension.tabs.query({ active: true, currentWindow: true });
     
     if (!tab?.url?.includes('aidungeon.com')) {
       showToast('Navigate to AI Dungeon first', 'error');
       return;
     }
 
-    const response = await chrome.tabs.sendMessage(tab.id, {
+    const response = await popupExtension.tabs.sendMessage(tab.id, {
       type: 'UNDO_PRESET_APPLY',
       previousState: lastUndoState
     });
@@ -2443,38 +2018,18 @@ function updateTextareaStates() {
 
 function initCharacters() {
   loadCharacters();
-  loadCharacterGenerationInstructions();
   
   document.getElementById('create-character-btn')?.addEventListener('click', async () => {
     openCharacterModal(createBlankCharacter(), true);
   });
-  document.getElementById('character-open-ai-settings')?.addEventListener('click', openGeminiSettingsFromCharacters);
-}
-
-function loadCharacterGenerationInstructions() {
-  const input = document.getElementById('character-generation-instructions');
-  const counter = document.getElementById('character-generation-instructions-count');
-  let saveTimer = null;
-  if (!input) return;
-  chrome.storage.local.get(STORAGE_KEYS.characterGenerationInstructions, (result) => {
-    input.value = String((result || {})[STORAGE_KEYS.characterGenerationInstructions] || '').slice(0, 1500);
-    if (counter) counter.textContent = `${input.value.length}/1500`;
-  });
-  input.addEventListener('input', () => {
-    if (input.value.length > 1500) input.value = input.value.slice(0, 1500);
-    if (counter) counter.textContent = `${input.value.length}/1500`;
-    if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      chrome.storage.local.set({ [STORAGE_KEYS.characterGenerationInstructions]: input.value });
-      saveTimer = null;
-    }, 350);
-  });
 }
 
 async function loadCharacters() {
-  chrome.storage.sync.remove(STORAGE_KEYS.characters);
-  chrome.storage.sync.remove(STORAGE_KEYS.activeCharacter);
-  chrome.storage.local.get([STORAGE_KEYS.characters, STORAGE_KEYS.activeCharacter], (localResult) => {
+  if (!window.BetterDungeonPlatform?.has('storageAreasAliased')) {
+    popupExtension.storage.sync.remove(STORAGE_KEYS.characters);
+    popupExtension.storage.sync.remove(STORAGE_KEYS.activeCharacter);
+  }
+  popupExtension.storage.local.get([STORAGE_KEYS.characters, STORAGE_KEYS.activeCharacter], (localResult) => {
     const raw = Array.isArray((localResult || {})[STORAGE_KEYS.characters])
       ? (localResult || {})[STORAGE_KEYS.characters]
       : [];
@@ -2493,7 +2048,7 @@ async function loadCharacters() {
     if (storedMainId !== nextMainId) updates[STORAGE_KEYS.activeCharacter] = nextMainId;
 
     if (Object.keys(updates).length > 0) {
-      chrome.storage.local.set(updates);
+      popupExtension.storage.local.set(updates);
     }
     renderCharacters(characters);
   });
@@ -2540,9 +2095,11 @@ function normalizeCharacterList(raw) {
 function renderCharacters(characters) {
   const container = document.getElementById('character-list');
   const emptyState = document.getElementById('character-empty');
+  const count = document.getElementById('character-count');
   if (!container) return;
 
   container.querySelectorAll('.character-card').forEach(c => c.remove());
+  if (count) count.textContent = `${characters.length} saved`;
 
   if (characters.length === 0) {
     if (emptyState) emptyState.style.display = 'flex';
@@ -2551,7 +2108,13 @@ function renderCharacters(characters) {
 
   if (emptyState) emptyState.style.display = 'none';
 
-  characters.forEach(char => {
+  const sortedCharacters = [...characters].sort((a, b) => {
+    if (a.id === currentMainCharacterId) return -1;
+    if (b.id === currentMainCharacterId) return 1;
+    return Number(b.updatedAt || 0) - Number(a.updatedAt || 0);
+  });
+
+  sortedCharacters.forEach(char => {
     const card = createCharacterCard(char);
     container.appendChild(card);
   });
@@ -2568,26 +2131,25 @@ function createCharacterCard(character) {
     : 'No description yet';
 
   card.innerHTML = `
-    <div class="character-card-main">
+    <div class="character-card-header">
       <div class="character-title-row">
         <h4 class="character-name">${escapeHtml(character.name)}</h4>
-        ${isMain ? '<span class="character-main-badge"><span class="icon-star"></span>Main</span>' : ''}
+        ${isMain ? '<span class="character-main-badge"><span class="icon-check"></span>Selected</span>' : ''}
       </div>
-      <div class="character-meta">
-        <span class="character-description-preview">${escapeHtml(preview)}</span>
-      </div>
-    </div>
-    <div class="character-card-actions">
-      <button class="character-main-btn${isMain ? ' active' : ''}" aria-label="${isMain ? 'Main character' : 'Make main character'}" title="${isMain ? 'Main character' : 'Make main character'}"${isMain ? ' disabled' : ''}>
-        <span class="icon-star"></span>
-      </button>
-      <button class="character-edit-btn" aria-label="Edit" title="Edit">
+      <button class="character-edit-btn" type="button" aria-label="Edit character" title="Edit character">
         <span class="icon-pencil"></span>
+      </button>
+    </div>
+    <p class="character-description-preview">${escapeHtml(preview)}</p>
+    <div class="character-card-actions">
+      <button class="character-select-btn${isMain ? ' active' : ''}" type="button"${isMain ? ' disabled' : ''}>
+        <span class="${isMain ? 'icon-check' : 'icon-user-check'}"></span>
+        ${isMain ? 'Selected for Prefill' : 'Use for Prefill'}
       </button>
     </div>
   `;
 
-  card.querySelector('.character-main-btn')?.addEventListener('click', (event) => {
+  card.querySelector('.character-select-btn')?.addEventListener('click', (event) => {
     event.stopPropagation();
     if (!isMain) setMainCharacter(character.id);
   });
@@ -2601,14 +2163,14 @@ function createCharacterCard(character) {
 
 function setMainCharacter(characterId) {
   currentMainCharacterId = characterId || null;
-  chrome.storage.local.set({ [STORAGE_KEYS.activeCharacter]: currentMainCharacterId }, () => {
+  popupExtension.storage.local.set({ [STORAGE_KEYS.activeCharacter]: currentMainCharacterId }, () => {
     loadCharacters();
-    showToast('Main character updated', 'success');
+    showToast('Character selected for prefill', 'success');
   });
 }
 
 function createCharacter(name) {
-  chrome.storage.local.get(STORAGE_KEYS.characters, (result) => {
+  popupExtension.storage.local.get(STORAGE_KEYS.characters, (result) => {
     const characters = normalizeCharacterList((result || {})[STORAGE_KEYS.characters] || []);
     const now = Date.now();
     
@@ -2629,7 +2191,7 @@ function createCharacter(name) {
       currentMainCharacterId = newChar.id;
     }
 
-    chrome.storage.local.set(updates, () => {
+    popupExtension.storage.local.set(updates, () => {
       loadCharacters();
       showToast('Character created!', 'success');
     });
@@ -2643,13 +2205,16 @@ function openCharacterModal(character, isNew = false) {
   const nameInput = document.getElementById('character-name-input');
   const descriptionInput = document.getElementById('character-description-input');
   const deleteBtn = document.getElementById('character-delete-btn');
+  const saveBtn = document.getElementById('character-modal-save');
 
   if (title) title.textContent = isNew ? 'New Character' : 'Edit Character';
   if (nameInput) nameInput.value = character.name || '';
   if (descriptionInput) descriptionInput.value = character.description || '';
   if (deleteBtn) deleteBtn.style.display = isNew ? 'none' : '';
+  if (saveBtn) saveBtn.textContent = isNew ? 'Create Character' : 'Save Changes';
   
   openModal('character-modal');
+  requestAnimationFrame(() => nameInput?.focus());
 }
 
 function saveCharacterChanges() {
@@ -2675,7 +2240,7 @@ function saveCharacterChanges() {
     updatedAt: Date.now()
   };
 
-  chrome.storage.local.get(STORAGE_KEYS.characters, (result) => {
+  popupExtension.storage.local.get(STORAGE_KEYS.characters, (result) => {
     const characters = normalizeCharacterList((result || {})[STORAGE_KEYS.characters] || []);
     const index = characters.findIndex(c => c.id === savedCharacter.id);
     
@@ -2691,7 +2256,7 @@ function saveCharacterChanges() {
       currentMainCharacterId = savedCharacter.id;
     }
 
-    chrome.storage.local.set(updates, () => {
+    popupExtension.storage.local.set(updates, () => {
       loadCharacters();
       showToast(currentEditingCharacter._isNew ? 'Character created' : 'Character updated', 'success');
       closeModal('character-modal');
@@ -2709,7 +2274,7 @@ async function deleteCharacter() {
   });
   if (!confirmed) return;
 
-  chrome.storage.local.get(STORAGE_KEYS.characters, (result) => {
+  popupExtension.storage.local.get(STORAGE_KEYS.characters, (result) => {
     const characters = normalizeCharacterList((result || {})[STORAGE_KEYS.characters] || [])
       .filter(c => c.id !== currentEditingCharacter.id);
     const updates = { [STORAGE_KEYS.characters]: characters };
@@ -2718,7 +2283,7 @@ async function deleteCharacter() {
       updates[STORAGE_KEYS.activeCharacter] = currentMainCharacterId;
     }
 
-    chrome.storage.local.set(updates, () => {
+    popupExtension.storage.local.set(updates, () => {
       loadCharacters();
       showToast('Character deleted', 'success');
       closeModal('character-modal');
@@ -2887,7 +2452,7 @@ function initWhatsNew() {
   const banner = document.getElementById('whats-new-banner');
   if (!banner) return;
 
-  const manifestVersion = chrome.runtime.getManifest().version;
+  const manifestVersion = popupExtension.runtime.getManifest().version;
   const displayVersion = `v${manifestVersion}`;
   const versionEl = document.getElementById('app-version');
   const titleEl = document.getElementById('whats-new-title');
@@ -2903,6 +2468,7 @@ function initWhatsNew() {
   const setExpanded = (isExpanded) => {
     toggleBtn?.setAttribute('aria-expanded', String(isExpanded));
     expandable?.setAttribute('aria-hidden', String(!isExpanded));
+    if (expandable) expandable.inert = !isExpanded;
     expandable?.classList.toggle('expanded', isExpanded);
   };
 
@@ -2922,15 +2488,16 @@ function initWhatsNew() {
     if (expandable) expandable.scrollTop = 0;
   };
 
-  chrome.storage.local.get(storageKey, (result) => {
-    if (chrome.runtime.lastError) return;
+  setExpanded(false);
+  popupExtension.storage.local.get(storageKey, (result) => {
+    if (popupExtension.runtime.lastError) return;
     setExpanded(result?.[storageKey] === true);
   });
 
   toggleBtn?.addEventListener('click', () => {
     const isExpanded = toggleBtn.getAttribute('aria-expanded') !== 'true';
     setExpanded(isExpanded);
-    chrome.storage.local.set({ [storageKey]: isExpanded });
+    popupExtension.storage.local.set({ [storageKey]: isExpanded });
   });
 
   versionTabs.forEach((tab, index) => {
@@ -2949,6 +2516,130 @@ function initWhatsNew() {
 }
 
 // ============================================
+// UPDATE CHECK
+// ============================================
+
+let updateStatusCache = null;
+
+function renderUpdateStatus(status) {
+  const banner = document.getElementById('update-banner');
+  const row = document.getElementById('update-checks-row');
+  if (!banner || !status) return;
+
+  const show = status.shouldNotify === true;
+  banner.hidden = !show;
+  if (show) {
+    const titleEl = document.getElementById('update-banner-title');
+    const detailEl = document.getElementById('update-banner-detail');
+    const viewLabel = document.getElementById('update-banner-view-label');
+    if (titleEl) titleEl.textContent = `BetterDungeon v${status.latestVersion} is available`;
+    if (detailEl) {
+      const hint = status.channel === 'android'
+        ? 'Download the latest APK from GitHub Releases.'
+        : 'A new release is available on GitHub.';
+      detailEl.textContent = status.releaseName ? `${status.releaseName} — ${hint}` : hint;
+    }
+    if (viewLabel) viewLabel.textContent = status.channel === 'android' ? 'Download' : 'View';
+  }
+
+  if (row) {
+    row.hidden = !status.manual;
+    const toggle = document.getElementById('update-checks-toggle');
+    if (toggle) toggle.checked = status.enabled !== false;
+  }
+}
+
+async function sendUpdateCheckOp(op, extra = {}) {
+  const updateCheck = window.BetterDungeonUpdateCheck;
+  if (!updateCheck) return null;
+
+  // Android has no background worker — run the module directly in the popup.
+  if (window.BetterDungeonPlatform?.kind === 'android-webview') {
+    try {
+      if (op === 'status') return await updateCheck.getStatus();
+      if (op === 'checkNow') return await updateCheck.checkNow();
+      if (op === 'checkIfDue') return await updateCheck.checkIfDue();
+      if (op === 'dismiss') return await updateCheck.dismiss(extra.version);
+      if (op === 'setEnabled') return await updateCheck.setEnabled(extra.enabled);
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  try {
+    const response = await window.BetterDungeonPlatform.runtime.sendMessage({
+      type: updateCheck.MESSAGE_TYPE,
+      op,
+      ...extra
+    });
+    return response?.ok ? response.data : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function initUpdateCheck() {
+  const banner = document.getElementById('update-banner');
+  if (!banner || !window.BetterDungeonUpdateCheck) return;
+
+  document.getElementById('update-banner-view')?.addEventListener('click', () => {
+    const url = updateStatusCache?.downloadUrl || updateStatusCache?.releaseUrl;
+    if (url) popupExtension.tabs.create({ url });
+  });
+
+  document.getElementById('update-banner-dismiss')?.addEventListener('click', async () => {
+    banner.hidden = true;
+    const status = await sendUpdateCheckOp('dismiss', { version: updateStatusCache?.latestVersion });
+    if (status) {
+      updateStatusCache = status;
+      renderUpdateStatus(status);
+    }
+  });
+
+  document.getElementById('update-checks-toggle')?.addEventListener('change', async (event) => {
+    const enabled = event.target.checked;
+    const status = await sendUpdateCheckOp('setEnabled', { enabled });
+    if (status) {
+      updateStatusCache = status;
+      renderUpdateStatus(status);
+    }
+    showToast(`Update checks ${enabled ? 'enabled' : 'disabled'}`, 'success');
+  });
+
+  document.getElementById('update-check-now')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      const status = await sendUpdateCheckOp('checkNow');
+      if (status) {
+        updateStatusCache = status;
+        renderUpdateStatus(status);
+        showToast(
+          status.updateAvailable ? `v${status.latestVersion} is available` : 'You are on the latest release',
+          status.updateAvailable ? 'success' : 'info'
+        );
+      }
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  sendUpdateCheckOp('status')
+    .then((status) => {
+      if (!status) return null;
+      updateStatusCache = status;
+      renderUpdateStatus(status);
+      return status.manual ? sendUpdateCheckOp('checkIfDue') : null;
+    })
+    .then((status) => {
+      if (!status) return;
+      updateStatusCache = status;
+      renderUpdateStatus(status);
+    });
+}
+
+// ============================================
 // COLLAPSIBLE SECTIONS
 // ============================================
 
@@ -2956,7 +2647,7 @@ function initCollapsibleSections() {
   const headers = document.querySelectorAll('.section-header-collapsible');
 
   // Load saved collapse states
-  chrome.storage.sync.get('bd_collapsed_sections', (result) => {
+  popupExtension.storage.sync.get('bd_collapsed_sections', (result) => {
     const collapsed = (result || {})['bd_collapsed_sections'] || [];
     collapsed.forEach(id => {
       const header = document.querySelector(`[data-collapse="${id}"]`);
@@ -2991,7 +2682,7 @@ function saveSectionCollapseState() {
       collapsed.push(header.dataset.collapse);
     }
   });
-  chrome.storage.sync.set({ 'bd_collapsed_sections': collapsed });
+  popupExtension.storage.sync.set({ 'bd_collapsed_sections': collapsed });
 }
 
 // ============================================
@@ -3068,7 +2759,7 @@ function filterFeatures(query) {
 
   // If search is cleared, restore saved collapse states
   if (!query) {
-    chrome.storage.sync.get('bd_collapsed_sections', (result) => {
+    popupExtension.storage.sync.get('bd_collapsed_sections', (result) => {
       const collapsed = (result || {})['bd_collapsed_sections'] || [];
       sections.forEach(section => {
         section.classList.remove('search-hidden');
@@ -3176,9 +2867,13 @@ function setupTutorialHandlers() {
       closeTutorialModal();
       switchToTab('features');
     } else {
-      // Regular step modal - proceed to next
+      // The welcome screen launches the main Premise tutorial.
       closeTutorialModal();
-      tutorialService?.next();
+      if (tutorialService?.getCurrentStep()?.id === 'welcome') {
+        tutorialService.goToTopic('premise');
+      } else {
+        tutorialService?.next();
+      }
     }
   });
   
@@ -3187,9 +2882,25 @@ function setupTutorialHandlers() {
     exitTutorial();
   });
 
-  document.getElementById('tutorial-overlay')?.addEventListener('click', (e) => {
-    if (e.target.id === 'tutorial-overlay') tutorialService?.next();
-  });
+  document.addEventListener('keydown', handleTutorialKeydown);
+  window.addEventListener('resize', queueTutorialReposition);
+  document.querySelector('.main')?.addEventListener('scroll', queueTutorialReposition, { passive: true });
+}
+
+function handleTutorialKeydown(event) {
+  if (!tutorialService?.isRunning()) return;
+  if (event.key !== 'Escape') return;
+
+  const topicPanel = document.getElementById('tutorial-topic-panel');
+  if (topicPanel && !topicPanel.classList.contains('hidden')) {
+    topicPanel.classList.add('hidden');
+    document.getElementById('tutorial-topics')?.setAttribute('aria-expanded', 'false');
+    repositionTutorialTooltip();
+    return;
+  }
+
+  event.preventDefault();
+  exitTutorial();
 }
 
 function showTutorialBanner() {
@@ -3218,6 +2929,8 @@ function exitTutorial() {
 }
 
 let previouslyExpandedCard = null;
+let previouslyExpandedSection = null;
+let tutorialRepositionFrame = null;
 
 function handleTutorialStep(step, currentIndex, totalSteps) {
   if (!step) return;
@@ -3228,6 +2941,10 @@ function handleTutorialStep(step, currentIndex, totalSteps) {
   } else if (step.type === 'spotlight') {
     if (step.action === 'switchTab') {
       switchToTab(step.actionTarget);
+      setTimeout(() => showSpotlight(step, currentIndex, totalSteps), 100);
+    } else if (step.action === 'switchPresetView') {
+      switchToTab('presets');
+      switchPresetView(step.actionTarget);
       setTimeout(() => showSpotlight(step, currentIndex, totalSteps), 100);
     } else {
       showSpotlight(step, currentIndex, totalSteps);
@@ -3253,9 +2970,9 @@ function showTutorialModal(step) {
     topicList?.classList.add('hidden');
     if (topicList) topicList.innerHTML = '';
   } else {
-    primaryBtn.textContent = 'Start from Beginning';
+    primaryBtn.textContent = 'Start Premise';
     secondaryBtn.style.display = 'block';
-    secondaryBtn.textContent = 'Maybe Later';
+    secondaryBtn.textContent = 'Not Now';
     if (step.id === 'welcome' && topicList) {
       renderTutorialTopics(topicList, { includeHeading: true });
       topicList.classList.remove('hidden');
@@ -3266,6 +2983,7 @@ function showTutorialModal(step) {
   }
 
   modal.classList.add('visible');
+  requestAnimationFrame(() => primaryBtn?.focus());
 }
 
 function closeTutorialModal() {
@@ -3309,8 +3027,13 @@ function renderTutorialTopics(container, options = {}) {
     desc.className = 'tutorial-topic-desc';
     desc.textContent = topic.description;
 
+    const meta = document.createElement('span');
+    meta.className = 'tutorial-topic-meta';
+    meta.textContent = `${topic.stepCount} ${topic.stepCount === 1 ? 'step' : 'steps'}`;
+
     copy.appendChild(title);
     copy.appendChild(desc);
+    copy.appendChild(meta);
 
     const arrow = document.createElement('span');
     arrow.className = 'tutorial-topic-arrow';
@@ -3338,17 +3061,37 @@ function toggleTutorialTopics() {
 
   renderTutorialTopics(panel);
   panel.classList.toggle('hidden');
+  document.getElementById('tutorial-topics')?.setAttribute(
+    'aria-expanded',
+    String(!panel.classList.contains('hidden'))
+  );
   repositionTutorialTooltip();
 }
 
 function repositionTutorialTooltip() {
   const tooltip = document.getElementById('tutorial-tooltip');
+  const spotlight = document.getElementById('tutorial-spotlight');
   const step = tutorialService?.getCurrentStep?.();
-  if (!tooltip || !step?.target) return;
+  if (!tooltip || !spotlight || !step?.target || !tutorialService?.isRunning()) return;
 
   requestAnimationFrame(() => {
     const target = document.querySelector(step.target);
-    if (target) positionTooltip(tooltip, target.getBoundingClientRect(), step.position || 'bottom');
+    if (!target) return;
+    const rect = target.getBoundingClientRect();
+    const padding = 8;
+    spotlight.style.left = `${rect.left - padding}px`;
+    spotlight.style.top = `${rect.top - padding}px`;
+    spotlight.style.width = `${rect.width + padding * 2}px`;
+    spotlight.style.height = `${rect.height + padding * 2}px`;
+    positionTooltip(tooltip, rect, step.position || 'bottom');
+  });
+}
+
+function queueTutorialReposition() {
+  if (!tutorialService?.isRunning() || tutorialRepositionFrame) return;
+  tutorialRepositionFrame = requestAnimationFrame(() => {
+    tutorialRepositionFrame = null;
+    repositionTutorialTooltip();
   });
 }
 
@@ -3363,6 +3106,14 @@ function showSpotlight(step, currentIndex, totalSteps) {
   const spotlight = document.getElementById('tutorial-spotlight');
   const tooltip = document.getElementById('tutorial-tooltip');
   if (!overlay || !spotlight || !tooltip) return;
+
+  const sectionBody = target.closest('.section-body');
+  if (sectionBody?.classList.contains('collapsed')) {
+    const sectionHeader = sectionBody.previousElementSibling;
+    previouslyExpandedSection = { body: sectionBody, header: sectionHeader };
+    sectionBody.classList.remove('collapsed');
+    sectionHeader?.setAttribute('aria-expanded', 'true');
+  }
 
   // Expand card if needed
   if (step.expandCard) {
@@ -3401,15 +3152,18 @@ function showSpotlight(step, currentIndex, totalSteps) {
     target.classList.add('tutorial-highlighted');
     overlay.classList.add('active');
 
-    positionTooltip(tooltip, finalRect, step.position || 'bottom');
     updateTooltipContent(step, currentIndex, totalSteps);
+    positionTooltip(tooltip, finalRect, step.position || 'bottom');
 
-    setTimeout(() => tooltip.classList.add('visible'), 200);
+    setTimeout(() => {
+      tooltip.classList.add('visible');
+      tooltip.focus({ preventScroll: true });
+    }, 100);
   }, 300);
 }
 
 function positionTooltip(tooltip, targetRect, position) {
-  const width = 260;
+  const width = tooltip.offsetWidth || Math.min(286, window.innerWidth - 32);
   const gap = 16;
   const padding = 16;
   const tooltipHeight = tooltip.offsetHeight || 150; // Estimate if not yet rendered
@@ -3461,16 +3215,24 @@ function positionTooltip(tooltip, targetRect, position) {
 function updateTooltipContent(step, currentIndex, totalSteps) {
   document.getElementById('tutorial-tooltip-title').textContent = step.title;
   document.getElementById('tutorial-tooltip-content').textContent = step.content;
+  const icon = document.getElementById('tutorial-tooltip-icon');
+  if (icon) icon.className = step.icon || 'icon-lightbulb';
+
   renderTutorialTopics(document.getElementById('tutorial-topic-panel'));
 
   const progress = ((currentIndex + 1) / totalSteps) * 100;
-  document.getElementById('tutorial-progress-fill').style.width = `${progress}%`;
-  document.getElementById('tutorial-progress-text').textContent = `${currentIndex + 1}/${totalSteps}`;
+  const progressFill = document.getElementById('tutorial-progress-fill');
+  if (progressFill) {
+    progressFill.style.width = `${progress}%`;
+    progressFill.parentElement?.setAttribute('aria-valuenow', String(currentIndex + 1));
+    progressFill.parentElement?.setAttribute('aria-valuemax', String(totalSteps));
+  }
+  document.getElementById('tutorial-progress-text').textContent = `Step ${currentIndex + 1} of ${totalSteps}`;
 
   const prevBtn = document.getElementById('tutorial-prev');
   const nextBtn = document.getElementById('tutorial-next');
   
-  if (prevBtn) prevBtn.style.display = currentIndex > 1 ? 'block' : 'none';
+  if (prevBtn) prevBtn.style.display = currentIndex > 0 ? 'block' : 'none';
   if (nextBtn) nextBtn.textContent = currentIndex === totalSteps - 1 ? 'Finish' : 'Next';
 }
 
@@ -3478,11 +3240,18 @@ function cleanupTutorialStep() {
   document.getElementById('tutorial-overlay')?.classList.remove('active');
   document.getElementById('tutorial-tooltip')?.classList.remove('visible');
   document.getElementById('tutorial-topic-panel')?.classList.add('hidden');
+  document.getElementById('tutorial-topics')?.setAttribute('aria-expanded', 'false');
   document.querySelectorAll('.tutorial-highlighted').forEach(el => el.classList.remove('tutorial-highlighted'));
 
   if (previouslyExpandedCard) {
     previouslyExpandedCard.classList.remove('expanded');
     previouslyExpandedCard = null;
+  }
+
+  if (previouslyExpandedSection) {
+    previouslyExpandedSection.body.classList.add('collapsed');
+    previouslyExpandedSection.header?.setAttribute('aria-expanded', 'false');
+    previouslyExpandedSection = null;
   }
 }
 
@@ -3505,6 +3274,7 @@ function handleTutorialComplete(completionModal) {
 function handleTutorialExit() {
   cleanupTutorialStep();
   closeTutorialModal();
+  document.getElementById('tutorial-help-btn')?.focus();
 }
 
 // ============================================
@@ -3518,25 +3288,25 @@ function escapeHtml(text) {
 }
 
 function notifyContentScript(type, data = {}) {
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+  popupExtension.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     const tab = tabs[0];
     if (tab?.id && tab.url?.includes('aidungeon.com')) {
-      chrome.tabs.sendMessage(tab.id, { type, ...data }).catch(() => {});
+      popupExtension.tabs.sendMessage(tab.id, { type, ...data }).catch(() => {});
     }
   });
 }
 
 function sendToActiveAIDungeon(type, data = {}) {
   return new Promise((resolve, reject) => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    popupExtension.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tab = tabs[0];
       if (!tab?.id || !tab.url?.includes('aidungeon.com')) {
         reject(new Error('AI Dungeon tab is not active'));
         return;
       }
 
-      chrome.tabs.sendMessage(tab.id, { type, ...data }, (response) => {
-        const lastError = chrome.runtime.lastError;
+      popupExtension.tabs.sendMessage(tab.id, { type, ...data }, (response) => {
+        const lastError = popupExtension.runtime.lastError;
         if (lastError) {
           reject(new Error(lastError.message));
           return;
@@ -3566,6 +3336,6 @@ function showToast(message, type = 'info') {
 document.querySelectorAll('.feature-credit a').forEach(link => {
   link.addEventListener('click', (e) => {
     e.preventDefault();
-    chrome.tabs.create({ url: link.href });
+    popupExtension.tabs.create({ url: link.href });
   });
 });

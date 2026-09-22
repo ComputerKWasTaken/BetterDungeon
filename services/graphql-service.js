@@ -8,6 +8,7 @@
     constructor() {
       this.debug = false;
       this.identityCache = new Map();
+      this.scenarioIdentityState = new Map();
     }
 
     static FORBIDDEN_REPLAY_HEADERS = new Set([
@@ -52,6 +53,30 @@
           __typename
         }
       }`,
+
+      navigatorAdventureContext: `query GetBetterDungeonNavigatorContext($shortId: String) {
+        adventure(shortId: $shortId) {
+          id
+          shortId
+          title
+          actionCount
+          editedAt
+          thirdPerson
+          memory
+          authorsNote
+          instructions
+          state {
+            instructions
+            storySummary
+            __typename
+          }
+          __typename
+        }
+      }`,
+
+      navigatorRecentMemories: `query NavigatorRecentMemories($shortId: String) {
+  recentMemories(shortId: $shortId)
+}`,
 
       scenarioStart: `query BetterDungeonScenarioStartViewGetScenario($shortId: String, $viewPublished: Boolean) {
         scenario(shortId: $shortId, viewPublished: $viewPublished) {
@@ -140,6 +165,95 @@
           __typename
         }
       }`,
+
+      navigatorAdventurePlot: `mutation UpdateAdventurePlot($input: AdventurePlotInput) {
+        updateAdventurePlot(input: $input) {
+          adventure {
+            id
+            shortId
+            thirdPerson
+            memory
+            authorsNote
+            editedAt
+            __typename
+          }
+          message
+          success
+          __typename
+        }
+      }`,
+
+      navigatorAdventureState: `mutation UpdateAdventureState($input: AdventureStateInput) {
+        updateAdventureState(input: $input) {
+          adventure {
+            id
+            shortId
+            state {
+              instructions
+              storySummary
+              storyCardStoryInformation
+              storyCardInstructions
+              imageStyle
+              __typename
+            }
+            editedAt
+            __typename
+          }
+          message
+          success
+          __typename
+        }
+      }`,
+
+      navigatorStoryCardUpsert: `mutation UseAutoSaveStoryCard($input: UpdateStoryCardInput!) {
+        updateStoryCard(input: $input) {
+          success
+          message
+          storyCard {
+            id
+            type
+            title
+            description
+            keys
+            value
+            useForCharacterCreation
+            updatedAt
+            deletedAt
+            __typename
+          }
+          __typename
+        }
+      }`,
+
+      navigatorStoryCardDelete: `mutation UseDeleteStoryCard($input: DeleteStoryCardInput!) {
+        deleteStoryCard(input: $input) {
+          success
+          message
+          storyCard {
+            id
+            deletedAt
+            __typename
+          }
+          __typename
+        }
+      }`,
+
+      navigatorEditMemory: `mutation NavigatorEditMemory($input: EditMemoryInput!) {
+  editMemory(input: $input) {
+    code
+    success
+    message
+    memory
+  }
+}`,
+
+      navigatorDeleteMemory: `mutation NavigatorDeleteMemory($input: DeleteMemoryInput!) {
+  deleteMemory(input: $input) {
+    code
+    success
+    message
+  }
+}`,
     };
 
     log(...args) {
@@ -307,6 +421,7 @@
       const wsAdventureId = ws?.getAdventureId?.();
       const cached = this.identityCache.get(resolvedShortId);
       if (cached && (cached.adventureId || cached.id)) {
+        this.resolveScenarioIdInBackground(resolvedShortId, cached);
         return cached;
       }
 
@@ -320,6 +435,7 @@
           source: 'ws',
         };
         this.identityCache.set(resolvedShortId, identity);
+        this.resolveScenarioIdInBackground(resolvedShortId, identity);
         return identity;
       }
 
@@ -344,6 +460,265 @@
       };
       this.identityCache.set(resolvedShortId, identity);
       return identity;
+    }
+
+    resolveScenarioIdInBackground(shortId, identity = null) {
+      const resolvedShortId = shortId || identity?.shortId;
+      if (!resolvedShortId) return;
+      const cached = identity || this.identityCache.get(resolvedShortId);
+      if (!cached || cached.scenarioId || this.scenarioIdentityState.get(resolvedShortId)?.attempted) return;
+
+      this.scenarioIdentityState.set(resolvedShortId, { attempted: true });
+      void (async () => {
+        try {
+          const result = await this.request(
+            'GetBetterDungeonAdventureIdentity',
+            { shortId: resolvedShortId },
+            BetterDungeonGQLService.QUERIES.adventureIdentity,
+            { timeoutMs: 10000 }
+          );
+          const adventure = result?.data?.adventure;
+          if (adventure?.scenarioId) cached.scenarioId = adventure.scenarioId;
+        } catch (error) {
+          this.log('Background scenario identity lookup failed:', error);
+        }
+      })();
+    }
+
+    async getNavigatorAdventureContext(shortId = null, options = {}) {
+      const ws = this.getWs();
+      const resolvedShortId = shortId || ws?.getAdventureShortId?.() || this.getShortIdFromUrl();
+      if (!resolvedShortId) {
+        throw new Error('Adventure shortId is unknown. Open an adventure first.');
+      }
+
+      const result = await this.request(
+        'GetBetterDungeonNavigatorContext',
+        { shortId: resolvedShortId },
+        BetterDungeonGQLService.QUERIES.navigatorAdventureContext,
+        options
+      );
+      const adventure = result?.data?.adventure;
+      if (!adventure?.id) {
+        throw new Error(`Navigator context lookup returned no adventure for ${resolvedShortId}.`);
+      }
+
+      const stateInstructions = this.normalizeInstructionText(adventure.state?.instructions);
+      const flatInstructions = this.normalizeInstructionText(adventure.instructions);
+      const hasStateInstructions = !!adventure.state && Object.prototype.hasOwnProperty.call(adventure.state, 'instructions');
+
+      return {
+        id: String(adventure.id),
+        shortId: adventure.shortId || resolvedShortId,
+        title: typeof adventure.title === 'string' ? adventure.title : '',
+        actionCount: Number.isFinite(adventure.actionCount) ? adventure.actionCount : null,
+        editedAt: typeof adventure.editedAt === 'string' ? adventure.editedAt : null,
+        thirdPerson: typeof adventure.thirdPerson === 'boolean' ? adventure.thirdPerson : null,
+        memory: typeof adventure.memory === 'string' ? adventure.memory : '',
+        authorsNote: typeof adventure.authorsNote === 'string' ? adventure.authorsNote : '',
+        instructions: hasStateInstructions ? stateInstructions : flatInstructions,
+        instructionsSource: hasStateInstructions ? 'state' : (flatInstructions ? 'flat' : 'none'),
+        storySummary: typeof adventure.state?.storySummary === 'string' ? adventure.state.storySummary : '',
+      };
+    }
+
+    async getNavigatorStoryCards(shortId = null, options = {}) {
+      const ws = this.getWs();
+      const resolvedShortId = shortId || ws?.getAdventureShortId?.() || this.getShortIdFromUrl();
+      if (!resolvedShortId) {
+        throw new Error('Adventure shortId is unknown. Open an adventure first.');
+      }
+
+      const result = await this.request(
+        'GetBetterDungeonStoryCards',
+        { shortId: resolvedShortId },
+        BetterDungeonGQLService.QUERIES.storyCards,
+        options
+      );
+      const adventure = result?.data?.adventure;
+      if (!adventure?.id || !Array.isArray(adventure.storyCards)) {
+        throw new Error(`Story Card lookup returned no adventure data for ${resolvedShortId}.`);
+      }
+      return {
+        id: String(adventure.id),
+        shortId: adventure.shortId || resolvedShortId,
+        storyCardCount: Number.isFinite(adventure.storyCardCount) ? adventure.storyCardCount : null,
+        cards: adventure.storyCards,
+      };
+    }
+
+    async getNavigatorRecentMemories(shortId = null, options = {}) {
+      const ws = this.getWs();
+      const resolvedShortId = shortId || ws?.getAdventureShortId?.() || this.getShortIdFromUrl();
+      if (!resolvedShortId) throw new Error('Adventure shortId is unknown. Open an adventure first.');
+      const result = await this.request(
+        'NavigatorRecentMemories',
+        { shortId: resolvedShortId },
+        BetterDungeonGQLService.QUERIES.navigatorRecentMemories,
+        options
+      );
+      if (result?.errors?.length) throw new Error(result.errors.map(error => error.message).join('; '));
+      const memories = result?.data?.recentMemories;
+      if (!Array.isArray(memories)) throw new Error(`Recent Memory Bank lookup returned no list for ${resolvedShortId}.`);
+      return memories;
+    }
+
+    async updateNavigatorAdventurePlot(shortId, changes, options = {}) {
+      const resolvedShortId = String(shortId || '').trim();
+      if (!resolvedShortId) throw new Error('Navigator plot update requires an adventure shortId.');
+      if (!changes || typeof changes !== 'object' || Array.isArray(changes)) {
+        throw new Error('Navigator plot update requires a changes object.');
+      }
+
+      const input = { shortId: resolvedShortId };
+      if (Object.prototype.hasOwnProperty.call(changes, 'memory')) input.memory = String(changes.memory ?? '');
+      if (Object.prototype.hasOwnProperty.call(changes, 'authorsNote')) input.authorsNote = String(changes.authorsNote ?? '');
+      if (Object.prototype.hasOwnProperty.call(changes, 'thirdPerson')) input.thirdPerson = changes.thirdPerson === true;
+      if (Object.keys(input).length === 1) throw new Error('Navigator plot update has no supported changes.');
+
+      const result = await this.request(
+        'UpdateAdventurePlot',
+        { input },
+        BetterDungeonGQLService.MUTATIONS.navigatorAdventurePlot,
+        options
+      );
+      const response = result?.data?.updateAdventurePlot;
+      if (!response?.success || !response.adventure) {
+        throw new Error(response?.message || 'AI Dungeon rejected the Plot Component update.');
+      }
+      return response;
+    }
+
+    async updateNavigatorAdventureState(shortId, state, options = {}) {
+      const resolvedShortId = String(shortId || '').trim();
+      if (!resolvedShortId) throw new Error('Navigator state update requires an adventure shortId.');
+      if (!state || typeof state !== 'object' || Array.isArray(state) || !Object.keys(state).length) {
+        throw new Error('Navigator state update requires a non-empty state object.');
+      }
+
+      const result = await this.request(
+        'UpdateAdventureState',
+        { input: { shortId: resolvedShortId, state } },
+        BetterDungeonGQLService.MUTATIONS.navigatorAdventureState,
+        options
+      );
+      const response = result?.data?.updateAdventureState;
+      if (!response?.success || !response.adventure) {
+        throw new Error(response?.message || 'AI Dungeon rejected the adventure state update.');
+      }
+      return response;
+    }
+
+    async updateNavigatorStoryCard(shortId, card, options = {}) {
+      const resolvedShortId = String(shortId || '').trim();
+      if (!resolvedShortId) throw new Error('Navigator Story Card update requires an adventure shortId.');
+      if (!card || typeof card !== 'object' || Array.isArray(card)) {
+        throw new Error('Navigator Story Card update requires a complete card record.');
+      }
+
+      const input = {
+        id: String(card.id || ''),
+        shortId: resolvedShortId,
+        contentType: 'adventure',
+        type: String(card.type ?? ''),
+        title: String(card.title ?? ''),
+        description: String(card.description ?? ''),
+        keys: String(card.keys ?? ''),
+        value: String(card.value ?? ''),
+        useForCharacterCreation: card.useForCharacterCreation === true,
+      };
+      if (!input.id) throw new Error('Navigator Story Card update requires a stable card ID.');
+
+      const result = await this.request(
+        'UseAutoSaveStoryCard',
+        { input },
+        BetterDungeonGQLService.MUTATIONS.navigatorStoryCardUpsert,
+        options
+      );
+      const response = result?.data?.updateStoryCard;
+      if (!response?.success || !response.storyCard) {
+        throw new Error(response?.message || 'AI Dungeon rejected the Story Card update.');
+      }
+      return response;
+    }
+
+    async deleteNavigatorStoryCard(shortId, id, options = {}) {
+      const resolvedShortId = String(shortId || '').trim();
+      const resolvedId = String(id || '').trim();
+      if (!resolvedShortId || !resolvedId) {
+        throw new Error('Navigator Story Card deletion requires an adventure shortId and card ID.');
+      }
+
+      const result = await this.request(
+        'UseDeleteStoryCard',
+        { input: { id: resolvedId, shortId: resolvedShortId, contentType: 'adventure' } },
+        BetterDungeonGQLService.MUTATIONS.navigatorStoryCardDelete,
+        options
+      );
+      const response = result?.data?.deleteStoryCard;
+      if (!response?.success || String(response.storyCard?.id || '') !== resolvedId) {
+        throw new Error(response?.message || 'AI Dungeon rejected the Story Card deletion.');
+      }
+      return response;
+    }
+
+    async editNavigatorMemory(shortId, actionId, text, options = {}) {
+      const resolvedShortId = String(shortId || '').trim();
+      const resolvedActionId = String(actionId || '').trim();
+      if (!resolvedShortId || !resolvedActionId) throw new Error('Navigator Memory Bank edit requires an adventure short ID and memory ID.');
+      const result = await this.request(
+        'NavigatorEditMemory',
+        { input: { adventureId: resolvedShortId, actionId: resolvedActionId, text: String(text ?? '') } },
+        BetterDungeonGQLService.MUTATIONS.navigatorEditMemory,
+        options
+      );
+      if (result?.errors?.length) throw new Error(result.errors.map(error => error.message).join('; '));
+      const response = result?.data?.editMemory;
+      if (!response?.success) throw new Error(response?.message || 'AI Dungeon rejected the Memory Bank edit.');
+      return response;
+    }
+
+    async deleteNavigatorMemory(shortId, actionId, options = {}) {
+      const resolvedShortId = String(shortId || '').trim();
+      const resolvedActionId = String(actionId || '').trim();
+      if (!resolvedShortId || !resolvedActionId) throw new Error('Navigator Memory Bank deletion requires an adventure short ID and memory ID.');
+      const result = await this.request(
+        'NavigatorDeleteMemory',
+        { input: { adventureId: resolvedShortId, actionId: resolvedActionId } },
+        BetterDungeonGQLService.MUTATIONS.navigatorDeleteMemory,
+        options
+      );
+      if (result?.errors?.length) throw new Error(result.errors.map(error => error.message).join('; '));
+      const response = result?.data?.deleteMemory;
+      if (!response?.success) throw new Error(response?.message || 'AI Dungeon rejected the Memory Bank deletion.');
+      return response;
+    }
+
+    normalizeInstructionText(value) {
+      if (typeof value === 'string') return value.trim() ? value : '';
+      if (Array.isArray(value)) {
+        return value
+          .map(item => this.normalizeInstructionText(item))
+          .filter(Boolean)
+          .join('\n');
+      }
+      if (!value || typeof value !== 'object') return '';
+
+      if (Object.prototype.hasOwnProperty.call(value, 'custom')) {
+        return this.normalizeInstructionText(value.custom);
+      }
+
+      const preferredKeys = ['custom', 'aiInstructions', 'instructions', 'text', 'content', 'value', 'prompt'];
+      for (const key of preferredKeys) {
+        const normalized = this.normalizeInstructionText(value[key]);
+        if (normalized) return normalized;
+      }
+
+      const normalizedValues = Object.entries(value)
+        .filter(([key]) => key !== 'type')
+        .map(([, item]) => this.normalizeInstructionText(item))
+        .filter(Boolean);
+      return normalizedValues.join('\n');
     }
 
     async getAiVisibleVersions(options = {}) {

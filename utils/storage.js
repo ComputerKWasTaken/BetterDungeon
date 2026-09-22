@@ -12,7 +12,6 @@ class StorageManager {
 
   static STORAGE_KEY = 'betterDungeonFeatures';
   static DEFAULT_FEATURES = {
-    markdown: true,
     command: true
   };
 

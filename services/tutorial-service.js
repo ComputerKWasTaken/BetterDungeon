@@ -10,157 +10,183 @@ class TutorialService {
     this.onComplete = null;
     this.onExit = null;
     
-    // Define tutorial steps - Ordered to match popup.html element structure
+    // Premise provides the main introduction. Focused guides use bounded ranges
+    // within this list, so opening one guide never spills into another.
     this.steps = [
-      // Welcome Modal
       {
         id: 'welcome',
         type: 'modal',
-        title: 'Welcome to BetterDungeon!',
-        content: 'This quick tour will introduce you to the features that enhance your AI Dungeon experience.',
+        title: 'Welcome to BetterDungeon',
+        content: 'Start with Premise to learn what BetterDungeon is, how it fits into AI Dungeon, and what it can do—or jump directly to a focused guide.',
         icon: 'icon-wand-sparkles'
       },
-      // Features Tab Navigation
       {
-        id: 'features-tab',
+        id: 'premise-identity',
+        type: 'spotlight',
+        target: '.header-brand',
+        title: 'What BetterDungeon is',
+        content: 'BetterDungeon is a companion toolkit for AI Dungeon. It enhances the experience you already use with optional interface improvements, workflow tools, AI assistance, script capabilities, and reusable content. It does not replace AI Dungeon or become part of your story model.',
+        icon: 'icon-sparkles',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'features'
+      },
+      {
+        id: 'premise-operation',
+        type: 'spotlight',
+        target: '.nav',
+        title: 'How BetterDungeon works',
+        content: 'This popup is BetterDungeon’s control center. Your selections determine which enhancements appear on supported AI Dungeon pages. Features stay out of unrelated pages, settings persist between sessions, and almost everything remains optional so you control the experience.',
+        icon: 'icon-settings',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'features'
+      },
+      {
+        id: 'premise-features',
         type: 'spotlight',
         target: '[data-tab="features"]',
-        title: 'Features Tab',
-        content: 'All your configurable features are organized here by category. Click any card to expand and see more options!',
-        position: 'bottom'
-      },
-      // === Input Modes Section ===
-      {
-        id: 'command-mode',
-        type: 'spotlight',
-        target: '[data-feature="command"]',
-        title: 'Command Mode',
-        content: 'Send narrative commands like "Time Skip" or "Scene Change" directly to the AI. Great for guiding your story!',
+        title: 'Improve everyday play and creation',
+        content: 'Features can refine input modes, add navigation and writing controls, improve Story Card workflows, automate repetitive actions, and provide Navigator—an AI agent designed to help you improve and modify your adventures.',
+        icon: 'icon-sliders-horizontal',
         position: 'bottom',
-        expandCard: true
-      },
-      {
-        id: 'try-mode',
-        type: 'spotlight',
-        target: '[data-feature="try"]',
-        title: 'Try Mode',
-        content: 'Add RNG-based outcomes to your actions! Roll for success or failure with configurable critical chances.',
-        position: 'bottom',
-        expandCard: true
-      },
-      // === Gameplay Section ===
-      {
-        id: 'hotkeys',
-        type: 'spotlight',
-        target: '[data-feature="hotkey"]',
-        title: 'Keyboard Shortcuts',
-        content: 'Quick hotkeys for common actions! Press T to take a turn, C to continue, and number keys to switch modes. Fully customizable via the "Customize Hotkeys" button!',
-        position: 'bottom',
-        expandCard: true
-      },
-      {
-        id: 'input-history',
-        type: 'spotlight',
-        target: '[data-feature="inputHistory"]',
-        title: 'Input History',
-        content: 'Terminal-style input history! Press Ctrl + Up/Down arrow keys while the input box is focused to cycle through your recent actions.',
-        position: 'bottom',
-        expandCard: true
-      },
-      {
-        id: 'input-mode-colors',
-        type: 'spotlight',
-        target: '[data-feature="inputModeColor"]',
-        title: 'Input Mode Colors',
-        content: 'Color-codes your input box based on the current mode. Click "Customize Colors" to pick your own palette!',
-        position: 'bottom',
-        expandCard: true
-      },
-      {
-        id: 'notes',
-        type: 'spotlight',
-        target: '[data-feature="notes"]',
-        title: 'Adventure Notes',
-        content: 'Jot down anything you want to remember about your adventure! Notes appear at the bottom of Plot Components and are saved per adventure.',
-        position: 'top',
-        expandCard: true
-      },
-      // === Formatting Section ===
-      {
-        id: 'markdown',
-        type: 'spotlight',
-        target: '[data-feature="markdown"]',
-        title: 'Markdown Formatting',
-        content: 'Renders rich text in AI responses. Click "Apply Instructions" to teach the AI the syntax!',
-        position: 'bottom',
-        expandCard: true
-      },
-      // === Scenario Building Section ===
-      {
-        id: 'trigger-highlight',
-        type: 'spotlight',
-        target: '[data-feature="triggerHighlight"]',
-        title: 'Trigger Highlighting',
-        content: 'Visualizes story card triggers in the context viewer. Hover over highlights to see which cards are active!',
-        position: 'bottom',
-        expandCard: true
-      },
-      {
-        id: 'story-card-analytics',
-        type: 'spotlight',
-        target: '[data-feature="storyCardAnalytics"]',
-        title: 'Story Card Analytics',
-        content: 'Opens a dashboard with story card stats, trigger analysis, and optimization tips. Cards load instantly when the dashboard opens.',
-        position: 'top',
-        expandCard: true
-      },
-      {
-        id: 'story-card-modal-dock',
-        type: 'spotlight',
-        target: '[data-feature="storyCardModalDock"]',
-        title: 'Story Card Modal Dock',
-        content: 'Docks the story card editor to the side so you can scroll through your story while editing. Toggle this off if you prefer the original modal.',
-        position: 'top',
-        expandCard: true
-      },
-      {
-        id: 'widget',
-        type: 'spotlight',
-        target: '[data-feature="widget"]',
-        title: 'Widget',
-        content: 'Enables Ultrascripts scripts to display dynamic UI widgets like HP bars, stats, and game state.',
-        position: 'top',
-        expandCard: true
-      },
-      // === Automations Section ===
-      {
-        id: 'auto-see',
-        type: 'spotlight',
-        target: '[data-feature="autoSee"]',
-        title: 'Auto See',
-        content: 'Submits a background See action after AI responses to visualize the scene. Set it to run every turn or at custom intervals.',
-        position: 'top',
         action: 'switchTab',
-        actionTarget: 'features',
-        expandCard: true
+        actionTarget: 'features'
       },
-      // Ultrascripts Tab Navigation
       {
-        id: 'ultrascripts-tab',
+        id: 'premise-ultrascripts',
         type: 'spotlight',
         target: '[data-tab="ultrascripts"]',
-        title: 'Ultrascripts Tab',
-        content: 'Ultrascripts is BetterDungeon\'s bridge for script superpowers: scripts ask for a capability, and BetterDungeon safely returns structured results.',
+        title: 'Extend what adventure scripts can do',
+        content: 'Ultrascripts gives compatible AI Dungeon scripts access to focused capabilities that the normal scripting sandbox cannot provide, including widgets, audio, web data, time, weather, and AI. You decide which modules attached scripts are allowed to use.',
+        icon: 'icon-radio-tower',
         position: 'bottom',
         action: 'switchTab',
         actionTarget: 'ultrascripts'
       },
       {
+        id: 'premise-presets',
+        type: 'spotlight',
+        target: '[data-tab="presets"]',
+        title: 'Reuse characters and story foundations',
+        content: 'Presets help you carry useful material between experiences. Character Presets can answer scenario-start questions from a reusable character profile, while Plot Presets capture selected Plot Components so a setup can be applied to another adventure.',
+        icon: 'icon-bookmark',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'presets'
+      },
+      {
+        id: 'navigator-overview',
+        type: 'spotlight',
+        target: '[data-feature="navigator"] .feature-row',
+        title: 'Meet Navigator',
+        content: 'Navigator is an AI agent designed to help you improve and modify your adventures. It can inspect your current story and Story Cards, answer questions about them, and help you plan improvements without interrupting the adventure itself.',
+        icon: 'icon-compass',
+        position: 'top',
+        action: 'switchTab',
+        actionTarget: 'features',
+        expandCard: true
+      },
+      {
+        id: 'navigator-enable',
+        type: 'spotlight',
+        target: '[data-feature="navigator"] .toggle',
+        title: 'Enable and open Navigator',
+        content: 'This switch controls whether Navigator appears on AI Dungeon adventure pages. When enabled, open Game Menu and choose Gameplay > Navigator. Navigator uses the AI service configured in the Ultrascripts tab.',
+        icon: 'icon-compass',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'features',
+        expandCard: true
+      },
+      {
+        id: 'navigator-approval',
+        type: 'spotlight',
+        target: '[data-feature="navigator"] .feature-hints',
+        title: 'You remain in control',
+        content: 'Automatic mode applies verified non-deletion edits immediately and reports each one. Permanent Story Card and Memory Bank deletions always require explicit approval. Choose Proposed changes to approve every edit or No changes to remove Navigator\'s mutation tools.',
+        icon: 'icon-badge-check',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'features',
+        expandCard: true
+      },
+      {
+        id: 'feature-library',
+        type: 'spotlight',
+        target: '[data-section="input-modes"] .section-header',
+        title: 'Understand the feature library',
+        content: 'Features are organized by purpose: input modes, controls, writing tools, scenario building, and automations. Section headers collapse groups you do not need, making the library easier to scan without changing whether any feature is enabled.',
+        icon: 'icon-sliders-horizontal',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'features'
+      },
+      {
+        id: 'feature-card-controls',
+        type: 'spotlight',
+        target: '[data-feature="command"] .feature-row',
+        title: 'Every feature uses the same pattern',
+        content: 'The title and summary explain what a feature changes. Click the card to expand its full description, then use the switch on the right to enable or disable it. Your selection is saved automatically and applies on supported AI Dungeon pages.',
+        icon: 'icon-sliders-horizontal',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'features',
+        expandCard: true
+      },
+      {
+        id: 'feature-card-settings',
+        type: 'spotlight',
+        target: '[data-feature="command"] .feature-details',
+        title: 'Some features include extra controls',
+        content: 'Expanded cards contain important behavior notes and, when needed, feature-specific settings. These controls only affect that feature. Read this area when a feature changes how input is interpreted or needs additional configuration.',
+        icon: 'icon-settings',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'features',
+        expandCard: true
+      },
+      {
+        id: 'scenario-tools',
+        type: 'spotlight',
+        target: '[data-section="scenario"] .section-header',
+        title: 'Scenario tools are context-sensitive',
+        content: 'Scenario-building tools appear where AI Dungeon exposes the matching editor or Story Card interface. If a feature seems inactive, first confirm that you are on the kind of page it supports; BetterDungeon avoids inserting controls where they do not belong.',
+        icon: 'icon-book-open-text',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'features'
+      },
+      {
+        id: 'automation-tools',
+        type: 'spotlight',
+        target: '[data-section="automations"] .section-header',
+        title: 'Automations act on your behalf',
+        content: 'Automations perform repeatable actions such as transforming input or triggering See. Their expanded cards explain exactly when they run. Configure them deliberately, especially when combining multiple automations that respond to the same action.',
+        icon: 'icon-zap',
+        position: 'top',
+        action: 'switchTab',
+        actionTarget: 'features'
+      },
+      {
         id: 'ultrascripts-runtime',
         type: 'spotlight',
-        target: '[data-feature="ultrascripts"]',
-        title: 'Ultrascripts Runtime',
-        content: 'Keep Ultrascripts enabled when you want scripts to use BetterDungeon modules. The status panel shows whether the live adventure bridge is connected.',
+        target: '[data-feature="ultrascripts"] .feature-row',
+        title: 'Understand the Ultrascripts runtime',
+        content: 'Ultrascripts is the bridge between AI Dungeon scripts and BetterDungeon. The master switch enables that bridge; turning it off blocks every Ultrascripts module at once without changing the individual module choices below.',
+        icon: 'icon-radio-tower',
+        position: 'bottom',
+        action: 'switchTab',
+        actionTarget: 'ultrascripts',
+        expandCard: true
+      },
+      {
+        id: 'ultrascripts-status',
+        type: 'spotlight',
+        target: '#ultrascripts-status-panel',
+        title: 'Check the live connection',
+        content: 'The status panel reports whether BetterDungeon can currently detect Ultrascripts on the open adventure. Open an AI Dungeon adventure before checking it, use Refresh after changing scripts, and reserve Debug for troubleshooting because it produces additional diagnostic information.',
+        icon: 'icon-activity',
         position: 'bottom',
         action: 'switchTab',
         actionTarget: 'ultrascripts',
@@ -169,42 +195,34 @@ class TutorialService {
       {
         id: 'ultrascripts-modules',
         type: 'spotlight',
-        target: '[data-ultrascripts-module-card="widget"]',
-        title: 'Modules',
-        content: 'Each module is a focused capability for scripts, such as UI widgets, web lookups, time, device context, or AI. Toggle only the ones you want available.',
+        target: '[data-ultrascripts-module-card="widget"] .feature-row',
+        title: 'Modules grant focused capabilities',
+        content: 'Each module exposes one bounded capability to compatible scripts. Widget, for example, lets scripts render persistent interface elements outside story text. A script can only use a module while both the runtime and that module are enabled.',
+        icon: 'icon-layers',
         position: 'bottom',
         action: 'switchTab',
         actionTarget: 'ultrascripts',
         expandCard: true
       },
       {
-        id: 'ultrascripts-script-flow',
+        id: 'ultrascripts-permissions',
         type: 'spotlight',
-        target: '[data-ultrascripts-module-card="webfetch"]',
-        title: 'How Scripts Call Ultrascripts',
-        content: 'Scripts write ultrascripts:out requests with id, module, op, and args. BetterDungeon runs the operation and writes results to ultrascripts:in:<module>.',
+        target: '[data-ultrascripts-module-card="webfetch"] .feature-row',
+        title: 'Treat modules as permissions',
+        content: 'Modules such as WebFetch, Audio, Weather, and AI allow scripts to interact beyond ordinary story state. Expand a module to see its boundaries, then disable capabilities you do not want scripts to use. Module choices apply across compatible attached scripts.',
+        icon: 'icon-globe-lock',
         position: 'bottom',
         action: 'switchTab',
         actionTarget: 'ultrascripts',
         expandCard: true
       },
       {
-        id: 'ai-card',
+        id: 'ai-module',
         type: 'spotlight',
-        target: '[data-ultrascripts-module-card="ai"]',
-        title: 'AI',
-        content: 'AI is BetterDungeon\'s asynchronous LLM query module. Scripts can check readiness with ai.status, submit ai.query requests, and receive text or schema-backed JSON results back on a later turn instead of blocking gameplay.',
-        position: 'bottom',
-        action: 'switchTab',
-        actionTarget: 'ultrascripts',
-        expandCard: true
-      },
-      {
-        id: 'ai-script-usage',
-        type: 'spotlight',
-        target: '#ai-status',
-        title: 'Using AI in Scripts',
-        content: 'Scripts call module ai, op status, then submit ai.query through the normal Ultrascripts out/in cards. The default setup uses Gemini, supports plain text or schema-backed JSON, and returns not_configured until the player saves an API key.',
+        target: '#ai-settings-card .feature-row',
+        title: 'Know what the AI module powers',
+        content: 'The AI module lets compatible adventure scripts request AI responses. Its module switch controls script access. Configure all AI features in the dedicated AI tab.',
+        icon: 'icon-brain-circuit',
         position: 'top',
         action: 'switchTab',
         actionTarget: 'ultrascripts',
@@ -213,83 +231,149 @@ class TutorialService {
       {
         id: 'ai-setup',
         type: 'spotlight',
-        target: '#ai-gemini-api-key',
-        title: 'AI Setup',
-        content: 'To turn AI queries on for a scenario, save an API key here. BetterDungeon keeps the key in extension local storage, lets you choose automatic fallback or a manual model, and gives you a quick connection test in the popup.',
+        target: '#ai-endpoint-service',
+        title: 'Choose one AI service',
+        content: 'Gemini is the default choice. OpenRouter can expose other supported models, while Custom connects to a compatible HTTPS endpoint. Advanced providers can fall back to Gemini when configured; the result identifies which provider completed the request.',
+        icon: 'icon-brain-circuit',
         position: 'top',
         action: 'switchTab',
-        actionTarget: 'ultrascripts',
+        actionTarget: 'ai',
         expandCard: true
       },
       {
-        id: 'ultrascripts-examples',
+        id: 'ai-credentials',
         type: 'spotlight',
-        target: '#tab-ultrascripts .btn-action',
-        title: 'Script Templates',
-        content: 'Use the Enhanced or Required template as the baseline for Ultrascripts request envelopes, response handling, and module-specific patterns.',
+        target: '#ai-endpoint-api-key',
+        title: 'Complete the service profile',
+        content: 'Enter the API key issued by your selected service. Official provider URLs are locked automatically; custom services require a secure HTTPS base URL. Manual model selection must use the exact model identifier accepted by that provider.',
+        icon: 'icon-key-round',
         position: 'top',
         action: 'switchTab',
-        actionTarget: 'ultrascripts'
+        actionTarget: 'ai',
+        expandCard: true
       },
-      // Presets Tab Navigation
       {
-        id: 'presets-tab',
+        id: 'ai-verify',
         type: 'spotlight',
-        target: '[data-tab="presets"]',
-        title: 'Presets Tab',
-        content: 'Save and manage your plot configurations and character presets here!',
-        position: 'bottom',
+        target: '#ai-endpoint-test',
+        title: 'Save and verify the connection',
+        content: 'Save stores the profile without contacting the provider. Save & test stores it and performs a connection check, making it the best final step after setup. Read the status card above these buttons if validation fails before changing unrelated settings.',
+        icon: 'icon-circle-check',
+        position: 'top',
         action: 'switchTab',
-        actionTarget: 'presets'
+        actionTarget: 'ai',
+        expandCard: true
       },
-      // === Plot Presets Section ===
       {
-        id: 'plot-presets',
+        id: 'preset-types',
         type: 'spotlight',
-        target: '#preset-list',
-        title: 'Plot Presets',
-        content: 'Save your current AI Instructions, Plot Essentials, and Author\'s Note as reusable presets. Apply them to any adventure with one click!',
-        position: 'bottom'
+        target: '.preset-view-tabs',
+        title: 'Presets solve two different problems',
+        content: 'Character Presets store reusable character profiles for scenario-start answers. Plot Presets store reusable Plot Component configurations from an adventure. The tabs keep these workflows separate so selecting a character never changes a saved plot setup.',
+        icon: 'icon-bookmark',
+        position: 'bottom',
+        action: 'switchPresetView',
+        actionTarget: 'characters'
       },
-      // === Character Presets Section ===
       {
         id: 'character-presets',
         type: 'spotlight',
+        target: '.character-prefill-toggle',
+        title: 'Character Prefill has a master switch',
+        content: 'The Prefill switch enables or disables automatic scenario-start answering without deleting your saved characters. When it is off, the selected character remains saved but BetterDungeon leaves scenario placeholders untouched.',
+        icon: 'icon-users',
+        position: 'bottom',
+        action: 'switchPresetView',
+        actionTarget: 'characters'
+      },
+      {
+        id: 'character-create',
+        type: 'spotlight',
+        target: '#create-character-btn',
+        title: 'Build a reusable character',
+        content: 'Create one preset per character and describe the details that should inform scenario questions: identity, appearance, personality, background, abilities, relationships, and other durable facts. Clear natural language gives the AI better material than disconnected keywords.',
+        icon: 'icon-user-plus',
+        position: 'bottom',
+        action: 'switchPresetView',
+        actionTarget: 'characters'
+      },
+      {
+        id: 'character-select',
+        type: 'spotlight',
         target: '#character-list',
-        title: 'Character Presets',
-        content: 'Tired of retyping character info? Save character profiles and auto-fill scenario entry questions with one click!',
-        position: 'top'
+        title: 'Select the character used for Prefill',
+        content: 'Saved character cards can be edited, deleted, or chosen with Use for Prefill. Only one character is active at a time. Selection and the master Prefill switch are separate, so you can pause Prefill without losing which character should be used later.',
+        icon: 'icon-users',
+        position: 'top',
+        action: 'switchPresetView',
+        actionTarget: 'characters'
+      },
+      {
+        id: 'plot-presets',
+        type: 'spotlight',
+        target: '#save-current-preset-btn',
+        title: 'Capture a plot configuration',
+        content: 'Open an AI Dungeon adventure before saving a Plot Preset. BetterDungeon reads the current Plot Components, lets you choose what belongs in the preset, and stores that reusable configuration under a name you provide.',
+        icon: 'icon-star',
+        position: 'top',
+        action: 'switchPresetView',
+        actionTarget: 'plot'
+      },
+      {
+        id: 'plot-apply',
+        type: 'spotlight',
+        target: '#preset-list',
+        title: 'Apply plot presets deliberately',
+        content: 'A saved Plot Preset can replace the destination adventure’s matching components or append its contents, depending on the choice you make while applying it. BetterDungeon exposes Undo Last Apply after a successful change so the most recent application can be reversed.',
+        icon: 'icon-clipboard',
+        position: 'top',
+        action: 'switchPresetView',
+        actionTarget: 'plot'
       }
     ];
 
     this.topics = [
       {
+        id: 'premise',
+        title: 'Premise',
+        description: 'What BetterDungeon is, how it works, and what it can do',
+        icon: 'icon-sparkles',
+        stepId: 'premise-identity'
+      },
+      {
+        id: 'navigator',
+        title: 'Navigator',
+        description: 'Setup, usage, and approval-first changes',
+        icon: 'icon-compass',
+        stepId: 'navigator-overview'
+      },
+      {
         id: 'features',
         title: 'Features',
-        description: 'Core tools and story helpers',
-        icon: 'icon-sparkles',
-        stepId: 'features-tab'
+        description: 'Sections, cards, settings, and automations',
+        icon: 'icon-sliders-horizontal',
+        stepId: 'feature-library'
       },
       {
         id: 'ultrascripts',
         title: 'Ultrascripts',
-        description: 'Runtime, modules, and script flow',
+        description: 'Runtime status, modules, and permissions',
         icon: 'icon-radio-tower',
-        stepId: 'ultrascripts-tab'
+        stepId: 'ultrascripts-runtime'
       },
       {
         id: 'ai',
-        title: 'AI',
-        description: 'Async queries, status checks, and API-key setup',
-        icon: 'icon-bot-message-square',
-        stepId: 'ai-card'
+        title: 'AI Setup',
+        description: 'Provider, credentials, and verification',
+        icon: 'icon-brain-circuit',
+        stepId: 'ai-module'
       },
       {
         id: 'presets',
         title: 'Presets',
-        description: 'Plot and character presets',
+        description: 'Character Prefill and reusable plot setups',
         icon: 'icon-bookmark',
-        stepId: 'presets-tab'
+        stepId: 'preset-types'
       }
     ];
     
@@ -297,10 +381,15 @@ class TutorialService {
     this.completionModal = {
       id: 'complete',
       type: 'modal',
-      title: 'You\'re All Set!',
-      content: 'You now know the essentials of BetterDungeon. Toggle features on/off anytime, and enjoy your enhanced AI Dungeon experience!',
+      title: 'You understand the premise',
+      content: 'You now know what BetterDungeon adds, how its optional systems fit around AI Dungeon, and where to find each major capability. Continue with any focused guide when you want the details.',
       icon: 'icon-badge-check'
     };
+
+    this.activeStart = 0;
+    this.activeEnd = this.steps.length - 1;
+    this.activeTopicId = null;
+    this.lastCompletionModal = this.completionModal;
     
     this.debug = false;
   }
@@ -320,7 +409,7 @@ class TutorialService {
 
   async loadState() {
     return new Promise((resolve) => {
-      chrome.storage.sync.get(this.STORAGE_KEY, (result) => {
+      window.BetterDungeonPlatform.extension.storage.sync.get(this.STORAGE_KEY, (result) => {
         resolve((result || {})[this.STORAGE_KEY] || { completed: false, seenWelcome: false, lastStep: 0 });
       });
     });
@@ -330,7 +419,7 @@ class TutorialService {
     const currentState = await this.loadState();
     const newState = { ...currentState, ...updates };
     return new Promise((resolve) => {
-      chrome.storage.sync.set({ [this.STORAGE_KEY]: newState }, resolve);
+      window.BetterDungeonPlatform.extension.storage.sync.set({ [this.STORAGE_KEY]: newState }, resolve);
     });
   }
 
@@ -358,12 +447,17 @@ class TutorialService {
 
   start() {
     this.isActive = true;
+    this.activeStart = 0;
+    this.activeEnd = 0;
+    this.activeTopicId = null;
+    this.lastCompletionModal = this.completionModal;
     this.currentStep = 0;
+    this.markSeenWelcome();
     this.showCurrentStep();
   }
 
   next() {
-    if (this.currentStep < this.steps.length - 1) {
+    if (this.currentStep < this.activeEnd) {
       this.currentStep++;
       this.showCurrentStep();
     } else {
@@ -372,14 +466,14 @@ class TutorialService {
   }
 
   previous() {
-    if (this.currentStep > 0) {
+    if (this.currentStep > this.activeStart) {
       this.currentStep--;
       this.showCurrentStep();
     }
   }
 
   goToStep(index) {
-    if (index >= 0 && index < this.steps.length) {
+    if (index >= this.activeStart && index <= this.activeEnd) {
       this.currentStep = index;
       this.showCurrentStep();
       return true;
@@ -394,15 +488,27 @@ class TutorialService {
   }
 
   goToTopic(topicId) {
-    const topic = this.topics.find(item => item.id === topicId);
+    const topic = this.getTopics().find(item => item.id === topicId);
     if (!topic) return false;
-    return this.goToStepId(topic.stepId);
+    this.isActive = true;
+    this.activeStart = topic.startIndex;
+    this.activeEnd = topic.endIndex;
+    this.activeTopicId = topic.id;
+    this.currentStep = topic.startIndex;
+    this.lastCompletionModal = this.completionModal;
+    this.markSeenWelcome();
+    this.showCurrentStep();
+    return true;
   }
 
   showCurrentStep() {
     const step = this.steps[this.currentStep];
     if (this.onStepChange) {
-      this.onStepChange(step, this.currentStep, this.steps.length);
+      this.onStepChange(
+        step,
+        this.currentStep - this.activeStart,
+        this.activeEnd - this.activeStart + 1
+      );
     }
   }
 
@@ -411,7 +517,7 @@ class TutorialService {
   }
   
   getCompletionModal() {
-    return this.completionModal;
+    return this.lastCompletionModal;
   }
 
   getTopics() {
@@ -425,12 +531,16 @@ class TutorialService {
       return {
         ...topic,
         startIndex,
+        endIndex: Math.max(startIndex, nextIndex - 1),
         stepCount: Math.max(1, nextIndex - startIndex)
       };
     }).filter(topic => topic.startIndex >= 0);
   }
 
   getTopicForStep(index = this.currentStep) {
+    if (this.activeTopicId) {
+      return this.getTopics().find(topic => topic.id === this.activeTopicId) || null;
+    }
     const topics = this.getTopics();
     let currentTopic = null;
     for (const topic of topics) {
@@ -441,18 +551,35 @@ class TutorialService {
   }
 
   getProgress() {
+    const current = this.currentStep - this.activeStart + 1;
+    const total = this.activeEnd - this.activeStart + 1;
     return {
-      current: this.currentStep + 1,
-      total: this.steps.length,
-      percentage: Math.round(((this.currentStep + 1) / this.steps.length) * 100)
+      current,
+      total,
+      percentage: Math.round((current / total) * 100)
     };
   }
 
   async complete() {
     this.isActive = false;
-    await this.markCompleted();
+    const completedPremise = this.activeTopicId === 'premise';
+    const topic = this.activeTopicId
+      ? this.getTopics().find(item => item.id === this.activeTopicId)
+      : null;
+
+    if (completedPremise) await this.markCompleted();
+    else await this.markSeenWelcome();
+
+    this.lastCompletionModal = topic && !completedPremise
+      ? {
+        ...this.completionModal,
+        title: `${topic.title} guide complete`,
+        content: `You finished the ${topic.title} guide. Use the help button anytime to revisit this topic or start Premise.`
+      }
+      : this.completionModal;
+
     if (this.onComplete) {
-      this.onComplete(this.completionModal);
+      this.onComplete(this.lastCompletionModal);
     }
   }
 

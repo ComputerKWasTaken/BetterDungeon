@@ -29,6 +29,7 @@ globalThis.UltrascriptsTemplate = function UltrascriptsTemplate(hook, inputText)
   bd.us = createUltrascriptsSdk();
   var us = bd.us;
 
+  us.observeHeartbeat(hook);
   us.tick();
 
   if (hook === 'input') {
@@ -112,6 +113,7 @@ function createUltrascriptsSdk() {
   store.pendingAcks = store.pendingAcks || [];
   store.results = store.results || {};
   store.reqCounter = Number(store.reqCounter || 0);
+  if (typeof store.heartbeatAvailable !== 'boolean') store.heartbeatAvailable = false;
 
   function findCard(title) {
     var cards = (typeof storyCards !== 'undefined' && Array.isArray(storyCards)) ? storyCards : [];
@@ -196,9 +198,24 @@ function createUltrascriptsSdk() {
   function heartbeatScore(hb) {
     if (!hb || !hb.ultrascripts || hb.ultrascripts.protocol !== 1) return -1;
     if (hb.ultrascripts.client !== 'BetterDungeon' || hb.ultrascripts.archived) return -1;
-    var moduleCount = moduleList(hb).length;
-    var writtenAt = Date.parse(hb.writtenAt || '') || 0;
-    return moduleCount * 10000000000000 + writtenAt;
+    var beat = Number(hb.ultrascripts.beat);
+    return Number.isFinite(beat) && beat >= 0 && Math.floor(beat) === beat ? beat : 0;
+  }
+
+  function observeHeartbeat(hook) {
+    if (hook !== 'input') return store.heartbeatAvailable;
+    var hb = heartbeat();
+    var beat = Number(hb && hb.ultrascripts && hb.ultrascripts.beat);
+    var valid = !!(hb && hb.ultrascripts && hb.ultrascripts.enabled &&
+      Number.isFinite(beat) && beat >= 0 && Math.floor(beat) === beat);
+    if (!valid) {
+      store.heartbeatAvailable = false;
+      return false;
+    }
+    store.heartbeatAvailable = store.lastHeartbeatBeat === undefined ||
+      store.lastHeartbeatBeat === null || beat !== store.lastHeartbeatBeat;
+    store.lastHeartbeatBeat = beat;
+    return store.heartbeatAvailable;
   }
 
   function moduleList(hb) {
@@ -374,7 +391,8 @@ function createUltrascriptsSdk() {
     parseCard: parseCard,
     liveCount: liveCount,
     heartbeat: heartbeat,
-    available: function () { return !!heartbeat(); },
+    observeHeartbeat: observeHeartbeat,
+    available: function () { return store.heartbeatAvailable && !!heartbeat(); },
     has: has,
     tick: tick,
     call: call,
@@ -514,9 +532,9 @@ function buildStatusLine(us, cfg, clock, aiStatus) {
 var TEMPLATE_TEST_STEPS = [
   {
     label: 'api-surface',
-    desc: 'All 15 SDK helper functions exist and are callable',
+    desc: 'All 16 SDK helper functions exist and are callable',
     run: function (us) {
-      var expected = ['findCard', 'upsertCard', 'parseCard', 'liveCount', 'heartbeat',
+      var expected = ['findCard', 'upsertCard', 'parseCard', 'liveCount', 'heartbeat', 'observeHeartbeat',
         'available', 'has', 'tick', 'call', 'latest',
         'defineWidget', 'publishWidget', 'widgetEvents', 'ackWidget', 'commit'];
       var missing = [];
@@ -529,13 +547,10 @@ var TEMPLATE_TEST_STEPS = [
   },
   {
     label: 'heartbeat-detect',
-    desc: 'available() returns a boolean matching heartbeat card presence',
+    desc: 'available() returns the latest Input-hook heartbeat observation',
     run: function (us) {
       var avail = us.available();
-      var hb = us.heartbeat();
-      var hbPresent = !!hb;
       if (typeof avail !== 'boolean') return { pass: false, reason: 'available() did not return a boolean' };
-      if (avail !== hbPresent) return { pass: false, reason: 'available()=' + avail + ' but heartbeat present=' + hbPresent };
       return { pass: true, detail: 'available=' + avail };
     }
   },

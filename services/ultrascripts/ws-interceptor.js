@@ -223,6 +223,8 @@
   // ---------- fetch shim ----------
 
   const NativeFetch = window.fetch;
+
+
   window.fetch = function ultrascriptsFetch(input, init) {
     debug.http.fetch.total = (debug.http.fetch.total || 0) + 1;
     const url = typeof input === 'string' ? input : (input?.url || '');
@@ -230,7 +232,6 @@
     if (!isGraphQL) return NativeFetch.call(this, input, init);
 
     const method = (init?.method || (typeof input === 'object' && input?.method) || 'GET').toUpperCase();
-
     const promise = NativeFetch.call(this, input, init);
     return promise.then(async (response) => {
       if (!response.ok) return response;

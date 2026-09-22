@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.BetterDungeon" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Primary brand colors -->
+        <item name="colorPrimary">@color/bd_accent</item>
+        <item name="colorPrimaryDark">@color/bd_background</item>
+        <item name="colorAccent">@color/bd_accent</item>
+
+        <!-- Dark status bar and nav bar to match AI Dungeon -->
+        <item name="android:statusBarColor">@color/bd_background</item>
+        <item name="android:navigationBarColor">@color/bd_background</item>
+        <item name="android:windowBackground">@color/bd_background</item>
+
+        <!-- Light status bar icons (for dark background) -->
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>
