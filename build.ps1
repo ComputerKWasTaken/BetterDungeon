@@ -56,6 +56,47 @@ function Invoke-NodeTests {
     if ($LASTEXITCODE -ne 0) { throw "Node tests failed with exit code $LASTEXITCODE." }
 }
 
+function New-ExtensionArchive([string]$SourcePath, [string]$DestinationPath) {
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+    $sourceRoot = [System.IO.Path]::GetFullPath($SourcePath).TrimEnd(
+        [System.IO.Path]::DirectorySeparatorChar,
+        [System.IO.Path]::AltDirectorySeparatorChar
+    )
+    $archiveStream = [System.IO.File]::Open(
+        $DestinationPath,
+        [System.IO.FileMode]::CreateNew,
+        [System.IO.FileAccess]::Write,
+        [System.IO.FileShare]::None
+    )
+    try {
+        $archive = [System.IO.Compression.ZipArchive]::new(
+            $archiveStream,
+            [System.IO.Compression.ZipArchiveMode]::Create,
+            $false
+        )
+        try {
+            foreach ($file in Get-ChildItem -LiteralPath $sourceRoot -Recurse -File | Sort-Object FullName) {
+                $relativePath = $file.FullName.Substring($sourceRoot.Length).TrimStart('\', '/')
+                $entryName = $relativePath.Replace('\', '/')
+                [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+                    $archive,
+                    $file.FullName,
+                    $entryName,
+                    [System.IO.Compression.CompressionLevel]::Optimal
+                ) | Out-Null
+            }
+        }
+        finally {
+            $archive.Dispose()
+        }
+    }
+    finally {
+        $archiveStream.Dispose()
+    }
+}
+
 function Build-Extension {
     $versions = Get-Versions
     $stageRoot = Join-Path $BuildRoot 'extension'
@@ -86,12 +127,15 @@ function Build-Extension {
 
     $zipPath = Join-Path $DistRoot "BetterDungeon-$($versions.Extension).zip"
     if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
-    Compress-Archive -Path (Join-Path $stageRoot '*') -DestinationPath $zipPath -CompressionLevel Optimal
+    New-ExtensionArchive -SourcePath $stageRoot -DestinationPath $zipPath
 
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $archive = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
     try {
-        $entries = @($archive.Entries | ForEach-Object { $_.FullName.Replace('\\', '/') })
+        $entries = @($archive.Entries | ForEach-Object { $_.FullName })
+        if ($entries | Where-Object { $_.Contains('\') }) {
+            throw 'Packaged extension ZIP contains Windows-style entry paths.'
+        }
         if ($entries -notcontains 'manifest.json') { throw 'Packaged extension ZIP is missing root manifest.json.' }
         if ($entries | Where-Object { $_ -match '^(android|tests|build|dist|\.git)/' }) {
             throw 'Packaged extension ZIP contains development or Android files.'
