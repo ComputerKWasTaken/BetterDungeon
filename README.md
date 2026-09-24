@@ -100,6 +100,6 @@ Daily development happens on `dev`. Tested commits move to `preview`, then publi
 | [Contributing](CONTRIBUTING.md) | Development setup, testing, and contribution rules |
 | [Privacy policy](PRIVACY.md) | Local storage and optional third-party requests |
 
-Have a bug or an idea? [Open an issue](https://github.com/ComputerKWasTaken/BetterDungeon/issues), or reach computerK on Discord at `@computerK`. You can [support development on Ko-fi](https://ko-fi.com/computerk).
+Have a bug, idea, or question? Use the **Contact** button in BetterDungeon's top bar, to the left of Ko-fi. The recommended way to reach computerK is on [Discord](https://discord.com/app) as `computerK`. You can also message [u/ComputerKYT on Reddit](https://www.reddit.com/user/ComputerKYT/) or prepare an email to `computerk1337@gmail.com`. Review the email draft and press Send in your email app. You can also [open an issue](https://github.com/ComputerKWasTaken/BetterDungeon/issues) or [support development on Ko-fi](https://ko-fi.com/computerk).
 
 BetterDungeon is **source-available, not open source**. You may use and privately modify it; public source forks are allowed for contributions to the official project. Independent releases and redistributed builds require permission. Files in `examples/` have the MIT terms described in the [full license](LICENSE).

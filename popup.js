@@ -7,6 +7,13 @@
 
 const DEBUG = false;
 const popupExtension = window.BetterDungeonPlatform.extension;
+const FEEDBACK_RECIPIENT = 'computerk1337@gmail.com';
+const FEEDBACK_TOPICS = Object.freeze({
+  bug: 'Bug',
+  idea: 'Idea',
+  question: 'Question',
+  other: 'Other'
+});
 
 const STORAGE_KEYS = {
   features: 'betterDungeonFeatures',
@@ -173,6 +180,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initPlatformSurface();
   await window.BetterDungeonPlatform?.whenReady?.();
   initNavigation();
+  initFeedbackForm();
   initFeatureCards();
   initToggles();
   void initAdventureNotes();
@@ -224,6 +232,74 @@ function activateTab(tab) {
   });
   panels.forEach(panel => {
     panel.classList.toggle('active', panel.id === `tab-${tab}`);
+  });
+}
+
+function initFeedbackForm() {
+  const form = document.getElementById('feedback-form');
+  if (!form) return;
+
+  const modal = document.getElementById('feedback-modal');
+  const topicInput = document.getElementById('feedback-topic');
+  const messageInput = document.getElementById('feedback-message');
+  const status = document.getElementById('feedback-status');
+
+  document.getElementById('feedback-open-btn')?.addEventListener('click', () => {
+    openModal('feedback-modal');
+    modal.querySelector('.modal-close')?.focus();
+  });
+
+  modal?.addEventListener('keydown', event => {
+    if (event.key === 'Escape') closeModal('feedback-modal');
+  });
+
+  modal?.querySelectorAll('[data-feedback-external]').forEach(link => {
+    link.addEventListener('click', event => {
+      if (typeof popupExtension.tabs?.create !== 'function') return;
+      event.preventDefault();
+      popupExtension.tabs.create({ url: link.href });
+    });
+  });
+
+  [topicInput, messageInput].forEach(input => {
+    input.addEventListener('input', () => {
+      input.setCustomValidity('');
+      status.hidden = true;
+      status.classList.remove('error');
+    });
+  });
+
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+
+    const topic = FEEDBACK_TOPICS[topicInput.value];
+    const message = messageInput.value.trim();
+    messageInput.value = message;
+
+    if (!topic) {
+      topicInput.setCustomValidity('Choose a topic.');
+      topicInput.reportValidity();
+      return;
+    }
+    if (!message) {
+      messageInput.setCustomValidity('Enter a message.');
+      messageInput.reportValidity();
+      return;
+    }
+
+    const subject = `BetterDungeon feedback: ${topic}`;
+    const body = `Topic: ${topic}\r\n\r\n${message}`;
+    const mailto = `mailto:${FEEDBACK_RECIPIENT}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+    status.textContent = 'Check your email app for the draft, then press Send there. If it did not open, you can use the address above.';
+    status.hidden = false;
+    status.classList.remove('error');
+    try {
+      window.location.assign(mailto);
+    } catch (error) {
+      status.textContent = 'Could not open an email app. Use the address above to send your message manually.';
+      status.classList.add('error');
+    }
   });
 }
 
@@ -2288,6 +2364,7 @@ function openModal(id) {
 
 function closeModal(id) {
   document.getElementById(id)?.classList.remove('open');
+  if (id === 'feedback-modal') document.getElementById('feedback-open-btn')?.focus();
   
   if (id === 'preset-modal') currentEditingPreset = null;
   if (id === 'character-modal') currentEditingCharacter = null;

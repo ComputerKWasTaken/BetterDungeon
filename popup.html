@@ -20,6 +20,9 @@
       </div>
     </div>
     <div class="header-actions">
+      <button class="header-action" id="feedback-open-btn" type="button" aria-label="Feedback and contact" aria-haspopup="dialog" aria-controls="feedback-modal" title="Feedback and contact">
+        <span class="icon-message-circle"></span>
+      </button>
       <a href="https://ko-fi.com/computerk" target="_blank" rel="noopener noreferrer" class="header-action" aria-label="Support computerK on Ko-fi" title="Support on Ko-fi">
         <span class="icon-coffee"></span>
       </a>
@@ -1215,6 +1218,70 @@
     </section>
 
   </main>
+
+  <!-- Contact Modal -->
+  <div class="modal-backdrop" id="feedback-modal">
+    <div class="modal feedback-modal" role="dialog" aria-modal="true" aria-labelledby="feedback-modal-title">
+      <div class="modal-header">
+        <h3 class="modal-title" id="feedback-modal-title">Contact computerK</h3>
+        <button class="modal-close" type="button" aria-label="Close contact options">
+          <span class="icon-x"></span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="feedback-intro">Have a bug, idea, or question? Discord is the recommended way to reach me. You can also use Reddit or email.</p>
+        <div class="feedback-contact-options">
+          <div class="feedback-contact-method feedback-contact-recommended">
+            <span class="feedback-contact-icon icon-message-circle" aria-hidden="true"></span>
+            <div class="feedback-contact-details">
+              <strong>Discord · Recommended</strong>
+              <span>Find and message <b>computerK</b></span>
+            </div>
+            <a class="feedback-contact-link" href="https://discord.com/app" data-feedback-external target="_blank" rel="noopener noreferrer" aria-label="Open Discord">
+              <span class="icon-external-link" aria-hidden="true"></span>
+            </a>
+          </div>
+          <div class="feedback-contact-method">
+            <span class="feedback-contact-icon icon-users" aria-hidden="true"></span>
+            <div class="feedback-contact-details">
+              <strong>Reddit</strong>
+              <span>Message <b>u/ComputerKYT</b></span>
+            </div>
+            <a class="feedback-contact-link" href="https://www.reddit.com/user/ComputerKYT/" data-feedback-external target="_blank" rel="noopener noreferrer" aria-label="Open u/ComputerKYT on Reddit">
+              <span class="icon-external-link" aria-hidden="true"></span>
+            </a>
+          </div>
+        </div>
+        <div class="feedback-email-section">
+          <h4>Email instead</h4>
+          <p>Your email app will use your sending address for replies. Review the draft and press Send there.</p>
+          <form id="feedback-form">
+            <div class="form-group">
+              <label class="form-label" for="feedback-topic">Topic</label>
+              <select class="form-input" id="feedback-topic" name="topic" required>
+                <option value="" selected disabled>Choose a topic</option>
+                <option value="bug">Bug</option>
+                <option value="idea">Idea</option>
+                <option value="question">Question</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="feedback-message">Message</label>
+              <textarea class="form-textarea feedback-message" id="feedback-message" name="message" maxlength="1000" aria-describedby="feedback-message-help" required></textarea>
+              <p class="form-help" id="feedback-message-help">Up to 1,000 characters. You can add more detail in your email app.</p>
+            </div>
+            <button class="btn btn-primary feedback-submit" type="submit">
+              <span class="icon-mail" aria-hidden="true"></span>
+              Open email app
+            </button>
+          </form>
+          <p class="feedback-recipient">Email destination: <span>computerk1337@gmail.com</span></p>
+          <p class="feedback-status" id="feedback-status" role="status" aria-live="polite" hidden></p>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Preset Preview/Edit Modal -->
   <div class="modal-backdrop" id="preset-modal">

@@ -2,6 +2,7 @@ package com.computerk.betterdungeon
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.net.MailTo
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -13,6 +14,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
+import android.widget.Toast
 import android.view.ViewGroup.MarginLayoutParams
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
@@ -298,6 +300,26 @@ class MainActivity : AppCompatActivity() {
                 request: WebResourceRequest
             ): Boolean {
                 val url = request.url.toString()
+                if (request.url.scheme.equals("mailto", ignoreCase = true)) {
+                    try {
+                        val email = MailTo.parse(url)
+                        val intent = Intent(Intent.ACTION_SENDTO).apply {
+                            data = Uri.parse("mailto:")
+                            putExtra(Intent.EXTRA_EMAIL, arrayOf(email.to))
+                            putExtra(Intent.EXTRA_SUBJECT, email.subject.orEmpty())
+                            putExtra(Intent.EXTRA_TEXT, email.body.orEmpty())
+                        }
+                        startActivity(intent)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to open email app from popup", e)
+                        Toast.makeText(
+                            this@MainActivity,
+                            "No email app available. Use the address shown in Contact.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                    return true
+                }
                 // Open any links from popup in system browser
                 if (!url.startsWith("file:")) {
                     try {

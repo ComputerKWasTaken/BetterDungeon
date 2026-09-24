@@ -1,6 +1,6 @@
 # BetterDungeon Privacy Policy
 
-Effective date: September 15, 2026
+Effective date: September 24, 2026
 
 BetterDungeon is a browser extension and Android app that adds features to AI Dungeon. This policy explains the data BetterDungeon handles when you use those features. BetterDungeon does not operate an account system or a developer-controlled server that receives your adventure data, API keys, or usage analytics. It does not sell your data or use it for advertising.
 
@@ -17,6 +17,7 @@ BetterDungeon stores this information in browser extension storage or, on Androi
 - **Weather:** When an Ultrascript uses BetterDungeon's Weather module, the requested place name or coordinates are sent to Open-Meteo for geocoding or forecast data.
 - **Script-selected web requests:** BetterDungeon's WebFetch module lets a permitted Ultrascript make bounded requests to public HTTPS destinations selected by that script. The destination receives the requested URL, including any information the script puts in it, and ordinary network information such as your IP address. WebFetch does not attach your browser cookies or authentication headers.
 - **Update checks:** On installs that did not come from a browser store — the Android app and manually installed extension copies — BetterDungeon periodically requests public release metadata (version tag and download links) from the GitHub Releases API to tell you when a newer release exists. The request sends no personal information; GitHub receives ordinary network information such as your IP address. You can turn this off from the update-checks toggle in the popup's What's New section.
+- **Contact options:** The Contact button offers links to Discord and the Reddit profile `u/ComputerKYT`. Opening either link takes you to that service, which handles anything you send there under its own policy. Choosing **Open email app** passes the topic and message you entered to your email app in a draft addressed to `computerk1337@gmail.com`. Your email app supplies the sending address. You review and send the draft from that app; BetterDungeon cannot tell whether you sent it. BetterDungeon does not store feedback drafts or send them to a developer-controlled server.
 - **Browser sync:** If your browser syncs extension preferences, your browser provider processes the synced settings according to its own privacy policy. AI-provider keys and the locally stored adventure data described above are not placed in browser sync storage by BetterDungeon.
 
 Opening an external link in BetterDungeon, such as the AI-provider key pages or BetterRepository, takes you to that site's own service and privacy policy. BetterDungeon does not send your stored adventure data to those sites merely because you open a link.
@@ -27,4 +28,4 @@ Most features can be turned off in BetterDungeon. AI features require a provider
 
 ## Changes and contact
 
-This policy may be updated when BetterDungeon's features or data handling change. The effective date above will be revised when that happens. For privacy questions, contact `@computerK` on Discord. You can also open a [GitHub issue](https://github.com/ComputerKWasTaken/BetterDungeon/issues), but please do not post API keys, private story content, or other sensitive information in a public issue.
+This policy may be updated when BetterDungeon's features or data handling change. The effective date above will be revised when that happens. For privacy questions, use the Contact button to prepare an email to `computerk1337@gmail.com`, find `computerK` on Discord, or message [u/ComputerKYT on Reddit](https://www.reddit.com/user/ComputerKYT/). You can also open a [GitHub issue](https://github.com/ComputerKWasTaken/BetterDungeon/issues), but please do not post API keys, private story content, or other sensitive information in a public issue.
