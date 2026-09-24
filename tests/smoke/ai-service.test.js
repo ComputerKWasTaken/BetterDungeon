@@ -80,10 +80,10 @@ test('AI settings accept storage property reordering but still detect a lost key
   };
   await assert.rejects(broken.api.handle({ op: 'settings:set', config: { ...saved, simple: { ...saved.simple, apiKey: 'replacement-key' } } }), { code: 'storage_failed' });
 });
-test('Gemini lanes and Navigator large-request eligibility', () => {
+test('Simple Gemini routing and Navigator large-request eligibility', () => {
   const c = C.normalize({ simple: { apiKey: 'g' } });
   assert.deepEqual(C.models(c, 'simple', 'ultrascripts', 4000), C.flash);
-  assert.deepEqual(C.models(c, 'simple', 'character-presets', 4000), C.gemma);
+  assert.deepEqual(C.models(c, 'simple', 'character-presets', 4000), C.flash);
   c.simple.quotaStrategy = 'shared';
   assert.deepEqual(C.models(c, 'simple', 'navigator', 12001), C.flash);
   assert.deepEqual(C.models(c, 'simple', 'navigator', 12000), [...C.flash, ...C.gemma]);
@@ -204,7 +204,23 @@ test('feature assignment and Gemini native JSON request preserve the contract', 
   });
   const result = await h.api.handle({ op: 'query', task: { prompt: 'Name', consumer: 'character-presets', output: { type: 'json', schema: { type: 'object', properties: { name: { type: 'string' } } } } } });
   assert.deepEqual(result.json, { name: 'A' });
-  assert.equal(result.model, C.gemma[0]);
+  assert.equal(result.model, C.flash[0]);
+});
+test('Character Prefill uses the Gemini models verified by the Simple connection check', async () => {
+  const h = setup(C.normalize({ simple: { apiKey: 'valid-gemini-key' } }), (url) => {
+    if (url.includes('gemma-')) return json({ error: { message: 'Model access denied' } }, 403);
+    return json({ candidates: [{ content: { parts: [{ text: '{"answers":[]}' }] }, finishReason: 'STOP' }] });
+  });
+  const checked = await h.api.handle({ op: 'test', tier: 'simple' });
+  const result = await h.api.handle({ op: 'query', task: {
+    prompt: 'Fill the character questions.', consumer: 'character-presets',
+    output: { type: 'json', schema: { type: 'object', properties: { answers: { type: 'array', items: { type: 'object' } } }, required: ['answers'] } },
+  } });
+  assert.deepEqual(result.json, { answers: [] });
+  assert.equal(checked.model, C.flash[0]);
+  assert.equal(result.model, C.flash[0]);
+  assert.equal(h.requests.length, 2);
+  assert.ok(h.requests.every(request => !request.url.includes('gemma-')));
 });
 const chat = { op: 'chat', task: { op: 'chat', consumer: 'navigator', systemInstruction: 'Help.', messages: [{ role: 'user', content: 'Look up a card' }], tools: [{ name: 'read_card', description: 'Read a card', parameters: { type: 'object' } }], budget: { maxInputChars: 100000, maxOutputTokens: 2048 } } };
 test('Gemini streams text and retains native tool signatures across continuation', async () => {

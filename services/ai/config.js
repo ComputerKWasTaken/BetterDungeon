@@ -65,10 +65,9 @@
       const s = settings(config, tier);
       return s.service === 'mistral' && s.modelMode === 'auto' ? mistral.map(m => m.id) : [s.model];
     }
-    const utility = consumerId(consumer) === 'characterPresets';
-    const preferred = utility ? gemma : flash;
-    const fallback = utility ? flash : gemma;
-    return [...preferred, ...(config.simple.quotaStrategy === 'shared' ? fallback : [])]
+    // Character Prefill needs structured JSON. Use the same Gemini models that
+    // the Simple connection check exercises, so a working key can generate it.
+    return [...flash, ...(config.simple.quotaStrategy === 'shared' ? gemma : [])]
       .filter(id => !(consumerId(consumer) === 'navigator' && gemma.includes(id) && estimatedTokens > 12000));
   }
   const availabilityErrors = new Set(['not_configured', 'auth_failed', 'rate_limit', 'provider_limit', 'timeout', 'network_failed', 'backend_failed', 'unavailable', 'invalid_response', 'model_unavailable']);
