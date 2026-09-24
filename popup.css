@@ -2102,19 +2102,6 @@ body.mobile .nav-item {
   max-width: 420px;
 }
 
-.app-settings-body {
-  padding: 12px;
-  background: var(--bg-base);
-}
-
-.app-settings-feature-icon {
-  color: var(--accent);
-}
-
-.app-settings-feature-card {
-  margin-bottom: 0;
-}
-
 .character-modal-intro {
   margin: 0 0 16px;
   color: var(--text-secondary);

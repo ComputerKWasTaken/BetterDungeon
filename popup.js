@@ -21,7 +21,6 @@ const STORAGE_KEYS = {
   commandSubMode: 'betterDungeon_commandSubMode',
   customDynamicConfig: 'betterDungeon_customDynamicConfig',
   customDynamicRuntime: 'betterDungeon_customDynamicRuntime',
-  androidCaretScrollFix: 'betterDungeon_androidCaretScrollFix',
   adventureNotesPrefix: 'betterDungeon_notes_',
 };
 
@@ -178,7 +177,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   initToggles();
   void initAdventureNotes();
   initSettings();
-  initAppSettings();
   initCustomDynamicSettings();
   initPresets();
   initCharacters();
@@ -517,49 +515,6 @@ function initSettings() {
 
   // Auto See settings
   initAutoSeeSettings();
-}
-
-function updateCaretScrollFixUi(enabled) {
-  const toggle = document.getElementById('caret-scroll-fix-toggle');
-  if (toggle) toggle.checked = enabled;
-}
-
-function applyCaretScrollFixSetting(enabled) {
-  window.BetterDungeonCaretScrollFix?.setEnabled(enabled);
-  try {
-    window.BetterDungeonBridge?.setCaretScrollFixEnabled(enabled);
-  } catch (error) {
-    console.warn('[Popup] Native caret fix toggle unavailable:', error);
-  }
-  notifyContentScript('SET_ANDROID_CARET_SCROLL_FIX', { enabled });
-}
-
-function initAppSettings() {
-  if (!window.BetterDungeonPlatform?.has('androidSettings')) return;
-  const openButton = document.getElementById('app-settings-btn');
-  const toggle = document.getElementById('caret-scroll-fix-toggle');
-  if (!openButton || !toggle) return;
-
-  openButton.addEventListener('click', () => {
-    openModal('app-settings-modal');
-    requestAnimationFrame(() => document.getElementById('app-settings-close')?.focus());
-  });
-
-  popupExtension.storage.sync.get(STORAGE_KEYS.androidCaretScrollFix, (result) => {
-    const enabled = (result || {})[STORAGE_KEYS.androidCaretScrollFix] === true;
-    updateCaretScrollFixUi(enabled);
-    window.BetterDungeonCaretScrollFix?.setEnabled(enabled);
-  });
-
-  toggle.addEventListener('change', () => {
-    const enabled = toggle.checked;
-    toggle.disabled = true;
-    popupExtension.storage.sync.set({ [STORAGE_KEYS.androidCaretScrollFix]: enabled }, () => {
-      applyCaretScrollFixSetting(enabled);
-      toggle.disabled = false;
-      showToast(`Caret scroll stabilization ${enabled ? 'enabled' : 'disabled'}`, 'success');
-    });
-  });
 }
 
 function initCustomDynamicSettings() {

@@ -45,8 +45,8 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private lateinit var mainWebView: BetterDungeonWebView
-    private lateinit var popupWebView: BetterDungeonWebView
+    private lateinit var mainWebView: WebView
+    private lateinit var popupWebView: WebView
     private lateinit var popupContainer: FrameLayout
 
     private lateinit var bridge: BetterDungeonBridge
@@ -98,10 +98,6 @@ class MainActivity : AppCompatActivity() {
         }
         bridge.onOpenRoutineFile = routineFileTransfer::open
         bridge.onSaveRoutineFile = routineFileTransfer::save
-        val caretScrollFixEnabled = bridge.isCaretScrollFixEnabled()
-        mainWebView.caretScrollFixEnabled = caretScrollFixEnabled
-        popupWebView.caretScrollFixEnabled = caretScrollFixEnabled
-
         setupMainWebView()
         setupPopupWebView()
         setupBackNavigation()
@@ -187,10 +183,6 @@ class MainActivity : AppCompatActivity() {
             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
             cacheMode = WebSettings.LOAD_DEFAULT
             useWideViewPort = true
-            // AI Dungeon declares a device-width, fixed-scale viewport. An
-            // overview scale gives Blink another reason to rerun its focused
-            // editable zoom/scroll animation when the IME reports the caret.
-            loadWithOverviewMode = false
             setSupportZoom(false)
             builtInZoomControls = false
             displayZoomControls = false
@@ -210,8 +202,6 @@ class MainActivity : AppCompatActivity() {
 
         // Add the JavaScript interface bridge
         mainWebView.addJavascriptInterface(bridge, BetterDungeonBridge.JS_INTERFACE_NAME)
-        injectionEngine.installDocumentStartFix(mainWebView)
-
         mainWebView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
                 super.onPageStarted(view, url, favicon)
@@ -294,8 +284,6 @@ class MainActivity : AppCompatActivity() {
 
         // Share the same bridge instance
         popupWebView.addJavascriptInterface(bridge, BetterDungeonBridge.JS_INTERFACE_NAME)
-        injectionEngine.installDocumentStartFix(popupWebView)
-
         popupWebView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)

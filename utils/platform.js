@@ -15,11 +15,9 @@
     physicalBack: false,
     touchControls: false,
     imeViewportHandling: false,
-    caretScrollFix: false,
     storageAreasAliased: false,
     embeddedLoginRestricted: false,
     nativeAssetDataUri: false,
-    androidSettings: false,
     longWebViewTransitions: false,
     draggableWidgetControl: false
   };
@@ -51,11 +49,9 @@
     physicalBack: true,
     touchControls: true,
     imeViewportHandling: true,
-    caretScrollFix: true,
     storageAreasAliased: true,
     embeddedLoginRestricted: true,
     nativeAssetDataUri: true,
-    androidSettings: true,
     longWebViewTransitions: true,
     draggableWidgetControl: true
   };

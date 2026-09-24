@@ -21,7 +21,6 @@ class BetterDungeonBridge(private val context: Context) {
 
     companion object {
         const val JS_INTERFACE_NAME = "BetterDungeonBridge"
-        const val CARET_SCROLL_FIX_STORAGE_KEY = "betterDungeon_androidCaretScrollFix"
         private const val PREFS_NAME = "betterdungeon_storage"
     }
 
@@ -89,39 +88,6 @@ class BetterDungeonBridge(private val context: Context) {
     @JavascriptInterface
     fun storageRemove(key: String) {
         prefs.edit().remove(key).apply()
-    }
-
-    /**
-     * The fix is opt-in. chrome.storage values are stored as JSON strings in
-     * SharedPreferences, so only an explicit "true" enables it.
-     */
-    fun isCaretScrollFixEnabled(): Boolean {
-        return prefs
-            .getString(CARET_SCROLL_FIX_STORAGE_KEY, "")
-            .orEmpty()
-            .equals("true", ignoreCase = true)
-    }
-
-    /**
-     * Apply the experimental fix setting to both native WebViews and their
-     * already-loaded JavaScript guards without requiring a page reload.
-     */
-    @JavascriptInterface
-    fun setCaretScrollFixEnabled(enabled: Boolean) {
-        prefs.edit()
-            .putString(CARET_SCROLL_FIX_STORAGE_KEY, enabled.toString())
-            .apply()
-
-        mainHandler.post {
-            val script = """
-                window.BetterDungeonCaretScrollFix?.setEnabled($enabled);
-            """.trimIndent()
-
-            listOf(mainWebView, popupWebView).forEach { webView ->
-                (webView as? BetterDungeonWebView)?.caretScrollFixEnabled = enabled
-                webView?.evaluateJavascript(script, null)
-            }
-        }
     }
 
     // ── Cross-WebView Messaging ───────────────────────────────────────

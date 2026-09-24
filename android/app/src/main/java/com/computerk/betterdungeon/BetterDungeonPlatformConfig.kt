@@ -13,11 +13,9 @@ object BetterDungeonPlatformConfig {
         "physicalBack" to true,
         "touchControls" to true,
         "imeViewportHandling" to true,
-        "caretScrollFix" to true,
         "storageAreasAliased" to true,
         "embeddedLoginRestricted" to true,
         "nativeAssetDataUri" to true,
-        "androidSettings" to true,
         "longWebViewTransitions" to true,
         "draggableWidgetControl" to true,
     )

@@ -8,8 +8,7 @@
   "styles": [
     "core/theme-variables.css",
     "styles.css",
-    "fonts/lucide/lucide.css",
-    "utils/android-editable-scroll-fix.css"
+    "fonts/lucide/lucide.css"
   ],
   "scripts": [
     "utils/webview-polyfill.js",
@@ -17,7 +16,6 @@
     "modules/ai/executor.js",
     "services/ai/runtime.js",
     "utils/ai-native-runtime.js",
-    "utils/android-editable-scroll-fix.js",
     "services/ultrascripts/ws-stream.js",
     "utils/dom.js",
     "utils/storage.js",

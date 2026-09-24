@@ -4,8 +4,6 @@ import android.content.Context
 import android.util.Base64
 import android.util.Log
 import android.webkit.WebView
-import androidx.webkit.WebViewCompat
-import androidx.webkit.WebViewFeature
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -51,32 +49,6 @@ class InjectionEngine(private val context: Context) {
     // Cache loaded files to avoid re-reading from assets on every navigation
     private var cachedCss: String? = null
     private var cachedJs: String? = null
-
-    /**
-     * Install the caret-scroll guard before page JavaScript runs. This matters
-     * for AI Dungeon because its viewport listeners are registered during app
-     * bootstrap. The regular bundle also contains the script as a fallback for
-     * older WebView providers without document-start injection.
-     */
-    fun installDocumentStartFix(webView: WebView) {
-        if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
-            Log.w(TAG, "Document-start scripts unsupported; using page-finished fallback")
-            return
-        }
-
-        val script = readAsset("$ASSET_BASE/utils/android-editable-scroll-fix.js")
-        if (script == null) {
-            Log.w(TAG, "Caret scroll guard asset not found")
-            return
-        }
-
-        WebViewCompat.addDocumentStartJavaScript(
-            webView,
-            script,
-            setOf("*")
-        )
-        Log.d(TAG, "Caret scroll guard installed at document start")
-    }
 
     /**
      * Inject all BetterDungeon CSS and JS into the given WebView.

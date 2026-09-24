@@ -8,7 +8,6 @@
   <link rel="stylesheet" href="fonts/lucide/lucide.css">
   <link rel="stylesheet" href="core/theme-variables.css">
   <link rel="stylesheet" href="popup.css">
-  <link rel="stylesheet" href="utils/android-editable-scroll-fix.css">
 </head>
 <body>
   <!-- Header -->
@@ -26,9 +25,6 @@
       </a>
       <button class="header-action" id="tutorial-help-btn" aria-label="Start Tutorial" title="Help">
         <span class="icon-circle-question-mark"></span>
-      </button>
-      <button class="header-action" id="app-settings-btn" aria-label="Open BetterDungeon settings" title="Settings" data-bd-requires-capability="androidSettings" hidden>
-        <span class="icon-settings"></span>
       </button>
     </div>
   </header>
@@ -1429,38 +1425,6 @@
     </div>
   </div>
 
-  <!-- Android App Settings Modal -->
-  <div class="modal-backdrop" id="app-settings-modal" data-bd-requires-capability="androidSettings" hidden>
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="app-settings-title">
-      <div class="modal-header">
-        <h3 class="modal-title" id="app-settings-title">Settings</h3>
-        <button class="modal-close" id="app-settings-close" aria-label="Close settings">
-          <span class="icon-x"></span>
-        </button>
-      </div>
-      <div class="modal-body app-settings-body">
-        <article class="feature-card expanded app-settings-feature-card">
-          <div class="feature-row">
-            <div class="feature-info">
-              <div class="feature-title-row">
-                <span class="feature-icon app-settings-feature-icon"><span class="icon-text-cursor-input"></span></span>
-                <h3 class="feature-title">Caret scroll stabilization</h3>
-              </div>
-              <p class="feature-desc">Reduce snapping in tall WebView text editors</p>
-            </div>
-            <label class="toggle" for="caret-scroll-fix-toggle">
-              <input id="caret-scroll-fix-toggle" type="checkbox" role="switch">
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="feature-details">
-            <p>Experimental WebView workaround. A small visual correction may still be noticeable while editing.</p>
-          </div>
-        </article>
-      </div>
-    </div>
-  </div>
-
   <!-- Tutorial Welcome Banner -->
   <div class="tutorial-banner hidden" id="tutorial-welcome-banner">
     <div class="tutorial-banner-icon">
@@ -1548,7 +1512,6 @@
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
-  <script src="utils/android-editable-scroll-fix.js"></script>
   <script src="utils/browser-polyfill.js"></script>
   <script src="services/tutorial-service.js"></script>
   <script src="utils/webview-polyfill.js"></script>

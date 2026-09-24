@@ -22,18 +22,7 @@ class BetterDungeon {
     console.log('[BetterDungeon] Initializing...');
     this.injectStyles();
     this.setupMessageListener();
-    this.initializePlatformFeatures();
     this.featureManager.initialize();
-  }
-
-  initializePlatformFeatures() {
-    if (!window.BetterDungeonPlatform?.has('caretScrollFix')) return;
-    if (!window.BetterDungeonCaretScrollFix || !chrome.storage?.sync) return;
-
-    chrome.storage.sync.get('betterDungeon_androidCaretScrollFix', (result) => {
-      const enabled = (result || {}).betterDungeon_androidCaretScrollFix === true;
-      window.BetterDungeonCaretScrollFix.setEnabled(enabled);
-    });
   }
 
   // Setup listener for messages from popup
@@ -45,12 +34,6 @@ class BetterDungeon {
         this.handleSetAutoSeeTriggerMode(message.mode);
       } else if (message.type === 'SET_AUTO_SEE_TURN_INTERVAL') {
         this.handleSetAutoSeeTurnInterval(message.interval);
-      } else if (
-        message.type === 'SET_ANDROID_CARET_SCROLL_FIX'
-        && window.BetterDungeonPlatform?.has('caretScrollFix')
-      ) {
-        const enabled = this.handleSetAndroidCaretScrollFix(message.enabled);
-        sendResponse({ success: true, enabled });
       } else if (message.type === 'GET_PRESETS') {
         this.handleGetPresets().then(sendResponse);
         return true;
@@ -300,19 +283,6 @@ class BetterDungeon {
   destroy() {
     this.destroyed = true;
     this.featureManager.destroy();
-  }
-
-  handleSetAndroidCaretScrollFix(enabled) {
-    const nextEnabled = enabled === true;
-    window.BetterDungeonCaretScrollFix?.setEnabled(nextEnabled);
-
-    try {
-      window.BetterDungeonBridge?.setCaretScrollFixEnabled(nextEnabled);
-    } catch (error) {
-      console.warn('[BetterDungeon] Native caret fix toggle unavailable:', error);
-    }
-
-    return nextEnabled;
   }
 }
 
