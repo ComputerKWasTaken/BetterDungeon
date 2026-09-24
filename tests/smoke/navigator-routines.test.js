@@ -45,14 +45,14 @@ function session(log, name, gate = null) {
   };
 }
 
-async function harness({ initialCount = 0, rules = [rule()], store, lockManager, android = false, gate = null, adventure = 'adventure' } = {}) {
+async function harness({ initialCount = 0, rules = [rule()], store, lockManager, android = false, gate = null, adventure = 'adventure', readCount } = {}) {
   const log = [];
   store ||= storage({ [Routines.KEY]: { version: 1, templateCatalogVersion: Routines.TEMPLATE_CATALOG_VERSION, routines: rules } });
   const chat = session(log, 'chat');
   let serverCount = initialCount;
   const runner = new Routines(adventure, chat, {
     storage: store, locks: lockManager || locks(), android,
-    readCount: async () => serverCount,
+    readCount: readCount || (async () => serverCount),
     makeSession: name => session(log, name, gate)
   });
   await runner.init();
@@ -66,6 +66,170 @@ async function idle(...runners) {
   }
   throw new Error('Runner did not become idle');
 }
+
+test('Firefox content-script locks use a page Promise until the routine finishes', async () => {
+  class PagePromise extends Promise {}
+  let released = false;
+  const lockManager = {
+    async request(_name, _options, callback) {
+      assert.equal(callback.exported, true, 'Firefox receives a page-exported callback');
+      const pending = callback();
+      if (!(pending instanceof PagePromise)) throw new Error('Permission denied to access property "then"');
+      await pending;
+      released = true;
+    }
+  };
+  const context = { AbortController, window: { Promise: PagePromise },
+    exportFunction(callback) {
+      const exported = (...args) => callback(...args);
+      exported.exported = true;
+      return exported;
+    }
+  };
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../../services/navigator/routines.js'), 'utf8'), context);
+  const store = storage({ [Routines.KEY]: { version: 1, templateCatalogVersion: Routines.TEMPLATE_CATALOG_VERSION, routines: [{ ...rule(), enabled: false }] } });
+  const runner = new context.NavigatorRoutines('adventure', null, { locks: lockManager, storage: store });
+  await runner.init();
+  assert.equal(runner.error, '', 'Routines initializes without the Firefox permission error');
+  released = false;
+  let finish;
+  const pending = runner.locked('test', () => new Promise(resolve => { finish = resolve; }));
+  while (!finish) await new Promise(resolve => setImmediate(resolve));
+  assert.equal(released, false, 'the lock stays held while the task is pending');
+  finish('done');
+  assert.equal(await pending, 'done');
+  assert.equal(released, true);
+  released = false;
+  await assert.rejects(runner.locked('test', () => { throw new Error('task failed'); }), /task failed/);
+  assert.equal(released, true, 'a failed task also releases the lock');
+  runner.destroy();
+
+  const rejected = new context.NavigatorRoutines('adventure', null, {
+    locks: { async request() { throw new Error('Permission denied to access property "then"'); } }
+  });
+  await assert.rejects(rejected.locked('test', () => {}), /Web Locks request failed/);
+  rejected.destroy();
+});
+
+test('platform storage and messaging avoid inaccessible then properties in Firefox', async () => {
+  const source = fs.readFileSync(path.join(__dirname, '../../utils/platform.js'), 'utf8');
+  const values = { saved: 'ready' };
+  const firefox = {
+    window: {},
+    browser: {
+      storage: { local: {
+        async get(key) { return { [key]: values[key] }; },
+        async set(data) { Object.assign(values, data); }
+      } },
+      runtime: { id: 'betterdungeon@test', async sendMessage(message) { return { received: message }; } }
+    },
+    chrome: { storage: { local: { get() { throw new Error('Firefox chrome shim was used'); } } } }
+  };
+  vm.createContext(firefox);
+  vm.runInContext(source, firefox);
+  assert.deepEqual(await firefox.BetterDungeonPlatform.storage.get('local', 'saved'), { saved: 'ready' });
+  await firefox.BetterDungeonPlatform.storage.set('local', { saved: 'updated' });
+  assert.equal(values.saved, 'updated');
+  assert.deepEqual(await firefox.BetterDungeonPlatform.runtime.sendMessage('ping'), { received: 'ping' });
+
+  const inaccessible = Object.defineProperty({}, 'then', {
+    get() { throw new Error('Permission denied to access property "then"'); }
+  });
+  const callbackOnly = { chrome: {
+    storage: { local: { get(key, callback) { callback({ [key]: 'safe' }); return inaccessible; } } },
+    runtime: { sendMessage(message, callback) { callback(message); return inaccessible; } }
+  } };
+  vm.createContext(callbackOnly);
+  vm.runInContext(source, callbackOnly);
+  assert.deepEqual(await callbackOnly.BetterDungeonPlatform.storage.get('local', 'saved'), { saved: 'safe' });
+  assert.equal(await callbackOnly.BetterDungeonPlatform.runtime.sendMessage('ping'), 'ping');
+});
+
+test('Routines waits for GraphQL credentials, then arms from the readiness event', async () => {
+  const priorDocument = globalThis.document;
+  const document = new EventTarget();
+  globalThis.document = document;
+  let ready = false;
+  try {
+    const h = await harness({ initialCount: 4, readCount: async () => {
+      if (!ready) throw new Error('Waiting for AI Dungeon GraphQL credentials. Interact with the page or reload, then try again.');
+      return 4;
+    } });
+    assert.equal(h.runner.error, '');
+    assert.equal(h.runner.armed, false);
+    ready = true;
+    document.dispatchEvent(new Event('ultrascripts:baseCredentials:change'));
+    await h.runner.eventQueue;
+    assert.equal(h.runner.armed, true);
+    assert.equal(h.runner.observed.get('cards'), 4);
+    await h.runner.observe(event(5));
+    await idle(h.runner);
+    assert.deepEqual(h.log, ['cards']);
+    h.runner.destroy();
+  } finally {
+    if (priorDocument === undefined) delete globalThis.document;
+    else globalThis.document = priorDocument;
+  }
+});
+
+test('the first action safely establishes a baseline if credentials are still missing', async () => {
+  const h = await harness({ readCount: async () => { throw new Error('Waiting for AI Dungeon GraphQL credentials.'); } });
+  assert.equal(h.runner.armed, false);
+  await h.runner.observe(event(5));
+  assert.equal(h.runner.armed, true);
+  assert.equal(h.runner.error, '');
+  assert.deepEqual(h.log, []);
+  await h.runner.observe(event(10));
+  await idle(h.runner);
+  assert.deepEqual(h.log, ['cards']);
+  h.runner.destroy();
+});
+
+test('a late cache count cannot arm a Routine behind the first observed action', async () => {
+  let cached = false;
+  const h = await harness({ readCount: async () => {
+    if (!cached) throw new Error('Waiting for AI Dungeon GraphQL credentials.');
+    return 4;
+  } });
+  cached = true;
+  await h.runner.observe(event(5));
+  assert.equal(h.runner.observed.get('cards'), 5);
+  await h.runner.observe(event(10));
+  await idle(h.runner);
+  assert.deepEqual(h.log, ['cards']);
+  assert.equal(h.runner.activity[0].milestone, 10);
+  h.runner.destroy();
+});
+
+test('Routines can arm from the active Apollo adventure before GraphQL credentials arrive', async () => {
+  const previousGql = globalThis.BetterDungeonGQL;
+  const previousApollo = globalThis.BetterDungeonApolloCache;
+  globalThis.BetterDungeonGQL = {
+    hasBaseCredentials: () => false,
+    getNavigatorAdventureContext: async () => { throw new Error('Waiting for AI Dungeon GraphQL credentials.'); }
+  };
+  globalThis.BetterDungeonApolloCache = {
+    async readAdventure({ shortId }) {
+      assert.equal(shortId, 'adventure');
+      return { available: true, data: { adventure: { actionCount: 4 } } };
+    }
+  };
+  try {
+    const store = storage({ [Routines.KEY]: { version: 1, templateCatalogVersion: Routines.TEMPLATE_CATALOG_VERSION, routines: [rule()] } });
+    const runner = new Routines('adventure', session([], 'chat'), { storage: store, locks: locks() });
+    await runner.init();
+    assert.equal(runner.error, '');
+    assert.equal(runner.armed, true);
+    assert.equal(runner.observed.get('cards'), 4);
+    runner.destroy();
+  } finally {
+    if (previousGql === undefined) delete globalThis.BetterDungeonGQL;
+    else globalThis.BetterDungeonGQL = previousGql;
+    if (previousApollo === undefined) delete globalThis.BetterDungeonApolloCache;
+    else globalThis.BetterDungeonApolloCache = previousApollo;
+  }
+});
 
 test('absolute milestones count completed creates, crossing over a milestone once; edits, hydration, and reload do not run', async () => {
   const h = await harness({ initialCount: 4 });

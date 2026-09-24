@@ -170,6 +170,8 @@
     return Math.max(...numbers) + 1;
   }
 
+  const waitingForCredentials = error => /Waiting for AI Dungeon GraphQL credentials/.test(error?.message || '');
+
   class NavigatorRoutines {
     constructor(adventureId, chatSession, options = {}) {
       this.adventureId = adventureId;
@@ -178,7 +180,18 @@
       this.locks = options.locks ?? globalThis.navigator?.locks;
       this.android = options.android ?? globalThis.BetterDungeonPlatform?.kind === 'android-webview';
       this.makeSession = options.makeSession || (ruleId => new globalThis.NavigatorSession(adventureId, { routineId: ruleId }));
-      this.readCount = options.readCount || (async signal => (await globalThis.BetterDungeonGQL.getNavigatorAdventureContext(adventureId, { signal })).actionCount);
+      this.readCount = options.readCount || (async signal => {
+        const gql = globalThis.BetterDungeonGQL;
+        if (gql?.hasBaseCredentials?.()) {
+          return (await gql.getNavigatorAdventureContext(adventureId, { signal })).actionCount;
+        }
+        let cached;
+        try { cached = await globalThis.BetterDungeonApolloCache?.readAdventure?.({ shortId: adventureId }); }
+        catch { /* A cache read is only a fallback for an uncaptured GraphQL session. */ }
+        const count = cached?.data?.adventure?.actionCount;
+        if (Number.isSafeInteger(count) && count >= 0) return count;
+        return (await gql.getNavigatorAdventureContext(adventureId, { signal })).actionCount;
+      });
       this.onChange = options.onChange || (() => {});
       this.rules = [];
       this.activity = [];
@@ -202,6 +215,12 @@
         const detail = event.detail;
         this.eventQueue = this.eventQueue.then(() => this.observe(detail)).catch(error => this.report(error));
       };
+      this.boundCredentials = () => {
+        if (this.destroyed) return;
+        const missing = this.rules.filter(rule => this.isEnabled(rule) && !this.observed.has(rule.id)).map(rule => rule.id);
+        if (!missing.length) return;
+        this.eventQueue = this.eventQueue.then(() => this.arm(missing)).catch(error => this.report(error));
+      };
       this.boundStorage = (changes, area) => {
         if (area !== 'local' || this.destroyed) return;
         if (changes[KEY]) {
@@ -221,48 +240,102 @@
       }
       return storage;
     }
-    async get(key) { return (await this.requireStorage().get('local', key))?.[key]; }
-    async set(key, value) { await this.requireStorage().set('local', { [key]: value }); }
+    async get(key) {
+      try { return (await this.requireStorage().get('local', key))?.[key]; }
+      catch (error) { throw new Error(`Local storage read failed: ${error?.message || String(error)}`, { cause: error }); }
+    }
+    async set(key, value) {
+      try { await this.requireStorage().set('local', { [key]: value }); }
+      catch (error) { throw new Error(`Local storage write failed: ${error?.message || String(error)}`, { cause: error }); }
+    }
     changed(notice = null) { if (!this.destroyed) this.onChange(notice); }
     report(error) { this.error = error?.message || 'Routines could not access local storage.'; this.changed(); }
 
     async locked(name, task, signal = this.controller.signal) {
-      if (this.locks?.request) return this.locks.request(name, { signal }, task);
+      if (this.locks?.request) {
+        const PagePromise = globalThis.window?.Promise;
+        if (globalThis.window !== globalThis && typeof PagePromise === 'function') {
+          // Firefox invokes Web Locks callbacks in the page realm, which cannot
+          // read .then on a content-script Promise (Mozilla bug 1873028).
+          let result;
+          let failure;
+          let failed = false;
+          const callback = () => new PagePromise(resolve => {
+            Promise.resolve().then(task).then(
+              value => { result = value; resolve(); },
+              error => { failure = error; failed = true; resolve(); }
+            );
+          });
+          const pageCallback = typeof globalThis.exportFunction === 'function'
+            ? globalThis.exportFunction(callback, globalThis.window)
+            : callback;
+          try { await this.locks.request(name, { signal }, pageCallback); }
+          catch (error) {
+            if (error?.name === 'AbortError') throw error;
+            throw new Error(`Web Locks request failed: ${error?.message || String(error)}`, { cause: error });
+          }
+          if (failed) throw failure;
+          return result;
+        }
+        return this.locks.request(name, { signal }, task);
+      }
       if (this.android || name.endsWith(':rules')) return task();
       throw new Error('Routines need Web Locks to coordinate adventure tabs. Update your browser to enable them.');
     }
 
     async init() {
       // Initialization never enqueues a run, even on an existing milestone.
+      let stage = 'opening the rule library';
       try {
         await this.locked('betterdungeon:navigator:routines:rules', async () => {
+          stage = 'reading the rule library';
           const data = await this.get(KEY);
-          if (!data) await this.set(KEY, { version: 1, templateCatalogVersion: TEMPLATE_CATALOG_VERSION, routines: templates() });
+          if (!data) {
+            stage = 'creating the rule library';
+            await this.set(KEY, { version: 1, templateCatalogVersion: TEMPLATE_CATALOG_VERSION, routines: templates() });
+          }
           else if (data.version === 1 && Array.isArray(data.routines) && (data.templateCatalogVersion || 1) < TEMPLATE_CATALOG_VERSION) {
+            stage = 'upgrading the rule library';
             const upgraded = upgradeTemplates(data);
             await this.set(KEY, { ...upgraded, routines: upgraded.routines.map(migrateRule) });
           }
         });
+        stage = 'loading adventure switches';
         await this.loadOverrides();
+        stage = 'reading saved routines';
         await this.reloadRules(false);
+        stage = 'reading routine activity';
         this.activity = (await this.get(this.stateKey))?.activity || [];
         if (this.destroyed) return;
+        stage = 'registering routine listeners';
         globalThis.document?.addEventListener('ultrascripts:actions:change', this.boundAction);
+        globalThis.document?.addEventListener('ultrascripts:baseCredentials:change', this.boundCredentials);
         globalThis.chrome?.storage?.onChanged?.addListener(this.boundStorage);
+        stage = 'arming automatic routines';
         await this.arm();
-      } catch (error) { this.report(error); }
+      } catch (error) {
+        console.error(`[Navigator Routines] Initialization failed while ${stage}:`, error);
+        this.report(new Error(`Routines failed while ${stage}: ${error?.message || String(error)}`));
+      }
       this.changed();
     }
 
-    async arm(ruleIds = null) {
+    async arm(ruleIds = null, fallbackCount = null) {
       if (!this.rules.some(rule => this.isEnabled(rule)) || this.destroyed) return;
       if (!this.locks?.request && !this.android) throw new Error('Routines need Web Locks to coordinate adventure tabs. Update your browser to enable them.');
-      const count = await this.readCount(this.controller.signal);
+      let count;
+      try { count = await this.readCount(this.controller.signal); }
+      catch (error) {
+        if (!waitingForCredentials(error)) throw error;
+        if (!Number.isSafeInteger(fallbackCount) || fallbackCount < 0) return;
+        count = fallbackCount;
+      }
       if (!Number.isSafeInteger(count) || count < 0) throw new Error('Waiting for the adventure action count.');
       if (this.destroyed) return;
-      this.count = Math.max(this.count ?? 0, count);
+      const baseline = Math.max(this.count ?? 0, count, Number.isSafeInteger(fallbackCount) && fallbackCount >= 0 ? fallbackCount : 0);
+      this.count = baseline;
       for (const rule of this.rules) {
-        if (this.isEnabled(rule) && (!ruleIds || ruleIds.includes(rule.id))) this.observed.set(rule.id, count);
+        if (this.isEnabled(rule) && (!ruleIds || ruleIds.includes(rule.id))) this.observed.set(rule.id, baseline);
       }
       this.armed = true;
       this.error = '';
@@ -448,8 +521,14 @@
       if (detail?.shortId && detail.shortId !== this.adventureId) return;
       let next = actionCount(detail);
       if (next === null) return;
-      if (!this.armed) { await this.arm(); return; }
-      if (next === undefined) next = await this.readCount(this.controller.signal);
+      if (!this.armed) { await this.arm(null, next); return; }
+      if (next === undefined) {
+        try { next = await this.readCount(this.controller.signal); }
+        catch (error) {
+          if (waitingForCredentials(error)) return;
+          throw error;
+        }
+      }
       if (!Number.isSafeInteger(next) || this.destroyed) return;
       this.count = Math.max(this.count ?? 0, next);
       for (const rule of this.rules) {
@@ -636,6 +715,7 @@
       this.pending.clear();
       this.cancelWaiting();
       globalThis.document?.removeEventListener('ultrascripts:actions:change', this.boundAction);
+      globalThis.document?.removeEventListener('ultrascripts:baseCredentials:change', this.boundCredentials);
       globalThis.chrome?.storage?.onChanged?.removeListener(this.boundStorage);
       for (const session of this.sessions.values()) session.destroy();
     }

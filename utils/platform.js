@@ -114,7 +114,21 @@
     return globalThis.chrome?.storage?.[name];
   }
 
+  function nativeBrowser() {
+    const candidate = globalThis.browser;
+    // This file also runs in the site's main world, where browser can be a
+    // page-defined object. Use it only in an extension-owned Firefox context.
+    return candidate?.runtime?.id &&
+      (globalThis.window !== globalThis || globalThis.location?.protocol === 'moz-extension:')
+      ? candidate : null;
+  }
+
   function storageCall(areaName, method, value) {
+    const browserArea = nativeBrowser()?.storage?.[areaName];
+    if (typeof browserArea?.[method] === 'function') {
+      try { return browserArea[method](value); }
+      catch (error) { return Promise.reject(error); }
+    }
     return new Promise((resolve, reject) => {
       const area = chromeArea(areaName);
       if (!area || typeof area[method] !== 'function') {
@@ -130,8 +144,7 @@
         else resolve(result);
       };
       try {
-        const result = area[method](value, callback);
-        if (result?.then) result.then(callback, reject);
+        area[method](value, callback);
       } catch (error) {
         reject(error);
       }
@@ -139,27 +152,31 @@
   }
 
   function runtimeSend(message) {
-    return whenReady().then(() => new Promise((resolve, reject) => {
-      const sendMessage = globalThis.chrome?.runtime?.sendMessage;
-      if (typeof sendMessage !== 'function') {
-        reject(new Error('Runtime messaging is unavailable'));
-        return;
-      }
-      let settled = false;
-      const callback = response => {
-        if (settled) return;
-        settled = true;
-        const error = globalThis.chrome?.runtime?.lastError;
-        if (error) reject(new Error(error.message || String(error)));
-        else resolve(response);
-      };
-      try {
-        const result = sendMessage.call(globalThis.chrome.runtime, message, callback);
-        if (result?.then) result.then(callback, reject);
-      } catch (error) {
-        reject(error);
-      }
-    }));
+    return whenReady().then(() => {
+      const browserRuntime = nativeBrowser()?.runtime;
+      const browserSend = browserRuntime?.sendMessage;
+      if (typeof browserSend === 'function') return browserSend.call(browserRuntime, message);
+      return new Promise((resolve, reject) => {
+        const sendMessage = globalThis.chrome?.runtime?.sendMessage;
+        if (typeof sendMessage !== 'function') {
+          reject(new Error('Runtime messaging is unavailable'));
+          return;
+        }
+        let settled = false;
+        const callback = response => {
+          if (settled) return;
+          settled = true;
+          const error = globalThis.chrome?.runtime?.lastError;
+          if (error) reject(new Error(error.message || String(error)));
+          else resolve(response);
+        };
+        try {
+          sendMessage.call(globalThis.chrome.runtime, message, callback);
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
   }
 
   const platform = Object.freeze({
