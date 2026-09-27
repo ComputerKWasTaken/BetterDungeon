@@ -2014,6 +2014,49 @@ body.mobile .nav-item {
   margin-bottom: 14px;
 }
 
+.feedback-update {
+  margin-bottom: 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.feedback-update summary {
+  padding: 10px 12px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.feedback-update summary::marker {
+  color: var(--accent);
+}
+
+.feedback-update summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.feedback-update[open] summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.feedback-update-body {
+  padding: 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.feedback-update-body p + p {
+  margin-top: 10px;
+}
+
+.feedback-update-body strong {
+  color: var(--text-primary);
+}
+
 .feedback-contact-options {
   display: grid;
   gap: 8px;
@@ -3745,6 +3788,10 @@ kbd.hotkey-unbound {
   color: var(--text-secondary);
   font-size: 10.5px;
   line-height: 1.45;
+}
+
+.whats-new-contact-btn {
+  margin-top: 9px;
 }
 
 .whats-new-navigator-features,

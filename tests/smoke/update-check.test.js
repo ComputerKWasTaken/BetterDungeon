@@ -14,7 +14,7 @@ function loadModule(overrides = {}) {
   const calls = { fetch: 0 };
   const fakeChrome = {
     runtime: {
-      getManifest: () => ({ version: '2.1.0' }),
+      getManifest: () => ({ version: '2.1.1' }),
     },
     storage: {
       local: {
@@ -94,13 +94,13 @@ test('install context only treats manual installs as checkable', () => {
 
   const storeManaged = loadModule({
     chrome: {
-      runtime: { getManifest: () => ({ version: '2.1.0', update_url: 'https://clients2.google.com/service/update2/crx' }) },
+      runtime: { getManifest: () => ({ version: '2.1.1', update_url: 'https://clients2.google.com/service/update2/crx' }) },
     },
   });
   assert.equal(storeManaged.module.getInstallContext().manual, false);
 
   const gecko = loadModule({
-    browser: { runtime: { getBrowserInfo: async () => ({ name: 'Firefox' }), getManifest: () => ({ version: '2.1.0' }) } },
+    browser: { runtime: { getBrowserInfo: async () => ({ name: 'Firefox' }), getManifest: () => ({ version: '2.1.1' }) } },
   });
   assert.equal(gecko.module.getInstallContext().manual, false);
 
@@ -168,7 +168,7 @@ test('setEnabled(false) stops automatic checks but manual checkNow still runs', 
 test('checkIfDue throttles repeat checks', async () => {
   let fetches = 0;
   const env = loadModule({
-    fetch: async () => { fetches += 1; return releaseResponse('2.1.0'); },
+    fetch: async () => { fetches += 1; return releaseResponse('2.1.1'); },
   });
   await env.module.checkNow();
   assert.equal(fetches, 1);

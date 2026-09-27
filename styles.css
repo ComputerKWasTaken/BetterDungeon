@@ -443,9 +443,13 @@
   visibility: hidden;
 }
 [role="menu"][aria-label="Input mode"] .bd-mode-button-colored {
-  background: linear-gradient(135deg, rgba(var(--bd-button-rgb), 0.12), rgba(var(--bd-button-rgb), 0.28));
+  background: linear-gradient(120deg, rgba(var(--bd-button-rgb), 0.22), rgba(var(--bd-button-rgb), 0.44));
 }
 [role="menu"][aria-label="Input mode"] .bd-mode-button-colored::before { display: none; }
+[role="menu"][aria-label="See"] .bd-mode-button-colored {
+  background: linear-gradient(120deg, rgba(var(--bd-button-rgb), 0.22), rgba(var(--bd-button-rgb), 0.44));
+}
+[role="menu"][aria-label="See"] .bd-mode-button-colored::before { display: none; }
 
 .bd-mode-button-colored {
   position: relative;
@@ -459,16 +463,29 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(
-    135deg,
-    rgba(var(--bd-button-rgb), 0.2) 0%,
-    rgba(var(--bd-button-rgb), 0.25) 40%,
-    rgba(var(--bd-button-rgb), 0.45) 100%
-  );
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.08), transparent 52%),
+    linear-gradient(115deg,
+      rgba(var(--bd-button-rgb), 0.3) 0%,
+      rgba(var(--bd-button-rgb), 0.46) 52%,
+      rgba(var(--bd-button-rgb), 0.64) 100%);
   border-radius: inherit;
   pointer-events: none;
   z-index: 0;
-  transition: opacity 0.2s ease;
+  transition: filter 0.2s ease;
+}
+
+.bd-mode-button-colored:hover::before,
+.bd-mode-button-colored:focus-visible::before {
+  filter: brightness(1.12);
+}
+
+/* See combines the two media actions. Keep both hues visible on its trigger. */
+[aria-label="See"].bd-mode-button-colored::before {
+  background: linear-gradient(135deg,
+    rgba(var(--bd-mode-image-rgb), 0.35) 0%,
+    rgba(var(--bd-mode-see-rgb), 0.42) 50%,
+    rgba(var(--bd-mode-video-rgb), 0.52) 100%);
 }
 
 /* ============================================

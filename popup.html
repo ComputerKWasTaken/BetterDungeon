@@ -16,7 +16,7 @@
       <img src="icons/icon48.png" alt="" class="header-logo">
       <div class="header-title">
         <span class="header-name">BetterDungeon</span>
-        <span class="header-version"><span id="app-version">v2.1.0</span> <span class="header-badge pc" id="platform-badge">PC</span></span>
+        <span class="header-version"><span id="app-version">v2.1.1</span> <span class="header-badge pc" id="platform-badge">PC</span></span>
       </div>
     </div>
     <div class="header-actions">
@@ -83,7 +83,7 @@
             <span class="whats-new-compact-icon icon-sparkles"></span>
             <span class="whats-new-compact-text">
               <strong id="whats-new-title">What's New</strong>
-              <span class="whats-new-compact-summary">Navigator Routines &middot; AI setup &middot; Input controls</span>
+              <span class="whats-new-compact-summary">Fixes &amp; refinements &middot; Contact &amp; feedback</span>
             </span>
           </span>
           <span class="whats-new-compact-right">
@@ -93,19 +93,57 @@
         </button>
         <div class="whats-new-expandable" id="whats-new-expandable" aria-hidden="true">
           <div class="whats-new-version-tabs" role="tablist" aria-label="Release notes versions">
-            <button class="whats-new-version-tab active" id="whats-new-tab-210" type="button" role="tab" aria-selected="true" aria-controls="whats-new-release-210" data-whats-new-version="2.1.0">
-              v2.1.0 <span>Current</span>
+            <button class="whats-new-version-tab active" id="whats-new-tab-211" type="button" role="tab" aria-selected="true" aria-controls="whats-new-release-211" data-whats-new-version="2.1.1" data-whats-new-summary="Fixes &amp; refinements · Contact &amp; feedback">
+              v2.1.1 <span>Current</span>
             </button>
-            <button class="whats-new-version-tab" id="whats-new-tab-202" type="button" role="tab" aria-selected="false" aria-controls="whats-new-release-202" data-whats-new-version="2.0.2" tabindex="-1">
+            <button class="whats-new-version-tab" id="whats-new-tab-210" type="button" role="tab" aria-selected="false" aria-controls="whats-new-release-210" data-whats-new-version="2.1.0" data-whats-new-summary="Navigator Routines · AI setup · Input controls" tabindex="-1">
+              v2.1.0
+            </button>
+            <button class="whats-new-version-tab" id="whats-new-tab-202" type="button" role="tab" aria-selected="false" aria-controls="whats-new-release-202" data-whats-new-version="2.0.2" data-whats-new-summary="Custom Dynamic · Release History" tabindex="-1">
               v2.0.2
             </button>
-            <button class="whats-new-version-tab" id="whats-new-tab-200" type="button" role="tab" aria-selected="false" aria-controls="whats-new-release-200" data-whats-new-version="2.0.0" tabindex="-1">
+            <button class="whats-new-version-tab" id="whats-new-tab-200" type="button" role="tab" aria-selected="false" aria-controls="whats-new-release-200" data-whats-new-version="2.0.0" data-whats-new-summary="Ultrascripts · More platforms · Custom Dynamic" tabindex="-1">
               v2.0.0
             </button>
           </div>
 
           <div class="whats-new-release-panels">
-            <section class="whats-new-release" id="whats-new-release-210" role="tabpanel" aria-labelledby="whats-new-tab-210" data-whats-new-panel="2.1.0">
+            <section class="whats-new-release" id="whats-new-release-211" role="tabpanel" aria-labelledby="whats-new-tab-211" data-whats-new-panel="2.1.1">
+              <div class="whats-new-release-hero">
+                <span class="whats-new-release-icon icon-wrench" aria-hidden="true"></span>
+                <div>
+                  <span class="whats-new-eyebrow">Maintenance update</span>
+                  <h3>Fixes and refinements</h3>
+                  <p>V2.1.1 focuses on reliability and polish across the browser extension and Android app.</p>
+                </div>
+              </div>
+              <div class="whats-new-highlight-list">
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-navigator icon-message-circle" aria-hidden="true"></span>
+                  <div>
+                    <h4>Contact computerK</h4>
+                    <p>The new Contact section has a project update and ways to share bugs, ideas, or questions. Discord is recommended; Reddit and email are also available.</p>
+                    <button class="btn btn-ghost btn-sm whats-new-contact-btn" id="whats-new-contact-btn" type="button">Open Contact</button>
+                  </div>
+                </article>
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-native icon-shield-check" aria-hidden="true"></span>
+                  <div>
+                    <h4>Reliability improvements</h4>
+                    <p>Fixed Firefox Navigator Routines startup and Character Prefill's Gemini routing, with refinements to Android text input.</p>
+                  </div>
+                </article>
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-input icon-gamepad-2" aria-hidden="true"></span>
+                  <div>
+                    <h4>Updated for Alpha's action bar</h4>
+                    <p>Try, Command, mode colors, and hotkeys work with the horizontal bar. See blends the Image and Video colors, while Do has a distinct red.</p>
+                  </div>
+                </article>
+              </div>
+            </section>
+
+            <section class="whats-new-release whats-new-release-archive" id="whats-new-release-210" role="tabpanel" aria-labelledby="whats-new-tab-210" data-whats-new-panel="2.1.0" hidden>
               <div class="whats-new-release-hero">
                 <span class="whats-new-release-icon icon-telescope" aria-hidden="true"></span>
                 <div>
@@ -189,18 +227,30 @@
               </div>
             </section>
 
-            <section class="whats-new-release whats-new-release-archive" id="whats-new-release-202" role="tabpanel" aria-labelledby="whats-new-tab-202" data-whats-new-panel="2.0.2" hidden>
-              <div class="whats-new-archive-list">
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-route" style="color: #a855f7;"></span>
+            <section class="whats-new-release" id="whats-new-release-202" role="tabpanel" aria-labelledby="whats-new-tab-202" data-whats-new-panel="2.0.2" hidden>
+              <div class="whats-new-release-hero">
+                <span class="whats-new-release-icon icon-route" aria-hidden="true"></span>
+                <div>
+                  <span class="whats-new-eyebrow">V2.0.2 update</span>
+                  <h3>More control, clearer updates</h3>
+                  <p>Refined Custom Dynamic and made earlier release notes easy to browse.</p>
+                </div>
+              </div>
+              <div class="whats-new-highlight-list">
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-ai icon-route" aria-hidden="true"></span>
                   <div>
-                    <div><strong>Improved Custom Dynamic</strong>: Added current AI Dungeon models, model-version selection, configurable 1–20 turn switching, simpler settings, and a clear enabled indicator.</div>
+                    <h4>Improved Custom Dynamic</h4>
+                    <p>Added current AI Dungeon models, model-version selection, configurable 1–20 turn switching, simpler settings, and a clear enabled indicator.</p>
                   </div>
-                </div>
-                <div class="whats-new-archive-item">
-                  <span class="whats-new-item-icon icon-history" style="color: #06b6d4;"></span>
-                  <div><strong>Release History</strong>: What's New now keeps previous release notes available through a version switcher.</div>
-                </div>
+                </article>
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-native icon-history" aria-hidden="true"></span>
+                  <div>
+                    <h4>Release History</h4>
+                    <p>What's New now keeps previous release notes available through a version switcher.</p>
+                  </div>
+                </article>
               </div>
             </section>
 
@@ -480,7 +530,7 @@
             </div>
             <div class="feature-details">
               <div class="color-grid" id="mode-color-display">
-                <div class="color-chip" data-mode="do" style="--chip-color: #3b82f6"><span>Do</span></div>
+                <div class="color-chip" data-mode="do" style="--chip-color: #ef4444"><span>Do</span></div>
                 <div class="color-chip" data-mode="try" style="--chip-color: #a855f7"><span>Try</span></div>
                 <div class="color-chip" data-mode="say" style="--chip-color: #22c55e"><span>Say</span></div>
                 <div class="color-chip" data-mode="story" style="--chip-color: #fbbf24"><span>Story</span></div>
@@ -1229,7 +1279,18 @@
         </button>
       </div>
       <div class="modal-body">
-        <p class="feedback-intro">Have a bug, idea, or question? Discord is the recommended way to reach me. You can also use Reddit or email.</p>
+        <p class="feedback-intro">I’m still here, and BetterDungeon is continuing. If you’re wondering what happened in the AI Dungeon communities, read my update below.</p>
+        <details class="feedback-update">
+          <summary>What happened?</summary>
+          <div class="feedback-update-body">
+            <p>Some of you have asked why I disappeared from the AI Dungeon Discord and what this means for BetterDungeon.</p>
+            <p>I was permanently banned from the AI Dungeon Discord and its subreddit. I accept that some of my earlier behavior deserved warnings, but I believe the warnings were inconsistent and the permanent ban was unfair and too harsh. My appeal was denied. From what I’ve been told, the BetterDungeon and BetterRepository threads are locked but still readable. Please don’t harass the moderators over this.</p>
+            <p>This is a dispute with community moderators, not Latitude. I’m still on good terms with Latitude and in touch with its community managers. I can still use AI Dungeon, publish scripts and content, and work on BetterDungeon.</p>
+            <p><strong>BetterDungeon will continue.</strong> I’ll keep improving it and fixing bugs. I plan to focus more on Ultrascripts, new scripts, and AI Dungeon content, while adding BetterDungeon features when the right ideas come along.</p>
+            <p>For updates, follow my AI Dungeon account, <strong>computerK</strong>. To reach me directly, DM <strong>computerK</strong> on Discord—that’s the best way to contact me. You can also message <strong>u/ComputerKYT</strong> on Reddit or use the email option below.</p>
+            <p>Thanks for sticking with me. &mdash;computerK</p>
+          </div>
+        </details>
         <div class="feedback-contact-options">
           <div class="feedback-contact-method feedback-contact-recommended">
             <span class="feedback-contact-icon icon-message-circle" aria-hidden="true"></span>
@@ -1449,7 +1510,7 @@
         <div class="color-editor-list" id="color-editor-list">
           <div class="color-editor-item" data-mode="do">
             <span class="color-editor-label">Do</span>
-            <input type="color" class="color-editor-input" data-mode="do" value="#3b82f6">
+            <input type="color" class="color-editor-input" data-mode="do" value="#ef4444">
           </div>
           <div class="color-editor-item" data-mode="try">
             <span class="color-editor-label">Try</span>

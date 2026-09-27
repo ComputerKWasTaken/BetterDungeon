@@ -10,7 +10,7 @@ class InputModeColorFeature {
   
   // Default colors (hex format for easy editing)
   static DEFAULT_COLORS = {
-    do: '#3b82f6',       // Blue - Primary action, confidence
+    do: '#ef4444',       // Red - Primary action
     try: '#a855f7',      // Purple - Uncertainty, magic, RNG
     say: '#22c55e',      // Green - Dialogue, communication
     story: '#fbbf24',    // Amber/Gold - Authorial, creativity
@@ -90,6 +90,17 @@ class InputModeColorFeature {
     return null;
   }
 
+  // See represents both media actions, so its color follows the midpoint of
+  // the user's Image and Video colors instead of keeping a separate setting.
+  blendMediaColors() {
+    const image = this.hexToRgb(this.customColors.image) || this.hexToRgb(InputModeColorFeature.DEFAULT_COLORS.image);
+    const video = this.hexToRgb(this.customColors.video) || this.hexToRgb(InputModeColorFeature.DEFAULT_COLORS.video);
+    const first = image.split(',').map(Number);
+    const second = video.split(',').map(Number);
+    return `#${first.map((value, index) => Math.round((value + second[index]) / 2)
+      .toString(16).padStart(2, '0')).join('')}`;
+  }
+
   // Generate lighter version of a color
   lightenColor(hex, percent = 20) {
     const num = parseInt(hex.replace('#', ''), 16);
@@ -109,7 +120,8 @@ class InputModeColorFeature {
 
     // Build CSS for custom colors
     let cssVars = ':root {\n';
-    for (const [mode, color] of Object.entries(this.customColors)) {
+    const colors = { ...this.customColors, see: this.blendMediaColors() };
+    for (const [mode, color] of Object.entries(colors)) {
       const rgb = this.hexToRgb(color);
       const lightColor = this.lightenColor(color);
       if (rgb) {
@@ -221,6 +233,15 @@ class InputModeColorFeature {
     return true; // Default to Dynamic if can't detect
   }
 
+  styleSeeTrigger() {
+    const seeTrigger = this.aid.getSeeMenuTrigger();
+    if (seeTrigger && seeTrigger.getAttribute('data-bd-mode-styled') !== 'see') {
+      seeTrigger.setAttribute('data-bd-mode-styled', 'see');
+      seeTrigger.classList.add('bd-mode-button-colored');
+      seeTrigger.style.setProperty('--bd-button-rgb', 'var(--bd-mode-see-rgb)');
+    }
+  }
+
   styleModeButtons() {
     const isDynamic = this.isDynamicTheme();
     const themeChanged = this._lastDynamic !== null && this._lastDynamic !== isDynamic;
@@ -245,6 +266,7 @@ class InputModeColorFeature {
           el.classList.remove('bd-mode-button-colored');
         });
       }
+      this.styleSeeTrigger();
       return;
     }
 
@@ -262,7 +284,7 @@ class InputModeColorFeature {
           'say': 'var(--bd-mode-say-rgb)',
           'story': 'var(--bd-mode-story-rgb)',
           'guide': 'var(--bd-mode-guide-rgb)',
-          'see': 'var(--bd-mode-image-rgb)',
+          'see': 'var(--bd-mode-see-rgb)',
           'command': 'var(--bd-mode-command-rgb)'
         };
         
@@ -271,6 +293,7 @@ class InputModeColorFeature {
         }
       }
     });
+    this.styleSeeTrigger();
     for (const kind of ['image', 'video']) {
       const button = this.aid.getGenerateButton(kind);
       if (button && button.getAttribute('data-bd-mode-styled') !== kind) {

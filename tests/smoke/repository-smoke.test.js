@@ -90,6 +90,14 @@ test('browser and Android release versions match', () => {
   const versionName = gradle.match(/versionName\s*=\s*"([^"]+)"/)?.[1];
   assert.ok(versionName, 'Android versionName must be declared');
   assert.equal(versionName, manifest.version);
+
+  const popup = fs.readFileSync(path.join(root, 'popup.html'), 'utf8');
+  const headerVersion = popup.match(/id="app-version">v([^<]+)</)?.[1];
+  const currentReleaseVersion = popup.match(/<button[^>]+aria-selected="true"[^>]+data-whats-new-version="([^"]+)"/)?.[1];
+  const currentPanelVersion = popup.match(/<section[^>]+data-whats-new-panel="([^"]+)"/)?.[1];
+  assert.equal(headerVersion, manifest.version);
+  assert.equal(currentReleaseVersion, manifest.version);
+  assert.equal(currentPanelVersion, manifest.version);
 });
 
 test('platform contract uses browser defaults and native Android capabilities', async () => {

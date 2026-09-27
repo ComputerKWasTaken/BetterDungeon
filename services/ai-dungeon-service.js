@@ -37,6 +37,7 @@ class AIDungeonService {
     CHANGE_MODE:         '[aria-label="Change input mode"]',
     CLOSE_MODE_MENU:     '[aria-label="Close \'Input Mode\' menu"]',
     MOBILE_MODE_MENU:    '[role="menu"][aria-label="Input mode"]',
+    SEE_MENU_TRIGGER:    '[aria-label="See"][aria-haspopup="menu"]',
 
     // --- Command Bar ---
     COMMAND_BAR:         '[aria-label="Command bar"]',
@@ -214,16 +215,64 @@ class AIDungeonService {
     const mobile = document.querySelector(AIDungeonService.SEL.MOBILE_MODE_MENU);
     if (mobile && mobile.getAttribute('data-state') !== 'closed') return mobile;
     const doBtn = document.querySelector(AIDungeonService.MODES.do);
-    return doBtn ? doBtn.parentElement : null;
+    const menu = doBtn?.parentElement;
+    if (menu && this.isHorizontalSeeMenu(menu)) {
+      const style = window.getComputedStyle(menu);
+      // The action dock itself is aria-hidden even while its controls are
+      // visible. Only the strip's own visibility reflects the open state.
+      if (menu.getAttribute('aria-hidden') === 'true' || style.display === 'none'
+        || style.visibility === 'hidden' || style.opacity === '0') return null;
+    }
+    return menu || null;
   }
 
   isMobileModeMenu(menu = this.getInputModeMenu()) {
     return menu?.matches(AIDungeonService.SEL.MOBILE_MODE_MENU) || false;
   }
 
+  isHorizontalSeeMenu(menu = this.getInputModeMenu()) {
+    return !!menu?.querySelector(AIDungeonService.SEL.SEE_MENU_TRIGGER);
+  }
+
   usesCompactInput() {
     return this.getModeButton()?.getAttribute('aria-haspopup') === 'menu'
+      || document.querySelector('.gameplay-action-input-dock')?.getAttribute('data-mobile') === 'true'
       || window.BetterDungeonPlatform?.has('touchControls') || false;
+  }
+
+  getSeeMenuTrigger() {
+    return this.getInputModeMenu()?.querySelector(AIDungeonService.SEL.SEE_MENU_TRIGGER) || null;
+  }
+
+  getSeeActionMenu() {
+    const trigger = this.getSeeMenuTrigger();
+    if (!trigger || trigger.getAttribute('aria-expanded') !== 'true') return null;
+    const controlled = trigger.getAttribute('aria-controls');
+    const menus = controlled ? [document.getElementById(controlled)] : [...document.querySelectorAll('[role="menu"][aria-label="See"]')];
+    return menus.find(menu => menu?.getAttribute('role') === 'menu'
+      && menu.getAttribute('data-state') !== 'closed'
+      && this.findSeeAction(menu, 'image') && this.findSeeAction(menu, 'video')) || null;
+  }
+
+  findSeeAction(menu, kind) {
+    return [...(menu?.querySelectorAll('[role="menuitem"], [role="menuitemradio"], [role="button"]') || [])]
+      .find(item => {
+        const label = (item.getAttribute('aria-label') || item.textContent || '').trim().toLowerCase();
+        return label === kind || label === `generate an ${kind}`;
+      }) || null;
+  }
+
+  async openSeeActionMenu(maxWaitMs = 1000) {
+    if (this.getSeeActionMenu()) return true;
+    const trigger = this.getSeeMenuTrigger();
+    if (!trigger) return false;
+    trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+    const deadline = Date.now() + maxWaitMs;
+    while (Date.now() < deadline) {
+      await this.wait(50);
+      if (this.getSeeActionMenu()) return true;
+    }
+    return false;
   }
 
   // Only search the input menu, never another dialog's radio items. Alpha uses
@@ -258,7 +307,9 @@ class AIDungeonService {
   }
 
   getGenerateButton(kind) {
-    return Object.hasOwn(AIDungeonService.INPUT_ACTIONS, kind) ? this.getInputMenuEntry(kind) : null;
+    if (!Object.hasOwn(AIDungeonService.INPUT_ACTIONS, kind)) return null;
+    if (this.getSeeMenuTrigger()) return this.findSeeAction(this.getSeeActionMenu(), kind);
+    return this.getInputMenuEntry(kind);
   }
 
   // Returns all currently visible mode buttons inside the expanded menu
@@ -282,7 +333,6 @@ class AIDungeonService {
     const label = modeBtn.querySelector('.font_body');
     const raw = (label?.textContent || modeBtn.textContent).trim().toLowerCase();
     if (raw.startsWith('command')) return 'command';
-    if (raw === 'see') return 'see';
     if (raw.includes('video')) return 'video';
     if (raw.includes('image')) return 'image';
 
@@ -294,6 +344,7 @@ class AIDungeonService {
     const placeholder = this.getTextInput()?.placeholder?.toLowerCase() || '';
     if (placeholder.includes('video')) return 'video';
     if (placeholder.includes('image') || placeholder.includes('picture')) return 'image';
+    if (raw === 'see') return 'see';
     return raw;
   }
 
@@ -323,6 +374,11 @@ class AIDungeonService {
 
   // Closes the expanded mode menu via the back/close button
   closeModeMenu() {
+    const seeMenu = this.getSeeActionMenu();
+    if (seeMenu) {
+      seeMenu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      return;
+    }
     const menu = this.getInputModeMenu();
     if (this.isMobileModeMenu(menu)) {
       menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));

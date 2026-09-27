@@ -1,44 +1,32 @@
-# Alpha input menu integration (v2.1.0)
+# Alpha input menu integration (v2.1.1)
 
-Updated September 12, 2026 from supplied desktop/mobile DOM captures and a live Alpha menu inspection. The captures had BetterDungeon enabled; do not mistake injected nodes for native UI. This contract supersedes the older four-mode / numeric-ID input-menu notes.
+Updated September 27, 2026 from a BetterDungeon-off Alpha capture and a live inspection of the open See menu. The current action bar is horizontal on desktop and mobile. Older layouts remain supported as fallbacks.
 
-## Two layouts, one service
+## Current Alpha layout
 
-| Surface | Desktop, wider than 700px | Compact, 700px or narrower |
-| --- | --- | --- |
-| Trigger | `[aria-label="Change input mode"]` | Same label, plus `aria-haspopup="menu"` |
-| Menu | Parent of native `[aria-label="Set to 'Do' mode"]` | Portal `[role="menu"][aria-label="Input mode"]` |
-| Text modes | Role button, `Set to '…' mode` labels | Role menuitemradio, SVG and bare text |
-| Writing section | Do, Say, Story, Guide | Write group: Do, Say, Story, Guide |
-| Media actions | `Generate an image`, `Generate a video` | Create group: Image, Video |
-| Dismiss | `Close 'Input Mode' menu` | Escape (or native outside dismissal) |
+| Control | Selector / behavior |
+| --- | --- |
+| Closed mode pill | `[aria-label="Change input mode"]` |
+| Open horizontal strip | Parent of native `[aria-label="Set to 'Do' mode"]`; own computed opacity is `1` |
+| Writing modes | Do, Say, Story, Guide: `[role="button"][aria-label="Set to '…' mode"]` |
+| Custom writing modes | Try after Do; Command after the last native writing mode, before See |
+| Media trigger | `[aria-label="See"][aria-haspopup="menu"]` at the end of the strip |
+| Media menu | Portal `[role="menu"][aria-label="See"]`, linked through the trigger's `aria-controls` |
+| Media choices | Image and Video `[role="menuitemradio"]`, plus `Customize video…` `[role="menuitem"]` |
+| Dismiss | Escape closes the See menu first; the strip's `Close 'Input Mode' menu` button closes the strip |
 
-The compact menu also has a separate **Customize video…** item. Image and Video are one-shot actions, not text input modes. The backend image action may still be named `see`; that does not imply a See selector exists. Legacy UI with a real See button is still supported.
+The `.gameplay-action-input-dock` has `data-mobile="true"` on narrow screens and may carry `aria-hidden="true"` even while the horizontal strip is visible. Check the strip's own opacity and display rather than an ancestor's `aria-hidden` value. The See menu is a separate portal; its Image and Video choices must never be included in the writing-mode list or mistaken for `Customize video…`.
 
-Use `AIDungeonService`, not numeric IDs, generated class names, globally matched radio items, or a hardcoded See end-cap:
+`AIDungeonService` owns discovery and navigation: `getInputModeMenu()`, `getSeeMenuTrigger()`, `getSeeActionMenu()`, `openSeeActionMenu()`, `getGenerateButton()`, and `detectCurrentMode()`. Image and Video hotkeys open the writing strip, then See, then select the matching media choice. They do not submit an action. The collapsed pill changes to Image or Video when a media composer is selected, which drives the input-edge color. Do uses red rather than Video's indigo. The See button blends Image's cyan with Video's indigo into blue, and follows either color when customized.
 
-- `getInputModeMenu()`, `isMobileModeMenu()`, `usesCompactInput()` discover the current layout. Compact controls also apply to the Android touch-controls capability.
-- `getInputMenuEntryName(element)` resolves a scoped native/custom entry; `getModeButtonByName(name)` only resolves known text modes.
-- `getAllModeButtons()` excludes Image/Video and supports future native writing-mode labels for anchoring. `getGenerateButton('image' | 'video')` is explicitly separate.
-- `openModeMenu()` sends ArrowDown to the compact Radix trigger because a synthetic click alone does not open it. `closeModeMenu()` uses the correct native dismissal path.
-- `detectCurrentMode()` normalizes Command's sub-mode labels to `command` and reports `image`/`video` while a media composer is open (pill label first, then the submit icon glyph, then the textarea placeholder). `switchToMode()` verifies the result and never treats media generation as a text-mode change.
+## Older layouts
 
-## Injection and lifecycle
+The previous wide layout had separate `Generate an image` and `Generate a video` buttons in the strip. The previous compact layout used a portal `[role="menu"][aria-label="Input mode"]` with Write and Create groups. A legacy strip had a See writing-mode button. The service still recognizes these; legacy See hotkey settings migrate to the Image action, and input history falls back to Story when a saved See mode is unavailable. AutoSee continues to use the backend image-generation flow.
 
-`injectCustomModeButton()` places Try after Do and Command after the last native writing mode, before the Create section. A correctly placed, correctly themed node is reused with **no structural mutation**. A move preserves identity and event handlers; a theme change can replace the clone. Both feature observers coalesce work into animation frames, with a 25-rewrites-per-two-seconds backstop per feature.
+Compact Radix menus use ArrowDown to open and Escape to dismiss. Their injected Try and Command entries need explicit focus/selection handling because cloned elements are outside Radix's internal collection. The current horizontal strip uses native role buttons and the shared custom-mode insertion path. Opening or dismissing either menu preserves an active Try or Command overlay; choosing another writing mode replaces it. Neither mode submits the input text on selection.
 
-Compact clones discard SVG/text from the native template, selection indicators, IDs and Radix collection markers. BetterDungeon supplies its own icon, label, checked state and keyboard navigation because externally injected nodes are not registered in Radix's internal collection. Arrow keys/Home/End traverse all menu entries; Enter/Space activate custom items. Cleanup removes the owned handler when the last custom item is removed.
+Try's chance controls and Command's style controls float above the input controller. The input-history chip uses the same surface on mobile-width layouts. Mode coloring targets the rounded input row, including while Image or Video composers are open.
 
-Try activates native Do; Command activates native Story. Opening/dismissing the selector or invoking a media action does not itself cancel either overlay. Selecting another writing mode cancels it. Activation timers are cancelled during teardown, and active controls recover after input DOM replacement or desktop/compact layout changes. Input text is not submitted by selecting a mode.
+## Verification
 
-## Mode controls and colors
-
-Try's success-chance controls and Command's style controls share one floating pill design on every layout: right-docked above `#game-text-input-controller`, **not** inside its overflow-clipped textarea row — 32px round buttons, compact uppercase labels, focus outlines and live value announcements. ↑/↓ still adjust while the textarea has focus (the pill's tooltip notes this). The action dock reserves 44px above the controller while a pill exists (84px when the history chip is raised above it). The input-history chip reuses the same pill surface on the same right edge and floats a step higher while a mode pill is open so the two never overlap; it appears only while the compact input layout is active (`usesCompactInput()` — mobile-width menus and Android). Try clamps to 5–95% in five-point steps and disables controls at the limits. Command cycles Standard, Subtle and OOC. Neither overlay auto-reverts on a timer — they stay active until the user submits or picks a native mode.
-
-Colors distinguish Image (cyan) and Video (indigo), including edge borders around the input box while their composers are open. Mode coloring targets the visible rounded input row (`getInputContainer()`), never the outer controller, and follows the box's own border-radius. Saved See colors migrate to Image; saved See hotkeys migrate to the Image action. Video is bound to `8` by default. The compact menu is styled as a native dropdown even when the desktop theme uses sprites. Input history containing a legacy See mode falls back to Story when See is unavailable, without generating an image. AutoSee retains its backend image-generation flow.
-
-## Regression checks
-
-Run `node tests/run-all.mjs` and `./build.ps1 all` for repository, extension-package and Android checks. Serve the repository on loopback and open `tests/browser/input-mode-menu.html` in a browser for real-DOM tests (no npm or DOM-emulation dependency). The fixture does not call AI Dungeon or generate media.
-
-The browser suite exercises desktop, legacy See and compact menus: placement, repeated-observer stability, future-mode reanchoring, keyboard activation, colors, binding migration, overlay switching/dismissal, touch controls, history safety and cleanup. Use `?demo=try&width=320` or `?demo=command&width=390` for an interactive compact-control fixture. Also manually check widths around 700px, sprite themes, touch scrolling and a physical Android/Firefox device before publication; fixture coverage is not an end-to-end guarantee against future Alpha changes.
+Run `node tests/run-all.mjs` and `./build.ps1 all`. The offline real-DOM suite at `tests/browser/input-mode-menu.html` covers the current horizontal See layout as well as older desktop, compact, and legacy layouts. It tests custom-mode placement, nested media targets, colors, mode switching, and cleanup without contacting AI Dungeon or generating media. Check the real Alpha bar and See menu on Chrome, Firefox, and Android before publishing because their DOM can change independently of BetterDungeon.

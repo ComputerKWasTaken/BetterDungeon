@@ -429,6 +429,17 @@ class HotkeyFeature {
             this.closeInputModeMenu();
             return;
           }
+
+          // Alpha now places Image and Video in a second-level See menu.
+          // Open it only for media hotkeys; writing-mode hotkeys use the strip.
+          if (['generateImage', 'generateVideo'].includes(hotkeyConfig.actionId)
+              && this.aid.getSeeMenuTrigger()) {
+            const seeOpened = await this.aid.openSeeActionMenu();
+            if (!seeOpened || !this.isOperationValid(operationId)) {
+              this.closeInputModeMenu();
+              return;
+            }
+          }
           
           // Find and click the target element
           const targetElement = this.getMenuActionTarget(hotkeyConfig);

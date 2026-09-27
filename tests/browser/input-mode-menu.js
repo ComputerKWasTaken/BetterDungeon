@@ -28,7 +28,9 @@
 
   function render(layout) {
     const mobile = layout === 'mobile';
-    fixture.innerHTML = `<div id="game-text-input-controller"><div class="_btlr-13--5px"><textarea id="game-text-input"></textarea><button aria-label="Submit action"><span class="font_icons">w_run</span></button></div><button aria-label="Change input mode" ${mobile ? 'aria-haspopup="menu" aria-expanded="false"' : ''}><span class="font_body">do</span></button></div>`;
+    const horizontalSee = layout === 'horizontal-see';
+    const controller = `<div id="game-text-input-controller"><div class="_btlr-13--5px"><textarea id="game-text-input"></textarea><button aria-label="Submit action"><span class="font_icons">w_run</span></button></div><button aria-label="Change input mode" ${mobile ? 'aria-haspopup="menu" aria-expanded="false"' : ''}><span class="font_body">do</span></button></div>`;
+    fixture.innerHTML = horizontalSee ? `<div class="gameplay-action-input-dock" data-mobile="true" aria-hidden="true">${controller}</div>` : controller;
     const trigger = aid.getModeButton();
     function open() {
       if (aid.getInputModeMenu()) return;
@@ -41,9 +43,12 @@
       } else {
         const names = layout === 'legacy' ? [...modeNames, 'See'] : modeNames;
         menu.innerHTML = `<button aria-label="Close 'Input Mode' menu">Back</button>${names.map(n => nativeButton(n, false)).join('')}`;
-        if (layout !== 'legacy') menu.innerHTML += '<button role="button" aria-label="Generate an image">Image</button><button role="button" aria-label="Generate a video">Video</button>';
+        if (horizontalSee) {
+          menu.style.opacity = '1';
+          menu.innerHTML += '<button role="button" aria-label="See" aria-haspopup="menu" aria-expanded="false" aria-controls="fixture-see-menu">See</button>';
+        } else if (layout !== 'legacy') menu.innerHTML += '<button role="button" aria-label="Generate an image">Image</button><button role="button" aria-label="Generate a video">Video</button>';
       }
-      fixture.append(menu);
+      (horizontalSee ? fixture.querySelector('.gameplay-action-input-dock') : fixture).append(menu);
       const close = () => { menu.remove(); trigger.setAttribute('aria-expanded', 'false'); };
       menu.addEventListener('keydown', event => { if (event.key === 'Escape') close(); });
       menu.querySelector('[aria-label="Close \'Input Mode\' menu"]')?.addEventListener('click', close);
@@ -57,6 +62,26 @@
           if (mobile) close();
         });
       });
+      if (horizontalSee) {
+        const see = menu.querySelector('[aria-label="See"]');
+        const openSee = () => {
+          if (document.getElementById('fixture-see-menu')) return;
+          see.setAttribute('aria-expanded', 'true');
+          const actions = document.createElement('div');
+          actions.id = 'fixture-see-menu'; actions.setAttribute('role', 'menu');
+          actions.setAttribute('aria-label', 'See'); actions.setAttribute('data-state', 'open');
+          actions.innerHTML = '<div role="menuitemradio" aria-checked="true">Image</div><div role="menuitemradio" aria-checked="false">Video</div><div role="menuitem">Customize video…</div>';
+          actions.addEventListener('keydown', event => { if (event.key === 'Escape') { actions.remove(); see.setAttribute('aria-expanded', 'false'); } });
+          actions.querySelectorAll('[role="menuitemradio"]').forEach(item => item.addEventListener('click', () => {
+            generated++;
+            trigger.querySelector('.font_body').textContent = item.textContent.toLowerCase();
+            actions.remove(); see.setAttribute('aria-expanded', 'false'); close();
+          }));
+          fixture.append(actions);
+        };
+        see.addEventListener('keydown', event => { if (event.key === 'ArrowDown') openSee(); });
+        see.addEventListener('click', openSee);
+      }
     }
     trigger.addEventListener(mobile ? 'keydown' : 'click', e => {
       if (!mobile || ['ArrowDown', 'Enter', ' '].includes(e.key)) open();
@@ -65,6 +90,17 @@
 
   try {
     const params = new URLSearchParams(location.search);
+    if (params.get('demo') === 'palette') {
+      render('horizontal-see');
+      fixture.className = 'demo';
+      fixture.style.width = '900px';
+      command = new CommandFeature(); attempt = new TryFeature(); colors = new InputModeColorFeature();
+      command.setupObserver(); attempt.setupObserver(); colors.injectCustomColorStyles(); colors.setupObserver();
+      await aid.openModeMenu(); await settle();
+      colors.detectAndApplyColor();
+      output.textContent = 'Interactive horizontal palette — offline, no submissions.';
+      return;
+    }
     if (['try', 'command'].includes(params.get('demo'))) {
       render('mobile');
       fixture.className = 'demo';
@@ -200,6 +236,56 @@
       messages.push(`PASS ${layout}: placement, observer stability, colors, hotkeys, activation, dismissal, reanchor, cleanup`);
       output.textContent = messages.join('\n');
     }
+    // September Alpha: a horizontal writing strip contains one See trigger;
+    // Image and Video live in its separate Radix menu portal.
+    nativeClicks = []; generated = 0;
+    render('horizontal-see');
+    command = new CommandFeature(); attempt = new TryFeature(); colors = new InputModeColorFeature();
+    command.setupObserver(); attempt.setupObserver(); colors.setupObserver();
+    assert(await aid.openModeMenu(), 'horizontal See: open writing strip');
+    await settle();
+    assert(aid.isHorizontalSeeMenu() && !aid.isMobileModeMenu(), 'horizontal See: identifies strip inside mobile dock');
+    assert(aid.getModeButtonByName('command').previousElementSibling === aid.getModeButtonByName('guide'), 'horizontal See: Command precedes See');
+    colors.detectAndApplyColor();
+    const seeTrigger = aid.getSeeMenuTrigger();
+    assert(seeTrigger?.dataset.bdModeStyled === 'see', 'horizontal See: trigger gets blended color styling');
+    assert(getComputedStyle(seeTrigger, '::before').backgroundImage.includes('53, 142, 227'), 'horizontal See: default Image and Video midpoint stays blue');
+    assert(getComputedStyle(aid.getModeButtonByName('do'), '::before').backgroundImage.includes('239, 68, 68'), 'horizontal See: Do red differs from Video indigo');
+    colors.customColors = { ...InputModeColorFeature.DEFAULT_COLORS, image: '#0000ff', video: '#ff0000' };
+    colors.injectCustomColorStyles();
+    assert(getComputedStyle(seeTrigger, '::before').backgroundImage.includes('128, 0, 128'), 'horizontal See: custom Image and Video colors blend to purple');
+    const detectTheme = colors.isDynamicTheme;
+    colors.isDynamicTheme = () => false;
+    colors.styleModeButtons();
+    assert(seeTrigger?.dataset.bdModeStyled === 'see', 'horizontal See: trigger stays colored with sprite themes');
+    colors.isDynamicTheme = detectTheme;
+    colors.styleModeButtons();
+    assert(!aid.getGenerateButton('image'), 'horizontal See: media action is absent while submenu is closed');
+    assert(await aid.openSeeActionMenu(), 'horizontal See: open media submenu');
+    colors.detectAndApplyColor();
+    assert(aid.getGenerateButton('image')?.dataset.bdModeStyled === 'image', 'horizontal See: Image submenu color');
+    assert(aid.getGenerateButton('video')?.dataset.bdModeStyled === 'video', 'horizontal See: Video submenu color');
+    const mediaHotkeys = new HotkeyFeature();
+    assert(mediaHotkeys.getMenuActionTarget({ actionId: 'generateImage' }) === aid.getGenerateButton('image'), 'horizontal See: Image hotkey target');
+    assert(mediaHotkeys.getMenuActionTarget({ actionId: 'generateVideo' }) === aid.getGenerateButton('video'), 'horizontal See: Video hotkey target');
+    aid.closeModeMenu();
+    assert(!aid.getSeeActionMenu() && aid.isModeMenuOpen(), 'horizontal See: Escape dismisses only media submenu');
+    aid.getModeButtonByName('try').click();
+    await until(() => attempt.isTryMode && nativeClicks.at(-1) === 'do', 'horizontal See: Try activates Do');
+    await aid.openModeMenu(); await settle();
+    aid.getModeButtonByName('command').click();
+    await until(() => command.isCommandMode && !attempt.isTryMode && nativeClicks.at(-1) === 'story', 'horizontal See: Command activates Story');
+    await aid.openModeMenu(); await settle();
+    assert(await aid.openSeeActionMenu(), 'horizontal See: reopen media submenu');
+    aid.closeModeMenu();
+    mediaHotkeys.buildHotkeyMap(); mediaHotkeys.setupKeyboardListener();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: '8', bubbles: true, cancelable: true }));
+    await until(() => generated === 1 && aid.detectCurrentMode() === 'video', 'horizontal See: Video hotkey opens See and selects composer');
+    colors.detectAndApplyColor();
+    assert(aid.getInputContainer()?.getAttribute('data-bd-input-mode') === 'video', 'horizontal See: Video composer edge');
+    mediaHotkeys.destroy(); command.destroy(); attempt.destroy(); colors.destroy();
+    messages.push('PASS horizontal See: strip placement, nested media targets, colors, custom modes');
+    output.textContent = messages.join('\n');
     // React replaces the input around the 700px breakpoint; active overlays
     // must rebuild their controls without losing the user's mode or draft.
     for (const mode of ['try', 'command']) {

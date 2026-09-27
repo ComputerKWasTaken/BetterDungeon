@@ -347,10 +347,10 @@
   /* =============================================================
      23. INPUT MODE COLORS
      ============================================================= */
-  --bd-mode-do:            var(--bd-blue);
-  --bd-mode-do-light:      var(--bd-blue-light);
-  --bd-mode-do-glow:       rgba(59, 130, 246, 0.15);
-  --bd-mode-do-rgb:        59, 130, 246;
+  --bd-mode-do:            #ef4444;
+  --bd-mode-do-light:      #ff7777;
+  --bd-mode-do-glow:       rgba(239, 68, 68, 0.15);
+  --bd-mode-do-rgb:        239, 68, 68;
 
   --bd-mode-try:           var(--bd-purple);
   --bd-mode-try-light:     var(--bd-purple-light);
@@ -382,11 +382,11 @@
   --bd-mode-video-glow:    rgba(99, 102, 241, 0.15);
   --bd-mode-video-rgb:     99, 102, 241;
 
-  /* Legacy See aliases for older production menus and integrations. */
-  --bd-mode-see:           var(--bd-mode-image);
-  --bd-mode-see-light:     var(--bd-cyan-light);
-  --bd-mode-see-glow:      rgba(6, 182, 212, 0.15);
-  --bd-mode-see-rgb:       var(--bd-mode-image-rgb);
+  /* Midpoint of Image and Video; the feature recalculates saved colors. */
+  --bd-mode-see:           #358ee3;
+  --bd-mode-see-light:     #68c1ff;
+  --bd-mode-see-glow:      rgba(53, 142, 227, 0.15);
+  --bd-mode-see-rgb:       53, 142, 227;
 
   --bd-mode-command:       var(--bd-orange);
   --bd-mode-command-light: var(--bd-orange-light);

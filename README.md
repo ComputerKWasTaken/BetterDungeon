@@ -8,7 +8,7 @@
 
 <p align="center"><a href="https://chromewebstore.google.com/detail/betterdungeon/ppliljfopejamemejnnchehpbacpebjf">Chrome Web Store</a> · <a href="https://addons.mozilla.org/firefox/addon/betterdungeon/">Firefox Add-ons</a> · <a href="https://github.com/ComputerKWasTaken/BetterDungeon/releases">Android downloads</a></p>
 
-<p align="center"><a href="manifest.json"><img alt="Source version 2.1.0" src="https://img.shields.io/badge/source-v2.1.0-eda449"></a> <a href="https://github.com/ComputerKWasTaken/BetterDungeon/actions/workflows/quality-gate.yml"><img alt="Preview quality gate" src="https://github.com/ComputerKWasTaken/BetterDungeon/actions/workflows/quality-gate.yml/badge.svg?branch=preview"></a> <a href="LICENSE"><img alt="Source-available license" src="https://img.shields.io/badge/license-source--available-333238"></a></p>
+<p align="center"><a href="manifest.json"><img alt="Source version 2.1.1" src="https://img.shields.io/badge/source-v2.1.1-eda449"></a> <a href="https://github.com/ComputerKWasTaken/BetterDungeon/actions/workflows/quality-gate.yml"><img alt="Preview quality gate" src="https://github.com/ComputerKWasTaken/BetterDungeon/actions/workflows/quality-gate.yml/badge.svg?branch=preview"></a> <a href="LICENSE"><img alt="Source-available license" src="https://img.shields.io/badge/license-source--available-333238"></a></p>
 
 [Get BetterDungeon](#get-betterdungeon) · [Start playing](#start-playing) · [Explore the toolkit](#explore-the-toolkit) · [Work from this repository](#work-from-this-repository)
 
@@ -41,7 +41,7 @@ You can use BetterDungeon's non-AI features without configuring an AI provider. 
 | **Put recurring work on autopilot** | Navigator Routines, Custom Dynamic model pools, and optional automatic See requests. |
 | **Extend AI Dungeon scripts** | Permission-controlled Ultrascripts modules for widgets, AI, audio, public web reads, time, weather, and more. |
 
-Some controls differ between desktop browsers and Android. The [input-menu guide](docs/INPUT-MENU.md) covers the current desktop and compact layouts; [Ultrascripts examples](examples/README.md) are a starting point for script authors.
+Alpha's current horizontal action bar works on desktop and mobile, with Image and Video under See. The [input-menu guide](docs/INPUT-MENU.md) covers the controls and older layouts; [Ultrascripts examples](examples/README.md) are a starting point for script authors.
 
 ### New in v2.1: Navigator and Routines
 

@@ -8,7 +8,9 @@ Navigator is an AI agent designed to help you improve and modify your adventures
 
 Configure providers in the shared popup's **AI** tab. Gemini Simple and Advanced provider routing use the same implementation as the browser extension; Android's adapter supplies native HTTPS, including Mistral model discovery. See [AI setup](../docs/AI.md).
 
-The current application release is BetterDungeon Mobile v2.1.0.
+The current application release is BetterDungeon Mobile v2.1.1.
+
+On the current AI Dungeon Alpha layout, Try and Command join the horizontal action bar. The See button opens Image and Video choices, each with its own input color. See the [input-menu guide](../docs/INPUT-MENU.md) for current selectors and older layout support.
 
 Official APKs are published from the primary [BetterDungeon Releases](https://github.com/ComputerKWasTaken/BetterDungeon/releases) page. Debug APKs attached to GitHub Actions runs are development builds, not releases.
 

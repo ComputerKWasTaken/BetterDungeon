@@ -33,7 +33,7 @@ const STORAGE_KEYS = {
 
 // Default mode colors (hex format)
 const DEFAULT_MODE_COLORS = {
-  do: '#3b82f6',       // Blue - Primary action, confidence
+  do: '#ef4444',       // Red - Primary action
   try: '#a855f7',      // Purple - Uncertainty, magic, RNG
   say: '#22c55e',      // Green - Dialogue, communication
   story: '#fbbf24',    // Amber/Gold - Authorial, creativity
@@ -244,10 +244,12 @@ function initFeedbackForm() {
   const messageInput = document.getElementById('feedback-message');
   const status = document.getElementById('feedback-status');
 
-  document.getElementById('feedback-open-btn')?.addEventListener('click', () => {
+  const openFeedback = () => {
     openModal('feedback-modal');
     modal.querySelector('.modal-close')?.focus();
-  });
+  };
+  document.getElementById('feedback-open-btn')?.addEventListener('click', openFeedback);
+  document.getElementById('whats-new-contact-btn')?.addEventListener('click', openFeedback);
 
   modal?.addEventListener('keydown', event => {
     if (event.key === 'Escape') closeModal('feedback-modal');
@@ -2484,15 +2486,19 @@ function initWhatsNew() {
   const banner = document.getElementById('whats-new-banner');
   if (!banner) return;
 
-  const manifestVersion = popupExtension.runtime.getManifest().version;
-  const displayVersion = `v${manifestVersion}`;
   const versionEl = document.getElementById('app-version');
   const titleEl = document.getElementById('whats-new-title');
+  const summaryEl = banner.querySelector('.whats-new-compact-summary');
+  const badgeEl = banner.querySelector('.whats-new-badge');
   const toggleBtn = document.getElementById('whats-new-toggle');
   const expandable = document.getElementById('whats-new-expandable');
   const versionTabs = [...banner.querySelectorAll('[data-whats-new-version]')];
   const releasePanels = [...banner.querySelectorAll('[data-whats-new-panel]')];
-  const storageKey = `bd_whats_new_expanded_${manifestVersion}`;
+  // An unpacked extension can keep an older runtime manifest until the browser reloads it.
+  const currentVersion = versionTabs.find(tab => tab.getAttribute('aria-selected') === 'true')?.dataset.whatsNewVersion
+    || popupExtension.runtime.getManifest().version;
+  const displayVersion = `v${currentVersion}`;
+  const storageKey = `bd_whats_new_expanded_${currentVersion}`;
 
   if (versionEl) versionEl.textContent = displayVersion;
   if (titleEl) titleEl.textContent = `What's New in ${displayVersion}`;
@@ -2505,6 +2511,7 @@ function initWhatsNew() {
   };
 
   const selectRelease = (version, shouldFocus = false) => {
+    const selectedTab = versionTabs.find(tab => tab.dataset.whatsNewVersion === version);
     versionTabs.forEach((tab) => {
       const isSelected = tab.dataset.whatsNewVersion === version;
       tab.classList.toggle('active', isSelected);
@@ -2516,6 +2523,10 @@ function initWhatsNew() {
     releasePanels.forEach((panel) => {
       panel.hidden = panel.dataset.whatsNewPanel !== version;
     });
+
+    if (titleEl) titleEl.textContent = `What's New in v${version}`;
+    if (summaryEl && selectedTab?.dataset.whatsNewSummary) summaryEl.textContent = selectedTab.dataset.whatsNewSummary;
+    if (badgeEl) badgeEl.textContent = version === currentVersion ? 'Latest' : 'Archive';
 
     if (expandable) expandable.scrollTop = 0;
   };
