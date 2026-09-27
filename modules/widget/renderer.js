@@ -1283,8 +1283,9 @@
         return;
       }
 
-      if (config.align !== undefined && config.align !== existingConfig.align) {
-        const newAlign = validators().VALID_ALIGNMENTS.has(config.align) ? config.align : 'center';
+      const newAlign = validators().VALID_ALIGNMENTS.has(config.align) ? config.align : 'center';
+      const previousAlign = validators().VALID_ALIGNMENTS.has(existingConfig.align) ? existingConfig.align : 'center';
+      if (newAlign !== previousAlign) {
         const targetZone = this.widgetZones[newAlign];
         if (targetZone && element.parentNode !== targetZone) targetZone.appendChild(element);
       }

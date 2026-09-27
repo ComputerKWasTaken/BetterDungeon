@@ -1227,15 +1227,23 @@ html.bd-story-card-dock-active > body {
 }
 
 .bd-bar-left {
+  grid-column: 1;
   justify-content: flex-start;
 }
 
 .bd-bar-center {
+  grid-column: 2;
   justify-content: center;
 }
 
 .bd-bar-right {
+  grid-column: 3;
   justify-content: flex-end;
+}
+
+/* Give center-only widgets the full bar so they can sit side by side. */
+:where(.bd-betterscripts-container:not(:has(> .bd-bar-left:not(:empty), > .bd-bar-right:not(:empty)))) > .bd-bar-center {
+  grid-column: 1 / -1;
 }
 
 .bd-widget {
@@ -2350,6 +2358,7 @@ html.bd-story-card-dock-active > body {
   }
   
   .bd-bar-zone {
+    grid-column: auto;
     gap: 6px;
     justify-content: flex-start;
   }
