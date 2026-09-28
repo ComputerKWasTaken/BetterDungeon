@@ -8,7 +8,7 @@ Android development now happens in the primary BetterDungeon monorepo. Start fro
 - Unique Android WebView adapters: `android/web/`
 - Shared browser and Android behavior: the corresponding root file
 - Injection order and source declarations: `android/betterdungeon-runtime.json`
-- Repository smoke checks: `tests/smoke/`
+- Offline checks and testing rules: `tests/` (see tests/README.md)
 
 Do not copy the shared tree into `app/src/main/assets`. Gradle generates those assets for every build, and `InjectionEngine.kt` reads the generated runtime manifest.
 
@@ -23,9 +23,7 @@ From the repository root:
 .\build.ps1 android
 ```
 
-For a complete pre-submit check, run `./build.ps1 all`. Also run the app on an Android 8.1+ device or emulator when behavior touches WebViews, navigation, permissions, native transports, or touch UI.
-
-Every push runs the Node smoke checks, extension packaging checks, Android unit tests, generated-asset verification, and `assembleDebug`. CI artifacts are retained for development convenience and are not public releases.
+Also run the app on an Android 8.1+ device or emulator when behavior touches WebViews, navigation, permissions, native transports, or touch UI. Follow the [live testing checklist](../CONTRIBUTING.md#live-testing-checklist) in the root contributing guide.
 
 ## Safety and releases
 
@@ -34,6 +32,6 @@ Every push runs the Node smoke checks, extension packaging checks, Android unit 
 - Never expose provider keys, tokens, or broad native capabilities.
 - Never commit `local.properties`, IDE state, build output, APKs, AABs, keystores, passwords, or signing configuration.
 - Keep Android `versionName` equal to the browser manifest version. Increment `versionCode` independently when preparing signed releases.
-- Publish signed APKs and version tags manually only after the commit has been promoted to `stable`.
+- Publish signed APKs and version tags manually only after the commit has been promoted to `preview`.
 
 See [CONTRIBUTING.md](../CONTRIBUTING.md) and the [monorepo guide](../docs/MONOREPO.md) for the project-wide testing and branch workflow.

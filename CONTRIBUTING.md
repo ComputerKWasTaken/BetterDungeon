@@ -9,6 +9,7 @@ Thanks for helping improve BetterDungeon. A useful contribution can be a compati
 | [AI service](docs/AI.md) | Provider configuration and routing |
 | [Navigator Routines](docs/NAVIGATOR_ROUTINES.md) | Scheduling, examples, and safety behavior |
 | [Ultrascripts examples](examples/README.md) | Starter scripts and module usage |
+| [AGENTS.md](AGENTS.md) | Extra rules for AI coding agents |
 
 ## Choose the right branch
 
@@ -71,29 +72,56 @@ Features commonly expose `init()` and `destroy()` through the feature manager. R
 3. Run the focused checks and build artifacts relevant to the change:
 
    ```powershell
-   .\build.ps1 test
-   .\build.ps1 extension
-   .\build.ps1 android
-   # Or run .\build.ps1 all for all three steps.
+   .\build.ps1 test       # Focused offline checks
+   .\build.ps1 extension  # Extension ZIP in dist/
+   .\build.ps1 android    # Debug APK in dist/
+   .\build.ps1 all        # Checks and both artifacts
    ```
 
-4. Test the changed behavior in a live AI Dungeon adventure on the affected browser or Android device. Try it enabled, disabled, after navigation, and after an extension reload where relevant.
+4. Test the changed behavior in a live AI Dungeon adventure on the affected browser or Android device. Try it enabled, disabled, after navigation, and after an extension reload where relevant. Follow the [live testing checklist](#live-testing-checklist).
 5. Describe the outcome in a pull request or issue, including what you tested and any remaining limitation.
 
-The Node checks deliberately cover stable repository boundaries and selected AI and Routine behavior. CI also packages the extension and builds a debug APK on every push and pull request, retaining artifacts for 14 days. It does not call live AI providers or AI Dungeon. UI behavior still needs a real browser or device check; the project does not maintain a comprehensive Playwright suite.
+The Node checks deliberately cover release boundaries, secret and data-loss safety, deterministic logic, and browser/Android parity, as defined in [tests/README.md](tests/README.md). [CI](docs/MONOREPO.md#cicd-boundary) also packages the extension and builds a debug APK on every push and pull request, retaining artifacts for 14 days. It does not call live AI providers or AI Dungeon. UI behavior still needs a real browser or device check; the project does not maintain a comprehensive Playwright suite.
+
+### Live testing checklist
+
+Every change that affects runtime behavior must be checked live before it is merged into `preview`.
+
+**Setup:** load the unpacked extension (see [Get a working checkout](#get-a-working-checkout)), open a test adventure at AI Dungeon, and after every code change reload the extension *and* refresh the adventure tab.
+
+**Surfaces:** test every surface the change can reach.
+
+- Chromium (Chrome or Edge)
+- Firefox (temporary add-on)
+- Android app (device or emulator) when the change touches shared runtime code or `android/`
+- The popup as well as the in-adventure UI when both are involved
+- Desktop and mobile-width layouts for anything that touches AI Dungeon's UI
+
+**States:** where relevant, check:
+
+- Feature enabled, disabled, and toggled while an adventure is open (no leftover UI, listeners, or timers after disabling)
+- Navigating between adventures and back to the home page
+- Extension reload with the adventure tab still open, followed by a page refresh
+- A fresh install or cleared storage when settings or migrations change
+- Real provider calls, with a small request, when AI routing changes
+
+**Report:** in the pull request or issue, list the surfaces and states you tested, what you observed, and any limitations or untested surfaces.
+
+**Before merging:**
+
+- [ ] `.\build.ps1 test` passes.
+- [ ] The extension loads without relevant console errors on the affected surfaces.
+- [ ] Popup settings still save correctly if controls or storage changed.
+- [ ] No credentials, personal adventure content, signing material, or generated packages were committed.
+- [ ] Documentation and examples reflect any changed behavior or public interface.
+- [ ] Scratch tests for the change have been deleted.
+- [ ] Any new permanent test meets the criteria in [tests/README.md](tests/README.md).
 
 ### Ultrascripts changes
 
 Keep module permissions narrow. Validate script input, bound external requests and AI calls, and never include provider keys in messages, story text, errors, or logs. Scripts should receive a clear failure when BetterDungeon, permission, or a platform capability is unavailable. Preserve the existing `bd.us` helper contract unless the change intentionally updates that public interface. The [starter examples](examples/README.md) show both graceful fallback and BetterDungeon-required scripts.
 
-### Review checklist
-
-- [ ] The extension loads without relevant console errors; the affected UI works in an adventure.
-- [ ] Feature teardown, reload, and platform differences were checked where relevant.
-- [ ] Popup settings still save correctly if controls or storage changed.
-- [ ] Firefox and Android were checked if browser APIs or shared platform behavior changed.
-- [ ] No credentials, personal adventure content, signing material, or generated packages were committed.
-- [ ] Documentation and examples reflect any changed behavior or public interface.
+### Report a bug or request a feature
 
 For a bug report, include BetterDungeon and browser versions, the affected AI Dungeon page, steps to reproduce, expected and actual behavior, and sanitized console output or screenshots. For a feature request, explain the player or creator problem first.
 

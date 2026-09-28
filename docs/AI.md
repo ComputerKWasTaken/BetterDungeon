@@ -22,8 +22,8 @@ The public `BetterDungeonAI` executor retains the `UltrascriptsAIExecutor` alias
 
 The local-only `betterdungeon_ai_config_v2` key stores Simple and Advanced profiles plus per-consumer routing. The old endpoint key migrates once. Saved Gemini, OpenRouter, and Custom keys are preserved. Existing Advanced users stay on Advanced; existing Gemini users receive Simple routing. Old manual Gemini model preferences become automatic routing. Migration verifies the new write before deleting the old key. Saved keys are omitted from status responses; an omitted key on save means preserve, while an explicit empty key means clear.
 
-## Verification before stable
+## Verification before preview
 
-Run `./build.ps1 all` with Node 24. Offline tests cover migration, routing, rate-limit suppression, pinned models, cancellation, secret redaction, streaming continuations, and script concurrency. CI makes no live provider requests.
+Run `./build.ps1 all` with Node 24. Offline tests cover migration, routing, rate-limit suppression, cancellation, and secret redaction. CI makes no live provider requests.
 
 On browser and Android, verify Simple connection setup, every available Mistral pinned model and Automatic, OpenRouter/Custom, per-feature assignments, Navigator streaming/tool results, Character Prefill JSON, and Ultrascripts permissions. Verify saved-key preservation and explicit clearing. Live provider success and model quality require real account access and manual testing; build success does not establish them.

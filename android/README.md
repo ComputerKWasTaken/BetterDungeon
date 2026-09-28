@@ -45,4 +45,4 @@ The build rejects missing sources, duplicate runtime entries, undeclared Android
 
 The app hosts AI Dungeon in a main WebView and the shared BetterDungeon settings popup in a secondary WebView. `BetterDungeonBridge.kt` declares platform capabilities and connects JavaScript to native storage and transports; `window.BetterDungeonPlatform` scopes touch and WebView behavior inside shared files.
 
-Run `../build.ps1 test` from this directory, or `./build.ps1 test` from the repository root, before submitting changes. The intentionally small repository smoke suite also checks Android composition boundaries.
+Run `.\build.ps1 test` from the repository root before submitting changes. See the root [CONTRIBUTING.md](../CONTRIBUTING.md) and [tests/README.md](../tests/README.md) for verification rules.

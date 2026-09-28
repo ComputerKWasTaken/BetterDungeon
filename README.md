@@ -10,7 +10,7 @@
 
 <p align="center"><a href="manifest.json"><img alt="Source version 2.1.1" src="https://img.shields.io/badge/source-v2.1.1-eda449"></a> <a href="https://github.com/ComputerKWasTaken/BetterDungeon/actions/workflows/quality-gate.yml"><img alt="Preview quality gate" src="https://github.com/ComputerKWasTaken/BetterDungeon/actions/workflows/quality-gate.yml/badge.svg?branch=preview"></a> <a href="LICENSE"><img alt="Source-available license" src="https://img.shields.io/badge/license-source--available-333238"></a></p>
 
-[Get BetterDungeon](#get-betterdungeon) · [Start playing](#start-playing) · [Explore the toolkit](#explore-the-toolkit) · [Work from this repository](#work-from-this-repository)
+[Get BetterDungeon](#get-betterdungeon) · [Start playing](#start-playing) · [Explore the toolkit](#explore-the-toolkit) · [Contribute](#contribute)
 
 ## Get BetterDungeon
 
@@ -45,50 +45,15 @@ Alpha's current horizontal action bar works on desktop and mobile, with Image an
 
 ### New in v2.1: Navigator and Routines
 
-Navigator is an assistant grounded in your adventure. Ask it questions, have it look through Story Cards, or request changes to adventure content. Its change setting lets you choose automatic verified edits, proposals to review, or conversation without edits.
+Navigator is an assistant grounded in your adventure. Ask it questions, have it look through Story Cards, or request changes to adventure content under your chosen approval setting.
 
-Routines take that help into the background. Write an instruction, choose how many completed actions should pass between runs, and Navigator handles it while you play. Each Routine keeps a separate conversation; the Activity view shows its work and any changes needing attention. You can also ask Navigator in Chat to run a saved Routine immediately.
+Routines take that help into the background: write an instruction, choose how many completed actions should pass between runs, and Navigator handles it while you play. [Read the Routines guide](docs/NAVIGATOR_ROUTINES.md).
 
-```mermaid
-flowchart LR
-    Actions["Completed adventure actions"] --> Milestone["Routine milestone"]
-    Milestone --> Navigator["Navigator works with adventure context"]
-    Navigator --> Activity["Activity records the result"]
-    Navigator --> Policy["Changes follow your approval setting"]
-```
+The popup's **What's New** section has the fuller release notes.
 
-Six editable examples start disabled, including NPC Brains, Automatic Story Cards, Story Arcs, and State Management. They are prompts, not rigid script engines: you decide which to enable, and Navigator decides whether the current story calls for a change. [Read the Routines guide](docs/NAVIGATOR_ROUTINES.md).
+## Contribute
 
-Version 2.1 also brings shared AI configuration, input-control refinements, and Ultrascripts reliability, audio, and web-request improvements. BetterDungeon's former Markdown and text-to-speech features have been removed; AI Dungeon now handles Markdown natively. The popup's **What's New** section has the fuller release notes.
-
-## Work from this repository
-
-The browser extension and Android app share one source tree. The repository root loads directly as an unpacked browser extension; `android/` is a complete Android Studio project. Shared web code stays at the root, while Android keeps only its native app and unique WebView adapters.
-
-```text
-BetterDungeon/
-├── manifest.json, popup.*       Browser extension entry points
-├── core/, features/, services/  Shared behavior and integrations
-├── modules/, utils/             Shared modules and utilities
-├── android/                     Android Studio project
-│   ├── app/                     Native Android application
-│   └── web/                     Unique WebView adapters
-├── tests/                       Focused offline checks
-└── build.ps1                    Local build interface
-```
-
-Use PowerShell from the repository root:
-
-```powershell
-.\build.ps1 test       # Focused offline checks
-.\build.ps1 extension  # Extension ZIP in dist/
-.\build.ps1 android    # Debug APK in dist/
-.\build.ps1 all        # Checks and both artifacts
-```
-
-The checks use Node.js 24. Android builds also require JDK 21 and the Android SDK; open `android/` in Android Studio to sync, run, or debug. CI runs the same basic checks and builds on pushes, but product behavior still needs hands-on testing in AI Dungeon. [Contributing guide](CONTRIBUTING.md)
-
-Daily development happens on `dev`. Tested commits move to `preview`, then published source moves to `release`; store submission and signed releases are manual. See the [monorepo and delivery guide](docs/MONOREPO.md) for composition and branch details.
+The browser extension and Android app share this source-available repository. See the [contributing guide](CONTRIBUTING.md) for development setup, testing, and workflow.
 
 ## More information
 
