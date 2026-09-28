@@ -29,4 +29,4 @@ Try's chance controls and Command's style controls float above the input control
 
 ## Verification
 
-Run `node tests/run-all.mjs` and `./build.ps1 all`. The offline real-DOM suite at `tests/browser/input-mode-menu.html` covers the current horizontal See layout as well as older desktop, compact, and legacy layouts. It tests custom-mode placement, nested media targets, colors, mode switching, and cleanup without contacting AI Dungeon or generating media. Check the real Alpha bar and See menu on Chrome, Firefox, and Android before publishing because their DOM can change independently of BetterDungeon.
+Run `node tests/run-all.mjs` and `./build.ps1 all`. Check the real Alpha bar and See menu on Chrome, Firefox, and Android before publishing because their DOM can change independently of BetterDungeon.

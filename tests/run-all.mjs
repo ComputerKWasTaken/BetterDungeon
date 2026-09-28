@@ -1,12 +1,14 @@
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const testsRoot = new URL('.', import.meta.url);
-const smokeTest = fileURLToPath(new URL('smoke/repository-smoke.test.js', testsRoot));
-const aiTest = fileURLToPath(new URL('smoke/ai-service.test.js', testsRoot));
-const routinesTest = fileURLToPath(new URL('smoke/navigator-routines.test.js', testsRoot));
-const updateCheckTest = fileURLToPath(new URL('smoke/update-check.test.js', testsRoot));
-const result = spawnSync(process.execPath, ['--test', '--test-reporter=spec', smokeTest, aiTest, routinesTest, updateCheckTest], {
+const testsDir = fileURLToPath(new URL('.', import.meta.url));
+const testFiles = fs.readdirSync(testsDir, { withFileTypes: true })
+  .filter(entry => entry.isFile() && entry.name.endsWith('.test.js'))
+  .map(entry => path.join(testsDir, entry.name))
+  .sort();
+const result = spawnSync(process.execPath, ['--test', '--test-reporter=spec', ...testFiles], {
   stdio: 'inherit'
 });
 

@@ -1,6 +1,7 @@
 /.build/
 /dist/
 /out/
+/tests/scratch/
 /android/.gradle/
 /android/.idea/
 /android/.kotlin/

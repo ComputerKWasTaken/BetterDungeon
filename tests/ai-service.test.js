@@ -1,0 +1,137 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const root = path.resolve(__dirname, '..');
+const C = require('../services/ai/config.js');
+require('../modules/ai/executor.js');
+const Runtime = require('../services/ai/runtime.js');
+const copy = v => JSON.parse(JSON.stringify(v));
+const reverseKeys = v => Array.isArray(v) ? v.map(reverseKeys) : v && typeof v === 'object'
+  ? Object.fromEntries(Object.entries(v).reverse().map(([key, value]) => [key, reverseKeys(value)])) : v;
+const query = { op: 'query', task: { prompt: 'Describe the forest.', output: { type: 'text' }, consumer: 'ultrascripts' } };
+const json = (data, status = 200, headers = {}) => new Response(JSON.stringify(data), { status, headers });
+const reply = () => json({ choices: [{ message: { content: 'Forest' }, finish_reason: 'stop' }] });
+const geminiReply = () => json({ candidates: [{ content: { parts: [{ text: 'Forest' }] }, finishReason: 'STOP' }] });
+const limited = (headers = {}) => json({ error: { message: 'Model rate limit' } }, 429, headers);
+function advanced(service = 'mistral') {
+  return C.normalize({ simple: { apiKey: 'gemini-secret' }, advanced: { enabled: true, activeService: service,
+    profiles: { mistral: { apiKey: 'mistral-secret', modelMode: 'auto' }, openrouter: { apiKey: 'router-secret', model: 'example/model' } } },
+    routing: { ultrascripts: 'advanced', navigator: 'advanced' } });
+}
+function setup(config, fetch, initial) {
+  const data = initial || { [C.KEY]: config };
+  const requests = [], writes = [];
+  let time = 100000;
+  const storage = {
+    get: async keys => Object.fromEntries((Array.isArray(keys) ? keys : [keys]).filter(k => data[k] !== undefined).map(k => [k, copy(data[k])])),
+    set: async values => { writes.push('set'); Object.assign(data, copy(values)); },
+    remove: async key => { writes.push('remove'); delete data[key]; },
+  };
+  const api = Runtime.create({ storage, now: () => time, fetch: async (url, init) => {
+    requests.push({ url, ...init });
+    if (url.endsWith('/models')) return json({ data: C.mistral.map(m => ({ id: m.id, max_context_length: m.context })) });
+    return fetch(url, init);
+  } });
+  return { api, requests, data, writes, storage, advance: n => { time += n; } };
+}
+test('migration preserves profiles and keys; status redacts them; failed writes preserve legacy data', async () => {
+  const old = { activeService: 'custom', profiles: { gemini: { apiKey: 'g-secret', model: 'old' }, custom: { apiKey: 'c-secret', model: 'abc', baseUrl: 'https://example.com/v1' } } };
+  const h = setup(null, reply, { [C.LEGACY_KEY]: old });
+  const result = await h.api.handle({ op: 'settings:get' });
+  assert.deepEqual(h.writes, ['set', 'remove']);
+  assert.equal(h.data[C.KEY].simple.apiKey, 'g-secret');
+  assert.equal(h.data[C.KEY].advanced.profiles.custom.apiKey, 'c-secret');
+  assert.ok(Object.values(result.config.routing).every(v => v === 'advanced'));
+  assert.ok(!JSON.stringify(result).includes('-secret'));
+  await h.api.handle({ op: 'settings:set', config: result.config });
+  assert.equal(h.data[C.KEY].simple.apiKey, 'g-secret');
+  const broken = setup(null, reply, { [C.LEGACY_KEY]: old });
+  broken.storage.set = async () => { throw new Error('Disk full'); };
+  await assert.rejects(broken.api.config());
+  assert.ok(broken.data[C.LEGACY_KEY]);
+});
+test('AI settings accept storage property reordering but still detect a lost key', async () => {
+  const saved = C.normalize({ simple: { apiKey: 'original-key' } });
+  const h = setup(saved, geminiReply);
+  const get = h.storage.get;
+  h.storage.get = async keys => reverseKeys(await get(keys));
+  const updated = (await h.api.handle({ op: 'settings:get' })).config;
+  updated.simple.apiKey = 'replacement-key';
+  assert.notEqual(JSON.stringify(reverseKeys(saved)), JSON.stringify(saved));
+  await h.api.handle({ op: 'settings:set', config: updated });
+  assert.equal(h.data[C.KEY].simple.apiKey, 'replacement-key');
+
+  const migrated = setup(null, geminiReply, { [C.LEGACY_KEY]: { profiles: { gemini: { apiKey: 'legacy-key' } } } });
+  const migrationGet = migrated.storage.get;
+  migrated.storage.get = async keys => reverseKeys(await migrationGet(keys));
+  await migrated.api.handle({ op: 'settings:get' });
+  assert.equal(migrated.data[C.KEY].simple.apiKey, 'legacy-key');
+  assert.equal(migrated.data[C.LEGACY_KEY], undefined);
+
+  const broken = setup(saved, geminiReply);
+  const set = broken.storage.set;
+  broken.storage.set = async values => {
+    await set(values);
+    if (Object.hasOwn(values, C.KEY)) delete broken.data[C.KEY].simple.apiKey;
+  };
+  await assert.rejects(broken.api.handle({ op: 'settings:set', config: { ...saved, simple: { ...saved.simple, apiKey: 'replacement-key' } } }), { code: 'storage_failed' });
+});
+test('Mistral Automatic falls through in order, respects suppression and returns actual provider metadata', async () => {
+  let success = false;
+  const h = setup(advanced(), (_url, init) => {
+    const m = JSON.parse(init.body).model;
+    return success || m === C.mistral[2].id ? reply() : limited({ 'Retry-After': '2' });
+  });
+  const result = await h.api.handle(query);
+  assert.equal(result.model, C.mistral[2].id);
+  assert.deepEqual(result.attemptedModels, C.mistral.slice(0, 3).map(m => m.id));
+  assert.equal(result.providerTier, 'advanced');
+  assert.equal(result.advancedFallback, false);
+  assert.deepEqual((await h.api.handle(query)).attemptedModels, [C.mistral[2].id]);
+  h.advance(2001); success = true;
+  assert.equal((await h.api.handle(query)).model, C.mistral[0].id);
+});
+test('availability falls back; safety, invalid input and cancellation never do', async () => {
+  for (const status of [401, 429, 500]) {
+    const h = setup(advanced('openrouter'), url => url.includes('googleapis') ? geminiReply() : json({}, status));
+    assert.equal((await h.api.handle(query)).advancedFallback, true);
+    assert.equal(h.requests.length, 2);
+  }
+  for (const [status, message, code] of [[400, 'Invalid parameter', 'invalid_args'], [400, 'Content policy blocked', 'safety_blocked']]) {
+    const h = setup(advanced('openrouter'), () => json({ error: { message } }, status));
+    await assert.rejects(h.api.handle(query), { code }); assert.equal(h.requests.length, 1);
+  }
+  const h = setup(advanced(), reply), controller = new AbortController(); controller.abort();
+  await assert.rejects(h.api.handle(query, { signal: controller.signal }), { code: 'aborted' });
+  assert.equal(h.requests.length, 0);
+});
+test('browser and Android hosts return identical responses through current and legacy messages', async () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'android/betterdungeon-runtime.json')));
+  assert.ok(manifest.scripts.indexOf('services/ai/config.js') < manifest.scripts.indexOf('services/ai/runtime.js'));
+  assert.ok(manifest.scripts.indexOf('modules/ai/executor.js') < manifest.scripts.indexOf('services/ai/runtime.js'));
+  assert.ok(manifest.scripts.indexOf('services/ai/runtime.js') < manifest.scripts.indexOf('utils/ai-native-runtime.js'));
+  const results = [];
+  for (const file of ['background-ai-openai-compatible.js', 'android/web/utils/ai-native-runtime.js']) {
+    const h = setup(C.normalize({ simple: { apiKey: 'g' } }), geminiReply);
+    const listeners = [];
+    const context = { console, URL, TextDecoder, AbortController, setTimeout, clearTimeout, setInterval, clearInterval,
+      fetch: geminiReply, __bdNativeAiFetch: geminiReply, importScripts() {},
+      chrome: { runtime: { onMessage: { addListener: fn => listeners.push(fn) }, onConnect: { addListener() {} } }, storage: { local: h.storage } } };
+    context.window = context;
+    vm.createContext(context);
+    for (const source of ['services/ai/config.js', 'modules/ai/executor.js', 'services/ai/runtime.js', file]) {
+      vm.runInContext(fs.readFileSync(path.join(root, source), 'utf8'), context);
+    }
+    for (const type of ['BETTERDUNGEON_AI', 'ULTRASCRIPTS_AI_OPENAI_COMPATIBLE']) {
+      const result = await new Promise(resolve => listeners[0]({ type, request: query }, {}, resolve));
+      assert.equal(result.ok, true); results.push([result.data.text, result.data.model, result.data.providerTier]);
+    }
+    const diagnostic = await new Promise(resolve => listeners[0]({ type: 'BETTERDUNGEON_AI', request: { op: 'test', tier: 'simple' } }, {}, resolve));
+    assert.equal(diagnostic.ok, true);
+    assert.equal(diagnostic.data.model, C.flash[0]);
+  }
+  assert.ok(results.every(r => JSON.stringify(r) === JSON.stringify(results[0])));
+});

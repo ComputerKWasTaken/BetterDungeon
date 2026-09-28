@@ -51,7 +51,7 @@ function Get-Versions {
 }
 
 function Invoke-NodeTests {
-    Write-Host 'Running BetterDungeon repository smoke checks...'
+    Write-Host 'Running BetterDungeon offline checks...'
     & node (Join-Path $RepoRoot 'tests\run-all.mjs')
     if ($LASTEXITCODE -ne 0) { throw "Node tests failed with exit code $LASTEXITCODE." }
 }

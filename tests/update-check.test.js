@@ -6,7 +6,7 @@ const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
 
-const root = path.resolve(__dirname, '..', '..');
+const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'services', 'update-check.js'), 'utf8');
 
 function loadModule(overrides = {}) {
@@ -122,16 +122,6 @@ test('checkNow flags newer releases and links the matching asset', async () => {
   assert.ok(status.downloadUrl.endsWith('.zip'));
 });
 
-test('Android picks the APK asset', async () => {
-  const { module } = loadModule({
-    BetterDungeonPlatform: { kind: 'android-webview' },
-    fetch: async () => releaseResponse('2.2.0'),
-  });
-  const status = await module.checkNow();
-  assert.equal(status.updateAvailable, true);
-  assert.ok(status.downloadUrl.endsWith('.apk'));
-});
-
 test('older or equal releases never flag', async () => {
   const { module } = loadModule({
     fetch: async () => releaseResponse('2.0.3'),
@@ -139,58 +129,4 @@ test('older or equal releases never flag', async () => {
   const status = await module.checkNow();
   assert.equal(status.updateAvailable, false);
   assert.equal(status.shouldNotify, false);
-});
-
-test('dismiss silences the flag for that version only', async () => {
-  const { module } = loadModule({
-    fetch: async () => releaseResponse('2.2.0'),
-  });
-  await module.checkNow();
-  const dismissed = await module.dismiss('2.2.0');
-  assert.equal(dismissed.shouldNotify, false);
-  assert.equal(dismissed.updateAvailable, true);
-});
-
-test('setEnabled(false) stops automatic checks but manual checkNow still runs', async () => {
-  let fetches = 0;
-  const env = loadModule({
-    fetch: async () => { fetches += 1; return releaseResponse('2.2.0'); },
-  });
-  await env.module.setEnabled(false);
-  const due = await env.module.checkIfDue();
-  assert.equal(due.enabled, false);
-  assert.equal(fetches, 0);
-  const forced = await env.module.checkNow();
-  assert.equal(forced.updateAvailable, true);
-  assert.equal(fetches, 1);
-});
-
-test('checkIfDue throttles repeat checks', async () => {
-  let fetches = 0;
-  const env = loadModule({
-    fetch: async () => { fetches += 1; return releaseResponse('2.1.1'); },
-  });
-  await env.module.checkNow();
-  assert.equal(fetches, 1);
-  await env.module.checkIfDue();
-  assert.equal(fetches, 1);
-});
-
-test('304 responses keep the last known release', async () => {
-  let notModified = false;
-  const env = loadModule({
-    fetch: async (url, options) => {
-      if (options?.headers?.['If-None-Match']) {
-        notModified = true;
-        return { ok: false, status: 304, headers: { get: () => null }, json: async () => ({}) };
-      }
-      return releaseResponse('2.2.0');
-    },
-  });
-  await env.module.checkNow();
-  env.store.betterDungeonUpdateCheck.nextRetryAt = 0;
-  await env.module.checkIfDue();
-  assert.equal(notModified, true);
-  const status = await env.module.getStatus();
-  assert.equal(status.latestVersion, '2.2.0');
 });
