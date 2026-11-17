@@ -19,7 +19,7 @@
     embeddedLoginRestricted: false,
     nativeAssetDataUri: false,
     longWebViewTransitions: false,
-    draggableWidgetControl: false
+    draggableWidgetControl: true
   };
 
   const browserFeatures = [
@@ -50,8 +50,7 @@
     storageAreasAliased: true,
     embeddedLoginRestricted: true,
     nativeAssetDataUri: true,
-    longWebViewTransitions: true,
-    draggableWidgetControl: true
+    longWebViewTransitions: true
   };
 
   const safeAndroidFeatures = browserFeatures.filter(

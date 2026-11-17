@@ -111,6 +111,106 @@ class DOMUtils {
     link.href = href;
     document.head.appendChild(link);
   }
+
+  static makeDraggableButton(button, storageKey) {
+    let position;
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey));
+      if (Number.isFinite(saved?.x) && Number.isFinite(saved?.y)) position = saved;
+    } catch {
+      // Use the default placement when storage is blocked or corrupt.
+    }
+
+    const update = () => {
+      if (!position || !button.getClientRects().length) return null;
+      button.classList.add('bd-button-positioned');
+      const viewport = document.compatMode === 'BackCompat' ? document.body : document.documentElement;
+      const inset = 8;
+      const maxX = Math.max(inset, viewport.clientWidth - button.offsetWidth - inset);
+      const maxY = Math.max(inset, viewport.clientHeight - button.offsetHeight - inset);
+      const x = Math.max(inset, Math.min(position.x, maxX));
+      const y = Math.max(inset, Math.min(position.y, maxY));
+      button.style.left = `${x}px`;
+      button.style.top = `${y}px`;
+      return { x, y };
+    };
+
+    let suppressClick = false;
+    let gesture = null;
+    const lifetime = new AbortController();
+    const options = { signal: lifetime.signal };
+    button.classList.add('bd-draggable-button');
+    button.addEventListener('dragstart', event => event.preventDefault(), options);
+    button.addEventListener('click', event => {
+      if (suppressClick && event.detail > 0) {
+        suppressClick = false;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    }, { ...options, capture: true });
+
+    button.addEventListener('pointerdown', event => {
+      if (gesture || !event.isPrimary || event.button !== 0) return;
+      suppressClick = false;
+      const { pointerId, clientX: startX, clientY: startY } = event;
+      const { left, top } = button.getBoundingClientRect();
+      gesture = new AbortController();
+      const tracking = { signal: gesture.signal, capture: true };
+      let moved = false;
+
+      const move = event => {
+        if (event.pointerId !== pointerId) return;
+        const dx = event.clientX - startX;
+        const dy = event.clientY - startY;
+        if (!moved) {
+          if (Math.hypot(dx, dy) < 6) return;
+          moved = true;
+          button.classList.add('bd-button-dragging');
+          button.setPointerCapture(pointerId);
+        }
+        position = { x: left + dx, y: top + dy };
+        update();
+        event.preventDefault();
+        event.stopPropagation();
+      };
+
+      const finish = () => {
+        gesture.abort();
+        gesture = null;
+        if (!moved) return;
+        button.classList.remove('bd-button-dragging');
+        suppressClick = true;
+        position = update() || position;
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(position));
+        } catch {
+          // The button still keeps its position while mounted.
+        }
+      };
+
+      const endPointer = event => {
+        if (event.pointerId === pointerId) finish();
+      };
+      window.addEventListener('pointermove', move, tracking);
+      window.addEventListener('pointerup', endPointer, tracking);
+      window.addEventListener('pointercancel', endPointer, tracking);
+      button.addEventListener('lostpointercapture', event => {
+        if (event.target === button) endPointer(event);
+      }, tracking);
+      // Moving focus between page controls is a normal part of mouse down.
+      window.addEventListener('blur', finish, { signal: gesture.signal });
+      event.stopPropagation();
+    }, options);
+
+    update();
+    return {
+      update,
+      destroy() {
+        gesture?.abort();
+        lifetime.abort();
+      },
+    };
+  }
 }
 
 if (typeof window !== 'undefined') {

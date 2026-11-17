@@ -23,7 +23,7 @@ class NavigatorFeature {
     this.launcher = null;
     this.launcherBadge = null;
     this.launcherStatus = null;
-    this.launcherPosition = null;
+    this.launcherDrag = null;
     this.transcriptEl = null;
     this.inputEl = null;
     this.composerEl = null;
@@ -213,7 +213,7 @@ class NavigatorFeature {
     this.adventureObserver.observe(document.body, { childList: true, subtree: true });
 
     this.boundResize = () => {
-      this.positionLauncher();
+      this.launcherDrag?.update();
       this.scheduleVisualViewportSync();
     };
     window.addEventListener('resize', this.boundResize);
@@ -382,6 +382,8 @@ class NavigatorFeature {
     this.routinesView = null;
     if (this.confirmationPanel && !this.confirmationPanel.hidden) this.resolveConfirmation(false);
     this.inputEl?.blur();
+    this.launcherDrag?.destroy();
+    this.launcherDrag = null;
     this.launcher?.remove();
     this.launcherStatus?.remove();
     this.launcher = null;
@@ -560,6 +562,7 @@ class NavigatorFeature {
     const launcher = document.createElement('button');
     launcher.type = 'button';
     launcher.className = 'bd-navigator-launcher';
+    launcher.classList.toggle('bd-navigator-launcher-compact', window.BetterDungeonPlatform?.formFactor === 'mobile');
     launcher.innerHTML = `
       <span class="bd-navigator-launcher-icon icon-telescope" aria-hidden="true"></span>
       <span class="bd-navigator-launcher-label">Navigator</span>
@@ -578,7 +581,8 @@ class NavigatorFeature {
     this.launcher = launcher;
     this.launcherBadge = launcher.querySelector('.bd-navigator-launcher-badge');
     this.launcherStatus = launcherStatus;
-    this.enableLauncherDrag(launcher);
+    this.launcherDrag = DOMUtils.makeDraggableButton(launcher, NavigatorFeature.launcherPositionKey);
+    launcher.addEventListener('click', () => this.openDrawer());
 
     this.drawer = drawer;
     this.transcriptEl = transcript;
@@ -1019,72 +1023,6 @@ class NavigatorFeature {
 
   // ==================== OPEN / CLOSE ====================
 
-  positionLauncher() {
-    const launcher = this.launcher;
-    const position = this.launcherPosition;
-    if (!launcher || launcher.hidden || !position) return;
-
-    const inset = 8;
-    const maxLeft = Math.max(inset, document.documentElement.clientWidth - launcher.offsetWidth - inset);
-    const maxTop = Math.max(inset, document.documentElement.clientHeight - launcher.offsetHeight - inset);
-    launcher.style.left = `${Math.min(maxLeft, Math.max(inset, position.x))}px`;
-    launcher.style.top = `${Math.min(maxTop, Math.max(inset, position.y))}px`;
-    launcher.style.right = 'auto';
-  }
-
-  enableLauncherDrag(launcher) {
-    try {
-      const saved = JSON.parse(localStorage.getItem(NavigatorFeature.launcherPositionKey));
-      if (Number.isFinite(saved?.x) && Number.isFinite(saved?.y)) this.launcherPosition = saved;
-    } catch {
-      // The launcher can still be moved when site storage is unavailable.
-    }
-    this.positionLauncher();
-
-    let gesture = null;
-    let suppressClick = false;
-    launcher.addEventListener('pointerdown', event => {
-      if (!event.isPrimary || event.button !== 0) return;
-      suppressClick = false;
-      const { left, top } = launcher.getBoundingClientRect();
-      gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, left, top, moved: false };
-      launcher.setPointerCapture(event.pointerId);
-    });
-    launcher.addEventListener('pointermove', event => {
-      if (gesture?.id !== event.pointerId) return;
-      const dx = event.clientX - gesture.x;
-      const dy = event.clientY - gesture.y;
-      if (!gesture.moved && Math.hypot(dx, dy) < 6) return;
-      gesture.moved = true;
-      launcher.classList.add('bd-navigator-launcher-dragging');
-      this.launcherPosition = { x: gesture.left + dx, y: gesture.top + dy };
-      this.positionLauncher();
-    });
-    const finish = event => {
-      if (gesture?.id !== event.pointerId) return;
-      suppressClick = gesture.moved;
-      gesture = null;
-      launcher.classList.remove('bd-navigator-launcher-dragging');
-      if (!suppressClick) return;
-      this.launcherPosition = { x: parseFloat(launcher.style.left), y: parseFloat(launcher.style.top) };
-      try {
-        localStorage.setItem(NavigatorFeature.launcherPositionKey, JSON.stringify(this.launcherPosition));
-      } catch {
-        // Keep the position for this session.
-      }
-    };
-    launcher.addEventListener('pointerup', finish);
-    launcher.addEventListener('pointercancel', finish);
-    launcher.addEventListener('lostpointercapture', finish);
-    launcher.addEventListener('click', event => {
-      if (suppressClick && event.detail > 0) {
-        suppressClick = false;
-        return;
-      }
-      this.openDrawer();
-    });
-  }
-
   openDrawer() {
     if (!this.drawer || !this.launcher) return;
     this.isOpen = true;
@@ -1105,7 +1043,7 @@ class NavigatorFeature {
     this.drawer.hidden = true;
     if (this.launcher) {
       this.launcher.hidden = false;
-      this.positionLauncher();
+      this.launcherDrag?.update();
       this.launcher.setAttribute('aria-expanded', 'false');
       if (restoreFocus) this.launcher.focus();
     }
@@ -1253,7 +1191,7 @@ class NavigatorFeature {
     this.launcher.dataset.activity = state;
     this.launcherBadge.hidden = state === 'idle';
     this.launcherBadge.textContent = working ? 'Working' : queued ? 'Queued' : '';
-    this.positionLauncher();
+    this.launcherDrag?.update();
     this.launcherStatus.textContent = working ? 'Navigator is working.'
       : queued ? 'Navigator has work queued.' : '';
   }
