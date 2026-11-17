@@ -21,6 +21,7 @@ class TryFeature {
     this.weightKeyHandler = null; // Handler for Up/Down arrow keys
     this.successBar = null; // The visible success chance bar element
     this._lastSpriteState = null; // track sprite/dynamic theme for reactive re-injection
+    this.settingsChangeHandler = null; // chrome.storage.onChanged listener (removed on destroy)
     this.debug = false;
 
     // Outcome phrase pools for variety
@@ -111,6 +112,10 @@ class TryFeature {
   destroy() {
     clearTimeout(this.activationTimer);
     this.activationTimer = null;
+    if (this.settingsChangeHandler && typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
+      chrome.storage.onChanged.removeListener(this.settingsChangeHandler);
+      this.settingsChangeHandler = null;
+    }
     if (this.observer) {
       this.observer.disconnect();
       this.observer = null;
@@ -155,13 +160,19 @@ class TryFeature {
         this.criticalChance = settings.tryCriticalChance ?? 5;
       });
 
-      // Listen for settings changes
-      chrome.storage.onChanged.addListener((changes, namespace) => {
+      // Listen for settings changes. FeatureManager creates a fresh instance
+      // on every enable, so the listener must be removable: keep a named
+      // handler, never stack duplicates, and drop it in destroy().
+      if (this.settingsChangeHandler) {
+        chrome.storage.onChanged.removeListener(this.settingsChangeHandler);
+      }
+      this.settingsChangeHandler = (changes, namespace) => {
         if (namespace === 'sync' && changes.betterDungeonSettings) {
           const newSettings = changes.betterDungeonSettings.newValue || {};
           this.criticalChance = newSettings.tryCriticalChance ?? 5;
         }
-      });
+      };
+      chrome.storage.onChanged.addListener(this.settingsChangeHandler);
     }
   }
 
@@ -816,4 +827,8 @@ class TryFeature {
 // Make available globally
 if (typeof window !== 'undefined') {
   window.TryFeature = TryFeature;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = TryFeature;
 }

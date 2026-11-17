@@ -250,11 +250,25 @@ class PlotPresetsFeature {
       };
     }
 
-    // Fallback: use centralized selectors directly if service instance unavailable
+    // Fallback: the finders are stateless, so a throwaway service instance
+    // keeps the same layered detection (placeholder → aria-label → heading)
+    // instead of dropping to the brittle placeholder selectors alone.
+    if (typeof AIDungeonService !== 'undefined') {
+      const svc = new AIDungeonService();
+      return {
+        aiInstructions: svc.findAIInstructionsTextarea(),
+        plotEssentials: svc.findPlotEssentialsTextarea(),
+        authorsNote: svc.findAuthorsNoteTextarea()
+      };
+    }
+
+    // Last resort: centralized placeholder selectors, guarded so a missing
+    // service class degrades to "not found" instead of throwing.
+    const SEL = typeof window !== 'undefined' ? window.AIDungeonService?.SEL : null;
     return {
-      aiInstructions: document.querySelector(AIDungeonService.SEL.AI_INSTRUCTIONS),
-      plotEssentials: document.querySelector(AIDungeonService.SEL.PLOT_ESSENTIALS),
-      authorsNote: document.querySelector(AIDungeonService.SEL.AUTHORS_NOTE)
+      aiInstructions: SEL ? document.querySelector(SEL.AI_INSTRUCTIONS) : null,
+      plotEssentials: SEL ? document.querySelector(SEL.PLOT_ESSENTIALS) : null,
+      authorsNote: SEL ? document.querySelector(SEL.AUTHORS_NOTE) : null
     };
   }
 

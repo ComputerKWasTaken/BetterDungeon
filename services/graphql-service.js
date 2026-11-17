@@ -238,18 +238,21 @@
         }
       }`,
 
+      // Field sets mirror AI Dungeon's own EditMemory/DeleteMemory documents
+      // (verified against the live web bundle, 2026-11-17): the app only ever
+      // selects success/message (plus numMemoriesStored on delete). Requesting
+      // fields the payload does not have (the previous code/memory selections)
+      // fails GraphQL validation and rejects the whole mutation, and the
+      // wrappers below only consume success/message anyway.
       navigatorEditMemory: `mutation NavigatorEditMemory($input: EditMemoryInput!) {
   editMemory(input: $input) {
-    code
     success
     message
-    memory
   }
 }`,
 
       navigatorDeleteMemory: `mutation NavigatorDeleteMemory($input: DeleteMemoryInput!) {
   deleteMemory(input: $input) {
-    code
     success
     message
   }

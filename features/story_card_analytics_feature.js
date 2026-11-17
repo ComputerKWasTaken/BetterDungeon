@@ -151,9 +151,16 @@ class StoryCardAnalyticsFeature {
   }
 
   escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    // Full entity escape, safe for both text nodes and attribute values.
+    // (The previous textContent round-trip did not escape quotes, so a card
+    // name containing `"` could break out of data-card-name attributes, and
+    // card-derived strings were interpolated into innerHTML unescaped.)
+    return String(text ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   renderAnalytics(analytics) {
@@ -176,19 +183,20 @@ class StoryCardAnalyticsFeature {
         </div>
       `).join('');
 
-    // Build trigger overlaps HTML
-    const overlapsHtml = triggerOverlaps.length > 0 
+    // Build trigger overlaps HTML (card titles/triggers are platform data —
+    // always escape before interpolating into innerHTML)
+    const overlapsHtml = triggerOverlaps.length > 0
       ? triggerOverlaps.slice(0, 10).map(overlap => `
           <div class="bd-overlap-item">
-            <span class="bd-overlap-trigger">"${overlap.trigger}"</span>
-            <span class="bd-overlap-cards">${overlap.cards.map(c => `<span class="bd-card-link" data-card-name="${c}">${c}</span>`).join(', ')}</span>
+            <span class="bd-overlap-trigger">"${this.escapeHtml(overlap.trigger)}"</span>
+            <span class="bd-overlap-cards">${overlap.cards.map(c => `<span class="bd-card-link" data-card-name="${this.escapeHtml(c)}">${this.escapeHtml(c)}</span>`).join(', ')}</span>
           </div>
         `).join('')
       : '<p class="bd-analytics-none">No overlapping triggers found</p>';
 
     // Build empty cards HTML
     const emptyCardsHtml = emptyCards.length > 0
-      ? emptyCards.map(name => `<span class="bd-card-link bd-empty-card" data-card-name="${name}">${name}</span>`).join(', ')
+      ? emptyCards.map(name => `<span class="bd-card-link bd-empty-card" data-card-name="${this.escapeHtml(name)}">${this.escapeHtml(name)}</span>`).join(', ')
       : '<p class="bd-analytics-none">All cards have content</p>';
 
     // Build content quality data (merged section)
@@ -207,8 +215,19 @@ class StoryCardAnalyticsFeature {
         `).join('')
       : '<p class="bd-analytics-none">No issues detected</p>';
 
+    const incompleteWarning = analytics.incompleteScan ? `
+        <div class="bd-analytics-section bd-analytics-issues">
+          <div class="bd-issues-list">
+            <div class="bd-issue-item bd-issue-warning">
+              <span class="bd-issue-icon"><span class="icon-triangle-alert"></span></span>
+              <span class="bd-issue-text">Partial data: loaded ${analytics.incompleteScan.scanned} of ${analytics.incompleteScan.total} story cards. Counts below may be incomplete — try Refresh.</span>
+            </div>
+          </div>
+        </div>` : '';
+
     return `
       <div class="bd-analytics-grid">
+        ${incompleteWarning}
         <!-- Summary Stats -->
         <div class="bd-analytics-section bd-analytics-summary">
           <h3>Summary</h3>
@@ -315,7 +334,7 @@ class StoryCardAnalyticsFeature {
                   <div class="bd-issue-cards-list">
                     ${cardsWithDoubleLinebreaks.map(item => `
                       <div class="bd-issue-card-item">
-                        <span class="bd-card-link" data-card-name="${item.name}">${item.name}</span>
+                        <span class="bd-card-link" data-card-name="${this.escapeHtml(item.name)}">${this.escapeHtml(item.name)}</span>
                         <span class="bd-issue-detail">${item.count} blank line${item.count > 1 ? 's' : ''}</span>
                       </div>
                     `).join('')}
@@ -331,7 +350,7 @@ class StoryCardAnalyticsFeature {
                   <div class="bd-issue-cards-list">
                     ${allLongCards.map(item => `
                       <div class="bd-issue-card-item ${item.length > 1500 ? 'bd-very-long' : ''}">
-                        <span class="bd-card-link" data-card-name="${item.name}">${item.name}</span>
+                        <span class="bd-card-link" data-card-name="${this.escapeHtml(item.name)}">${this.escapeHtml(item.name)}</span>
                         <span class="bd-issue-detail">${item.length.toLocaleString()} chars</span>
                       </div>
                     `).join('')}
@@ -347,7 +366,7 @@ class StoryCardAnalyticsFeature {
                   <div class="bd-issue-cards-list">
                     ${characterNameIssues.map(item => `
                       <div class="bd-issue-card-item">
-                        <span class="bd-card-link" data-card-name="${item.name}">${item.name}</span>
+                        <span class="bd-card-link" data-card-name="${this.escapeHtml(item.name)}">${this.escapeHtml(item.name)}</span>
                         <span class="bd-issue-detail">${item.occurrences === 0 ? 'never mentioned' : `only ${item.occurrences}×`}</span>
                       </div>
                     `).join('')}
@@ -464,7 +483,17 @@ class StoryCardAnalyticsFeature {
 
       this.lastAnalytics = storyCardScanner.getAnalytics();
       this.lastRefreshTime = new Date();
-      this.updateDashboardContent(this.renderAnalytics(this.lastAnalytics));
+      if (result.incomplete) {
+        this.lastAnalytics.incompleteScan = {
+          scanned: result.scannedCount,
+          total: result.authoritativeTotal,
+        };
+      }
+      if (this.lastAnalytics.totalCards === 0) {
+        this.updateDashboardContent(this.renderEmptyState());
+      } else {
+        this.updateDashboardContent(this.renderAnalytics(this.lastAnalytics));
+      }
       return result;
     } catch (error) {
       console.error('StoryCardAnalyticsFeature: Refresh error:', error);
@@ -478,6 +507,8 @@ class StoryCardAnalyticsFeature {
   getTypeIcon(type) {
     const icons = {
       character: '<span class="icon-user"></span>',
+      race: '<span class="icon-dna"></span>',
+      class: '<span class="icon-graduation-cap"></span>',
       location: '<span class="icon-map-pin"></span>',
       item: '<span class="icon-backpack"></span>',
       faction: '<span class="icon-swords"></span>',

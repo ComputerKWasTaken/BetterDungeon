@@ -36,12 +36,22 @@ class CommandFeature {
     this._lastSpriteState = null; // track sprite/dynamic theme for reactive re-injection
     this.pendingInjection = null;  // rAF handle coalescing observer bursts
     this.debug = false;
+    this._warnedReasons = new Set(); // platform-structure failures already reported
   }
 
   log(message, ...args) {
     if (this.debug) {
       console.log(message, ...args);
     }
+  }
+
+  // Platform-structure failures used to fail silently (the Navigator /
+  // Character Presets breakage pattern): if AI Dungeon renames an anchor,
+  // say so once per reason instead of never mounting with no trace.
+  warnOnce(reason, message) {
+    if (this._warnedReasons.has(reason)) return;
+    this._warnedReasons.add(reason);
+    console.warn(`[Command] ${message}`);
   }
 
   init() {
@@ -161,6 +171,14 @@ class CommandFeature {
       name: 'command', base: 'story', label: 'Command', icon: 'w_ai',
       activate: () => this.activateCommandMode()
     });
+    if (this.commandButton) {
+      this._warnedReasons.delete('inject-failed');
+    } else if (this.aid.getInputModeMenu()) {
+      // The mode menu is open but the button could not be built — a native
+      // anchor (menu entries / base mode button) no longer matches.
+      this.warnOnce('inject-failed',
+        'Input mode menu is open but the Command button could not be injected; a native mode anchor may have changed.');
+    }
     if (this.isCommandMode && !this.activationTimer && this.aid.detectCurrentMode() === 'story') {
       this.updateModeDisplay();
     }
@@ -347,7 +365,12 @@ class CommandFeature {
 
   activateCommandMode() {
     const baseButton = this.aid.getModeButtonByName('story');
-    if (!baseButton || baseButton.getAttribute('aria-disabled') === 'true') return;
+    if (!baseButton || baseButton.getAttribute('aria-disabled') === 'true') {
+      this.warnOnce('activate-no-story',
+        'Command mode could not activate: the native Story mode button was not found or is disabled.');
+      return;
+    }
+    this._warnedReasons.delete('activate-no-story');
     // Let existing mode-change handlers restore the previous mode before the
     // native click changes React state, then enable our overlay.
     baseButton.click();
@@ -442,7 +465,7 @@ class CommandFeature {
       if (modeText) {
         const lower = modeText.textContent.toLowerCase();
         if (lower.startsWith('command')) {
-          modeText.textContent = 'story';
+          modeText.textContent = 'Story';
         }
       }
     }
@@ -779,12 +802,17 @@ class CommandFeature {
     if (!storyOutput) return;
 
     const commandPattern = this.pendingCommandDelete;
-    const allSpans = storyOutput.querySelectorAll('span[id="transition-opacity"]');
-    
-    for (const span of allSpans) {
-      const text = span.textContent || '';
+    // Tag-agnostic on purpose: AI Dungeon renders #transition-opacity via
+    // Tamagui components whose web element is not reliably a <span> (the
+    // shared service selector is '#transition-opacity' for the same reason).
+    // The old span-only selector silently matched nothing when the action
+    // block rendered as a <div>, so auto-delete never fired.
+    const allBlocks = storyOutput.querySelectorAll('[id="transition-opacity"]');
+
+    for (const block of allBlocks) {
+      const text = block.textContent || '';
       if (text.includes(commandPattern)) {
-        span.click();
+        block.click();
         setTimeout(() => this.clearAndSaveEdit(), 500);
         break;
       }
@@ -881,4 +909,8 @@ class CommandFeature {
 // Make available globally
 if (typeof window !== 'undefined') {
   window.CommandFeature = CommandFeature;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = CommandFeature;
 }

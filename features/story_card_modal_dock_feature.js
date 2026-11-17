@@ -25,6 +25,7 @@ class StoryCardModalDockFeature {
     this.scrollOverrideState = null;
     this.baseScrollStyles = null;
     this._lastTouch = null;
+    this._unrecognisedDialogWarned = false;
     this.debug = false;
   }
 
@@ -479,7 +480,10 @@ class StoryCardModalDockFeature {
     // Try common AID containers first, then fall back to the document scroller.
     const gameplay = document.getElementById('gameplay-output');
     const viewport = document.querySelector('#gameplay-output [data-overlayscrollbars-viewport]');
-    const start = viewport || gameplay;
+    // OverlayScrollbars no longer ships in AID's bundle; the current scroll
+    // region pattern is a descendant marked data-slot="platform-scroll-view".
+    const platformView = gameplay?.querySelector?.('[data-slot="platform-scroll-view"]');
+    const start = viewport || platformView || gameplay;
 
     const ancestor = start ? this.findScrollableAncestor(start) : null;
     if (ancestor) return ancestor;
@@ -502,36 +506,126 @@ class StoryCardModalDockFeature {
       }
     }
 
-    const close = modal.querySelector('[aria-label="Close"], [aria-label="close"], [data-testid*="close"]');
+    // NOTE: the current story card form's own buttons are Save/Cancel. They
+    // are deliberately NOT clicked here: Save does not necessarily close the
+    // editor, and Cancel would discard the user's edits.
+    const close = modal.querySelector('[aria-label="Close"], [aria-label="close"], [aria-label="Close dialog"], [aria-label="Close Dialog"], [data-testid*="close"]');
     if (close) {
       close.click();
       return true;
     }
 
+    // Dispatch Escape on the modal itself (bubbling to document) rather than
+    // directly on document: dismissable-layer handlers (e.g. Radix) scope
+    // their handling to events originating inside the layer, so a
+    // document-targeted synthetic event can be ignored.
     try {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
+      modal.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }));
       return true;
     } catch (_) {
-      return false;
+      try {
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }));
+        return true;
+      } catch (__) {
+        return false;
+      }
     }
   }
 
+  // Accessible titles the story card editor dialog has shipped with.
+  // - "Story Card Edit Modal": the original aria-label (pre-Radix layout).
+  // - "Edit story card" / "Create story card": the current Radix layout,
+  //   where the dialog's accessible name comes from an sr-only title element
+  //   (verified in AI Dungeon's play bundle, build yHuVepAanMcsrfh7owWDd:
+  //   the string "Story Card Edit Modal" no longer exists anywhere in it).
+  static STORY_CARD_DIALOG_TITLES = new Set([
+    'story card edit modal',
+    'edit story card',
+    'create story card'
+  ]);
+
+  normalizeDialogText(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  }
+
+  // Resolve the title texts a dialog exposes: its aria-label, the elements
+  // its aria-labelledby points at, and any heading / sr-only title element
+  // inside it (Radix DialogTitle renders as a heading with class sr-only).
+  getDialogTitleTexts(dialog) {
+    const texts = [];
+
+    const ariaLabel = dialog.getAttribute?.('aria-label');
+    if (ariaLabel) texts.push(this.normalizeDialogText(ariaLabel));
+
+    const labelledBy = dialog.getAttribute?.('aria-labelledby');
+    if (labelledBy) {
+      for (const id of labelledBy.split(/\s+/).filter(Boolean)) {
+        const target = document.getElementById?.(id);
+        if (target?.textContent) texts.push(this.normalizeDialogText(target.textContent));
+      }
+    }
+
+    const titleEls = dialog.querySelectorAll?.('h1, h2, h3, h4, .sr-only') || [];
+    for (const el of titleEls) {
+      if (el.textContent) texts.push(this.normalizeDialogText(el.textContent));
+    }
+
+    return texts.filter(Boolean);
+  }
+
+  isStoryCardDialog(dialog) {
+    if (!dialog) return false;
+    return this.getDialogTitleTexts(dialog).some(text => StoryCardModalDockFeature.STORY_CARD_DIALOG_TITLES.has(text));
+  }
+
   findStoryCardModal() {
-    return (
-      document.querySelector('[aria-label="Story Card Edit Modal"][role="alertdialog"]') ||
-      document.querySelector('[aria-label="Story Card Edit Modal"][role="dialog"]') ||
-      document.querySelector('[aria-label="Story Card Edit Modal"]')
-    );
+    // Legacy anchor first: exact aria-label, any role.
+    const legacy = document.querySelector('[aria-label="Story Card Edit Modal"]');
+    if (legacy) return legacy;
+
+    // Current layout: a Radix-style dialog whose accessible title is the
+    // story card editor's. Scan open dialogs and match by title so a future
+    // aria-label/title reshuffle degrades to a diagnosable miss (see the
+    // warn-once in applyDockingIfPresent) instead of another silent death.
+    const dialogs = document.querySelectorAll('[role="dialog"], [role="alertdialog"]');
+    for (const dialog of dialogs) {
+      if (this.isStoryCardDialog(dialog)) return dialog;
+    }
+
+    return null;
   }
 
   findBackdropForModal(modal) {
     if (!modal) return null;
 
+    // Legacy/Tamagui overlay: an element labelled "Close Dialog" inside an
+    // ancestor of the modal. It is not necessarily a <button> (Tamagui's
+    // Overlay renders with role="button"), so match any element type.
     let current = modal;
     for (let i = 0; i < 12 && current; i++) {
-      const backdrop = current.querySelector?.('button[aria-label="Close Dialog"]');
+      const backdrop = current.querySelector?.('[aria-label="Close Dialog"]');
       if (backdrop) return backdrop;
       current = current.parentElement;
+    }
+
+    return this.findOverlayBackdrop(modal);
+  }
+
+  findOverlayBackdrop(modal) {
+    // Radix layout: the overlay is a sibling of the dialog content inside
+    // the portal (possibly one wrapper level up), rendered with a
+    // data-state attribute and a dark background utility class
+    // (bg-black/80, or bg-black/35 in the translucent variant).
+    let branch = modal;
+    for (let depth = 0; depth < 5 && branch?.parentElement; depth++) {
+      const parent = branch.parentElement;
+      for (const sibling of parent.children || []) {
+        if (sibling === branch) continue;
+        if (typeof sibling.hasAttribute !== 'function' || !sibling.hasAttribute('data-state')) continue;
+        const className = typeof sibling.className === 'string' ? sibling.className : '';
+        if (className.includes('bg-black')) return sibling;
+      }
+      branch = parent;
     }
 
     return null;
@@ -544,9 +638,20 @@ class StoryCardModalDockFeature {
     // - If docking is possible: dock, remove overlay, unlock scrolling.
     const modal = this.findStoryCardModal();
     if (!modal) {
+      // Diagnosability: if some other dialog is open, the story card editor
+      // may be present but unrecognised (its title anchors changed again).
+      // Warn once per dialog session instead of failing silently forever.
+      const anyDialog = document.querySelector('[role="dialog"], [role="alertdialog"]');
+      if (anyDialog && !this._unrecognisedDialogWarned) {
+        console.warn('[StoryCardModalDock] A dialog is open but the story card editor was not recognised; docking skipped. Its title anchors may have changed.');
+        this._unrecognisedDialogWarned = true;
+      } else if (!anyDialog) {
+        this._unrecognisedDialogWarned = false;
+      }
       this.removeDocking();
       return;
     }
+    this._unrecognisedDialogWarned = false;
 
     const backdrop = this.findBackdropForModal(modal);
 

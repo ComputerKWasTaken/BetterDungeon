@@ -34,6 +34,7 @@ class AutoSeeFeature {
 
     this.waitingForAITimer = null;
     this.safetyResetTimer = null;
+    this.triggerTimer = null;
     this.lastTriggerAttempt = 0;
     this.lastObservedActionEvent = null;
 
@@ -128,9 +129,19 @@ class AutoSeeFeature {
       clearTimeout(this.safetyResetTimer);
       this.safetyResetTimer = null;
     }
+    if (this.triggerTimer) {
+      clearTimeout(this.triggerTimer);
+      this.triggerTimer = null;
+    }
   }
 
   abortCurrentOperation(reason) {
+    // A See trigger pending its 300 ms delay is not yet "processing", but an
+    // abort (interrupt, adventure change, destroy) must still cancel it.
+    if (this.triggerTimer) {
+      clearTimeout(this.triggerTimer);
+      this.triggerTimer = null;
+    }
     if (this.isProcessing || this.isWaitingForAIResponse) {
       this.log('[AutoSee] Aborting current operation:', reason);
       this.currentOperationId++;
@@ -223,7 +234,7 @@ class AutoSeeFeature {
 
   setupUserInterruptDetection() {
     this.boundUserInterruptHandler = (event) => {
-      if (!this.isProcessing && !this.isWaitingForAIResponse) return;
+      if (!this.isProcessing && !this.isWaitingForAIResponse && !this.triggerTimer) return;
       if (!event.isTrusted) return;
       if (this.isSameObservedActionEvent(event)) return;
 
@@ -396,7 +407,10 @@ class AutoSeeFeature {
 
     if (!this.shouldTriggerSee()) return;
 
-    setTimeout(() => {
+    if (this.triggerTimer) clearTimeout(this.triggerTimer);
+    this.triggerTimer = setTimeout(() => {
+      this.triggerTimer = null;
+      if (!this.isOperationValid(operationId)) return;
       if (this.currentAdventureId !== adventureAtStart) return;
       this.triggerSeeAction();
     }, 300);
@@ -667,8 +681,14 @@ class AutoSeeFeature {
 
   detectCurrentInputMode() {
     const modeButton = document.querySelector(this.inputModeMenuSelector);
-    const modeText = modeButton?.querySelector('.font_body');
-    return modeText ? modeText.textContent.toLowerCase().trim() : null;
+    if (!modeButton) return null;
+    const modeText = modeButton.querySelector('.font_body');
+    if (modeText) return modeText.textContent.toLowerCase().trim();
+    // Fallback: the mode label is also the button's rendered text. Only
+    // accept known text-mode names so media labels ("Image"/"Video") or
+    // icon text can never be misread as a text input mode.
+    const label = modeButton.textContent?.toLowerCase().trim();
+    return ['do', 'say', 'see', 'story'].includes(label) ? label : null;
   }
 
   log(...args) {
@@ -684,4 +704,8 @@ class AutoSeeFeature {
 
 if (typeof window !== 'undefined') {
   window.AutoSeeFeature = AutoSeeFeature;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = AutoSeeFeature;
 }

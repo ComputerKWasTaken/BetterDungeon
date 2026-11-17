@@ -28,6 +28,8 @@ class InputModeColorFeature {
     this.customColors = { ...InputModeColorFeature.DEFAULT_COLORS };
     this.styleElement = null;
     this.boundMessageListener = null;
+    this.boundStorageListener = null;
+    this._applyFrame = null; // pending coalesced detection pass
     this._lastDynamic = null; // track theme state for switch detection
     this.debug = false;
   }
@@ -52,9 +54,14 @@ class InputModeColorFeature {
       this.observer.disconnect();
       this.observer = null;
     }
+    this.cancelScheduledApply();
     if (this.boundMessageListener) {
       chrome.runtime.onMessage.removeListener(this.boundMessageListener);
       this.boundMessageListener = null;
+    }
+    if (this.boundStorageListener && chrome.storage?.onChanged) {
+      chrome.storage.onChanged.removeListener(this.boundStorageListener);
+      this.boundStorageListener = null;
     }
     if (this.styleElement) {
       this.styleElement.remove();
@@ -64,14 +71,23 @@ class InputModeColorFeature {
     this.currentMode = null;
   }
 
+  // Merge a stored/pushed color set over the defaults. Legacy storage may
+  // carry a single 'see' color, which migrates to 'image'.
+  mergeCustomColors(colors = {}) {
+    if (!colors || typeof colors !== 'object') {
+      return { ...InputModeColorFeature.DEFAULT_COLORS };
+    }
+    return { ...InputModeColorFeature.DEFAULT_COLORS, ...colors,
+      image: colors.image || colors.see || InputModeColorFeature.DEFAULT_COLORS.image };
+  }
+
   // Load custom colors from Chrome storage
   async loadCustomColors() {
     return new Promise((resolve) => {
       chrome.storage.sync.get(InputModeColorFeature.STORAGE_KEY, (result) => {
         const customColors = (result || {})[InputModeColorFeature.STORAGE_KEY];
         if (customColors && typeof customColors === 'object') {
-          this.customColors = { ...InputModeColorFeature.DEFAULT_COLORS, ...customColors,
-            image: customColors.image || customColors.see || InputModeColorFeature.DEFAULT_COLORS.image };
+          this.customColors = this.mergeCustomColors(customColors);
           this.log('[InputModeColor] Loaded custom colors', this.customColors);
         } else {
           this.customColors = { ...InputModeColorFeature.DEFAULT_COLORS };
@@ -79,6 +95,18 @@ class InputModeColorFeature {
         resolve();
       });
     });
+  }
+
+  // Apply a new color set: refresh the CSS variables and re-apply the
+  // current mode's styling so the change is visible immediately.
+  applyCustomColors(colors = {}) {
+    this.customColors = this.mergeCustomColors(colors);
+    this.injectCustomColorStyles();
+    if (this.currentMode) {
+      this.removeColorStyling();
+      this.detectAndApplyColor();
+    }
+    this.log('[InputModeColor] Colors updated', this.customColors);
   }
 
   // Convert hex color to RGB values
@@ -144,26 +172,30 @@ class InputModeColorFeature {
   listenForColorUpdates() {
     this.boundMessageListener = (message, sender, sendResponse) => {
       if (message.type === 'MODE_COLORS_UPDATED') {
-        const colors = message.colors || {};
-        this.customColors = { ...InputModeColorFeature.DEFAULT_COLORS, ...colors,
-          image: colors.image || colors.see || InputModeColorFeature.DEFAULT_COLORS.image };
-        this.injectCustomColorStyles();
-        // Force re-apply current mode styling
-        if (this.currentMode) {
-          this.removeColorStyling();
-          this.detectAndApplyColor();
-        }
-        this.log('[InputModeColor] Colors updated', this.customColors);
+        this.applyCustomColors(message.colors || {});
         sendResponse({ success: true });
       }
       return true;
     };
     chrome.runtime.onMessage.addListener(this.boundMessageListener);
+
+    // The popup message reaches only the active tab. Storage is shared by
+    // every AI Dungeon tab, so follow it directly as well — otherwise other
+    // open tabs keep stale colors until they are reloaded.
+    if (chrome.storage?.onChanged) {
+      this.boundStorageListener = (changes, areaName) => {
+        if (areaName !== 'sync') return;
+        const change = changes[InputModeColorFeature.STORAGE_KEY];
+        if (!change) return;
+        this.applyCustomColors(change.newValue || {});
+      };
+      chrome.storage.onChanged.addListener(this.boundStorageListener);
+    }
   }
 
   setupObserver() {
     this.observer = new MutationObserver(() => {
-      this.detectAndApplyColor();
+      this.scheduleDetectAndApplyColor();
     });
 
     // Watch for DOM changes to detect mode menu opening and mode changes
@@ -173,6 +205,29 @@ class InputModeColorFeature {
       attributes: true,
       attributeFilter: ['class', 'aria-label']
     });
+  }
+
+  // Mutation batches fire constantly while AI Dungeon streams text, and a
+  // detection pass reads computed styles. Coalesce to one pass per frame.
+  scheduleDetectAndApplyColor() {
+    if (this._applyFrame !== null) return;
+    const raf = typeof requestAnimationFrame === 'function'
+      ? requestAnimationFrame
+      : (callback) => setTimeout(callback, 16);
+    this._applyFrame = raf(() => {
+      this._applyFrame = null;
+      this.detectAndApplyColor();
+    });
+  }
+
+  cancelScheduledApply() {
+    if (this._applyFrame === null) return;
+    if (typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(this._applyFrame);
+    } else {
+      clearTimeout(this._applyFrame);
+    }
+    this._applyFrame = null;
   }
 
   // Mode color mapping handled in CSS via data attributes
@@ -340,4 +395,8 @@ class InputModeColorFeature {
 // Make available globally
 if (typeof window !== 'undefined') {
   window.InputModeColorFeature = InputModeColorFeature;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = InputModeColorFeature;
 }

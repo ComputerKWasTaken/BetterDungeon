@@ -12,7 +12,18 @@
   const NAMESPACE = 'betterdungeon-custom-dynamic-v1';
   const TO_PAGE = 'extension-to-page';
   const FROM_PAGE = 'page-to-extension';
-  const MODEL_SWITCHER_SELECTOR = '[aria-label="Model Switcher"]';
+  // AI Dungeon's model switcher trigger is labelled "Open Model Switcher"
+  // (or "Open Model Switcher, current model: …, … tier" when it carries the
+  // active model). The popover it opens is the element still labelled plain
+  // "Model Switcher", so the legacy exact label is only trusted on elements
+  // that act as buttons — otherwise the indicator would mount on the popover
+  // instead of the always-visible trigger.
+  const MODEL_SWITCHER_SELECTOR = [
+    '[aria-label="Open Model Switcher"]',
+    '[aria-label^="Open Model Switcher, current model:"]',
+    'button[aria-label="Model Switcher"]',
+    '[role="button"][aria-label="Model Switcher"]'
+  ].join(', ');
   const INDICATOR_STYLE_ID = 'bd-custom-dynamic-indicator-style';
   const INDICATOR_ACTIVE_ATTRIBUTE = 'data-bd-custom-dynamic-active';
   const INDICATOR_ATTRIBUTE = 'data-bd-custom-dynamic-model-indicator';
@@ -44,6 +55,13 @@
   const ACTION_KEY_RE = /^(?:action|actiontype|action_type|input|text|prompt|userinput|user_input|storyinput|story_input|command|message|mode|type)$/i;
   const ACTION_VALUE_RE = /^(?:continue|do|say|story|guide|see|take[_ -]?action|retry|regenerate)$/i;
   const GENERATION_OPERATION_RE = /(?:generate|continue|retry|take.?action|submit.?action|perform.?action|create.?action|send.?action|story.?action|add.?action|adventure.?action|actionRequest|retryAction)/i;
+  // The ActionRequest lifecycle also fires CheckActionRequest (polled
+  // repeatedly while a generation is processing) and CancelActionRequest.
+  // Both match GENERATION_OPERATION_RE via "actionRequest", but neither
+  // submits a new action: treating them as generation would advance the
+  // turn counter on every poll and could switch the adventure's model
+  // mid-generation. They are never generation, regardless of score.
+  const NON_GENERATION_OPERATION_RE = /^(?:check|cancel)actionrequest$/i;
   const URL_GENERATION_RE = /(?:generate|continue|retry|take.?action|story.?action|actions?\/(?:create|add|send)|(?:create|add|send)\/?actions?)/i;
   window.addEventListener('message', handleBridgeMessage, false);
   installRoutedModelIndicator();
@@ -438,7 +456,7 @@
     ) || [];
     return Array.from(candidates).find((element) => {
       if (element.closest?.(`[${INDICATOR_ATTRIBUTE}="true"]`)) return false;
-      return !/^(?:Model Switcher|Undo change|Redo change|Settings|Game settings)$/i.test(
+      return !/^(?:(?:Open )?Model Switcher(?:\s*,.*)?|Undo change|Redo change|Settings|Game settings)$/i.test(
         cleanModelName(element.getAttribute?.('aria-label'))
       );
     }) || null;
@@ -608,7 +626,7 @@
       operation,
       modelFields,
       generationScore,
-      isGeneration: generationScore >= 5
+      isGeneration: !NON_GENERATION_OPERATION_RE.test(operation) && generationScore >= 5
     };
   }
 

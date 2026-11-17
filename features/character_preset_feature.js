@@ -28,6 +28,7 @@ class CharacterPresetFeature {
     this.lastPanelRenderKey = null;
     this.manualDismissedQuestions = new Set();
     this.sessionDismissed = false;
+    this.dismissedRouteShortId = null;
     this.observer = null;
     this.checkInterval = null;
     this._checkDebounceTimer = null;
@@ -199,6 +200,7 @@ class CharacterPresetFeature {
 
   cleanupSession() {
     this.sessionDismissed = true;
+    this.dismissedRouteShortId = this.parseScenarioShortIdFromUrl();
     this.clearSession();
     this.manualDismissedQuestions.clear();
     this.status = 'idle';
@@ -351,6 +353,20 @@ class CharacterPresetFeature {
     }, 250);
   }
 
+  // Only free-text fields can receive a prefill answer. The fallback
+  // lookups below must never bind to a radio/checkbox/hidden input that a
+  // multiple-choice scenario-start step (or a future layout) renders inside
+  // the scenario-start container: detection would otherwise mount the panel
+  // on a step with no text entry, and the typewriter fill would silently
+  // write nowhere.
+  isTextEntryElement(el) {
+    if (!el) return false;
+    if (el.tagName === 'TEXTAREA') return true;
+    if (el.tagName !== 'INPUT') return false;
+    const type = String(el.getAttribute?.('type') || el.type || '').toLowerCase();
+    return type === '' || type === 'text' || type === 'search';
+  }
+
   findScenarioEntryInput() {
     const byId = document.getElementById('full-screen-text-input');
     if (byId) return byId;
@@ -358,13 +374,16 @@ class CharacterPresetFeature {
     // Fallbacks if the stable id is ever renamed: the scenario-start prompt
     // heading and its scroll container keep their own stable ids.
     const labelled = document.querySelector('[aria-labelledby="scenario-start-prompt"]');
-    if (labelled && (labelled.tagName === 'INPUT' || labelled.tagName === 'TEXTAREA')) {
+    if (this.isTextEntryElement(labelled)) {
       return labelled;
     }
 
     const container = this.getScenarioStartContainer();
-    const fallback = container?.querySelector?.('input, textarea');
-    return fallback || null;
+    const candidates = container?.querySelectorAll?.('input, textarea') || [];
+    for (const candidate of candidates) {
+      if (this.isTextEntryElement(candidate)) return candidate;
+    }
+    return null;
   }
 
   getScenarioStartContainer(fromElement = null) {
@@ -488,7 +507,16 @@ class CharacterPresetFeature {
 
   async checkForEntryField() {
     if (this.isApplying) return;
-    if (this.sessionDismissed) return;
+    if (this.sessionDismissed) {
+      // Dismissal is per scenario visit. SPA navigation to a different
+      // scenario normally clears it via the scenario:start event, but if
+      // that event does not fire (or its shape changes), the dismissal must
+      // not silently disable the feature for the rest of the page session.
+      const routeShortId = this.parseScenarioShortIdFromUrl();
+      if (!routeShortId || routeShortId === this.dismissedRouteShortId) return;
+      this.sessionDismissed = false;
+      this.dismissedRouteShortId = null;
+    }
     const field = this.findScenarioEntryField();
 
     if (field) {
@@ -549,6 +577,7 @@ class CharacterPresetFeature {
       this.clearSession();
       this.manualDismissedQuestions.clear();
       this.sessionDismissed = false;
+      this.dismissedRouteShortId = null;
       this.currentFieldLabel = null;
       this.currentFieldKey = null;
     }
@@ -1516,9 +1545,12 @@ class CharacterPresetFeature {
     try {
       const input = this.findScenarioEntryInput() || field.input;
       await this.typewriterFill(input, value);
-      const continueBtn = this.findAdvanceButton(field);
-      if (continueBtn) {
-        setTimeout(() => continueBtn.click(), 150);
+      const clicked = await this.clickAdvanceButtonWhenReady(field);
+      if (!clicked) {
+        // The answer is filled either way; never leave the user staring at
+        // a vanished panel with no idea the advance did not happen.
+        console.warn('[CharacterPreset] Advance button was not clickable after fill; leaving the filled answer for manual advance.');
+        this.showToast('Answer filled — tap Next or Start to continue', 'info');
       }
     } catch (error) {
       console.error('[CharacterPreset] Fill failed:', error);
@@ -1550,16 +1582,53 @@ class CharacterPresetFeature {
     }
   }
 
-  findAdvanceButton(field) {
+  // Advance labels are whole words ("Next", "Start", "Continue", e.g.
+  // "Start Adventure"). Substring matching also fires on "Restart" or
+  // "Get Started", which are not advance actions; word boundaries keep the
+  // match to real advance buttons while staying label-flexible.
+  isAdvanceButtonText(text) {
+    const normalized = String(text || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!normalized || normalized.includes('back')) return false;
+    return /(?:^|[^a-z])(next|start|continue)(?:$|[^a-z])/.test(normalized);
+  }
+
+  isAdvanceButtonEnabled(btn) {
+    if (!btn) return false;
+    if (btn.disabled) return false;
+    if (String(btn.getAttribute?.('aria-disabled') || '').toLowerCase() === 'true') return false;
+    return true;
+  }
+
+  findAdvanceCandidates(field) {
     const searchRoot = field ? (this.getFieldContainer(field) || document) : document;
     const buttons = searchRoot.querySelectorAll('[role="button"], button');
+    const candidates = [];
     for (const btn of buttons) {
-      const text = btn.textContent?.toLowerCase() || '';
-      if ((text.includes('next') || text.includes('start') || text.includes('continue')) && !text.includes('back')) {
-        return btn;
-      }
+      if (this.isAdvanceButtonText(btn.textContent || '')) candidates.push(btn);
     }
-    return null;
+    return candidates;
+  }
+
+  findAdvanceButton(field) {
+    return this.findAdvanceCandidates(field)[0] || null;
+  }
+
+  // The platform keeps the advance button disabled until its controlled
+  // input registers the filled value, which can lag the fill on slow
+  // WebViews. Poll briefly for the first candidate to become clickable
+  // instead of firing one fixed-delay click that can land on a still
+  // disabled button (or on nothing, if the footer re-rendered).
+  async clickAdvanceButtonWhenReady(field, { timeoutMs = 1200, intervalMs = 100 } = {}) {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const candidate = this.findAdvanceCandidates(field)[0] || null;
+      if (candidate && this.isAdvanceButtonEnabled(candidate)) {
+        candidate.click();
+        return true;
+      }
+      if (Date.now() >= deadline) return false;
+      await new Promise(resolve => setTimeout(resolve, intervalMs));
+    }
   }
 
   typewriterFill(input, text) {
@@ -1639,4 +1708,8 @@ class CharacterPresetFeature {
 
 if (typeof window !== 'undefined') {
   window.CharacterPresetFeature = CharacterPresetFeature;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = CharacterPresetFeature;
 }
