@@ -70,8 +70,11 @@ test('fallback input lookup skips radio/checkbox inputs in the scenario-start co
   const radio = fakeEl({ type: 'radio' });
   const checkbox = fakeEl({ type: 'checkbox' });
   const text = fakeEl({ type: 'search' });
+  const editInput = fakeEl({ tag: 'TEXTAREA' });
+  const rerollInput = fakeEl({ type: 'text' });
+  editInput.closest = rerollInput.closest = selector => selector === '.bd-character-ai-panel' ? {} : null;
   const container = {
-    querySelectorAll: () => [radio, checkbox, text],
+    querySelectorAll: () => [radio, checkbox, editInput, rerollInput, text],
   };
   const documentStub = {
     getElementById: () => null,
@@ -84,6 +87,45 @@ test('fallback input lookup skips radio/checkbox inputs in the scenario-start co
   return withGlobals({ document: documentStub }, () => {
     const feature = new CharacterPresetFeature();
     assert.equal(feature.findScenarioEntryInput(), text);
+  });
+});
+
+test('Android keeps an open disclosure through a same-question remount and collapses for a new question', async () => {
+  const feature = new CharacterPresetFeature();
+  const first = { label: 'First question', input: {} };
+  const replacement = { ...first, input: {} };
+  const second = { label: 'Second question', input: {} };
+  const makeAnchor = () => ({
+    before(disclosure) { disclosure.nextElementSibling = this; },
+  });
+  const anchors = new Map([first, replacement, second].map(field => [field.input, makeAnchor()]));
+  feature.findMobilePresetAnchor = input => anchors.get(input);
+  feature.handleField = async field => {
+    const disclosure = {
+      open: false,
+      remove() { this.nextElementSibling = null; },
+    };
+    field.mobileStep.disclosure = disclosure;
+    field.mobileStep.status = feature.status;
+    anchors.get(field.input).before(disclosure);
+  };
+  await withGlobals({
+    document: { querySelectorAll: () => [] },
+    window: { location: { pathname: '/scenario/AAA/play' } },
+  }, async () => {
+    await feature.checkMobileStep(first);
+    const initialDisclosure = feature.mobileStep.disclosure;
+    initialDisclosure.open = true;
+    await feature.checkMobileStep(replacement);
+    assert.equal(feature.mobileStep.disclosure, initialDisclosure);
+    assert.equal(initialDisclosure.nextElementSibling, anchors.get(replacement.input));
+    assert.equal(initialDisclosure.open, true);
+
+    await feature.checkMobileStep(null);
+    assert.equal(initialDisclosure.nextElementSibling, null);
+    await feature.checkMobileStep(second);
+    assert.equal(feature.mobileStep.disclosure.open, false);
+    assert.notEqual(feature.mobileStep.disclosure, initialDisclosure);
   });
 });
 

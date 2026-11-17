@@ -5331,11 +5331,65 @@ html[data-bd-form-factor="mobile"] .bd-routine-button { min-height: 40px; }
   font-display: swap;
 }
 
-html[data-bd-platform="android-webview"] .bd-character-ai-panel {
-  top: calc(14px + env(safe-area-inset-top));
-  width: min(520px, calc(100vw - 24px));
-  max-height: calc(100dvh - 28px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-  padding: 10px;
+.bd-character-ai-disclosure {
+  box-sizing: border-box;
+  flex: none;
+  align-self: center;
+  width: min(100%, 520px);
+  margin-block: 6px;
+  border: 1px solid var(--bd-border-default);
+  border-radius: var(--bd-radius-lg);
+  background: var(--bd-bg-elevated);
+  color: var(--bd-text-primary);
+  font: 600 var(--bd-font-size-sm)/1.4 var(--bd-font-family-primary);
+}
+
+.bd-character-ai-disclosure > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 8px 12px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.bd-character-ai-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.bd-character-ai-disclosure > summary:focus-visible {
+  outline: 2px solid var(--bd-accent-primary);
+  outline-offset: 2px;
+  border-radius: var(--bd-radius-lg);
+}
+
+.bd-character-ai-disclosure > summary .icon-chevron-down {
+  color: var(--bd-text-secondary);
+}
+
+.bd-character-ai-disclosure[open] > summary {
+  border-bottom: 1px solid var(--bd-border-default);
+}
+
+.bd-character-ai-disclosure[open] > summary .icon-chevron-down {
+  rotate: 180deg;
+}
+
+.bd-character-ai-disclosure > .bd-character-ai-panel {
+  position: static;
+  width: 100%;
+  max-height: none;
+  overflow: visible;
+  padding: 10px 12px 12px;
+  border: 0;
+  border-radius: 0 0 var(--bd-radius-lg) var(--bd-radius-lg);
+  box-shadow: none;
+  opacity: 1;
+  transform: none;
+  transition: none;
 }
 
 html[data-bd-platform="android-webview"] .bd-character-ai-header {
@@ -5487,13 +5541,6 @@ html[data-bd-platform="android-webview"] .bd-navigator-ime-visible .bd-navigator
 }
 
 @media (max-width: 640px) {
-  html[data-bd-platform="android-webview"] .bd-character-ai-panel {
-    top: calc(60px + env(safe-area-inset-top));
-    width: calc(100vw - 16px);
-    max-height: calc(100dvh - 72px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-    padding: 6px;
-  }
-
   html[data-bd-platform="android-webview"] .bd-character-ai-subtitle {
     display: -webkit-box;
     -webkit-line-clamp: 2;

@@ -25,6 +25,7 @@ class CharacterPresetFeature {
     this.currentFieldLabel = null;
     this.currentFieldKey = null;
     this.panelElement = null;
+    this.mobileStep = null;
     this.lastPanelRenderKey = null;
     this.manualDismissedQuestions = new Set();
     this.sessionDismissed = false;
@@ -327,18 +328,9 @@ class CharacterPresetFeature {
   }
 
   isOwnPanelMutation(mutation) {
-    if (mutation.target?.closest?.('.bd-character-ai-panel')) return true;
-    for (const node of mutation.addedNodes || []) {
-      if (node.nodeType === Node.ELEMENT_NODE && (node.matches?.('.bd-character-ai-panel') || node.closest?.('.bd-character-ai-panel'))) {
-        return true;
-      }
-    }
-    for (const node of mutation.removedNodes || []) {
-      if (node.nodeType === Node.ELEMENT_NODE && (node.matches?.('.bd-character-ai-panel') || node.closest?.('.bd-character-ai-panel'))) {
-        return true;
-      }
-    }
-    return false;
+    const selector = '.bd-character-ai-panel, .bd-character-ai-disclosure';
+    return !!mutation.target?.closest?.(selector) ||
+      (mutation.addedNodes?.length > 0 && Array.from(mutation.addedNodes).every(node => node.matches?.(selector)));
   }
 
   startPolling() {
@@ -360,7 +352,7 @@ class CharacterPresetFeature {
   // on a step with no text entry, and the typewriter fill would silently
   // write nowhere.
   isTextEntryElement(el) {
-    if (!el) return false;
+    if (!el || el.closest?.('.bd-character-ai-panel')) return false;
     if (el.tagName === 'TEXTAREA') return true;
     if (el.tagName !== 'INPUT') return false;
     const type = String(el.getAttribute?.('type') || el.type || '').toLowerCase();
@@ -369,7 +361,7 @@ class CharacterPresetFeature {
 
   findScenarioEntryInput() {
     const byId = document.getElementById('full-screen-text-input');
-    if (byId) return byId;
+    if (this.isTextEntryElement(byId)) return byId;
 
     // Fallbacks if the stable id is ever renamed: the scenario-start prompt
     // heading and its scroll container keep their own stable ids.
@@ -518,6 +510,10 @@ class CharacterPresetFeature {
       this.dismissedRouteShortId = null;
     }
     const field = this.findScenarioEntryField();
+    if (this.usesMobileDisclosure()) {
+      await this.checkMobileStep(field);
+      return;
+    }
 
     if (field) {
       this.reconcileFieldWithScenario(field);
@@ -549,6 +545,79 @@ class CharacterPresetFeature {
         }
       }, window.BetterDungeonPlatform?.has('longWebViewTransitions') ? 800 : 400);
     }
+  }
+
+  usesMobileDisclosure() {
+    return window.BetterDungeonPlatform?.kind === 'android-webview';
+  }
+
+  mobileStepKey(field) {
+    return JSON.stringify([this.parseScenarioShortIdFromUrl(), this.resolveScenarioShortId(),
+      this.stableFieldId(field.label, field.ariaLabel)]);
+  }
+
+  currentMobileField(field) {
+    if (!field.mobileStep || this.mobileStep !== field.mobileStep) return null;
+    const current = this.findScenarioEntryField();
+    return current && this.mobileStepKey(current) === field.mobileStep.key ? current : null;
+  }
+
+  async checkMobileStep(field) {
+    if (!field) {
+      this.mobileStep?.disclosure?.remove();
+      if (this.mobileStep && !this._fieldGraceTimer) {
+        this._fieldGraceTimer = setTimeout(() => {
+          this._fieldGraceTimer = null;
+          if (!this.findScenarioEntryField()) this.removePanel();
+        }, 800);
+      }
+      return;
+    }
+    clearTimeout(this._fieldGraceTimer);
+    this._fieldGraceTimer = null;
+
+    const key = this.mobileStepKey(field);
+    if (this.mobileStep?.key !== key) {
+      this.removePanel();
+      this.mobileStep = { key, pending: false, disclosure: null, status: null };
+    }
+    const step = this.mobileStep;
+    field.mobileStep = step;
+    const anchor = this.findMobilePresetAnchor(field.input);
+    if (!anchor) {
+      step.disclosure?.remove();
+      return;
+    }
+    if (step.disclosure && step.disclosure.nextElementSibling !== anchor) {
+      anchor.before(step.disclosure);
+    }
+    if (step.pending || (step.disclosure && step.status === this.status)) return;
+    step.pending = true;
+    try {
+      await this.handleField(field);
+    } finally {
+      step.pending = false;
+    }
+  }
+
+  findMobilePresetAnchor(input) {
+    const container = this.getScenarioStartContainer(input);
+    const ids = (input.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean);
+    const prompt = document.getElementById('scenario-start-prompt');
+    const labels = ids.length ? ids.map(id => document.getElementById(id)) : [prompt];
+    if (!container?.contains(input) || labels.some(label => !label || !container.contains(label))) return null;
+
+    for (let anchor = input; anchor !== container; anchor = anchor.parentElement) {
+      const parent = anchor.parentElement;
+      if (!labels.every(label => parent.contains(label) && !anchor.contains(label) &&
+        (label.compareDocumentPosition(anchor) & Node.DOCUMENT_POSITION_FOLLOWING))) continue;
+      const layout = getComputedStyle(parent);
+      const position = getComputedStyle(anchor).position;
+      if (layout.display.includes('grid') || (layout.display.includes('flex') && layout.flexDirection !== 'column') ||
+        position === 'absolute' || position === 'fixed') return null;
+      return anchor;
+    }
+    return null;
   }
 
   // ============================================
@@ -671,6 +740,7 @@ class CharacterPresetFeature {
         this.showCharacterPicker(field);
       }
     } catch (error) {
+      if (token !== this._handleToken) return;
       this.status = 'error';
       this.statusMessage = error?.message || 'Character Presets could not prepare this scenario.';
       this.showBlockedPanel(field, this.statusMessage);
@@ -890,6 +960,8 @@ class CharacterPresetFeature {
   }
 
   async generateSessionForCharacter(characterId, field) {
+    const routeShortId = this.parseScenarioShortIdFromUrl();
+    const scenarioShortId = this.scenarioShortId;
     const character = this.presets.find(p => p.id === characterId);
     if (!character) {
       this.showToast('Character not found', 'error');
@@ -897,6 +969,7 @@ class CharacterPresetFeature {
     }
 
     const aiReady = await this.ensureAIReady();
+    if (field.mobileStep && !this.currentMobileField(field)) return;
     if (!aiReady.ready) {
       this.status = 'blocked';
       this.statusMessage = aiReady.message;
@@ -906,7 +979,7 @@ class CharacterPresetFeature {
 
     this.lastAttemptedCharacterId = characterId;
     this.status = 'generating';
-    this.generationRouteShortId = this.parseScenarioShortIdFromUrl();
+    this.generationRouteShortId = routeShortId;
     this.showGeneratingPanel(field);
 
     try {
@@ -922,11 +995,7 @@ class CharacterPresetFeature {
         consumer: 'character-presets',
       });
 
-      if (this.generationRouteShortId && this.generationRouteShortId !== this.parseScenarioShortIdFromUrl()) {
-        this.status = 'idle';
-        this.statusMessage = '';
-        return;
-      }
+      if (this.parseScenarioShortIdFromUrl() !== routeShortId || this.scenarioShortId !== scenarioShortId) return;
 
       this.session = this.normalizeAISession(character, result?.json);
       this.manualDismissedQuestions.clear();
@@ -935,13 +1004,14 @@ class CharacterPresetFeature {
       this.showAnswerPanel(field);
       this.showToast(`Generated answers for ${character.name}`, 'success');
     } catch (error) {
+      if (this.parseScenarioShortIdFromUrl() !== routeShortId || this.scenarioShortId !== scenarioShortId) return;
       console.error('[CharacterPreset] AI generation failed:', error);
       const presentation = this.describeAIGenerationError(error);
       this.status = presentation.retryable ? 'error' : 'blocked';
       this.statusMessage = presentation.message;
       this.showBlockedPanel(field, presentation.message, presentation);
     } finally {
-      this.generationRouteShortId = null;
+      if (this.generationRouteShortId === routeShortId) this.generationRouteShortId = null;
     }
   }
 
@@ -1072,8 +1142,27 @@ class CharacterPresetFeature {
   // ============================================
 
   renderPanel(field, html, renderKey = null) {
-    const container = document.body;
+    let container = document.body;
     if (!container) return null;
+    if (this.usesMobileDisclosure()) {
+      const step = field.mobileStep;
+      const current = this.currentMobileField(field);
+      if (!current) return null;
+      const anchor = this.findMobilePresetAnchor(current.input);
+      if (!anchor) return null;
+
+      if (!step.disclosure) {
+        const disclosure = document.createElement('details');
+        disclosure.className = 'bd-character-ai-disclosure';
+        const summary = document.createElement('summary');
+        summary.innerHTML = '<span>Character Presets</span><span class="icon-chevron-down" aria-hidden="true"></span>';
+        disclosure.appendChild(summary);
+        step.disclosure = disclosure;
+      }
+      container = step.disclosure;
+      if (container.nextElementSibling !== anchor) anchor.before(container);
+      step.status = this.status;
+    }
 
     const fieldId = field?.fieldId || field?.ariaLabel || field?.question || '';
     const htmlSignature = String(this.hashString(html));
@@ -1113,6 +1202,12 @@ class CharacterPresetFeature {
     const current = this.panelElement;
     this.panelElement = null;
     this.lastPanelRenderKey = null;
+    if (this.mobileStep) {
+      this.mobileStep.disclosure?.remove();
+      this.mobileStep = null;
+      this._handleToken++;
+      return;
+    }
     if (current) {
       current.classList.remove('bd-character-ai-panel-visible');
       setTimeout(() => current.remove(), 200);
@@ -1294,15 +1389,13 @@ class CharacterPresetFeature {
       panel?.querySelector('#bd-character-ai-manual')?.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
-        this.manualDismissedQuestions.add(field.question);
-        this.removePanel();
-        field.input.focus();
+        this.answerManually(field);
       });
       panel?.querySelectorAll('.bd-character-ai-idea').forEach((button) => {
         button.addEventListener('click', async (event) => {
           event.preventDefault();
           event.stopPropagation();
-          this.manualDismissedQuestions.add(field.question);
+          if (!field.mobileStep) this.manualDismissedQuestions.add(field.question);
           await this.fillWithoutContinue(field, button.textContent || '');
         });
       });
@@ -1354,9 +1447,7 @@ class CharacterPresetFeature {
     panel.querySelector('#bd-character-ai-manual')?.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
-      this.manualDismissedQuestions.add(field.question);
-      this.removePanel();
-      field.input.focus();
+      this.answerManually(field);
     });
 
     panel.querySelector('#bd-character-ai-edit')?.addEventListener('click', (event) => {
@@ -1429,7 +1520,8 @@ class CharacterPresetFeature {
   }
 
   async rerollAnswer(field, question, previousAnswer, modificationRequest, panel) {
-    const character = this.presets.find(p => p.id === this.session?.characterId);
+    const session = this.session;
+    const character = this.presets.find(p => p.id === session?.characterId);
     if (!character || !this.session?.answers?.[question]) return;
     const routeShortId = this.parseScenarioShortIdFromUrl();
     this.generationRouteShortId = routeShortId;
@@ -1450,7 +1542,7 @@ class CharacterPresetFeature {
         requestId: `character-prefill-reroll-${this.scenarioShortId}-${Date.now()}`,
         consumer: 'character-presets',
       });
-      if (this.generationRouteShortId && this.generationRouteShortId !== this.parseScenarioShortIdFromUrl()) return;
+      if (this.session !== session || routeShortId !== this.parseScenarioShortIdFromUrl()) return;
       const item = result?.json || {};
       const confidence = ['confident', 'tentative', 'not_applicable'].includes(item.confidence)
         ? item.confidence
@@ -1467,7 +1559,7 @@ class CharacterPresetFeature {
     } catch (error) {
       console.error('[CharacterPreset] AI reroll failed:', error);
       this.showToast(this.describeAIGenerationError(error).message, 'error');
-      this.removePanel();
+      if (!field.mobileStep) this.removePanel();
       this.showAnswerPanel(field);
     } finally {
       this.generationRouteShortId = null;
@@ -1521,11 +1613,32 @@ class CharacterPresetFeature {
   }
 
   bindCloseButton(panel) {
-    panel?.querySelector('.bd-character-ai-close')?.addEventListener('click', (event) => {
+    const close = panel?.querySelector('.bd-character-ai-close');
+    const disclosure = panel?.closest('.bd-character-ai-disclosure');
+    if (disclosure) close?.setAttribute('aria-label', 'Collapse Character Presets');
+    close?.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
+      if (disclosure) {
+        disclosure.open = false;
+        disclosure.querySelector('summary').focus();
+        return;
+      }
       this.cleanupSession();
     });
+  }
+
+  answerManually(field) {
+    if (field.mobileStep) {
+      const current = this.currentMobileField(field);
+      if (!current) return;
+      field.mobileStep.disclosure.open = false;
+      current.input.focus();
+      return;
+    }
+    this.manualDismissedQuestions.add(field.question);
+    this.removePanel();
+    field.input.focus();
   }
 
   findBestQuestionMatch(question) {
@@ -1539,14 +1652,19 @@ class CharacterPresetFeature {
 
   async fillAndContinue(field, value) {
     if (this.isApplying) return;
+    const current = field.mobileStep ? this.currentMobileField(field) : field;
+    if (!current) return;
     this.isApplying = true;
-    this.removePanel();
+    if (field.mobileStep) field.mobileStep.disclosure.open = false;
+    else this.removePanel();
 
     try {
-      const input = this.findScenarioEntryInput() || field.input;
+      const input = field.mobileStep ? current.input : this.findScenarioEntryInput() || field.input;
       await this.typewriterFill(input, value);
       const clicked = await this.clickAdvanceButtonWhenReady(field);
-      if (!clicked) {
+      if (clicked && field.mobileStep) {
+        this.removePanel();
+      } else if (!clicked) {
         // The answer is filled either way; never leave the user staring at
         // a vanished panel with no idea the advance did not happen.
         console.warn('[CharacterPreset] Advance button was not clickable after fill; leaving the filled answer for manual advance.');
@@ -1565,10 +1683,13 @@ class CharacterPresetFeature {
 
   async fillWithoutContinue(field, value) {
     if (this.isApplying) return;
+    const current = field.mobileStep ? this.currentMobileField(field) : field;
+    if (!current) return;
     this.isApplying = true;
-    this.removePanel();
+    if (field.mobileStep) field.mobileStep.disclosure.open = false;
+    else this.removePanel();
     try {
-      const input = this.findScenarioEntryInput() || field.input;
+      const input = field.mobileStep ? current.input : this.findScenarioEntryInput() || field.input;
       await this.typewriterFill(input, value);
       input.focus();
     } catch (error) {
@@ -1629,7 +1750,9 @@ class CharacterPresetFeature {
   async clickAdvanceButtonWhenReady(field, { timeoutMs = 1200, intervalMs = 100 } = {}) {
     const deadline = Date.now() + timeoutMs;
     for (;;) {
-      const candidate = this.findAdvanceCandidates(field)[0] || null;
+      const current = field.mobileStep ? this.currentMobileField(field) : field;
+      if (!current) return false;
+      const candidate = this.findAdvanceCandidates(current)[0] || null;
       if (candidate && this.isAdvanceButtonEnabled(candidate)) {
         candidate.click();
         return true;
