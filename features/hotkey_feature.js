@@ -392,6 +392,7 @@ class HotkeyFeature {
       // so acting on it would call closeModeMenu() again and recurse
       // until the stack overflows (live Chrome, PR #73).
       if (e.bdSynthetic) return;
+      if (e.target?.closest?.('.bd-navigator-drawer, .bd-navigator-launcher, .bd-routine-notice')) return;
 
       // Don't trigger hotkeys when user is typing, EXCEPT for Escape key
       if (this.isUserTyping() && e.key.toLowerCase() !== 'escape') return;

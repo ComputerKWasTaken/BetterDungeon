@@ -1,6 +1,6 @@
 # Navigator Routines
 
-Open **Game Menu → Gameplay → Navigator → Routines**. A Routine is a name,
+Select **Navigator** on the right side of an adventure, then open **Routines**. The launcher shows **Working** or **Queued** while the drawer is closed. Open the drawer to stop the active task or cancel queued work. A Routine is a name,
 instructions, and a setting for how often it runs (1–100 actions). Enabling it schedules
 it after that many completed actions in every adventure on this device. You can also ask Navigator in main Chat
 to run any saved Routine by name, even when its automatic trigger is off. For

@@ -26,17 +26,16 @@
       this.nav = feature.drawer.querySelector('.bd-navigator-primary-nav');
       if (!this.nav) throw new Error('Navigator view navigation could not be initialized. Reload the page and try again.');
       const views = [
-        ['chat', 'Chat', 'icon-message-square', true],
-        ['routines', 'Routines', 'icon-bot', true],
-        ['activity', 'Activity', 'icon-activity', false]
+        ['chat', 'Chat', 'icon-message-square'],
+        ['routines', 'Routines', 'icon-bot'],
+        ['activity', 'Activity', 'icon-activity']
       ];
-      for (const [view, label, icon, showLabel] of views) {
+      for (const [view, label, icon] of views) {
         const tab = button('', () => this.show(view));
         tab.dataset.view = view;
-        tab.setAttribute('aria-label', label);
-        tab.title = label;
-        tab.append(element('span', icon, undefined));
-        if (showLabel) tab.append(element('span', 'bd-routine-view-label', label));
+        const glyph = element('span', icon);
+        glyph.setAttribute('aria-hidden', 'true');
+        tab.append(glyph, element('span', 'bd-routine-view-label', label));
         this.nav.append(tab);
       }
       this.panel = element('section', 'bd-routine-panel');
@@ -46,12 +45,24 @@
       this.threadLabel.hidden = true;
       feature.transcriptEl.before(this.threadLabel);
       this.status = element('div', 'bd-routine-status');
-      this.status.setAttribute('role', 'status');
+      this.status.setAttribute('role', 'group');
+      this.status.setAttribute('aria-label', 'Navigator activity');
       this.status.hidden = true;
+      this.workButton = button('', () => this.openActiveWork());
+      this.workButton.classList.add('bd-routine-work-button');
+      const workDot = element('span', 'bd-navigator-work-dot');
+      workDot.setAttribute('aria-hidden', 'true');
+      this.workLabel = element('span', 'bd-routine-work-label');
+      this.workButton.append(workDot, this.workLabel);
+      this.stopButton = button('Stop', () => this.runner.stop());
+      this.stopButton.setAttribute('aria-label', 'Stop Navigator work');
+      this.waitingButton = button('', () => this.cancelWaiting());
+      this.status.append(this.workButton, this.stopButton, this.waitingButton);
+      this.nav.parentElement.after(this.status);
       this.notice = element('div', 'bd-routine-notice');
       this.notice.setAttribute('role', 'status');
       this.notice.hidden = true;
-      document.body.append(this.status, this.notice);
+      document.body.append(this.notice);
       this.nativeCallback = (requestId, result) => {
         const pending = this.fileRequests.get(requestId);
         if (!pending) return;
@@ -73,6 +84,7 @@
       const feature = this.feature;
       feature.setInspectorOpen(false, { focus: false });
       feature.settingsPanel.hidden = true;
+      feature.drawer.querySelector('.bd-navigator-settings')?.setAttribute('aria-expanded', 'false');
       feature.drawer.classList.remove('bd-navigator-secondary-open');
       this.panel.replaceChildren();
       this.panel.hidden = !['routines', 'activity'].includes(view);
@@ -259,31 +271,46 @@
     }
 
     async openActivity(record = null) {
-      try {
-        if (!this.feature.activateSettingsNavigator()) {
-          await new globalThis.AIDungeonService().navigateToGameplaySettings();
-          if (!this.feature.activateSettingsNavigator()) throw new Error('Open Game Menu → Gameplay → Navigator to review this run.');
-        }
-        await this.show(record?.routineId ? 'thread' : 'activity', record?.routineId, record?.id);
-      } catch (error) { this.notice.hidden = false; this.notice.textContent = error.message; }
+      await this.show(record?.routineId ? 'thread' : 'activity', record?.routineId, record?.id);
+      if (!this.destroyed) this.feature.openDrawer();
+    }
+
+    openActiveWork() {
+      const active = this.runner.active;
+      if (!active) return;
+      const routineId = active.session?.routineId || active.ruleId;
+      if (routineId) return this.openActivity(active.record || { routineId });
+      return this.openChat();
+    }
+
+    cancelWaiting() {
+      const waiting = this.runner.cancelWaiting().find(task => task.text && task.session === this.feature.session);
+      if (waiting && !this.feature.inputEl.value) {
+        this.feature.inputEl.value = waiting.text;
+        this.feature.autosizeInput();
+        this.feature.updateComposerState();
+      }
     }
 
     changed(notice) {
       if (this.destroyed) return;
       const active = this.runner.active;
-      this.status.replaceChildren();
-      this.status.hidden = !active && !this.runner.manual.length;
+      const waiting = this.runner.manual.length > 0;
+      this.status.hidden = !active && !waiting;
+      this.workButton.hidden = this.stopButton.hidden = !active;
+      this.waitingButton.hidden = !waiting;
       if (active) {
-        const name = active.record?.name || this.runner.rules.find(rule => rule.id === active.ruleId)?.name || 'Navigator';
-        this.status.append(button(`${name} · working`, () => active.session?.routineId ? this.openActivity(active.record || { routineId: active.session.routineId }) : this.openChat()), button('Stop', () => this.runner.stop()));
+        const routineId = active.session?.routineId || active.ruleId;
+        const name = active.record?.name || this.runner.rules.find(rule => rule.id === routineId)?.name || 'Chat';
+        const label = 'Working · ' + name;
+        if (this.workLabel.textContent !== label) this.workLabel.textContent = label;
+        this.workButton.title = label;
       }
-      if (this.runner.manual.length) this.status.append(button(`${this.runner.manual.some(task => task.kind === 'manual') ? 'Message waiting' : 'Routine queued'} · cancel`, () => {
-        const waiting = this.runner.cancelWaiting().find(task => task.text && task.session === this.feature.session);
-        if (waiting?.text && waiting.session === this.feature.session && !this.feature.inputEl.value) {
-          this.feature.inputEl.value = waiting.text;
-          this.feature.autosizeInput();
-        }
-      }));
+      if (waiting) {
+        const label = this.runner.manual.some(task => task.kind === 'manual')
+          ? 'Cancel queued message' : 'Cancel queued Routine';
+        if (this.waitingButton.textContent !== label) this.waitingButton.textContent = label;
+      }
       if (notice?.record) {
         const record = notice.record;
         const result = record.status === 'error' ? 'needs attention' : record.pending ? 'approval needed' : `${record.applied} change${record.applied === 1 ? '' : 's'} applied`;
@@ -299,8 +326,8 @@
     }
 
     async openChat() {
-      await this.openActivity();
       await this.show('chat');
+      if (!this.destroyed) this.feature.openDrawer();
     }
 
     nativeFile(operation, text = '') {

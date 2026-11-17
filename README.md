@@ -45,7 +45,7 @@ Alpha's current horizontal action bar works on desktop and mobile, with Image an
 
 ### New in v2.1: Navigator and Routines
 
-Navigator is an assistant grounded in your adventure. Ask it questions, have it look through Story Cards, or request changes to adventure content. Its change setting lets you choose automatic verified edits, proposals to review, or conversation without edits.
+Select **Navigator** on the right side of an adventure to open its chat and Routines. Navigator is an assistant grounded in your adventure. Ask it questions, have it look through Story Cards, or request changes to adventure content. Its change setting lets you choose automatic verified edits, proposals to review, or conversation without edits.
 
 Routines take that help into the background. Write an instruction, choose how many completed actions should pass between runs, and Navigator handles it while you play. Each Routine keeps a separate conversation; the Activity view shows its work and any changes needing attention. You can also ask Navigator in Chat to run a saved Routine immediately.
 
