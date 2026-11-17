@@ -1,13 +1,6 @@
 'use strict';
 
 // Focused regression checks for Command Mode (features/command_feature.js).
-// The auto-delete story scan used to query 'span[id="transition-opacity"]',
-// but AI Dungeon renders that id through Tamagui components whose web
-// element is not reliably a <span> — the shared service selector is the
-// tag-agnostic '#transition-opacity' for the same reason. The span-only
-// selector silently matched nothing, so auto-delete never fired. These
-// checks pin the tag-agnostic scan, the header formats for all three
-// sub-modes, sub-mode cycling, and the warn-once platform diagnostics.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -90,29 +83,6 @@ function fakeBlock(tagName, text) {
     click() { this.clicked = true; },
   };
 }
-
-test('deleteCommandFromStory finds the command in a DIV action block', () => {
-  const feature = makeFeature();
-  const commandText = '## Burn the village:';
-  const divBlock = fakeBlock('div', `Some narration. ${commandText} More text.`);
-  const otherBlock = fakeBlock('span', 'Unrelated action text.');
-  const output = fakeStoryOutput([divBlock, otherBlock]);
-
-  const realDocument = global.document;
-  global.document = {
-    querySelector: selector => (selector === '#gameplay-output' ? output : null),
-    querySelectorAll: () => [],
-  };
-  try {
-    feature.pendingCommandDelete = commandText;
-    feature.deleteCommandFromStory();
-  } finally {
-    global.document = realDocument;
-  }
-
-  assert.equal(divBlock.clicked, true, 'auto-delete should click the DIV action block');
-  assert.equal(otherBlock.clicked, false);
-});
 
 test('warnOnce reports each platform failure reason only once', () => {
   const feature = makeFeature();

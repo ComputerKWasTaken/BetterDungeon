@@ -200,7 +200,7 @@ function loadRouter({ document: fakeDocument } = {}) {
         turnInterval: 5,
         pool: [{ enabled: true, modelId: 'Model A', label: 'Model A', versionName: 'ver-a', versionLabel: 'Ver A', weight: 1 }]
       },
-      runtime: runtime || { lastModelId: 'Model A', lastModelLabel: 'Model A', lastVersionName: 'ver-a', lastVersionLabel: 'Ver A', turnsOnModel: 1 },
+      runtime: runtime || { adventureShortId: 'test', lastModelId: 'Model A', lastModelLabel: 'Model A', lastVersionName: 'ver-a', lastVersionLabel: 'Ver A', turnsOnModel: 1 },
       indicatorLogoUrl: ''
     }
   });
@@ -219,7 +219,7 @@ function postActiveState(dispatch) {
         turnInterval: 2,
         pool: [{ enabled: true, modelId: 'Model A', label: 'Model A', versionName: 'ver-a', versionLabel: 'Ver A', weight: 1 }]
       },
-      runtime: { lastModelId: 'Model A', lastModelLabel: 'Model A', lastVersionName: 'ver-a', lastVersionLabel: 'Ver A', turnsOnModel: 1 },
+      runtime: { adventureShortId: 'test', lastModelId: 'Model A', lastModelLabel: 'Model A', lastVersionName: 'ver-a', lastVersionLabel: 'Ver A', turnsOnModel: 1 },
       indicatorLogoUrl: 'chrome-extension://bd-test/icons/better-dynamic-logo.png'
     }
   });
@@ -250,7 +250,7 @@ test('CheckActionRequest polls pass through untouched and do not advance turn st
 test('CancelActionRequest passes through untouched', async () => {
   const { windowStub, nativeCalls, postState, bridgeMessages } = loadRouter();
   postState();
-  const body = gqlBody('CancelActionRequest', { actionRequestKey: 'req-1' });
+  const body = gqlBody('useCancelActionRequest', { actionRequestKey: 'req-1' });
   await windowStub.fetch(GRAPHQL_URL, { method: 'POST', body });
   assert.equal(nativeCalls.length, 1);
   assert.equal(nativeCalls[0].init.body, body);
@@ -275,15 +275,20 @@ test('ActionRequest submissions still route and advance the turn counter once', 
 test('ActionRequest needing a different model switches through the bridge and rewrites the payload version', async () => {
   const { windowStub, nativeCalls, postState, dispatch, bridgeMessages } = loadRouter();
   postState({
-    runtime: { lastModelId: 'Other Model', lastModelLabel: 'Other Model', lastVersionName: 'ver-other', lastVersionLabel: 'Ver Other', turnsOnModel: 3 }
+    runtime: { adventureShortId: 'test', lastModelId: 'Other Model', lastModelLabel: 'Other Model', lastVersionName: 'ver-other', lastVersionLabel: 'Ver Other', turnsOnModel: 3 }
   });
-  const body = gqlBody('ActionRequest', { type: 'continue', storyAiVersionName: 'ver-other' });
+  const body = JSON.stringify({
+    operationName: 'SubmitTurn',
+    query: 'mutation SubmitTurn($input: ActionRequestInput!) { queued: actionRequest(input: $input) { success } }',
+    variables: { input: { type: 'continue', storyAiVersionName: 'ver-other' } }
+  });
   const pending = windowStub.fetch(GRAPHQL_URL, { method: 'POST', body });
   await flush();
   await flush();
   const switches = bridgeMessages('switch-model');
   assert.equal(switches.length, 1, 'a switch request is posted to the extension');
   assert.equal(switches[0].payload.versionName, 'ver-a');
+  assert.equal(switches[0].payload.adventureShortId, 'test');
   dispatch({
     namespace: 'betterdungeon-custom-dynamic-v1',
     direction: 'extension-to-page',
@@ -351,6 +356,7 @@ const INDICATOR_SELECTOR = '[data-bd-custom-dynamic-model-indicator="true"]';
 async function indicatorDocument(children) {
   const document = createFakeDocument(children);
   const { dispatch } = loadRouter({ document });
+  await flush(); // The switcher can render before extension storage is ready.
   postActiveState(dispatch);
   await flush();
   return document;

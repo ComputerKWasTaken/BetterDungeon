@@ -43,46 +43,21 @@ function initAIEndpointSettings() {
     byId('ai-advanced-fields').hidden = !enabled;
     byId('ai-advanced-enabled').setAttribute('aria-expanded', String(enabled));
   }
-  function updateModelVisibility() {
-    byId('ai-mistral-model-group').hidden = service !== 'mistral';
-    byId('ai-endpoint-model-group').hidden = service === 'mistral' && byId('ai-mistral-model').value !== 'custom';
-  }
   function renderProfile() {
     const p = draft.advanced.profiles[service];
-    const keyLinks = {
-      openrouter: { label: 'Get an OpenRouter key', url: 'https://openrouter.ai/settings/keys' },
-      mistral: { label: 'Get a Mistral key', url: 'https://console.mistral.ai/home?profile_dialog=api-keys' }
-    };
-    const keyLink = byId('ai-endpoint-key-link');
-    const keySource = keyLinks[service];
-    keyLink.hidden = !keySource;
-    keyLink.parentElement.hidden = !keySource;
-    if (keySource) {
-      keyLink.href = keySource.url;
-      byId('ai-endpoint-key-link-label').textContent = keySource.label;
-    } else {
-      keyLink.removeAttribute('href');
-      byId('ai-endpoint-key-link-label').textContent = '';
-    }
+    byId('ai-endpoint-key-link').parentElement.hidden = service !== 'openrouter';
     byId('ai-endpoint-base-url').value = C.urls[service] || p.baseUrl || '';
     byId('ai-endpoint-base-url').readOnly = service !== 'custom';
     byId('ai-endpoint-base-url-group').hidden = service !== 'custom';
     keyHint('ai-endpoint-api-key', p.keyConfigured || !!p.apiKey);
     if (p.apiKey !== undefined) { byId('ai-endpoint-api-key').value = p.apiKey; byId('ai-endpoint-api-key').dataset.changed = 'true'; }
     byId('ai-endpoint-model').value = p.model || '';
-    byId('ai-mistral-model').value = p.modelMode === 'auto' ? 'auto' : C.mistral.some(m => m.id === p.model) ? p.model : 'custom';
-    updateModelVisibility();
   }
   function collectProfile() {
     const p = draft.advanced.profiles[service];
     if (byId('ai-endpoint-api-key').dataset.changed) p.apiKey = byId('ai-endpoint-api-key').value.trim();
     p.model = byId('ai-endpoint-model').value.trim();
     if (service === 'custom') p.baseUrl = byId('ai-endpoint-base-url').value.trim();
-    if (service === 'mistral') {
-      const value = byId('ai-mistral-model').value;
-      p.modelMode = value === 'auto' ? 'auto' : 'pinned';
-      if (value !== 'auto' && value !== 'custom') p.model = value;
-    }
   }
   function collect() {
     collectProfile();
@@ -100,10 +75,8 @@ function initAIEndpointSettings() {
     const el = byId('ai-last-result'), r = status.last;
     el.hidden = !r;
     if (!r) return;
-    const label = C.mistral.find(m => m.id === r.model)?.label || r.model;
-    const provider = r.providerTier === 'simple' ? 'Gemini Simple' : r.provider + ' · ' + label;
-    el.textContent = 'Latest completion: ' + provider + (r.advancedFallback ? ' (fallback from Advanced)' : '') +
-      (r.provider === 'mistral' && r.attemptedModels.length > 1 ? ' after ' + (r.attemptedModels.length - 1) + ' model fallbacks' : '') + '.';
+    const provider = r.providerTier === 'simple' ? 'Gemini Simple' : r.provider + ' · ' + r.model;
+    el.textContent = 'Latest completion: ' + provider + (r.advancedFallback ? ' (fallback from Advanced)' : '') + '.';
   }
   function render(status) {
     draft = status.config;
@@ -159,10 +132,6 @@ function initAIEndpointSettings() {
       button.innerHTML = label;
     }
   }
-  const select = byId('ai-mistral-model');
-  for (const item of [{ id: 'auto', label: 'Automatic — Recommended' }, ...C.mistral, { id: 'custom', label: 'Custom Mistral model ID' }]) {
-    const option = document.createElement('option'); option.value = item.id; option.textContent = item.label; select.append(option);
-  }
   for (const id of ['ai-simple-key', 'ai-endpoint-api-key']) byId(id).addEventListener('input', () => {
     byId(id).dataset.changed = 'true';
     const saved = id === 'ai-simple-key' ? draft.simple.keyConfigured : draft.advanced.profiles[service].keyConfigured;
@@ -171,7 +140,6 @@ function initAIEndpointSettings() {
   panel.addEventListener('input', () => { if (!busy) { dirty = true; setStatus('Unsaved changes.'); } });
   panel.addEventListener('change', () => { if (!busy) { dirty = true; setStatus('Unsaved changes.'); } });
   byId('ai-endpoint-service').addEventListener('change', e => { if (!draft) return; collectProfile(); service = e.target.value; renderProfile(); });
-  select.addEventListener('change', updateModelVisibility);
   byId('ai-advanced-enabled').addEventListener('change', e => {
     if (e.target.checked && !draft.advanced.enabled) panel.querySelectorAll('[data-ai-consumer]').forEach(el => { el.checked = true; });
     updateAdvancedVisibility();

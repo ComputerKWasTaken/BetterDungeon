@@ -17,26 +17,24 @@ const reply = () => json({ choices: [{ message: { content: 'Forest' }, finish_re
 const geminiReply = () => json({ candidates: [{ content: { parts: [{ text: 'Forest' }] }, finishReason: 'STOP' }] });
 const limited = (headers = {}) => json({ error: { message: 'Model rate limit' } }, 429, headers);
 const stream = events => new Response(events.map(e => 'data: ' + JSON.stringify(e) + '\r\n\r\n').join(''));
-function advanced(service = 'mistral') {
+function advanced(service = 'openrouter') {
   return C.normalize({ simple: { apiKey: 'gemini-secret' }, advanced: { enabled: true, activeService: service,
-    profiles: { mistral: { apiKey: 'mistral-secret', modelMode: 'auto' }, openrouter: { apiKey: 'router-secret', model: 'example/model' } } },
+    profiles: { openrouter: { apiKey: 'router-secret', model: 'example/model' } } },
     routing: { ultrascripts: 'advanced', navigator: 'advanced' } });
 }
 function setup(config, fetch, initial) {
   const data = initial || { [C.KEY]: config };
   const requests = [], writes = [];
-  let time = 100000;
   const storage = {
     get: async keys => Object.fromEntries((Array.isArray(keys) ? keys : [keys]).filter(k => data[k] !== undefined).map(k => [k, copy(data[k])])),
     set: async values => { writes.push('set'); Object.assign(data, copy(values)); },
     remove: async key => { writes.push('remove'); delete data[key]; },
   };
-  const api = Runtime.create({ storage, now: () => time, fetch: async (url, init) => {
+  const api = Runtime.create({ storage, now: () => 100000, fetch: async (url, init) => {
     requests.push({ url, ...init });
-    if (url.endsWith('/models')) return json({ data: C.mistral.map(m => ({ id: m.id, max_context_length: m.context })) });
     return fetch(url, init);
   } });
-  return { api, requests, data, writes, storage, advance: n => { time += n; } };
+  return { api, requests, data, writes, storage };
 }
 test('migration preserves profiles and keys; status redacts them; failed writes preserve legacy data', async () => {
   const old = { activeService: 'custom', profiles: { gemini: { apiKey: 'g-secret', model: 'old' }, custom: { apiKey: 'c-secret', model: 'abc', baseUrl: 'https://example.com/v1' } } };
@@ -96,8 +94,8 @@ test('Navigator advertises Gemini thinking levels and saved AI settings survive 
   const updated = copy(initial.config);
   updated.simple.apiKey = 'replacement-key';
   updated.advanced.enabled = true;
-  updated.advanced.activeService = 'mistral';
-  updated.advanced.profiles.mistral.apiKey = 'mistral-key';
+  updated.advanced.activeService = 'openrouter';
+  updated.advanced.profiles.openrouter.apiKey = 'router-key';
   updated.routing.characterPresets = 'advanced';
   await h.api.handle({ op: 'settings:set', config: updated });
   const reloaded = setup(null, geminiReply, h.data);
@@ -105,7 +103,7 @@ test('Navigator advertises Gemini thinking levels and saved AI settings survive 
   assert.equal(status.tier, 'advanced');
   assert.deepEqual(status.config.thinkingLevels, []);
   assert.equal(h.data[C.KEY].simple.apiKey, 'replacement-key');
-  assert.equal(h.data[C.KEY].advanced.profiles.mistral.apiKey, 'mistral-key');
+  assert.equal(h.data[C.KEY].advanced.profiles.openrouter.apiKey, 'router-key');
   assert.ok(!JSON.stringify(status).includes('replacement-key'));
 });
 
@@ -131,53 +129,38 @@ test('connection checks use the selected provider, a small output cap, and do no
   assert.deepEqual(checked.status.last, previous);
   assert.deepEqual(simple.data.betterdungeon_ai_runtime_state_v1.last, previous);
 
-  const mistral = setup(advanced(), reply);
-  const advancedCheck = await mistral.api.handle({ op: 'test', tier: 'advanced' });
-  assert.equal(advancedCheck.model, C.mistral[0].id);
+  const router = setup(advanced(), reply);
+  const advancedCheck = await router.api.handle({ op: 'test', tier: 'advanced' });
+  assert.equal(advancedCheck.model, 'example/model');
   assert.equal(advancedCheck.providerTier, 'advanced');
-  assert.equal(JSON.parse(mistral.requests.at(-1).body).max_tokens, 64);
+  assert.equal(JSON.parse(router.requests.at(-1).body).max_tokens, 64);
   assert.equal(advancedCheck.status.last, null);
 });
-test('Mistral Automatic falls through in order, respects suppression and returns actual provider metadata', async () => {
-  let success = false;
-  const h = setup(advanced(), (_url, init) => {
-    const m = JSON.parse(init.body).model;
-    return success || m === C.mistral[2].id ? reply() : limited({ 'Retry-After': '2' });
-  });
-  const result = await h.api.handle(query);
-  assert.equal(result.model, C.mistral[2].id);
-  assert.deepEqual(result.attemptedModels, C.mistral.slice(0, 3).map(m => m.id));
-  assert.equal(result.providerTier, 'advanced');
-  assert.equal(result.advancedFallback, false);
-  assert.deepEqual((await h.api.handle(query)).attemptedModels, [C.mistral[2].id]);
-  h.advance(2001); success = true;
-  assert.equal((await h.api.handle(query)).model, C.mistral[0].id);
+test('a retired Advanced selection keeps the other profiles and uses Simple until Advanced is re-enabled', async () => {
+  const previous = advanced();
+  previous.advanced.activeService = 'mistral';
+  previous.advanced.profiles.mistral = { apiKey: 'retired-key', modelMode: 'auto' };
+  previous.advanced.profiles.custom = { baseUrl: 'https://example.com/v1', model: 'custom-model', apiKey: 'custom-key' };
+  const h = setup(previous, url => url.includes('googleapis') ? geminiReply() : reply());
+  const status = await h.api.handle({ op: 'settings:get' });
+  assert.equal(status.config.advanced.enabled, false);
+  assert.equal(status.config.advanced.activeService, 'openrouter');
+  assert.deepEqual(Object.keys(status.config.advanced.profiles), ['openrouter', 'custom']);
+  assert.equal((await h.api.handle(query)).provider, 'gemini');
+  assert.equal(h.requests.length, 1);
+
+  status.config.advanced.enabled = true;
+  await h.api.handle({ op: 'settings:set', config: status.config });
+  assert.equal(h.data[C.KEY].advanced.profiles.openrouter.apiKey, 'router-secret');
+  assert.equal(h.data[C.KEY].advanced.profiles.custom.apiKey, 'custom-key');
+  assert.equal((await h.api.handle(query)).provider, 'openrouter');
 });
-test('headerless Mistral limits back off; all exhausted models fall back to Simple exactly once', async () => {
-  const h = setup(advanced(), url => url.includes('googleapis') ? geminiReply() : limited());
-  let result = await h.api.handle(query);
-  assert.equal(result.advancedFallback, true);
-  assert.equal(result.attemptedModels.length, 5);
-  result = await h.api.handle(query);
-  assert.deepEqual(result.attemptedModels, [C.flash[0]]);
-  h.advance(60001);
-  assert.equal((await h.api.handle(query)).attemptedModels.length, 5);
-  h.advance(60001);
-  assert.deepEqual((await h.api.handle(query)).attemptedModels, [C.flash[0]]);
-});
-test('pinned Mistral never tries another Mistral model and Advanced can operate standalone', async () => {
+test('OpenRouter can run without a Gemini key and only tries the configured model', async () => {
   const c = advanced(); c.simple.apiKey = '';
-  c.advanced.profiles.mistral.modelMode = 'pinned'; c.advanced.profiles.mistral.model = C.mistral[2].id;
   const h = setup(c, () => limited());
   await assert.rejects(h.api.handle(query), { code: 'rate_limit' });
-  assert.equal(h.requests.filter(r => r.method === 'POST').length, 1);
-  assert.deepEqual(C.models(c, 'advanced', 'ultrascripts', 2), [C.mistral[2].id]);
-});
-test('model discovery filters inaccessible models and refuses invalid pinned IDs', async () => {
-  const c = advanced(); c.simple.apiKey = ''; c.advanced.profiles.mistral.modelMode = 'pinned'; c.advanced.profiles.mistral.model = 'unknown';
-  const h = setup(c, reply);
-  await assert.rejects(h.api.handle(query), { code: 'model_unavailable' });
   assert.equal(h.requests.length, 1);
+  assert.deepEqual(C.models(c, 'advanced', 'ultrascripts', 2), ['example/model']);
 });
 test('availability falls back; safety, invalid input and cancellation never do', async () => {
   for (const status of [401, 429, 500]) {

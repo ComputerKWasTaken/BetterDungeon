@@ -26,7 +26,6 @@ const STORAGE_KEYS = {
   customHotkeys: 'betterDungeon_customHotkeys',
   customModeColors: 'betterDungeon_customModeColors',
   commandSubMode: 'betterDungeon_commandSubMode',
-  commandAutoDelete: 'betterDungeon_commandAutoDelete',
   customDynamicConfig: 'betterDungeon_customDynamicConfig',
   customDynamicRuntime: 'betterDungeon_customDynamicRuntime',
   adventureNotesPrefix: 'betterDungeon_notes_',
@@ -589,23 +588,6 @@ function initSettings() {
       });
     });
   }
-
-  // Command Mode settings
-  initCommandSettings();
-}
-
-function initCommandSettings() {
-  const toggle = document.getElementById('command-auto-delete');
-  if (!toggle) return;
-
-  popupExtension.storage.sync.get(STORAGE_KEYS.commandAutoDelete, (result) => {
-    toggle.checked = (result || {})[STORAGE_KEYS.commandAutoDelete] ?? false;
-  });
-
-  toggle.addEventListener('change', (e) => {
-    popupExtension.storage.sync.set({ [STORAGE_KEYS.commandAutoDelete]: e.target.checked });
-    notifyContentScript('SET_COMMAND_AUTO_DELETE', { enabled: e.target.checked });
-  });
 }
 
 function initCustomDynamicSettings() {

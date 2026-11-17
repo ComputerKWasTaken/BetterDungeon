@@ -45,6 +45,8 @@
 
   const state = {
     config: normalizeConfig(null),
+    adventureShortId: '',
+    persistedRuntime: null,
     lastModelId: '',
     lastModelLabel: '',
     lastVersionName: '',
@@ -74,7 +76,8 @@
   // submits a new action: treating them as generation would advance the
   // turn counter on every poll and could switch the adventure's model
   // mid-generation. They are never generation, regardless of score.
-  const NON_GENERATION_OPERATION_RE = /^(?:check|cancel)actionrequest$/i;
+  const NON_GENERATION_OPERATION_RE = /(?:check|cancel)actionrequest/i;
+  const STORY_MUTATION_FIELD_RE = /[{,]\s*(?:\w+\s*:\s*)?((?:check|cancel)?actionRequest|addAction|retryAction)\s*\(/i;
   const URL_GENERATION_RE = /(?:generate|continue|retry|take.?action|story.?action|actions?\/(?:create|add|send)|(?:create|add|send)\/?actions?)/i;
   window.addEventListener('message', handleBridgeMessage, false);
   installRoutedModelIndicator();
@@ -89,6 +92,7 @@
     if (!data || data.namespace !== NAMESPACE || data.direction !== TO_PAGE) return;
 
     if (data.type === 'state') {
+      const initialState = !stateReceived;
       stateReceived = true;
       if (noStateTimer) {
         clearTimeout(noStateTimer);
@@ -100,15 +104,9 @@
         'info',
         `State received: enabled=${state.config.enabled}, pool=${state.config.pool.length} model(s), turnInterval=${state.config.turnInterval}.`
       );
-      const runtime = normalizeRuntime(data.payload?.runtime);
-      state.lastModelId = String(runtime.lastModelId || state.lastModelId || '');
-      state.lastModelLabel = String(runtime.lastModelLabel || state.lastModelLabel || '');
-      state.lastVersionName = String(runtime.lastVersionName || state.lastVersionName || '');
-      state.lastVersionLabel = String(runtime.lastVersionLabel || state.lastVersionLabel || '');
+      state.persistedRuntime = normalizeRuntime(data.payload?.runtime);
+      syncAdventureRuntime(initialState);
       state.indicatorLogoUrl = normalizeIndicatorLogoUrl(data.payload?.indicatorLogoUrl);
-      state.turnsOnModel = Number.isInteger(runtime.turnsOnModel)
-        ? runtime.turnsOnModel
-        : state.turnsOnModel;
       scheduleRoutedModelIndicatorSync();
       return;
     }
@@ -157,6 +155,8 @@
         return nativeFetch(input, init);
       }
 
+      syncAdventureRuntime();
+      if (!state.adventureShortId) return nativeFetch(input, init);
       const selection = selectModel();
       if (!selection) {
         diagOnce('generation-no-pool', 'warn', 'Generation detected, but Custom Dynamic has no enabled pool models.', summarizeInspection(inspection));
@@ -178,6 +178,9 @@
         }
 
         let mechanism = await applyGraphqlSwitch(selection);
+        if ((init?.signal || (input instanceof Request && input.signal))?.aborted) {
+          return nativeFetch(input, init);
+        }
         if (mechanism !== 'none' && direct.changed) {
           const rebuilt = rebuildFetch(input, init, envelope, direct.bodyText);
           routedInput = rebuilt.input;
@@ -252,6 +255,8 @@
         return nativeSend.call(this, body);
       }
 
+      syncAdventureRuntime();
+      if (!state.adventureShortId) return nativeSend.call(this, body);
       const selection = selectModel();
       if (!selection) {
         diagOnce('generation-no-pool', 'warn', 'Generation detected, but Custom Dynamic has no enabled pool models.', summarizeInspection(inspection));
@@ -281,6 +286,7 @@
         return { mechanism, routedBody };
       })()
         .then(({ mechanism, routedBody }) => {
+          if (xhr.readyState !== 1 || xhr.__bdCustomDynamic !== meta) return;
           if (mechanism === 'none') {
             log('warn', 'Custom Dynamic could not switch models; the XHR generation will use the current AI Dungeon model.', {
               selectedModel: selection.modelId,
@@ -294,7 +300,7 @@
         })
         .catch((error) => {
           log('error', 'Custom Dynamic XHR routing failed.', { error: String(error) });
-          nativeSend.call(xhr, body);
+          if (xhr.readyState === 1 && xhr.__bdCustomDynamic === meta) nativeSend.call(xhr, body);
         });
       return undefined;
     };
@@ -491,6 +497,7 @@
   }
 
   function syncRoutedModelIndicator() {
+    syncAdventureRuntime();
     if (typeof document === 'undefined') return;
     ensureRoutedModelIndicatorStyle();
 
@@ -665,6 +672,7 @@
 
       postToExtension('switch-model', {
         requestId,
+        adventureShortId: selection.adventureShortId,
         modelId: selection.modelId,
         label: selection.label,
         versionName
@@ -728,14 +736,24 @@
     const parsedBody = parseBody(bodyText);
     const parsed = parsedBody.data;
     const operation = parsed ? findOperationName(parsed) : '';
+    const mutationFields = (Array.isArray(parsed) ? parsed : [parsed])
+      .map(entry => entry && typeof entry.query === 'string' && /^\s*mutation\b/.test(entry.query)
+        ? STORY_MUTATION_FIELD_RE.exec(entry.query)?.[1] : null)
+      .filter(Boolean);
+    const submitsStoryAction = mutationFields.some(field => !NON_GENERATION_OPERATION_RE.test(field));
+    const lifecycleOnly = mutationFields.length > 0 && !submitsStoryAction;
     const modelFields = parsed ? findModelFields(parsed) : [];
     const actionSignals = parsed ? findActionSignals(parsed) : [];
     let generationScore = 0;
 
     if (URL_GENERATION_RE.test(url)) generationScore += 4;
-    if (GENERATION_OPERATION_RE.test(operation)) generationScore += 6;
+    if (submitsStoryAction || GENERATION_OPERATION_RE.test(operation)) generationScore += 6;
     if (actionSignals.some((item) => ACTION_VALUE_RE.test(String(item.value || '')))) generationScore += 3;
     if (actionSignals.some((item) => /input|prompt|command|message|text/i.test(item.key))) generationScore += 1;
+
+    if (state.config.enabled && method === 'POST' && /\/graphql\/?$/.test(new URL(url).pathname)) {
+      diagOnce('graphql-observed', 'info', 'Observed a GraphQL POST in the routing hook.');
+    }
 
     return {
       url,
@@ -746,7 +764,7 @@
       operation,
       modelFields,
       generationScore,
-      isGeneration: !NON_GENERATION_OPERATION_RE.test(operation) && generationScore >= 5
+      isGeneration: method === 'POST' && !lifecycleOnly && (submitsStoryAction || !NON_GENERATION_OPERATION_RE.test(operation)) && generationScore >= 5
     };
   }
 
@@ -816,6 +834,21 @@
     return results.slice(0, 40);
   }
 
+  function syncAdventureRuntime(restorePersisted = false) {
+    const adventureShortId = new URL(window.location.href).pathname.match(/\/(?:adventures?|play)\/([^/]+)/)?.[1] || '';
+    if (!restorePersisted && adventureShortId === state.adventureShortId) return;
+    const runtime = state.persistedRuntime?.adventureShortId === adventureShortId
+      ? state.persistedRuntime
+      : normalizeRuntime(null);
+    state.adventureShortId = adventureShortId;
+    state.lastModelId = runtime.lastModelId;
+    state.lastModelLabel = runtime.lastModelLabel;
+    state.lastVersionName = runtime.lastVersionName;
+    state.lastVersionLabel = runtime.lastVersionLabel;
+    state.turnsOnModel = runtime.turnsOnModel;
+    scheduleRoutedModelIndicatorSync();
+  }
+
   function selectModel() {
     const candidates = (state.config.pool || [])
       .filter((model) => model.enabled !== false && model.modelId)
@@ -835,15 +868,20 @@
     if (active && state.turnsOnModel > 0 && state.turnsOnModel < turnInterval) {
       return {
         ...active,
+        adventureShortId: state.adventureShortId,
         needsSwitch: false,
         turnsOnModel: state.turnsOnModel + 1
       };
     }
 
-    const selected = randomWeighted(candidates);
+    const alternatives = active
+      ? candidates.filter(model => !sameModel(model.versionName, active.versionName))
+      : [];
+    const selected = randomWeighted(alternatives.length ? alternatives : candidates);
     const alreadyActive = active && sameModel(selected.versionName, active.versionName);
     return {
       ...selected,
+      adventureShortId: state.adventureShortId,
       needsSwitch: !alreadyActive,
       turnsOnModel: 1
     };
@@ -894,6 +932,8 @@
   }
 
   function rememberSelectedModel(selection, mechanism = '') {
+    syncAdventureRuntime();
+    if (selection.adventureShortId !== state.adventureShortId) return;
     state.lastModelId = cleanModelName(selection.modelId);
     state.lastModelLabel = cleanModelName(selection.label || selection.modelId);
     state.lastVersionName = cleanModelName(selection.versionName || selection.modelId);
@@ -905,6 +945,7 @@
     scheduleRoutedModelIndicatorSync();
     emitRuntime({
       kind: 'selection-state',
+      adventureShortId: selection.adventureShortId,
       modelId: state.lastModelId,
       label: state.lastModelLabel,
       versionName: state.lastVersionName,
@@ -959,6 +1000,7 @@
   function normalizeRuntime(value) {
     const raw = value && typeof value === 'object' ? value : {};
     return {
+      adventureShortId: cleanModelName(raw.adventureShortId),
       lastModelId: cleanModelName(raw.lastModelId || ''),
       lastModelLabel: cleanModelName(raw.lastModelLabel || raw.lastModelId || ''),
       lastVersionName: cleanModelName(raw.lastVersionName || raw.lastModelId || ''),

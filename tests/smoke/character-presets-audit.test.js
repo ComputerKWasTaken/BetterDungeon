@@ -108,8 +108,14 @@ test('advance candidates exclude back/restart buttons and keep document order', 
   assert.equal(feature.findAdvanceButton({}), next);
 });
 
-test('advance click waits for the button to become enabled', async () => {
-  const next = fakeEl({ tag: 'BUTTON', text: 'Next', disabled: true });
+test('advance click ignores decorative glyphs and waits for Start to enable', async () => {
+  const next = fakeEl({ tag: 'BUTTON', text: 'w_playStart', disabled: true });
+  next.querySelector = selector => selector === '[aria-hidden="true"]' ? {} : null;
+  next.cloneNode = () => {
+    const copy = { textContent: 'w_playStart' };
+    copy.querySelectorAll = () => [{ remove: () => { copy.textContent = 'Start'; } }];
+    return copy;
+  };
   const root = { querySelectorAll: () => [next] };
   const feature = new CharacterPresetFeature();
   feature.getFieldContainer = () => root;

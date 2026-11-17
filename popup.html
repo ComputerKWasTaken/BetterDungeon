@@ -83,7 +83,7 @@
             <span class="whats-new-compact-icon icon-sparkles"></span>
             <span class="whats-new-compact-text">
               <strong id="whats-new-title">What's New</strong>
-              <span class="whats-new-compact-summary">Bug-fix release &middot; Navigator &amp; Character Presets restored</span>
+              <span class="whats-new-compact-summary">Bug-fix release &middot; Navigator’s new drawer &amp; Character Presets restored</span>
             </span>
           </span>
           <span class="whats-new-compact-right">
@@ -93,7 +93,7 @@
         </button>
         <div class="whats-new-expandable" id="whats-new-expandable" aria-hidden="true">
           <div class="whats-new-version-tabs" role="tablist" aria-label="Release notes versions">
-            <button class="whats-new-version-tab active" id="whats-new-tab-212" type="button" role="tab" aria-selected="true" aria-controls="whats-new-release-212" data-whats-new-version="2.1.2" data-whats-new-summary="Bug-fix release · Navigator &amp; Character Presets restored">
+            <button class="whats-new-version-tab active" id="whats-new-tab-212" type="button" role="tab" aria-selected="true" aria-controls="whats-new-release-212" data-whats-new-version="2.1.2" data-whats-new-summary="Bug-fix release · Navigator’s new drawer &amp; Character Presets restored">
               v2.1.2 <span>Current</span>
             </button>
             <button class="whats-new-version-tab" id="whats-new-tab-211" type="button" role="tab" aria-selected="false" aria-controls="whats-new-release-211" data-whats-new-version="2.1.1" data-whats-new-summary="Fixes &amp; refinements · Contact &amp; feedback" tabindex="-1">
@@ -116,30 +116,30 @@
                 <span class="whats-new-release-icon icon-wrench" aria-hidden="true"></span>
                 <div>
                   <span class="whats-new-eyebrow">Bug-fix update</span>
-                  <h3>Every feature audited and repaired</h3>
-                  <p>V2.1.2 is a bug-fix release. After AI Dungeon updates quietly broke features, every BetterDungeon feature was audited against the current AI Dungeon and fixed where it had rotted.</p>
+                  <h3>Meet the new Navigator drawer</h3>
+                  <p>v2.1.2 restores tools affected by AI Dungeon updates and gives Navigator its own space alongside the story.</p>
                 </div>
               </div>
               <div class="whats-new-highlight-list">
                 <article class="whats-new-highlight">
-                  <span class="whats-new-highlight-icon whats-new-highlight-icon-navigator icon-message-circle" aria-hidden="true"></span>
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-navigator icon-telescope" aria-hidden="true"></span>
                   <div>
-                    <h4>Navigator &amp; Character Presets restored</h4>
-                    <p>Open Navigator from its button in an adventure. Character Prefill is available on scenario text prompts.</p>
+                    <h4>Navigator has its own launcher</h4>
+                    <p>Select the telescope beside your adventure to open Chat, Routines, and Activity. The launcher shows when Navigator is working or has work queued. Open the drawer to review or stop active work.</p>
+                  </div>
+                </article>
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-input icon-user-round" aria-hidden="true"></span>
+                  <div>
+                    <h4>Character Presets advance again</h4>
+                    <p>Use a generated or edited suggestion to fill the scenario’s text prompt and advance automatically.</p>
                   </div>
                 </article>
                 <article class="whats-new-highlight">
                   <span class="whats-new-highlight-icon whats-new-highlight-icon-native icon-shield-check" aria-hidden="true"></span>
                   <div>
                     <h4>Deep fixes across the board</h4>
-                    <p>Custom Dynamic model rotation, Story Card Analytics counts, Trigger Highlight, Input History draft restore, Command Mode, Ultrascripts card loading, and more were repaired and covered by new regression tests.</p>
-                  </div>
-                </article>
-                <article class="whats-new-highlight">
-                  <span class="whats-new-highlight-icon whats-new-highlight-icon-input icon-terminal" aria-hidden="true"></span>
-                  <div>
-                    <h4>Command Mode auto-delete setting</h4>
-                    <p>Command Mode gains a popup toggle for automatically removing the command header from the story after the AI responds. It is off by default.</p>
+                    <p>More fixes cover Story Card Analytics counts, trigger highlights, Input History draft restoration, Command Mode, and Ultrascripts card loading.</p>
                   </div>
                 </article>
                 <article class="whats-new-highlight">
@@ -249,7 +249,7 @@
                   <span class="whats-new-highlight-icon whats-new-highlight-icon-ai icon-brain-circuit" aria-hidden="true"></span>
                   <div>
                     <h4>Simpler AI setup</h4>
-                    <p>A dedicated AI tab offers Simple Gemini setup and per-feature Advanced providers, including automatic Mistral fallback.</p>
+                    <p>A dedicated AI tab offers Simple Gemini setup and per-feature Advanced providers, with OpenRouter or a custom endpoint.</p>
                   </div>
                 </article>
 
@@ -435,14 +435,6 @@
               </div>
               <p class="feature-hint"><span class="icon-lightbulb"></span> <span data-bd-browser-copy>Use <strong>&#x2191;&#x2193; arrow keys</strong> while in Command mode to switch between Standard, Subtle, and OOC sub-modes.</span><span data-bd-android-copy hidden>Tap the previous and next buttons above the input while in Command mode to switch between Standard, Subtle, and OOC.</span></p>
               <p class="feature-hint"><span class="icon-terminal"></span> <strong>Standard</strong> &mdash; direct story instructions. <strong>Subtle</strong> &mdash; indirect guidance via brackets. <strong>OOC</strong> &mdash; ask the AI a direct question.</p>
-              <div class="feature-option">
-                <span class="option-label"><span class="icon-eraser"></span> Auto-delete command header</span>
-                <label class="toggle sm">
-                  <input type="checkbox" id="command-auto-delete">
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-              <p class="feature-hint">Removes the command header from the story once the AI has responded to it.</p>
             </div>
           </article>
 
@@ -1104,7 +1096,7 @@
           <div class="ai-settings-body" id="ai-advanced-fields" hidden>
             <div class="form-group">
               <label class="form-label" for="ai-endpoint-service">Provider</label>
-              <select class="form-input" id="ai-endpoint-service"><option value="openrouter">OpenRouter</option><option value="mistral">Mistral</option><option value="custom">Custom endpoint</option></select>
+              <select class="form-input" id="ai-endpoint-service"><option value="openrouter">OpenRouter</option><option value="custom">Custom endpoint</option></select>
             </div>
             <div class="form-group" id="ai-endpoint-base-url-group" hidden>
               <label class="form-label" for="ai-endpoint-base-url">Base URL</label>
@@ -1117,12 +1109,7 @@
                 <button type="button" class="ai-text-link" id="ai-endpoint-clear-key">Clear key</button>
               </div>
               <input type="password" class="form-input" id="ai-endpoint-api-key" autocomplete="off" spellcheck="false">
-              <p class="form-help"><a class="ai-text-link" id="ai-endpoint-key-link" target="_blank" rel="noopener noreferrer" hidden><span id="ai-endpoint-key-link-label"></span> <span class="icon-external-link" aria-hidden="true"></span></a></p>
-            </div>
-            <div class="form-group" id="ai-mistral-model-group" hidden>
-              <label class="form-label" for="ai-mistral-model">Model</label>
-              <select class="form-input" id="ai-mistral-model" aria-describedby="ai-mistral-model-help"></select>
-              <p class="form-help" id="ai-mistral-model-help">Automatic switches models when one reaches its limit.</p>
+              <p class="form-help"><a class="ai-text-link" id="ai-endpoint-key-link" href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener noreferrer">Get an OpenRouter key <span class="icon-external-link" aria-hidden="true"></span></a></p>
             </div>
             <div class="form-group" id="ai-endpoint-model-group">
               <label class="form-label" for="ai-endpoint-model">Model ID</label>

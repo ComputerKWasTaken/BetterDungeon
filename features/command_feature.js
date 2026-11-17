@@ -27,12 +27,9 @@ class CommandFeature {
     this.boundKeyHandler = null;
     this.submitClickHandler = null;
     this.modeChangeHandler = null;
-    this.autoDeleteEnabled = false;
     this.subMode = 'standard'; // 'standard' | 'subtle' | 'ooc'
     this.subModeKeyHandler = null;
     this.subModeBar = null;
-    this.pendingCommandDelete = null;
-    this.responseObserver = null;
     this._lastSpriteState = null; // track sprite/dynamic theme for reactive re-injection
     this.pendingInjection = null;  // rAF handle coalescing observer bursts
     this.debug = false;
@@ -58,17 +55,8 @@ class CommandFeature {
     console.log('[Command] Initializing Command feature...');
     this.setupObserver();
     this.injectCommandButton();
-    this.loadAutoDeleteSetting();
     this.loadSubModeSetting();
     this.setupMessageListener();
-  }
-
-  loadAutoDeleteSetting() {
-    if (typeof chrome !== 'undefined' && chrome.storage) {
-      chrome.storage.sync.get('betterDungeon_commandAutoDelete', (result) => {
-        this.autoDeleteEnabled = (result || {}).betterDungeon_commandAutoDelete ?? false;
-      });
-    }
   }
 
   loadSubModeSetting() {
@@ -92,10 +80,7 @@ class CommandFeature {
   setupMessageListener() {
     if (typeof chrome !== 'undefined' && chrome.runtime) {
       chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-        if (message.type === 'SET_COMMAND_AUTO_DELETE') {
-          this.autoDeleteEnabled = message.enabled;
-          sendResponse({ success: true });
-        } else if (message.type === 'SET_COMMAND_SUB_MODE') {
+        if (message.type === 'SET_COMMAND_SUB_MODE') {
           if (message.subMode && CommandFeature.SUB_MODES.includes(message.subMode)) {
             this.subMode = message.subMode;
             if (this.isCommandMode) this.updateModeDisplay();
@@ -117,10 +102,6 @@ class CommandFeature {
     if (this.pendingInjection !== null) {
       cancelAnimationFrame(this.pendingInjection);
       this.pendingInjection = null;
-    }
-    if (this.responseObserver) {
-      this.responseObserver.disconnect();
-      this.responseObserver = null;
     }
     if (this.modeChangeHandler) {
       document.removeEventListener('click', this.modeChangeHandler, true);
@@ -524,9 +505,6 @@ class CommandFeature {
             const formattedContent = this.formatAsCommand(content);
             this._setTextareaValue(textarea, formattedContent);
             
-            // Schedule deletion if auto-delete is enabled
-            this.scheduleCommandDeletion(formattedContent.trim());
-            
             // Reset command mode after submission
             this.deactivateCommandMode();
           }
@@ -557,9 +535,6 @@ class CommandFeature {
           // Format the content as a command header
           const formattedContent = this.formatAsCommand(content);
           this._setTextareaValue(textarea, formattedContent);
-          
-          // Schedule deletion if auto-delete is enabled
-          this.scheduleCommandDeletion(formattedContent.trim());
           
           // Reset command mode after submission
           this.deactivateCommandMode();
@@ -735,177 +710,6 @@ class CommandFeature {
     }
   }
 
-  scheduleCommandDeletion(commandText) {
-    if (!this.autoDeleteEnabled) return;
-    
-    this.pendingCommandDelete = commandText;
-    this.watchForResponseCompletion();
-  }
-
-  watchForResponseCompletion() {
-    if (this.responseObserver) {
-      this.responseObserver.disconnect();
-    }
-
-    const storyOutput = document.querySelector('#gameplay-output');
-    if (!storyOutput) return;
-
-    let responseStarted = false;
-    let stabilityTimer = null;
-
-    this.responseObserver = new MutationObserver((mutations) => {
-      // Check if new content is being added (AI is responding)
-      const hasNewContent = mutations.some(m => 
-        m.addedNodes.length > 0 || 
-        (m.type === 'characterData' && m.target.textContent)
-      );
-
-      if (hasNewContent) {
-        responseStarted = true;
-        
-        // Reset stability timer - wait for response to stabilize
-        if (stabilityTimer) clearTimeout(stabilityTimer);
-        
-        stabilityTimer = setTimeout(() => {
-          this.deleteCommandFromStory();
-          
-          // Clean up
-          if (this.responseObserver) {
-            this.responseObserver.disconnect();
-            this.responseObserver = null;
-          }
-          this.pendingCommandDelete = null;
-        }, 2000); // Wait 2 seconds of no changes
-      }
-    });
-
-    this.responseObserver.observe(storyOutput, {
-      childList: true,
-      subtree: true,
-      characterData: true
-    });
-
-    // Timeout after 60 seconds if no response
-    setTimeout(() => {
-      if (this.responseObserver) {
-        this.responseObserver.disconnect();
-        this.responseObserver = null;
-      }
-      this.pendingCommandDelete = null;
-    }, 60000);
-  }
-
-  deleteCommandFromStory() {
-    if (!this.pendingCommandDelete) return;
-
-    const storyOutput = document.querySelector('#gameplay-output');
-    if (!storyOutput) return;
-
-    const commandPattern = this.pendingCommandDelete;
-    // Tag-agnostic on purpose: AI Dungeon renders #transition-opacity via
-    // Tamagui components whose web element is not reliably a <span> (the
-    // shared service selector is '#transition-opacity' for the same reason).
-    // The old span-only selector silently matched nothing when the action
-    // block rendered as a <div>, so auto-delete never fired.
-    const allBlocks = storyOutput.querySelectorAll('[id="transition-opacity"]');
-
-    for (const block of allBlocks) {
-      const text = block.textContent || '';
-      if (text.includes(commandPattern)) {
-        block.click();
-        setTimeout(() => this.clearAndSaveEdit(), 500);
-        break;
-      }
-    }
-  }
-
-  clearAndSaveEdit() {
-    const allTextareas = document.querySelectorAll('textarea');
-    
-    // Find the edit textarea (not the main game input)
-    for (const textarea of allTextareas) {
-      if (textarea.id === 'game-text-input') continue;
-      this.clearTextareaAndSave(textarea);
-      return;
-    }
-
-    // Fallback: check for contenteditable elements
-    const editables = document.querySelectorAll('[contenteditable="true"]');
-    for (const editable of editables) {
-      const searchText = this.pendingCommandDelete?.trim();
-      if (searchText && editable.textContent.includes(searchText)) {
-        this.clearContentEditableAndSave(editable);
-        return;
-      }
-    }
-  }
-
-  clearTextareaAndSave(textarea) {
-    textarea.focus();
-    textarea.select();
-    // Replace with two newlines for better formatting
-    textarea.value = '\n\n';
-    textarea.dispatchEvent(new Event('input', { bubbles: true }));
-    textarea.dispatchEvent(new Event('change', { bubbles: true }));
-    
-    setTimeout(() => this.clickOutsideToClose(), 200);
-  }
-
-  clearContentEditableAndSave(element) {
-    // Select all content and delete
-    element.focus();
-    
-    // Select all text
-    const selection = window.getSelection();
-    const range = document.createRange();
-    range.selectNodeContents(element);
-    selection.removeAllRanges();
-    selection.addRange(range);
-    
-    // Delete the content
-    document.execCommand('delete', false, null);
-    
-    // Dispatch events
-    element.dispatchEvent(new Event('input', { bubbles: true }));
-    element.dispatchEvent(new Event('change', { bubbles: true }));
-    
-    // Click outside to close edit field
-    setTimeout(() => this.clickOutsideToClose(), 200);
-  }
-
-  clearInputAndSave(input) {
-    input.focus();
-    input.select();
-    input.value = '';
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-    
-    // Click outside to close edit field
-    setTimeout(() => this.clickOutsideToClose(), 200);
-  }
-
-  clickOutsideToClose() {
-    // Press Escape to close any popup. Use the service's synthetic-keydown
-    // helper so the event is tagged `bdSynthetic`: this Escape is BD-internal
-    // plumbing, and an untagged one re-enters the hotkey handler as if the
-    // user pressed Escape (it can fall through to Exit Input and close the
-    // text drawer).
-    document.dispatchEvent(AIDungeonService.syntheticKeydown('Escape', {
-      code: 'Escape',
-      keyCode: 27,
-      which: 27
-    }));
-    
-    // Blur and click outside as backup
-    setTimeout(() => {
-      document.activeElement?.blur();
-      const outsideTarget = document.querySelector('header') ||
-                            document.querySelector('nav') ||
-                            document.querySelector('[class*="sidebar"]') ||
-                            document.body;
-      if (outsideTarget) outsideTarget.click();
-    }, 100);
-  }
 }
 
 // Make available globally

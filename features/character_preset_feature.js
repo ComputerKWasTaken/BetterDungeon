@@ -1604,7 +1604,15 @@ class CharacterPresetFeature {
     const buttons = searchRoot.querySelectorAll('[role="button"], button');
     const candidates = [];
     for (const btn of buttons) {
-      if (this.isAdvanceButtonText(btn.textContent || '')) candidates.push(btn);
+      const label = btn.getAttribute?.('aria-label');
+      const decorative = btn.querySelector?.('[aria-hidden="true"]');
+      let text = btn.textContent;
+      if (!label && decorative) {
+        const copy = btn.cloneNode(true);
+        copy.querySelectorAll('[aria-hidden="true"]').forEach(node => node.remove());
+        text = copy.textContent;
+      }
+      if (this.isAdvanceButtonText(label || text)) candidates.push(btn);
     }
     return candidates;
   }

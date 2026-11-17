@@ -27,7 +27,7 @@
 
 1. Install BetterDungeon for your platform and open an [AI Dungeon adventure](https://play.aidungeon.com/).
 2. Open the BetterDungeon popup to switch on and configure the features you want.
-3. For Navigator, Character Prefill, or Ultrascripts AI, add your own provider key in **AI Connections**. Gemini is the simple setup; OpenRouter, Mistral, and custom endpoints are available in Advanced. [AI setup guide](docs/AI.md)
+3. For Navigator, Character Prefill, or Ultrascripts AI, add your own provider key in **AI Connections**. Gemini is the simple setup; OpenRouter and custom endpoints are available in Advanced. [AI setup guide](docs/AI.md)
 
 You can use BetterDungeon's non-AI features without configuring an AI provider. Most features have their own switch, so you can keep the experience as light or as involved as you like.
 

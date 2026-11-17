@@ -19,8 +19,7 @@ const inputModeColorTest = fileURLToPath(new URL('smoke/input-mode-color.test.js
 const storyCardAnalyticsTest = fileURLToPath(new URL('smoke/story-card-analytics.test.js', testsRoot));
 const inputHistoryTest = fileURLToPath(new URL('smoke/input-history.test.js', testsRoot));
 const customDynamicTest = fileURLToPath(new URL('smoke/custom-dynamic-router.test.js', testsRoot));
-const commandAutoDeleteTest = fileURLToPath(new URL('smoke/command-auto-delete-toggle.test.js', testsRoot));
-const result = spawnSync(process.execPath, ['--test', '--test-reporter=spec', smokeTest, aiTest, routinesTest, navigatorGqlTest, updateCheckTest, characterPresetsTest, apolloBridgeTest, commandFeatureTest, tryTest, hotkeyTest, hotkeyEscapeTest, plotComponentsTest, triggerHighlightTest, inputModeColorTest, storyCardAnalyticsTest, inputHistoryTest, customDynamicTest, commandAutoDeleteTest], {
+const result = spawnSync(process.execPath, ['--test', '--test-reporter=spec', smokeTest, aiTest, routinesTest, navigatorGqlTest, updateCheckTest, characterPresetsTest, apolloBridgeTest, commandFeatureTest, tryTest, hotkeyTest, hotkeyEscapeTest, plotComponentsTest, triggerHighlightTest, inputModeColorTest, storyCardAnalyticsTest, inputHistoryTest, customDynamicTest], {
   stdio: 'inherit'
 });
 
