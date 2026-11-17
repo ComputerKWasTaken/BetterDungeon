@@ -5336,7 +5336,7 @@ html[data-bd-form-factor="mobile"] .bd-routine-button { min-height: 40px; }
   flex: none;
   width: fit-content;
   max-width: min(100%, 520px);
-  margin-block: 6px;
+  margin-block: 16px 6px;
   margin-inline: auto;
   border: 1px solid var(--bd-border-default);
   border-radius: var(--bd-radius-lg);
