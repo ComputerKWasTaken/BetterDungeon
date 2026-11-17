@@ -588,8 +588,8 @@ class CharacterPresetFeature {
       step.disclosure?.remove();
       return;
     }
-    if (step.disclosure && step.disclosure.nextElementSibling !== anchor) {
-      anchor.before(step.disclosure);
+    if (step.disclosure && step.disclosure.previousElementSibling !== anchor) {
+      anchor.after(step.disclosure);
     }
     if (step.pending || (step.disclosure && step.status === this.status)) return;
     step.pending = true;
@@ -615,6 +615,9 @@ class CharacterPresetFeature {
       const position = getComputedStyle(anchor).position;
       if (layout.display.includes('grid') || (layout.display.includes('flex') && layout.flexDirection !== 'column') ||
         position === 'absolute' || position === 'fixed') return null;
+      const advance = this.findAdvanceButton({ input });
+      if (advance && (anchor.contains(advance) ||
+        !(anchor.compareDocumentPosition(advance) & Node.DOCUMENT_POSITION_FOLLOWING))) return null;
       return anchor;
     }
     return null;
@@ -1160,7 +1163,7 @@ class CharacterPresetFeature {
         step.disclosure = disclosure;
       }
       container = step.disclosure;
-      if (container.nextElementSibling !== anchor) anchor.before(container);
+      if (container.previousElementSibling !== anchor) anchor.after(container);
       step.status = this.status;
     }
 

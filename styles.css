@@ -5334,14 +5334,19 @@ html[data-bd-form-factor="mobile"] .bd-routine-button { min-height: 40px; }
 .bd-character-ai-disclosure {
   box-sizing: border-box;
   flex: none;
-  align-self: center;
-  width: min(100%, 520px);
+  align-self: flex-start;
+  width: fit-content;
+  max-width: min(100%, 520px);
   margin-block: 6px;
   border: 1px solid var(--bd-border-default);
   border-radius: var(--bd-radius-lg);
   background: var(--bd-bg-elevated);
   color: var(--bd-text-primary);
   font: 600 var(--bd-font-size-sm)/1.4 var(--bd-font-family-primary);
+}
+
+.bd-character-ai-disclosure[open] {
+  width: min(100%, 520px);
 }
 
 .bd-character-ai-disclosure > summary {

@@ -96,18 +96,18 @@ test('Android keeps an open disclosure through a same-question remount and colla
   const replacement = { ...first, input: {} };
   const second = { label: 'Second question', input: {} };
   const makeAnchor = () => ({
-    before(disclosure) { disclosure.nextElementSibling = this; },
+    after(disclosure) { disclosure.previousElementSibling = this; },
   });
   const anchors = new Map([first, replacement, second].map(field => [field.input, makeAnchor()]));
   feature.findMobilePresetAnchor = input => anchors.get(input);
   feature.handleField = async field => {
     const disclosure = {
       open: false,
-      remove() { this.nextElementSibling = null; },
+      remove() { this.previousElementSibling = null; },
     };
     field.mobileStep.disclosure = disclosure;
     field.mobileStep.status = feature.status;
-    anchors.get(field.input).before(disclosure);
+    anchors.get(field.input).after(disclosure);
   };
   await withGlobals({
     document: { querySelectorAll: () => [] },
@@ -118,11 +118,11 @@ test('Android keeps an open disclosure through a same-question remount and colla
     initialDisclosure.open = true;
     await feature.checkMobileStep(replacement);
     assert.equal(feature.mobileStep.disclosure, initialDisclosure);
-    assert.equal(initialDisclosure.nextElementSibling, anchors.get(replacement.input));
+    assert.equal(initialDisclosure.previousElementSibling, anchors.get(replacement.input));
     assert.equal(initialDisclosure.open, true);
 
     await feature.checkMobileStep(null);
-    assert.equal(initialDisclosure.nextElementSibling, null);
+    assert.equal(initialDisclosure.previousElementSibling, null);
     await feature.checkMobileStep(second);
     assert.equal(feature.mobileStep.disclosure.open, false);
     assert.notEqual(feature.mobileStep.disclosure, initialDisclosure);
