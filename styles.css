@@ -1074,10 +1074,6 @@
   pointer-events: none;
 }
 
-html:not([data-bd-form-factor="mobile"]) .bd-widget-module-controls {
-  padding-right: calc(10px + var(--bd-navigator-dock-width, 0px));
-}
-
 .bd-widget-minimize-toggle {
   pointer-events: auto;
   appearance: none;
@@ -3412,7 +3408,6 @@ html[data-bd-form-factor="mobile"] .bd-routine-button { min-height: 40px; }
   top: calc(64px + env(safe-area-inset-top));
   right: max(12px, env(safe-area-inset-right));
   display: inline-flex;
-  width: max-content;
   align-items: center;
   gap: 8px;
   box-sizing: border-box;
@@ -3427,12 +3422,7 @@ html[data-bd-form-factor="mobile"] .bd-routine-button { min-height: 40px; }
   cursor: pointer;
   touch-action: none;
   user-select: none;
-  white-space: nowrap;
   transition: background-color var(--bd-transition-fast), border-color var(--bd-transition-fast);
-}
-
-.bd-navigator-launcher > span {
-  pointer-events: none;
 }
 
 .bd-navigator-launcher-dragging {
@@ -5496,44 +5486,6 @@ html[data-bd-platform="android-webview"] .bd-navigator-ime-visible .bd-navigator
     max-height: 80px;
     padding: 6px 8px;
   }
-}
-
-.bd-character-ai-disclosure {
-  box-sizing: border-box;
-  align-self: center;
-  width: min(100%, 520px);
-  margin-block: 8px;
-  border: 1px solid var(--bd-border-default);
-  border-radius: var(--bd-radius-lg);
-  background: var(--bd-bg-elevated);
-  color: var(--bd-text-primary);
-}
-
-.bd-character-ai-keyboard-open {
-  min-height: 0;
-  max-height: var(--bd-character-keyboard-height);
-  overflow-y: auto;
-  scroll-padding-block: 12px;
-}
-
-.bd-character-ai-disclosure > summary {
-  min-height: 44px;
-  padding: 12px;
-  box-sizing: border-box;
-  cursor: pointer;
-  font: 600 var(--bd-font-size-sm)/1.4 var(--bd-font-family-primary);
-}
-
-html[data-bd-platform="android-webview"] .bd-character-ai-disclosure > .bd-character-ai-panel {
-  position: static;
-  width: 100%;
-  max-height: none;
-  overflow: visible;
-  padding: 8px 12px 12px;
-  border: 0;
-  box-shadow: none;
-  opacity: 1;
-  transform: none;
 }
 
 @media (max-width: 480px) {
