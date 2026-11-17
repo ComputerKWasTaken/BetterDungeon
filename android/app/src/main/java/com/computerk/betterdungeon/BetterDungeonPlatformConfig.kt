@@ -28,7 +28,6 @@ object BetterDungeonPlatformConfig {
         "favoriteInstructions",
         "inputModeColor",
         "characterPreset",
-        "autoSee",
         "storyCardAnalytics",
         "notes",
         "inputHistory",

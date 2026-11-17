@@ -23,9 +23,13 @@ class NavigatorFeature {
   // These labels also disambiguate the Gameplay section tablist from the
   // Adventure section tablist (Plot / Story Cards / Details), which shares
   // the same "Section Tabs" aria-label: Navigator belongs in Gameplay only.
+  // Labels are compared after normalizeTabLabel(), so ligature-contaminated
+  // live labels ("w_aimodels") and punctuation variants still match.
+  // 'narration' / 'display' were observed as live Gameplay subtabs
+  // alongside the models tab.
   static GAMEPLAY_SECTION_TAB_LABELS = [
     'models', 'ai models', 'model settings', 'safety', 'image generator',
-    'testing & feedback', 'memory system',
+    'testing & feedback', 'memory system', 'narration', 'display',
   ];
 
   static MODELS_TAB_LABELS = ['models', 'ai models', 'model', 'ai model'];
@@ -466,29 +470,91 @@ class NavigatorFeature {
     this.inputComposing = false;
   }
 
+  // Canonical form for comparing a tab label against the known-label
+  // lists. AI Dungeon renders icons as Tamagui font ligatures — elements
+  // whose text is "w_" + the icon name — and on the live site that
+  // ligature text leaks into the settings tabs' labels: the models tab
+  // exposes the raw label "w_aimodels" instead of "AI Models". Strip the
+  // "w_" marker wherever it appears (standalone token, prefix, or glued
+  // to the real text) but keep the icon name: for icon-labelled tabs the
+  // icon name IS the label ("w_aimodels" -> "aimodels"). Then lowercase
+  // and collapse every run of non-alphanumerics to a single space, so
+  // punctuation/spacing variants of the same label compare equal.
+  static normalizeTabLabel(value) {
+    return String(value || '')
+      .toLowerCase()
+      .replace(/w_([a-z0-9]+)/g, '$1')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  // How specifically does a normalized label match the target labels?
+  // 0 = no match. Exact matches — spaced equality ("ai models") or
+  // space-free equality ("aimodels", the glued ligature form, against
+  // "ai models") — outrank loose ones, and within a tier a longer
+  // (more-token) target is the more specific match. With `loose`, a
+  // target also matches when its tokens appear as a contiguous run
+  // inside the label's tokens, which covers a ligature token sitting
+  // alongside the real text ("w_aimodels AI Models" -> "aimodels ai
+  // models", containing "ai models").
+  static tabLabelMatchSpecificity(label, targets, { loose = false } = {}) {
+    if (!label) return 0;
+    const labelTokens = label.split(' ').filter(Boolean);
+    const labelJoined = labelTokens.join('');
+    let best = 0;
+    for (const target of targets) {
+      const normalizedTarget = NavigatorFeature.normalizeTabLabel(target);
+      if (!normalizedTarget) continue;
+      const targetTokens = normalizedTarget.split(' ').filter(Boolean);
+      if (label === normalizedTarget || labelJoined === targetTokens.join('')) {
+        best = Math.max(best, 100 + targetTokens.length);
+        continue;
+      }
+      if (loose && targetTokens.length <= labelTokens.length) {
+        for (let start = 0; start + targetTokens.length <= labelTokens.length; start++) {
+          if (targetTokens.every((token, offset) => labelTokens[start + offset] === token)) {
+            best = Math.max(best, targetTokens.length);
+            break;
+          }
+        }
+      }
+    }
+    return best;
+  }
+
+  static tabLabelMatches(label, targets, options = {}) {
+    return NavigatorFeature.tabLabelMatchSpecificity(label, targets, options) > 0;
+  }
+
   // Normalized visible label for a native tab: the aria-label with any
-  // "Selected tab …" / "Tab …" prefix stripped, falling back to its text.
-  // Handles "Tab models", "Selected tab AI Models", and plain text alike.
+  // "Selected tab …" / "Tab …" prefix stripped, falling back to its text,
+  // canonicalized by normalizeTabLabel(). Handles "Tab models",
+  // "Selected tab AI Models", "w_aimodels", and plain text alike.
   getTabLabel(tab) {
     if (!tab) return '';
     const ariaLabel = tab.getAttribute?.('aria-label') || '';
     const fromAria = ariaLabel.replace(/^(?:selected\s+)?tab\s+/i, '').trim();
     const visible = (tab.textContent || '').replace(/\s+/g, ' ').trim();
-    return (fromAria || visible).replace(/\s+/g, ' ').trim().toLowerCase();
+    return NavigatorFeature.normalizeTabLabel(fromAria || visible);
   }
 
-  isModelsTab(tab) {
-    return NavigatorFeature.MODELS_TAB_LABELS.includes(this.getTabLabel(tab));
+  isModelsTab(tab, { loose = false } = {}) {
+    return NavigatorFeature.tabLabelMatches(
+      this.getTabLabel(tab), NavigatorFeature.MODELS_TAB_LABELS, { loose });
   }
 
   // A tablist is the Gameplay settings section tablist when any of its
   // native tabs carries a known Gameplay section label. (Its aria-label
   // alone cannot say so: the Adventure section tablist uses the same
-  // "Section Tabs" label, so label checks must look at the tabs.)
+  // "Section Tabs" label, so label checks must look at the tabs.) Loose
+  // matching is fine here: this only identifies which tablist is the
+  // Gameplay one, and no Adventure label can run-match a Gameplay label.
   isSectionTablist(tablist) {
     if (!tablist) return false;
     return this.getNativeSectionTabs(tablist)
-      .some(tab => NavigatorFeature.GAMEPLAY_SECTION_TAB_LABELS.includes(this.getTabLabel(tab)));
+      .some(tab => NavigatorFeature.tabLabelMatches(
+        this.getTabLabel(tab), NavigatorFeature.GAMEPLAY_SECTION_TAB_LABELS, { loose: true }));
   }
 
   findSectionTablist() {
@@ -542,9 +608,17 @@ class NavigatorFeature {
         .find(tablist => this.isSectionTablist(tablist));
       if (section) return section;
     }
-    return document.querySelector(`[role="tabpanel"][aria-label="Settings"] ${selector}`)
-      || document.querySelector(selector)
+    // Document-level fallbacks: prefer a tablist whose tabs verify as the
+    // Gameplay section (the Adventure section tablist shares the same
+    // "Section Tabs" aria-label, so an unchecked first match can be the
+    // wrong section entirely). The unchecked selector remains only as the
+    // last resort, after every label-verified route has failed.
+    const verified = [...document.querySelectorAll(selector)]
+      .find(tablist => this.isSectionTablist(tablist));
+    return verified
       || this.findSectionTablist()
+      || document.querySelector(`[role="tabpanel"][aria-label="Settings"] ${selector}`)
+      || document.querySelector(selector)
       || null;
   }
 
@@ -554,7 +628,21 @@ class NavigatorFeature {
   }
 
   findModelsTab(tablist) {
-    return this.getNativeSectionTabs(tablist).find(tab => this.isModelsTab(tab)) || null;
+    // The most specific label match wins: an exact "AI Models" beats a
+    // loose token match, and a ligature-contaminated "w_aimodels AI
+    // Models" (loose "ai models", 2 tokens) beats a merely similar label
+    // like "Model Settings" (loose "model", 1 token).
+    let best = null;
+    let bestScore = 0;
+    for (const tab of this.getNativeSectionTabs(tablist)) {
+      const score = NavigatorFeature.tabLabelMatchSpecificity(
+        this.getTabLabel(tab), NavigatorFeature.MODELS_TAB_LABELS, { loose: true });
+      if (score > bestScore) {
+        best = tab;
+        bestScore = score;
+      }
+    }
+    return best;
   }
 
   // The tab Navigator anchors to: the models tab when it can be identified
@@ -572,6 +660,28 @@ class NavigatorFeature {
     if (this.settingsIntegrationWarning === reason) return;
     this.settingsIntegrationWarning = reason;
     console.warn(`[Navigator] Settings tab integration is waiting: ${reason}`);
+  }
+
+  // Diagnostic for the no-match case: the raw labels of every tab in the
+  // document, exactly as the platform exposes them. A platform label
+  // change (e.g. the live "w_aimodels" ligature labels) is invisible
+  // without this — the integration just never mounts — so the warning
+  // names what was actually seen. The warn-once key includes the labels,
+  // so a changed label set re-warns once instead of repeating every sync.
+  describeUnmatchedSettingsTabs() {
+    const seen = new Set();
+    for (const tablist of document.querySelectorAll('[role="tablist"]')) {
+      for (const tab of tablist.querySelectorAll('[role="tab"]')) {
+        if (tab.classList?.contains('bd-navigator-settings-tab')) continue;
+        const raw = (tab.getAttribute?.('aria-label') || tab.textContent || '')
+          .replace(/\s+/g, ' ').trim();
+        if (raw) seen.add(raw);
+      }
+    }
+    const labels = [...seen].slice(0, 12);
+    return labels.length
+      ? `no Gameplay settings surface/tablist matched; tab labels seen: ${labels.join(' | ')}`
+      : 'the settings surface/tablist is not present in the document yet';
   }
 
   findSettingsNavigationRoot(tablist, surface) {
@@ -891,6 +1001,10 @@ class NavigatorFeature {
     const tablist = this.getSectionTablist(surface);
 
     if (!surface || !tablist) {
+      // Not necessarily a closed settings panel — it can also be a
+      // platform structure/label change. Say which, with the labels that
+      // were actually seen, instead of failing silently.
+      this.warnSettingsIntegration(this.describeUnmatchedSettingsTabs());
       this.resetSettingsIntegration({ preserveActive: false });
       return false;
     }

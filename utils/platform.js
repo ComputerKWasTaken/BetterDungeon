@@ -31,10 +31,8 @@
     'favoriteInstructions',
     'inputModeColor',
     'characterPreset',
-    'autoSee',
     'storyCardAnalytics',
     'notes',
-    'storyCardModalDock',
     'inputHistory',
     'customDynamic',
     'navigator'
@@ -57,7 +55,7 @@
   };
 
   const safeAndroidFeatures = browserFeatures.filter(
-    feature => feature !== 'hotkey' && feature !== 'storyCardModalDock'
+    feature => feature !== 'hotkey'
   );
 
   function parseNativeConfig() {

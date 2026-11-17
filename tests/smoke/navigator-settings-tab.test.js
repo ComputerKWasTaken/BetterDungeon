@@ -255,6 +255,113 @@ test('syncSettingsIntegration mounts the tab and content panel on the AI Models 
   }
 });
 
+test('normalizeTabLabel strips ligature markers and collapses punctuation', () => {
+  const normalize = NavigatorFeature.normalizeTabLabel;
+  assert.equal(normalize('w_aimodels'), 'aimodels');
+  assert.equal(normalize('w_aimodels AI Models'), 'aimodels ai models');
+  assert.equal(normalize('AI Models'), 'ai models');
+  assert.equal(normalize('Models'), 'models');
+  assert.equal(normalize('Testing & Feedback'), 'testing feedback');
+  assert.equal(normalize('w_safety'), 'safety');
+  assert.equal(normalize(''), '');
+  assert.equal(normalize(null), '');
+});
+
+test('models tab is found when its label is a raw icon ligature', () => {
+  const feature = new NavigatorFeature();
+  // Live layout (owner's logged-in test, 2026-11-17): the settings tabs
+  // expose raw Tamagui ligature labels like "w_aimodels" instead of the
+  // clean "AI Models" text the bundle evidence suggested.
+  for (const label of ['w_aimodels', 'w_aimodels AI Models']) {
+    const { tablist, tabs } = makeTablist(['w_narration', label, 'w_display']);
+    assert.equal(feature.findModelsTab(tablist), tabs[1], `expected models tab for label "${label}"`);
+    assert.equal(feature.findSectionTab(tablist), tabs[1]);
+    assert.equal(feature.isSectionTablist(tablist), true);
+  }
+});
+
+test('section tablist is identified by ligature labels on non-models tabs', () => {
+  const feature = new NavigatorFeature();
+  const { tablist } = makeTablist(['w_safety', 'w_memorysystem']);
+  assert.equal(feature.isSectionTablist(tablist), true);
+});
+
+test('adventure section tablist is not mistaken for the gameplay one', () => {
+  const feature = new NavigatorFeature();
+  const { tablist } = makeTablist(['Plot', 'Story Cards', 'Details', 'Scripts']);
+  assert.equal(feature.isSectionTablist(tablist), false);
+  assert.equal(feature.findModelsTab(tablist), null);
+});
+
+test('a ligature-contaminated models tab outranks a merely similar label', () => {
+  const feature = new NavigatorFeature();
+  const { tablist, tabs } = makeTablist(['Model Settings', 'w_aimodels AI Models']);
+  assert.equal(feature.findModelsTab(tablist), tabs[1]);
+});
+
+test('syncSettingsIntegration mounts on the live ligature-labelled layout', () => {
+  const { doc, body } = makeDocument();
+  global.document = doc;
+  global.window = { BetterDungeonPlatform: { has: capability => capability === 'touchControls' } };
+  try {
+    const panel = new FakeElement('div');
+    panel.setAttribute('role', 'tabpanel');
+    const content = new FakeElement('div');
+    const nav = new FakeElement('div');
+    const { tablist } = makeTablist(['w_aimodels', 'w_narration', 'w_display'], { ariaLabel: 'Tabs' });
+    nav.appendChild(tablist);
+    const nativeContent = new FakeElement('div');
+    content.appendChild(nav);
+    content.appendChild(nativeContent);
+    panel.appendChild(content);
+    body.appendChild(panel);
+
+    const feature = new NavigatorFeature();
+    feature.drawer = new FakeElement('aside');
+    body.appendChild(feature.drawer);
+
+    assert.equal(feature.syncSettingsIntegration(), true);
+    assert.ok(feature.settingsTab, 'Navigator settings tab should mount on ligature labels');
+    assert.equal(feature.settingsTab.getAttribute('aria-label'), 'Tab navigator');
+    assert.equal(feature.settingsSurface, panel);
+  } finally {
+    delete global.document;
+    delete global.window;
+  }
+});
+
+test('a failed sync warns once and names the tab labels actually seen', () => {
+  const { doc, body } = makeDocument();
+  global.document = doc;
+  global.window = { BetterDungeonPlatform: { has: capability => capability === 'touchControls' } };
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = message => warnings.push(String(message));
+  try {
+    // Only an Adventure section tablist exists: nothing may match, and
+    // the failure must say what was seen instead of staying silent.
+    const panel = new FakeElement('div');
+    panel.setAttribute('role', 'tabpanel');
+    const { tablist } = makeTablist(['Plot', 'Story Cards', 'Details'], { ariaLabel: 'Tabs' });
+    panel.appendChild(tablist);
+    body.appendChild(panel);
+
+    const feature = new NavigatorFeature();
+    feature.drawer = new FakeElement('aside');
+    body.appendChild(feature.drawer);
+
+    assert.equal(feature.syncSettingsIntegration(), false);
+    assert.equal(feature.syncSettingsIntegration(), false);
+    assert.equal(warnings.length, 1, 'the unmatched-labels warning should fire once');
+    assert.match(warnings[0], /tab labels seen:/);
+    assert.match(warnings[0], /Plot/);
+  } finally {
+    console.warn = originalWarn;
+    delete global.document;
+    delete global.window;
+  }
+});
+
 test('settings tab mounts before the anchor in wrapped and flat tab structures', () => {
   const feature = new NavigatorFeature();
   for (const wrapped of [true, false]) {

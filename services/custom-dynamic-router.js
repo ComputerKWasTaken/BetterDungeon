@@ -15,15 +15,21 @@
   // AI Dungeon's model switcher trigger is labelled "Open Model Switcher"
   // (or "Open Model Switcher, current model: …, … tier" when it carries the
   // active model). The popover it opens is the element still labelled plain
-  // "Model Switcher", so the legacy exact label is only trusted on elements
-  // that act as buttons — otherwise the indicator would mount on the popover
-  // instead of the always-visible trigger.
-  const MODEL_SWITCHER_SELECTOR = [
-    '[aria-label="Open Model Switcher"]',
-    '[aria-label^="Open Model Switcher, current model:"]',
-    'button[aria-label="Model Switcher"]',
-    '[role="button"][aria-label="Model Switcher"]'
-  ].join(', ');
+  // "Model Switcher", so a candidate only counts as the trigger when it acts
+  // like a button (or carries the "Open …" label) — otherwise the indicator
+  // would mount on the popover instead of the always-visible trigger.
+  // Matching is deliberately tolerant (live labels drift in case, spacing,
+  // and suffixes): a broad case-insensitive substring selector gathers
+  // candidates and isModelSwitcherTrigger() makes the final call.
+  const MODEL_SWITCHER_CANDIDATE_SELECTOR = (() => {
+    const modern = '[aria-label*="model switcher" i]';
+    try {
+      if (typeof document !== 'undefined') document.querySelector(modern);
+      return modern;
+    } catch {
+      return '[aria-label*="Model Switcher"], [aria-label*="model switcher"], [aria-label*="MODEL SWITCHER"]';
+    }
+  })();
   const INDICATOR_STYLE_ID = 'bd-custom-dynamic-indicator-style';
   const INDICATOR_ACTIVE_ATTRIBUTE = 'data-bd-custom-dynamic-active';
   const INDICATOR_ATTRIBUTE = 'data-bd-custom-dynamic-model-indicator';
@@ -46,10 +52,17 @@
     indicatorLogoUrl: '',
     turnsOnModel: 0,
     requestCounter: 0,
-    switchRequestCounter: 0
+    switchRequestCounter: 0,
+    lastSwitchError: ''
   };
   const pendingSwitches = new Map();
   let indicatorSyncQueued = false;
+  // Diagnostics state: warn/info lines are emitted once per key (state
+  // signature, failure class) so a live failure explains itself in the
+  // console without spamming it on every request.
+  const diagSeen = new Set();
+  let stateReceived = false;
+  let noStateTimer = null;
 
   const MODEL_KEY_RE = /^(?:model|modelid|model_id|aimodel|ai_model|storymodel|story_model|textmodel|text_model|providerModel|storyAiVersionName|aiVersionName|modelVersion|modelVersionName|versionName)$/i;
   const ACTION_KEY_RE = /^(?:action|actiontype|action_type|input|text|prompt|userinput|user_input|storyinput|story_input|command|message|mode|type)$/i;
@@ -68,6 +81,7 @@
   installFetchHook();
   installXhrHook();
   postToExtension('ready');
+  armNoStateDiagnostic();
 
   function handleBridgeMessage(event) {
     if (event.source !== window || event.origin !== window.location.origin) return;
@@ -75,7 +89,17 @@
     if (!data || data.namespace !== NAMESPACE || data.direction !== TO_PAGE) return;
 
     if (data.type === 'state') {
+      stateReceived = true;
+      if (noStateTimer) {
+        clearTimeout(noStateTimer);
+        noStateTimer = null;
+      }
       state.config = normalizeConfig(data.payload?.config);
+      diagOnce(
+        `state:${state.config.enabled}:${state.config.pool.length}:${state.config.turnInterval}`,
+        'info',
+        `State received: enabled=${state.config.enabled}, pool=${state.config.pool.length} model(s), turnInterval=${state.config.turnInterval}.`
+      );
       const runtime = normalizeRuntime(data.payload?.runtime);
       state.lastModelId = String(runtime.lastModelId || state.lastModelId || '');
       state.lastModelLabel = String(runtime.lastModelLabel || state.lastModelLabel || '');
@@ -124,12 +148,18 @@
       }
 
       if (!state.config.enabled) {
+        diagOnce('generation-while-disabled', 'warn', 'A generation request passed through with Custom Dynamic inactive, so no routing happened. If a pool is configured, check that the Custom Dynamic feature toggle is on.', {
+          operation: inspection.operation,
+          stateReceived,
+          enabled: state.config.enabled,
+          poolSize: state.config.pool.length
+        });
         return nativeFetch(input, init);
       }
 
       const selection = selectModel();
       if (!selection) {
-        log('warn', 'Generation detected, but Custom Dynamic has no enabled pool models.', summarizeInspection(inspection));
+        diagOnce('generation-no-pool', 'warn', 'Generation detected, but Custom Dynamic has no enabled pool models.', summarizeInspection(inspection));
         return nativeFetch(input, init);
       }
 
@@ -141,7 +171,7 @@
       try {
         const direct = rewriteEnvelopeModel(envelope, inspection, targetVersion);
         if (!selection.needsSwitch) {
-          rememberSelectedModel(selection);
+          rememberSelectedModel(selection, direct.changed ? 'request-body' : 'already-active');
           if (!direct.changed) return nativeFetch(input, init);
           const rebuilt = rebuildFetch(input, init, envelope, direct.bodyText);
           return nativeFetch(rebuilt.input, rebuilt.init);
@@ -167,13 +197,14 @@
             requestId,
             selectedModel: selection.modelId,
             selectedVersion: targetVersion,
+            switchError: state.lastSwitchError || undefined,
             ...summarizeInspection(inspection)
           };
           log('warn', 'Custom Dynamic could not switch models; generation will use the current AI Dungeon model.', details);
           return nativeFetch(input, init);
         }
 
-        rememberSelectedModel(selection);
+        rememberSelectedModel(selection, mechanism);
         return nativeFetch(routedInput, routedInit);
       } catch (error) {
         log('error', 'Custom Dynamic routing failed.', {
@@ -211,16 +242,27 @@
         return nativeSend.call(this, body);
       }
 
-      if (!state.config.enabled) return nativeSend.call(this, body);
+      if (!state.config.enabled) {
+        diagOnce('generation-while-disabled', 'warn', 'A generation request passed through with Custom Dynamic inactive, so no routing happened. If a pool is configured, check that the Custom Dynamic feature toggle is on.', {
+          operation: inspection.operation,
+          stateReceived,
+          enabled: state.config.enabled,
+          poolSize: state.config.pool.length
+        });
+        return nativeSend.call(this, body);
+      }
 
       const selection = selectModel();
-      if (!selection) return nativeSend.call(this, body);
+      if (!selection) {
+        diagOnce('generation-no-pool', 'warn', 'Generation detected, but Custom Dynamic has no enabled pool models.', summarizeInspection(inspection));
+        return nativeSend.call(this, body);
+      }
 
       const targetVersion = selection.versionName || selection.modelId;
       const direct = rewriteEnvelopeModel({ bodyText: body }, inspection, targetVersion);
 
       if (!selection.needsSwitch) {
-        rememberSelectedModel(selection);
+        rememberSelectedModel(selection, direct.changed ? 'request-body' : 'already-active');
         return nativeSend.call(this, direct.changed ? direct.bodyText : body);
       }
 
@@ -247,7 +289,7 @@
             nativeSend.call(xhr, body);
             return;
           }
-          rememberSelectedModel(selection);
+          rememberSelectedModel(selection, mechanism);
           nativeSend.call(xhr, routedBody);
         })
         .catch((error) => {
@@ -373,19 +415,79 @@
 
   function mutationTouchesModelSwitcher(record) {
     const target = record?.target;
-    if (isModelSwitcherElement(target)
+    if (isModelSwitcherTrigger(target)
       || target?.hasAttribute?.(SWITCHER_ATTRIBUTE)
-      || target?.closest?.(MODEL_SWITCHER_SELECTOR)) return true;
+      || closestModelSwitcher(target)) return true;
     for (const node of record?.addedNodes || []) {
-      if (isModelSwitcherElement(node)
-        || node?.closest?.(MODEL_SWITCHER_SELECTOR)
-        || node?.querySelector?.(MODEL_SWITCHER_SELECTOR)) return true;
+      if (isModelSwitcherTrigger(node)
+        || closestModelSwitcher(node)
+        || containsModelSwitcher(node)) return true;
     }
     return false;
   }
 
-  function isModelSwitcherElement(value) {
-    return Boolean(value?.matches?.(MODEL_SWITCHER_SELECTOR));
+  function closestModelSwitcher(element) {
+    const host = element?.closest?.(MODEL_SWITCHER_CANDIDATE_SELECTOR);
+    return host && isModelSwitcherTrigger(host) ? host : null;
+  }
+
+  function containsModelSwitcher(node) {
+    if (!node?.querySelectorAll) return false;
+    try {
+      return Array.from(node.querySelectorAll(MODEL_SWITCHER_CANDIDATE_SELECTOR))
+        .some(isModelSwitcherTrigger);
+    } catch {
+      return false;
+    }
+  }
+
+  function normalizeSwitcherText(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  }
+
+  // The trigger is whatever element opens the model switcher. Its label has
+  // drifted across AI Dungeon builds ("Model Switcher", "Open Model
+  // Switcher", "Open Model Switcher, current model: …, … tier"), so match
+  // tolerantly: the normalised label must mention "model switcher" and the
+  // element must act like the trigger (a button, or the "Open …" label).
+  // Popover/menu containers carry the plain label too but are never the
+  // always-visible trigger, so dialog/menu roles are excluded. A text-only
+  // fallback covers layouts that label the trigger by visible text alone.
+  function isModelSwitcherTrigger(element) {
+    if (!element?.getAttribute) return false;
+    const role = normalizeSwitcherText(element.getAttribute('role'));
+    if (role === 'dialog' || role === 'menu' || role === 'alertdialog') return false;
+    const buttonLike = element.tagName === 'BUTTON'
+      || role === 'button'
+      || (typeof element.hasAttribute === 'function'
+        && (element.hasAttribute('aria-haspopup') || element.hasAttribute('aria-expanded')));
+    const label = normalizeSwitcherText(element.getAttribute('aria-label'));
+    if (label.includes('model switcher')) {
+      return buttonLike || label.startsWith('open model switcher');
+    }
+    if (buttonLike) {
+      const text = normalizeSwitcherText(element.textContent);
+      if (text && text.length <= 80 && text.includes('model switcher')) return true;
+    }
+    return false;
+  }
+
+  function findModelSwitcherButtons() {
+    if (typeof document === 'undefined') return [];
+    let candidates = [];
+    try {
+      candidates = Array.from(document.querySelectorAll(MODEL_SWITCHER_CANDIDATE_SELECTOR));
+    } catch {
+      candidates = [];
+    }
+    const byLabel = candidates.filter(isModelSwitcherTrigger);
+    if (byLabel.length) return byLabel;
+    try {
+      return Array.from(document.querySelectorAll('button, [role="button"]'))
+        .filter(isModelSwitcherTrigger);
+    } catch {
+      return [];
+    }
   }
 
   function syncRoutedModelIndicator() {
@@ -398,7 +500,7 @@
     if (active) root?.setAttribute(INDICATOR_ACTIVE_ATTRIBUTE, 'true');
     else root?.removeAttribute(INDICATOR_ACTIVE_ATTRIBUTE);
 
-    const switchers = Array.from(document.querySelectorAll(MODEL_SWITCHER_SELECTOR));
+    const switchers = findModelSwitcherButtons();
     const currentSwitchers = new Set(switchers);
     for (const markedSwitcher of document.querySelectorAll(`[${SWITCHER_ATTRIBUTE}="true"]`)) {
       if (!active || !currentSwitchers.has(markedSwitcher)) restoreModelSwitcher(markedSwitcher);
@@ -414,15 +516,24 @@
       return;
     }
 
+    if (!switchers.length) {
+      diagOnce('switcher-not-found', 'warn', 'A model was routed, but no Model Switcher trigger matched on this page, so the "Last routed" indicator could not be mounted.', {
+        lastModel: state.lastModelId,
+        lastVersion: state.lastVersionName
+      });
+    }
+
     for (const switcher of switchers) {
       switcher.setAttribute(SWITCHER_ATTRIBUTE, 'true');
       rememberAndClearSwitcherTitle(switcher);
 
+      // Hiding the native model icon is best-effort: the indicator must
+      // mount even when the current icon is an SVG or ligature this finder
+      // does not recognise.
       const nativeIcon = findNativeModelIcon(switcher);
-      let indicator = switcher.querySelector(`[${INDICATOR_ATTRIBUTE}="true"]`);
-      if (!nativeIcon && !indicator) continue;
       if (nativeIcon) nativeIcon.setAttribute(NATIVE_ICON_ATTRIBUTE, 'true');
 
+      let indicator = switcher.querySelector(`[${INDICATOR_ATTRIBUTE}="true"]`);
       if (!indicator) {
         indicator = document.createElement('span');
         indicator.setAttribute(INDICATOR_ATTRIBUTE, 'true');
@@ -436,6 +547,9 @@
         label.setAttribute(INDICATOR_LABEL_ATTRIBUTE, 'true');
         indicator.append(image, label);
         switcher.appendChild(indicator);
+        diagOnce('indicator-mounted', 'info', 'Mounted the "Last routed" indicator on the Model Switcher trigger.', {
+          label: presentation.description
+        });
       }
 
       const image = indicator.querySelector(`[${INDICATOR_IMAGE_ATTRIBUTE}="true"]`);
@@ -535,12 +649,18 @@
     return new Promise((resolve) => {
       const timeoutId = setTimeout(() => {
         pendingSwitches.delete(requestId);
+        state.lastSwitchError = 'Switch timed out after 6.5s waiting for the extension.';
         resolve('none');
       }, 6500);
 
       pendingSwitches.set(requestId, {
         timeoutId,
-        resolve: (payload) => resolve(payload?.success ? (payload.mechanism || 'graphql-settings') : 'none')
+        resolve: (payload) => {
+          if (!payload?.success) {
+            state.lastSwitchError = String(payload?.error || 'Switch request was rejected by the extension.');
+          }
+          resolve(payload?.success ? (payload.mechanism || 'graphql-settings') : 'none');
+        }
       });
 
       postToExtension('switch-model', {
@@ -773,12 +893,15 @@
     return safe.length === 1 ? safe : [];
   }
 
-  function rememberSelectedModel(selection) {
+  function rememberSelectedModel(selection, mechanism = '') {
     state.lastModelId = cleanModelName(selection.modelId);
     state.lastModelLabel = cleanModelName(selection.label || selection.modelId);
     state.lastVersionName = cleanModelName(selection.versionName || selection.modelId);
     state.lastVersionLabel = cleanModelName(selection.versionLabel || selection.versionName || selection.modelId);
     state.turnsOnModel = clampInteger(selection.turnsOnModel, 1, 1, 1000000);
+    // One line per routed generation (a user turn, never per request):
+    // this is the running turn count an owner needs to verify rotation.
+    diagInfo(`Routed generation: ${state.lastModelLabel} (${state.lastVersionName}) — turn ${state.turnsOnModel} of ${state.config.turnInterval} on this model${mechanism ? ` via ${mechanism}` : ''}.`);
     scheduleRoutedModelIndicatorSync();
     emitRuntime({
       kind: 'selection-state',
@@ -911,6 +1034,31 @@
   function log(level, message, details = null) {
     if (!['warn', 'error'].includes(level)) return;
     console[level]('[BetterDungeon Custom Dynamic]', message, details || '');
+  }
+
+  function diagOnce(key, level, message, details = null) {
+    if (diagSeen.has(key)) return;
+    diagSeen.add(key);
+    const logger = level === 'warn' ? console.warn : console.info;
+    logger('[BetterDungeon Custom Dynamic]', message, details || '');
+  }
+
+  function diagInfo(message, details = null) {
+    console.info('[BetterDungeon Custom Dynamic]', message, details || '');
+  }
+
+  // If the extension side never posts state (feature toggle off, feature
+  // failed to initialise, bridge lost), the router sits disabled forever
+  // and historically said nothing. Say so once, shortly after load.
+  function armNoStateDiagnostic() {
+    if (typeof setTimeout !== 'function') return;
+    noStateTimer = setTimeout(() => {
+      noStateTimer = null;
+      if (stateReceived) return;
+      diagOnce('no-state', 'warn', 'No state received from the BetterDungeon extension 15s after page load. If a Custom Dynamic pool is configured, the feature toggle is probably off — the router stays disabled until the feature posts its state.');
+    }, 15000);
+    // Never keep a test harness or worker alive just for this diagnostic.
+    if (noStateTimer && typeof noStateTimer.unref === 'function') noStateTimer.unref();
   }
 
   function emitRuntime(payload) {

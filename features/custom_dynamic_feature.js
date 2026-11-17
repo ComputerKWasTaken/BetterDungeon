@@ -87,6 +87,7 @@ class CustomDynamicFeature {
     const runtime = this.normalizeRuntime(runtimeResult?.[this.runtimeStorageKey]);
     if (options.forceDisabled) config.enabled = false;
 
+    console.log(`[CustomDynamic] Posting state to router: enabled=${config.enabled}, pool=${config.pool.length} model(s), turnInterval=${config.turnInterval}.`);
     window.postMessage({
       namespace: this.namespace,
       direction: 'extension-to-page',
@@ -171,7 +172,7 @@ class CustomDynamicFeature {
       return { success: false, error: 'No AI Dungeon model version was provided.' };
     }
 
-    const gql = await this.waitForGqlCredentials(1000);
+    const gql = await this.waitForGqlCredentials(3000);
     if (!gql) {
       return { success: false, error: 'AI Dungeon GraphQL is not ready.' };
     }

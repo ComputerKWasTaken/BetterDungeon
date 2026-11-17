@@ -357,7 +357,6 @@
     favoriteInstructions: true,
     inputModeColor: true,
     characterPreset: true,
-    autoSee: false,
     notes: true,
     inputHistory: true,
     customDynamic: false,

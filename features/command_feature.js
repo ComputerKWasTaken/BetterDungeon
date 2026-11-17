@@ -885,13 +885,15 @@ class CommandFeature {
   }
 
   clickOutsideToClose() {
-    // Press Escape to close any popup
-    document.dispatchEvent(new KeyboardEvent('keydown', {
-      key: 'Escape',
+    // Press Escape to close any popup. Use the service's synthetic-keydown
+    // helper so the event is tagged `bdSynthetic`: this Escape is BD-internal
+    // plumbing, and an untagged one re-enters the hotkey handler as if the
+    // user pressed Escape (it can fall through to Exit Input and close the
+    // text drawer).
+    document.dispatchEvent(AIDungeonService.syntheticKeydown('Escape', {
       code: 'Escape',
       keyCode: 27,
-      which: 27,
-      bubbles: true
+      which: 27
     }));
     
     // Blur and click outside as backup

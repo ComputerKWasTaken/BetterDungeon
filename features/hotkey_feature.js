@@ -78,6 +78,10 @@ class HotkeyFeature {
 
     // One-time diagnostics for missing UI targets (see warnOnce)
     this.warnedKeys = new Set();
+
+    // Re-entrancy guard for the Escape-dismisses-menu path: true while a
+    // closeModeMenu() call from this handler is still on the stack.
+    this._closingModeMenu = false;
   }
 
   // Surface a missing-target problem once instead of failing silently
@@ -380,6 +384,15 @@ class HotkeyFeature {
 
   setupKeyboardListener() {
     const handleKeyDown = async (e) => {
+      // Ignore key events BD dispatched itself (tagged by
+      // AIDungeonService.syntheticKeydown). They are plumbing for AI
+      // Dungeon's menus, not user input. This check is load-bearing for
+      // Escape: closeModeMenu()'s synthetic Escape bubbles back through
+      // this capture-phase handler while the menu still reads as open,
+      // so acting on it would call closeModeMenu() again and recurse
+      // until the stack overflows (live Chrome, PR #73).
+      if (e.bdSynthetic) return;
+
       // Don't trigger hotkeys when user is typing, EXCEPT for Escape key
       if (this.isUserTyping() && e.key.toLowerCase() !== 'escape') return;
       
@@ -396,8 +409,20 @@ class HotkeyFeature {
       // This runs before the binding lookup so it still works when the user
       // unbound or rebound the Escape key.
       if (key === 'escape' && this.aid.isModeMenuOpen()) {
+        // Re-entrancy guard: a synthetic Escape from elsewhere (another
+        // feature's untagged dispatch) can re-enter this handler
+        // synchronously while the close below is still on the stack. That
+        // nested event belongs to the same close gesture — swallow it
+        // rather than closing again. (BD's own service events never get
+        // here; they are filtered by the bdSynthetic check above.)
+        if (this._closingModeMenu) return;
         e.preventDefault();
-        this.aid.closeModeMenu();
+        this._closingModeMenu = true;
+        try {
+          this.aid.closeModeMenu();
+        } finally {
+          this._closingModeMenu = false;
+        }
         return;
       }
 

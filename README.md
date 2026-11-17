@@ -8,7 +8,7 @@
 
 <p align="center"><a href="https://chromewebstore.google.com/detail/betterdungeon/ppliljfopejamemejnnchehpbacpebjf">Chrome Web Store</a> · <a href="https://addons.mozilla.org/firefox/addon/betterdungeon/">Firefox Add-ons</a> · <a href="https://github.com/ComputerKWasTaken/BetterDungeon/releases">Android downloads</a></p>
 
-<p align="center"><a href="manifest.json"><img alt="Source version 2.1.1" src="https://img.shields.io/badge/source-v2.1.1-eda449"></a> <a href="https://github.com/ComputerKWasTaken/BetterDungeon/actions/workflows/quality-gate.yml"><img alt="Preview quality gate" src="https://github.com/ComputerKWasTaken/BetterDungeon/actions/workflows/quality-gate.yml/badge.svg?branch=preview"></a> <a href="LICENSE"><img alt="Source-available license" src="https://img.shields.io/badge/license-source--available-333238"></a></p>
+<p align="center"><a href="manifest.json"><img alt="Source version 2.1.2" src="https://img.shields.io/badge/source-v2.1.2-eda449"></a> <a href="https://github.com/ComputerKWasTaken/BetterDungeon/actions/workflows/quality-gate.yml"><img alt="Preview quality gate" src="https://github.com/ComputerKWasTaken/BetterDungeon/actions/workflows/quality-gate.yml/badge.svg?branch=preview"></a> <a href="LICENSE"><img alt="Source-available license" src="https://img.shields.io/badge/license-source--available-333238"></a></p>
 
 [Get BetterDungeon](#get-betterdungeon) · [Start playing](#start-playing) · [Explore the toolkit](#explore-the-toolkit) · [Work from this repository](#work-from-this-repository)
 

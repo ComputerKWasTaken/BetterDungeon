@@ -266,7 +266,7 @@ class AIDungeonService {
     if (this.getSeeActionMenu()) return true;
     const trigger = this.getSeeMenuTrigger();
     if (!trigger) return false;
-    trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+    trigger.dispatchEvent(AIDungeonService.syntheticKeydown('ArrowDown'));
     const deadline = Date.now() + maxWaitMs;
     while (Date.now() < deadline) {
       await this.wait(50);
@@ -348,6 +348,20 @@ class AIDungeonService {
     return raw;
   }
 
+  // Builds a keydown event that BD itself dispatches (to open or dismiss
+  // AI Dungeon's menus). The event is tagged `bdSynthetic` so BD's own
+  // capture-phase key handlers can tell it apart from a real user key
+  // press. This matters most for closeModeMenu(): its synthetic Escape
+  // bubbles back through the hotkey feature's document-level handler
+  // while the menu still reads as open, and an untagged event makes that
+  // handler call closeModeMenu() again — the two recursed until the
+  // call stack overflowed and the menu never closed (live Chrome, PR #73).
+  static syntheticKeydown(key, init = {}) {
+    const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
+    event.bdSynthetic = true;
+    return event;
+  }
+
   // Whether the expanded input mode menu is currently visible
   isModeMenuOpen() {
     return !!this.getInputModeMenu();
@@ -360,7 +374,7 @@ class AIDungeonService {
     if (!btn) return false;
     if (btn.getAttribute('aria-haspopup') === 'menu') {
       // Radix opens on pointerdown/keyboard, not on a synthetic click alone.
-      btn.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+      btn.dispatchEvent(AIDungeonService.syntheticKeydown('ArrowDown'));
     } else {
       btn.click();
     }
@@ -376,12 +390,12 @@ class AIDungeonService {
   closeModeMenu() {
     const seeMenu = this.getSeeActionMenu();
     if (seeMenu) {
-      seeMenu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      seeMenu.dispatchEvent(AIDungeonService.syntheticKeydown('Escape'));
       return;
     }
     const menu = this.getInputModeMenu();
     if (this.isMobileModeMenu(menu)) {
-      menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      menu.dispatchEvent(AIDungeonService.syntheticKeydown('Escape'));
       return;
     }
     const closeBtn = this.getCloseModeMenuButton();
@@ -937,7 +951,7 @@ class AIDungeonService {
     }
 
     // Close any open dropdown if option wasn't found
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    document.dispatchEvent(AIDungeonService.syntheticKeydown('Escape'));
     await this.wait(100);
 
     return { success: false, error: `${componentName} option not found in menu` };

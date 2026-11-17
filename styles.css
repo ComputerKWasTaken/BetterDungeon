@@ -1052,42 +1052,6 @@
   }
 }
 
-.bd-story-card-dock-modal {
-  position: fixed !important;
-  top: 16px !important;
-  right: 16px !important;
-  left: auto !important;
-  bottom: 16px !important;
-  width: var(--bd-story-card-dock-width, 420px) !important;
-  height: calc(100vh - 32px) !important;
-  max-height: calc(100vh - 32px) !important;
-  transform: none !important;
-}
-
-/* When docked at a narrower width, text wraps more and can exceed the
-   textarea's AID-set max-height. AID hardcodes overflow: hidden inline,
-   clipping the bottom lines with no scrollbar. Override to auto so the
-   textarea scrolls when content overflows. */
-.bd-story-card-dock-modal .is_TextArea {
-  overflow-y: auto !important;
-}
-
-/* Ensure the flex scroll container can shrink below its content size
-   on shorter viewports so the scrollbar actually appears. */
-.bd-story-card-dock-modal .is_Column {
-  min-height: 0 !important;
-}
-
-html.bd-story-card-dock-active > body {
-  pointer-events: auto !important;
-}
-
-.bd-story-card-dock-backdrop {
-  background-color: transparent !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-}
-
 /* ============================================
    WIDGET WIDGET SYSTEM
    ============================================ */

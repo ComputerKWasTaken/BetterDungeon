@@ -16,7 +16,7 @@
       <img src="icons/icon48.png" alt="" class="header-logo">
       <div class="header-title">
         <span class="header-name">BetterDungeon</span>
-        <span class="header-version"><span id="app-version">v2.1.1</span> <span class="header-badge pc" id="platform-badge">PC</span></span>
+        <span class="header-version"><span id="app-version">v2.1.2</span> <span class="header-badge pc" id="platform-badge">PC</span></span>
       </div>
     </div>
     <div class="header-actions">
@@ -83,7 +83,7 @@
             <span class="whats-new-compact-icon icon-sparkles"></span>
             <span class="whats-new-compact-text">
               <strong id="whats-new-title">What's New</strong>
-              <span class="whats-new-compact-summary">Fixes &amp; refinements &middot; Contact &amp; feedback</span>
+              <span class="whats-new-compact-summary">Bug-fix release &middot; Navigator &amp; Character Presets restored</span>
             </span>
           </span>
           <span class="whats-new-compact-right">
@@ -93,8 +93,11 @@
         </button>
         <div class="whats-new-expandable" id="whats-new-expandable" aria-hidden="true">
           <div class="whats-new-version-tabs" role="tablist" aria-label="Release notes versions">
-            <button class="whats-new-version-tab active" id="whats-new-tab-211" type="button" role="tab" aria-selected="true" aria-controls="whats-new-release-211" data-whats-new-version="2.1.1" data-whats-new-summary="Fixes &amp; refinements · Contact &amp; feedback">
-              v2.1.1 <span>Current</span>
+            <button class="whats-new-version-tab active" id="whats-new-tab-212" type="button" role="tab" aria-selected="true" aria-controls="whats-new-release-212" data-whats-new-version="2.1.2" data-whats-new-summary="Bug-fix release · Navigator &amp; Character Presets restored">
+              v2.1.2 <span>Current</span>
+            </button>
+            <button class="whats-new-version-tab" id="whats-new-tab-211" type="button" role="tab" aria-selected="false" aria-controls="whats-new-release-211" data-whats-new-version="2.1.1" data-whats-new-summary="Fixes &amp; refinements · Contact &amp; feedback" tabindex="-1">
+              v2.1.1
             </button>
             <button class="whats-new-version-tab" id="whats-new-tab-210" type="button" role="tab" aria-selected="false" aria-controls="whats-new-release-210" data-whats-new-version="2.1.0" data-whats-new-summary="Navigator Routines · AI setup · Input controls" tabindex="-1">
               v2.1.0
@@ -108,7 +111,48 @@
           </div>
 
           <div class="whats-new-release-panels">
-            <section class="whats-new-release" id="whats-new-release-211" role="tabpanel" aria-labelledby="whats-new-tab-211" data-whats-new-panel="2.1.1">
+            <section class="whats-new-release" id="whats-new-release-212" role="tabpanel" aria-labelledby="whats-new-tab-212" data-whats-new-panel="2.1.2">
+              <div class="whats-new-release-hero">
+                <span class="whats-new-release-icon icon-wrench" aria-hidden="true"></span>
+                <div>
+                  <span class="whats-new-eyebrow">Bug-fix update</span>
+                  <h3>Every feature audited and repaired</h3>
+                  <p>V2.1.2 is a bug-fix release. After AI Dungeon updates quietly broke features, every BetterDungeon feature was audited against the current AI Dungeon and fixed where it had rotted.</p>
+                </div>
+              </div>
+              <div class="whats-new-highlight-list">
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-navigator icon-message-circle" aria-hidden="true"></span>
+                  <div>
+                    <h4>Navigator &amp; Character Presets restored</h4>
+                    <p>The Navigator tab is back in Gameplay settings and Character Prefill is back on scenario start screens, both with more resilient detection so the next AI Dungeon rename degrades gracefully instead of vanishing.</p>
+                  </div>
+                </article>
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-native icon-shield-check" aria-hidden="true"></span>
+                  <div>
+                    <h4>Deep fixes across the board</h4>
+                    <p>Custom Dynamic model rotation, Story Card Analytics counts, Trigger Highlight, Input History draft restore, Command Mode, Ultrascripts card loading, and more were repaired and covered by new regression tests.</p>
+                  </div>
+                </article>
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-input icon-terminal" aria-hidden="true"></span>
+                  <div>
+                    <h4>Command Mode auto-delete setting</h4>
+                    <p>Command Mode gains a popup toggle for automatically removing the command header from the story after the AI responds. It is off by default.</p>
+                  </div>
+                </article>
+                <article class="whats-new-highlight">
+                  <span class="whats-new-highlight-icon whats-new-highlight-icon-ai icon-trash-2" aria-hidden="true"></span>
+                  <div>
+                    <h4>Two features retired</h4>
+                    <p>Story Card Modal Dock and Auto See were removed with the maintainer's approval to reduce technical debt and keep gameplay reliable. They may be revisited in a future release.</p>
+                  </div>
+                </article>
+              </div>
+            </section>
+
+            <section class="whats-new-release" id="whats-new-release-211" role="tabpanel" aria-labelledby="whats-new-tab-211" data-whats-new-panel="2.1.1" hidden>
               <div class="whats-new-release-hero">
                 <span class="whats-new-release-icon icon-wrench" aria-hidden="true"></span>
                 <div>
@@ -391,6 +435,14 @@
               </div>
               <p class="feature-hint"><span class="icon-lightbulb"></span> <span data-bd-browser-copy>Use <strong>&#x2191;&#x2193; arrow keys</strong> while in Command mode to switch between Standard, Subtle, and OOC sub-modes.</span><span data-bd-android-copy hidden>Tap the previous and next buttons above the input while in Command mode to switch between Standard, Subtle, and OOC.</span></p>
               <p class="feature-hint"><span class="icon-terminal"></span> <strong>Standard</strong> &mdash; direct story instructions. <strong>Subtle</strong> &mdash; indirect guidance via brackets. <strong>OOC</strong> &mdash; ask the AI a direct question.</p>
+              <div class="feature-option">
+                <span class="option-label"><span class="icon-eraser"></span> Auto-delete command header</span>
+                <label class="toggle sm">
+                  <input type="checkbox" id="command-auto-delete">
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <p class="feature-hint">Removes the command header from the story once the AI has responded to it.</p>
             </div>
           </article>
 
@@ -638,29 +690,6 @@
             </div>
           </article>
 
-          <!-- Story Card Modal Dock -->
-          <article class="feature-card" data-feature="storyCardModalDock" data-bd-requires-feature="storyCardModalDock">
-            <div class="feature-row">
-              <div class="feature-info">
-                <div class="feature-title-row">
-                  <span class="feature-icon" style="color: var(--bd-icon-modal-dock);">
-                    <span class="icon-panel-right"></span>
-                  </span>
-                  <h3 class="feature-title">Story Card Modal Dock</h3>
-                </div>
-                <p class="feature-desc">Dock the story card editor to the side</p>
-              </div>
-              <label class="toggle">
-                <input type="checkbox" id="feature-storyCardModalDock" checked>
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="feature-details">
-              <p>Docks the story card modal to the <strong>right side of the screen</strong>, allowing you to scroll through your story while editing Story Cards.</p>
-              <p class="feature-hint"><span class="icon-lightbulb"></span> Great for checking context without closing the editor.</p>
-            </div>
-          </article>
-
         </div>
       </div>
 
@@ -735,51 +764,6 @@
                 </button>
               </div>
               <p class="feature-credit">Inspired by <a href="https://play.aidungeon.com/profile/Zoocata_" target="_blank" rel="noopener noreferrer">Zoocata's PRISM</a></p>
-            </div>
-          </article>
-
-          <!-- Auto See -->
-          <article class="feature-card" data-feature="autoSee">
-            <div class="feature-row">
-              <div class="feature-info">
-                <div class="feature-title-row">
-                  <span class="feature-icon" style="color: var(--bd-mode-image);">
-                    <span class="icon-eye"></span>
-                  </span>
-                  <h3 class="feature-title">Auto See</h3>
-                </div>
-                <p class="feature-desc">Generate scene images after AI responses</p>
-              </div>
-              <label class="toggle">
-                <input type="checkbox" id="feature-autoSee">
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="feature-details">
-              <div class="automation-info">
-                <p>Generates an image after AI output without changing your text input mode.</p>
-              </div>
-
-              <div class="feature-option-inline">
-                <span class="option-label-inline">Frequency</span>
-                <select class="form-select form-select-sm" id="auto-see-trigger-mode">
-                  <option value="everyTurn">Every turn</option>
-                  <option value="afterNTurns">Every N turns</option>
-                </select>
-              </div>
-
-              <div class="feature-option-inline" id="auto-see-interval-option" style="display: none;">
-                <span class="option-label-inline">Interval</span>
-                <div class="interval-control">
-                  <input type="range" class="slider slider-sm" id="auto-see-interval" min="2" max="10" value="2">
-                  <span class="interval-value" id="auto-see-interval-value">2</span>
-                </div>
-              </div>
-
-              <div class="alert alert-warning alert-compact">
-                <span class="icon-triangle-alert"></span>
-                <span>Uses Credits per trigger if using a premium image model</span>
-              </div>
             </div>
           </article>
 
