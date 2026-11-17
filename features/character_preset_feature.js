@@ -25,6 +25,7 @@ class CharacterPresetFeature {
     this.currentFieldLabel = null;
     this.currentFieldKey = null;
     this.panelElement = null;
+    this.stopPanelViewportSync = null;
     this.lastPanelRenderKey = null;
     this.manualDismissedQuestions = new Set();
     this.sessionDismissed = false;
@@ -327,14 +328,15 @@ class CharacterPresetFeature {
   }
 
   isOwnPanelMutation(mutation) {
-    if (mutation.target?.closest?.('.bd-character-ai-panel')) return true;
+    const selector = '.bd-character-ai-panel, .bd-character-ai-disclosure';
+    if (mutation.target?.closest?.(selector)) return true;
     for (const node of mutation.addedNodes || []) {
-      if (node.nodeType === Node.ELEMENT_NODE && (node.matches?.('.bd-character-ai-panel') || node.closest?.('.bd-character-ai-panel'))) {
+      if (node.nodeType === Node.ELEMENT_NODE && node.closest?.(selector)) {
         return true;
       }
     }
     for (const node of mutation.removedNodes || []) {
-      if (node.nodeType === Node.ELEMENT_NODE && (node.matches?.('.bd-character-ai-panel') || node.closest?.('.bd-character-ai-panel'))) {
+      if (node.nodeType === Node.ELEMENT_NODE && node.closest?.(selector)) {
         return true;
       }
     }
@@ -360,7 +362,7 @@ class CharacterPresetFeature {
   // on a step with no text entry, and the typewriter fill would silently
   // write nowhere.
   isTextEntryElement(el) {
-    if (!el) return false;
+    if (!el || el.closest?.('.bd-character-ai-panel')) return false;
     if (el.tagName === 'TEXTAREA') return true;
     if (el.tagName !== 'INPUT') return false;
     const type = String(el.getAttribute?.('type') || el.type || '').toLowerCase();
@@ -541,7 +543,8 @@ class CharacterPresetFeature {
       this._fieldGraceTimer = setTimeout(() => {
         this._fieldGraceTimer = null;
         if (!this.findScenarioEntryField()) {
-          if (!this.parseScenarioShortIdFromUrl()) {
+          if (this.panelElement?.parentElement?.matches('.bd-character-ai-disclosure')
+            || !this.parseScenarioShortIdFromUrl()) {
             this.currentFieldLabel = null;
             this.currentFieldKey = null;
             this.removePanel();
@@ -1071,9 +1074,51 @@ class CharacterPresetFeature {
   // UI
   // ============================================
 
+  mountPanel(panel, input) {
+    const container = window.BetterDungeonPlatform?.has('imeViewportHandling') && this.getScenarioStartContainer(input);
+    if (!input || !container?.contains(input)) {
+      document.body.append(panel);
+      return;
+    }
+
+    const prompt = document.getElementById('scenario-start-prompt');
+    let anchor = input;
+    while (anchor.parentElement !== container && !anchor.parentElement.contains(prompt)) {
+      anchor = anchor.parentElement;
+    }
+    const details = document.createElement('details');
+    details.className = 'bd-character-ai-disclosure';
+    const summary = document.createElement('summary');
+    summary.textContent = 'Character Presets';
+    summary.addEventListener('click', () => {
+      if (!details.open && document.activeElement === input) input.blur();
+    });
+    details.append(summary, panel);
+    anchor.before(details);
+
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const sync = () => {
+      const keyboardOpen = viewport.scale === 1 && window.innerHeight - viewport.height > 100;
+      container.classList.toggle('bd-character-ai-keyboard-open', keyboardOpen);
+      if (keyboardOpen) {
+        const top = Math.max(0, container.getBoundingClientRect().top);
+        container.style.setProperty('--bd-character-keyboard-height', `${Math.max(100, viewport.height - top)}px`);
+      } else {
+        container.style.removeProperty('--bd-character-keyboard-height');
+      }
+    };
+    viewport.addEventListener('resize', sync);
+    this.stopPanelViewportSync = () => {
+      viewport.removeEventListener('resize', sync);
+      container.style.removeProperty('--bd-character-keyboard-height');
+      container.classList.remove('bd-character-ai-keyboard-open');
+    };
+    sync();
+  }
+
   renderPanel(field, html, renderKey = null) {
-    const container = document.body;
-    if (!container) return null;
+    if (!document.body) return null;
 
     const fieldId = field?.fieldId || field?.ariaLabel || field?.question || '';
     const htmlSignature = String(this.hashString(html));
@@ -1094,7 +1139,9 @@ class CharacterPresetFeature {
       return this.panelElement;
     }
 
-    document.querySelectorAll('.bd-character-ai-panel').forEach(el => el.remove());
+    this.stopPanelViewportSync?.();
+    this.stopPanelViewportSync = null;
+    document.querySelectorAll('.bd-character-ai-panel, .bd-character-ai-disclosure').forEach(el => el.remove());
     const panel = document.createElement('div');
     panel.className = 'bd-character-ai-panel';
     panel.dataset.fieldId = fieldId;
@@ -1102,7 +1149,7 @@ class CharacterPresetFeature {
     panel.dataset.renderKey = stableRenderKey;
     panel.__bdCharacterPanelReused = false;
     panel.innerHTML = html;
-    container.appendChild(panel);
+    this.mountPanel(panel, field?.input);
     this.panelElement = panel;
     this.lastPanelRenderKey = stableRenderKey;
     requestAnimationFrame(() => panel.classList.add('bd-character-ai-panel-visible'));
@@ -1111,11 +1158,17 @@ class CharacterPresetFeature {
 
   removePanel() {
     const current = this.panelElement;
+    this.stopPanelViewportSync?.();
+    this.stopPanelViewportSync = null;
     this.panelElement = null;
     this.lastPanelRenderKey = null;
     if (current) {
-      current.classList.remove('bd-character-ai-panel-visible');
-      setTimeout(() => current.remove(), 200);
+      const disclosure = current.parentElement?.closest('.bd-character-ai-disclosure');
+      if (disclosure) disclosure.remove();
+      else {
+        current.classList.remove('bd-character-ai-panel-visible');
+        setTimeout(() => current.remove(), 200);
+      }
     }
     document.querySelectorAll('.bd-character-ai-panel').forEach(el => {
       if (el !== current) el.remove();

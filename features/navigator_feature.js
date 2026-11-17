@@ -24,6 +24,7 @@ class NavigatorFeature {
     this.launcherBadge = null;
     this.launcherStatus = null;
     this.launcherPosition = null;
+    this.launcherSizeObserver = null;
     this.transcriptEl = null;
     this.inputEl = null;
     this.composerEl = null;
@@ -382,7 +383,10 @@ class NavigatorFeature {
     this.routinesView = null;
     if (this.confirmationPanel && !this.confirmationPanel.hidden) this.resolveConfirmation(false);
     this.inputEl?.blur();
+    this.launcherSizeObserver?.disconnect();
+    this.launcherSizeObserver = null;
     this.launcher?.remove();
+    document.documentElement.style.removeProperty('--bd-navigator-dock-width');
     this.launcherStatus?.remove();
     this.launcher = null;
     this.launcherBadge = null;
@@ -579,6 +583,10 @@ class NavigatorFeature {
     this.launcherBadge = launcher.querySelector('.bd-navigator-launcher-badge');
     this.launcherStatus = launcherStatus;
     this.enableLauncherDrag(launcher);
+    if (document.documentElement.dataset.bdFormFactor !== 'mobile') {
+      this.launcherSizeObserver = new ResizeObserver(() => this.positionLauncher());
+      this.launcherSizeObserver.observe(launcher);
+    }
 
     this.drawer = drawer;
     this.transcriptEl = transcript;
@@ -1022,11 +1030,15 @@ class NavigatorFeature {
   positionLauncher() {
     const launcher = this.launcher;
     const position = this.launcherPosition;
+    const root = document.documentElement;
+    if (launcher && !launcher.hidden && root.dataset.bdFormFactor !== 'mobile') {
+      root.style.setProperty('--bd-navigator-dock-width', `${launcher.offsetWidth}px`);
+    }
     if (!launcher || launcher.hidden || !position) return;
 
     const inset = 8;
-    const maxLeft = Math.max(inset, document.documentElement.clientWidth - launcher.offsetWidth - inset);
-    const maxTop = Math.max(inset, document.documentElement.clientHeight - launcher.offsetHeight - inset);
+    const maxLeft = Math.max(inset, root.clientWidth - launcher.offsetWidth - inset);
+    const maxTop = Math.max(inset, root.clientHeight - launcher.offsetHeight - inset);
     launcher.style.left = `${Math.min(maxLeft, Math.max(inset, position.x))}px`;
     launcher.style.top = `${Math.min(maxTop, Math.max(inset, position.y))}px`;
     launcher.style.right = 'auto';
@@ -1043,12 +1055,15 @@ class NavigatorFeature {
 
     let gesture = null;
     let suppressClick = false;
+    // Mouse drags must not turn into native text/icon dragging.
+    launcher.addEventListener('dragstart', event => event.preventDefault());
     launcher.addEventListener('pointerdown', event => {
       if (!event.isPrimary || event.button !== 0) return;
       suppressClick = false;
       const { left, top } = launcher.getBoundingClientRect();
       gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, left, top, moved: false };
       launcher.setPointerCapture(event.pointerId);
+      event.stopPropagation();
     });
     launcher.addEventListener('pointermove', event => {
       if (gesture?.id !== event.pointerId) return;
@@ -1059,6 +1074,8 @@ class NavigatorFeature {
       launcher.classList.add('bd-navigator-launcher-dragging');
       this.launcherPosition = { x: gesture.left + dx, y: gesture.top + dy };
       this.positionLauncher();
+      event.preventDefault();
+      event.stopPropagation();
     });
     const finish = event => {
       if (gesture?.id !== event.pointerId) return;
@@ -1066,6 +1083,8 @@ class NavigatorFeature {
       gesture = null;
       launcher.classList.remove('bd-navigator-launcher-dragging');
       if (!suppressClick) return;
+      event.preventDefault();
+      event.stopPropagation();
       this.launcherPosition = { x: parseFloat(launcher.style.left), y: parseFloat(launcher.style.top) };
       try {
         localStorage.setItem(NavigatorFeature.launcherPositionKey, JSON.stringify(this.launcherPosition));
@@ -1079,6 +1098,8 @@ class NavigatorFeature {
     launcher.addEventListener('click', event => {
       if (suppressClick && event.detail > 0) {
         suppressClick = false;
+        event.preventDefault();
+        event.stopPropagation();
         return;
       }
       this.openDrawer();
