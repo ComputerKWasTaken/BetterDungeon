@@ -3420,7 +3420,13 @@ html[data-bd-form-factor="mobile"] .bd-routine-button { min-height: 40px; }
   box-shadow: 0 3px 16px #0005;
   font: 600 var(--bd-font-size-sm)/1.25 var(--bd-font-family-primary);
   cursor: pointer;
+  touch-action: none;
+  user-select: none;
   transition: background-color var(--bd-transition-fast), border-color var(--bd-transition-fast);
+}
+
+.bd-navigator-launcher-dragging {
+  cursor: grabbing;
 }
 
 .bd-navigator-launcher[hidden],
@@ -3480,6 +3486,28 @@ html[data-bd-form-factor="mobile"] .bd-routine-button { min-height: 40px; }
 .bd-navigator-work-dot {
   color: var(--bd-accent-light);
   animation: bd-navigator-tool-pulse 1.4s ease-in-out infinite;
+}
+
+html[data-bd-form-factor="mobile"] .bd-navigator-launcher {
+  top: calc(124px + env(safe-area-inset-top));
+  width: 44px;
+  height: 44px;
+  justify-content: center;
+  padding: 0;
+}
+
+html[data-bd-form-factor="mobile"] .bd-navigator-launcher-label {
+  display: none;
+}
+
+html[data-bd-form-factor="mobile"] .bd-navigator-launcher-badge {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  padding: 3px;
+  justify-content: center;
+  font-size: 0;
+  gap: 0;
 }
 
 .bd-navigator-drawer {
