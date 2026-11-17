@@ -3278,7 +3278,9 @@ html.bd-story-card-dock-active > body {
   border-radius: 50%;
 }
 
-#keyboard-field-reveal-scroll-surface-settings-gameplay.bd-navigator-settings-active {
+/* Class-based, not the legacy generated surface id: the surface element is
+   discovered resiliently and tagged with .bd-navigator-settings-surface. */
+.bd-navigator-settings-surface.bd-navigator-settings-active {
   overflow-y: hidden !important;
   overscroll-behavior-y: none;
 }

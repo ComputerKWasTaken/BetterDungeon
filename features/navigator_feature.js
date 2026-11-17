@@ -10,7 +10,25 @@
 class NavigatorFeature {
   static id = 'navigator';
 
+  // Legacy exact id of the Gameplay settings scroll surface. AI Dungeon
+  // regenerates/renames these compound ids, so this is only the first of
+  // several surface-discovery strategies in getGameplaySettingsSurface() —
+  // never the only one.
   static GAMEPLAY_SETTINGS_SURFACE_ID = 'keyboard-field-reveal-scroll-surface-settings-gameplay';
+
+  // Visible labels of the Gameplay settings section's tabs, past and
+  // present. The models subtab has shipped as both "Models" and "AI Models"
+  // (current AI Dungeon help consistently calls it "AI Models"), so anchor
+  // matching must accept either — and must not depend on any one label.
+  // These labels also disambiguate the Gameplay section tablist from the
+  // Adventure section tablist (Plot / Story Cards / Details), which shares
+  // the same "Section Tabs" aria-label: Navigator belongs in Gameplay only.
+  static GAMEPLAY_SECTION_TAB_LABELS = [
+    'models', 'ai models', 'model settings', 'safety', 'image generator',
+    'testing & feedback', 'memory system',
+  ];
+
+  static MODELS_TAB_LABELS = ['models', 'ai models', 'model', 'ai model'];
 
   constructor() {
     this.enabled = true;
@@ -48,6 +66,7 @@ class NavigatorFeature {
     this.settingsInactiveThemeClass = '';
     this.settingsTabActive = false;
     this.settingsTabPreferred = false;
+    this.settingsIntegrationWarning = null;
     this.boundSettingsTablistClick = null;
     this.boundSettingsTablistScroll = null;
     this.settingsTabsOverflowHost = null;
@@ -176,10 +195,11 @@ class NavigatorFeature {
   isAdventureUIPresent() {
     const gameplayOutput = document.querySelector('#gameplay-output');
     const settingsButton = document.querySelector(
-      '[aria-label="Game settings"], [aria-label="Game Settings"], [aria-label="Game Menu"], [aria-label="Game menu"]'
+      '[aria-label="Game settings"], [aria-label="Game Settings"], [aria-label="Game Menu"], [aria-label="Game menu"], [aria-label="Settings"], [aria-label="Close settings"]'
     );
     const navigationBar = document.querySelector('[aria-label="Navigation bar"]');
-    return !!(gameplayOutput && (settingsButton || navigationBar));
+    const textInput = document.querySelector('#game-text-input');
+    return !!(gameplayOutput && (settingsButton || navigationBar || textInput));
   }
 
   getAdventureIdFromUrl() {
@@ -446,30 +466,85 @@ class NavigatorFeature {
     this.inputComposing = false;
   }
 
+  // Normalized visible label for a native tab: the aria-label with any
+  // "Selected tab …" / "Tab …" prefix stripped, falling back to its text.
+  // Handles "Tab models", "Selected tab AI Models", and plain text alike.
+  getTabLabel(tab) {
+    if (!tab) return '';
+    const ariaLabel = tab.getAttribute?.('aria-label') || '';
+    const fromAria = ariaLabel.replace(/^(?:selected\s+)?tab\s+/i, '').trim();
+    const visible = (tab.textContent || '').replace(/\s+/g, ' ').trim();
+    return (fromAria || visible).replace(/\s+/g, ' ').trim().toLowerCase();
+  }
+
+  isModelsTab(tab) {
+    return NavigatorFeature.MODELS_TAB_LABELS.includes(this.getTabLabel(tab));
+  }
+
+  // A tablist is the Gameplay settings section tablist when any of its
+  // native tabs carries a known Gameplay section label. (Its aria-label
+  // alone cannot say so: the Adventure section tablist uses the same
+  // "Section Tabs" label, so label checks must look at the tabs.)
+  isSectionTablist(tablist) {
+    if (!tablist) return false;
+    return this.getNativeSectionTabs(tablist)
+      .some(tab => NavigatorFeature.GAMEPLAY_SECTION_TAB_LABELS.includes(this.getTabLabel(tab)));
+  }
+
+  findSectionTablist() {
+    const tablists = [...document.querySelectorAll('[role="tablist"]')];
+    // Strongest Gameplay signal first: a tablist that contains the models
+    // tab under either of its labels. Only then fall back to any tablist
+    // carrying another known Gameplay section label.
+    return tablists.find(tablist => this.findModelsTab(tablist))
+      || tablists.find(tablist => this.isSectionTablist(tablist))
+      || null;
+  }
+
+  // Walk up from a section tablist to the settings surface that contains
+  // both the tabs and their content: a settings-gameplay id, a ScrollView,
+  // or a tabpanel, in that order of confidence.
+  deriveSettingsSurface(tablist) {
+    let settingsPanel = null;
+    let current = tablist?.parentElement || null;
+    while (current && current !== document.body) {
+      if (/settings-gameplay/i.test(current.id || '')) return current;
+      if (!settingsPanel && current.getAttribute?.('role') === 'tabpanel') settingsPanel = current;
+      if (current.classList?.contains('is_ScrollView')) return current;
+      current = current.parentElement;
+    }
+    if (settingsPanel) return settingsPanel;
+    const navigationRoot = this.findSettingsNavigationRoot(tablist, document.body);
+    return navigationRoot?.parentElement || tablist?.parentElement || null;
+  }
+
   getGameplaySettingsSurface() {
     const direct = document.getElementById(NavigatorFeature.GAMEPLAY_SETTINGS_SURFACE_ID);
     if (direct) return direct;
 
-    const tablist = [...document.querySelectorAll('[role="tablist"][aria-label="Section Tabs" i]')]
-      .find(candidate => this.findModelsTab(candidate));
-    if (!tablist) return null;
+    // The compound id may survive with a different prefix/suffix; accept any
+    // element whose id still names the gameplay settings surface.
+    const byId = [...document.querySelectorAll('[id]')]
+      .find(candidate => /settings-gameplay/i.test(candidate.id || ''));
+    if (byId) return byId;
 
-    let settingsPanel = null;
-    let current = tablist.parentElement;
-    while (current && current !== document.body) {
-      if (/settings-gameplay/i.test(current.id || '')) return current;
-      if (current.getAttribute?.('role') === 'tabpanel') settingsPanel = current;
-      if (current.classList?.contains('is_ScrollView')) return current;
-      current = current.parentElement;
-    }
-    return settingsPanel;
+    const tablist = this.findSectionTablist();
+    if (!tablist) return null;
+    return this.deriveSettingsSurface(tablist);
   }
 
   getSectionTablist(surface = this.getGameplaySettingsSurface()) {
     const selector = '[role="tablist"][aria-label="Section Tabs" i]';
-    return surface?.querySelector(selector)
-      || document.querySelector(`[role="tabpanel"][aria-label="Settings"] ${selector}`)
+    if (surface) {
+      const exact = surface.querySelector(selector);
+      if (exact) return exact;
+      const section = [...surface.querySelectorAll('[role="tablist"]')]
+        .find(tablist => this.isSectionTablist(tablist));
+      if (section) return section;
+    }
+    return document.querySelector(`[role="tabpanel"][aria-label="Settings"] ${selector}`)
       || document.querySelector(selector)
+      || this.findSectionTablist()
       || null;
   }
 
@@ -479,10 +554,24 @@ class NavigatorFeature {
   }
 
   findModelsTab(tablist) {
-    return this.getNativeSectionTabs(tablist).find(tab => {
-      const ariaLabel = tab.getAttribute('aria-label') || '';
-      return /^(?:selected )?tab models$/i.test(ariaLabel) || tab.textContent?.trim().toLowerCase() === 'models';
-    }) || null;
+    return this.getNativeSectionTabs(tablist).find(tab => this.isModelsTab(tab)) || null;
+  }
+
+  // The tab Navigator anchors to: the models tab when it can be identified
+  // (either of its historical labels), otherwise the first native section
+  // tab. Navigator belongs in this tablist regardless of which native tab
+  // happens to sit first, so a renamed/removed models tab must not be able
+  // to keep the Navigator tab from mounting.
+  findSectionTab(tablist) {
+    return this.findModelsTab(tablist)
+      || this.getNativeSectionTabs(tablist)[0]
+      || null;
+  }
+
+  warnSettingsIntegration(reason) {
+    if (this.settingsIntegrationWarning === reason) return;
+    this.settingsIntegrationWarning = reason;
+    console.warn(`[Navigator] Settings tab integration is waiting: ${reason}`);
   }
 
   findSettingsNavigationRoot(tablist, surface) {
@@ -508,6 +597,14 @@ class NavigatorFeature {
     this.settingsTab.setAttribute('aria-selected', active ? 'true' : 'false');
   }
 
+  // The element that visually wraps a native tab: its parent, unless the tab
+  // sits directly in the tablist — then the tab carries its own theme.
+  settingsTabContainer(tab, tablist = this.settingsTablist) {
+    if (!tab) return null;
+    const parent = tab.parentElement;
+    return parent && parent !== tablist ? parent : tab;
+  }
+
   suppressNativeSelectedTab() {
     const selected = this.getNativeSectionTabs().find(tab => {
       const ariaLabel = tab.getAttribute('aria-label') || '';
@@ -517,7 +614,7 @@ class NavigatorFeature {
 
     if (this.settingsNativeTabState?.tab !== selected) {
       this.restoreNativeSelectedTab();
-      const wrapper = selected.parentElement;
+      const wrapper = this.settingsTabContainer(selected);
       this.settingsNativeTabState = {
         tab: selected,
         wrapper,
@@ -527,7 +624,7 @@ class NavigatorFeature {
       };
     }
 
-    const wrapper = selected.parentElement;
+    const wrapper = this.settingsTabContainer(selected);
     this.setSettingsWrapperTheme(wrapper, this.settingsInactiveThemeClass);
     const ariaLabel = selected.getAttribute('aria-label') || this.settingsNativeTabState.ariaLabel || '';
     selected.setAttribute('aria-label', ariaLabel.replace(/^Selected tab /i, 'Tab '));
@@ -674,19 +771,24 @@ class NavigatorFeature {
     if (!preserveActive) this.isOpen = false;
   }
 
-  createSettingsTab(tablist, modelsTab) {
+  createSettingsTab(tablist, anchorTab) {
     const nativeTabs = this.getNativeSectionTabs(tablist);
     const selectedTab = nativeTabs.find(tab => /^selected tab /i.test(tab.getAttribute('aria-label') || ''));
-    const inactiveTab = nativeTabs.find(tab => tab !== selectedTab) || modelsTab;
-    const activeWrapper = selectedTab?.parentElement || modelsTab.parentElement;
-    const inactiveWrapper = inactiveTab?.parentElement || modelsTab.parentElement;
+    const inactiveTab = nativeTabs.find(tab => tab !== selectedTab) || anchorTab;
+    const activeWrapper = this.settingsTabContainer(selectedTab || anchorTab, tablist);
+    const inactiveWrapper = this.settingsTabContainer(inactiveTab || anchorTab, tablist);
     this.settingsActiveThemeClass = activeWrapper?.className || '';
     this.settingsInactiveThemeClass = inactiveWrapper?.className || this.settingsActiveThemeClass;
 
-    const wrapper = inactiveWrapper.cloneNode(true);
+    // Clone the anchor tab's container when it has one; when tabs sit
+    // directly in the tablist, clone the tab itself and let it be its own
+    // wrapper. Either shape yields a wrapper that contains (or is) the tab.
+    const anchorWrapper = this.settingsTabContainer(anchorTab, tablist);
+    if (!anchorWrapper) return null;
+    const wrapper = anchorWrapper.cloneNode(true);
     wrapper.removeAttribute('id');
     wrapper.classList.add('bd-navigator-settings-tab-theme');
-    const tab = wrapper.querySelector('[role="tab"]');
+    const tab = wrapper.matches?.('[role="tab"]') ? wrapper : wrapper.querySelector('[role="tab"]');
     if (!tab) return null;
 
     tab.removeAttribute('id');
@@ -719,7 +821,9 @@ class NavigatorFeature {
       this.activateSettingsNavigator({ focus: !window.BetterDungeonPlatform?.has('touchControls') });
     });
 
-    modelsTab.parentElement.parentElement.insertBefore(wrapper, modelsTab.parentElement);
+    const insertionParent = anchorWrapper === anchorTab ? tablist : anchorWrapper.parentElement;
+    if (!insertionParent) return null;
+    insertionParent.insertBefore(wrapper, anchorWrapper);
     this.settingsTabWrapper = wrapper;
     this.settingsTab = tab;
     return tab;
@@ -738,10 +842,20 @@ class NavigatorFeature {
   }
 
   injectSettingsIntegration(surface, tablist) {
-    const modelsTab = this.findModelsTab(tablist);
-    const navigationRoot = this.findSettingsNavigationRoot(tablist, surface);
-    const contentParent = navigationRoot?.parentElement;
-    if (!modelsTab?.parentElement?.parentElement || !navigationRoot || !contentParent) return false;
+    const anchorTab = this.findSectionTab(tablist);
+    const navigationRoot = this.findSettingsNavigationRoot(tablist, surface) || tablist;
+    const contentParent = navigationRoot?.parentElement || tablist?.parentElement;
+    if (!anchorTab || !navigationRoot || !contentParent) {
+      // A tablist exists but cannot be anchored into — that is a platform
+      // structure change, not a closed settings panel, so say so (once per
+      // reason) instead of failing silently like the pre-fix code did.
+      this.warnSettingsIntegration(
+        !anchorTab
+          ? 'the settings section tablist contains no native tabs to anchor to'
+          : 'the settings navigation root/content parent could not be located'
+      );
+      return false;
+    }
 
     document.querySelectorAll('.bd-navigator-settings-tab-theme, .bd-navigator-settings-content').forEach(node => {
       if (node !== this.settingsTabWrapper && node !== this.settingsContentPanel) node.remove();
@@ -752,7 +866,11 @@ class NavigatorFeature {
     surface.classList.add('bd-navigator-settings-surface');
     this.settingsNavigationRoot = navigationRoot;
     this.settingsContentParent = contentParent;
-    if (!this.createSettingsTab(tablist, modelsTab)) return false;
+    if (!this.createSettingsTab(tablist, anchorTab)) {
+      this.warnSettingsIntegration('the Navigator settings tab could not be built from the native tab structure');
+      return false;
+    }
+    this.settingsIntegrationWarning = null;
     this.createSettingsContentPanel(contentParent, navigationRoot);
     if (!window.BetterDungeonPlatform?.has('touchControls')) {
       this.createSettingsTabOverflowControls(tablist);

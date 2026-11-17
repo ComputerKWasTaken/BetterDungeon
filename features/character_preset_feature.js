@@ -351,29 +351,94 @@ class CharacterPresetFeature {
     }, 250);
   }
 
-  findScenarioEntryField() {
-    const input = document.getElementById('full-screen-text-input');
-    if (!input) return null;
+  findScenarioEntryInput() {
+    const byId = document.getElementById('full-screen-text-input');
+    if (byId) return byId;
 
-    const ariaLabel = input.getAttribute('aria-label');
-    if (!ariaLabel) return null;
+    // Fallbacks if the stable id is ever renamed: the scenario-start prompt
+    // heading and its scroll container keep their own stable ids.
+    const labelled = document.querySelector('[aria-labelledby="scenario-start-prompt"]');
+    if (labelled && (labelled.tagName === 'INPUT' || labelled.tagName === 'TEXTAREA')) {
+      return labelled;
+    }
 
-    let questionText = ariaLabel;
-    const searchRoot = input.closest('[style*="max-width"]') || input.parentElement?.parentElement?.parentElement;
-    if (searchRoot) {
-      const headings = searchRoot.querySelectorAll('h1, h2, [role="heading"]');
+    const container = this.getScenarioStartContainer();
+    const fallback = container?.querySelector?.('input, textarea');
+    return fallback || null;
+  }
+
+  getScenarioStartContainer(fromElement = null) {
+    const fromInput = fromElement?.closest?.('[id$="scenario-start"]');
+    if (fromInput) return fromInput;
+    const prompt = document.getElementById('scenario-start-prompt');
+    const fromPrompt = prompt?.closest?.('[id$="scenario-start"]');
+    if (fromPrompt) return fromPrompt;
+    return document.querySelector('[id$="scenario-start"]');
+  }
+
+  // AI Dungeon's scenario-start input no longer carries the question in an
+  // `aria-label` attribute (verified against the live play bundle on
+  // 2026-11-17: the input now uses `aria-labelledby="scenario-start-prompt"`
+  // pointing at an <h1 id="scenario-start-prompt">, with no aria-label at
+  // all). The previous implementation returned null whenever aria-label was
+  // missing, so the panel never appeared. Resolve the question from every
+  // surface the platform has used, in visible-first order.
+  resolveScenarioQuestionText(input) {
+    const labelledBy = input?.getAttribute?.('aria-labelledby');
+    if (labelledBy) {
+      const text = labelledBy
+        .split(/\s+/)
+        .map(id => document.getElementById(id)?.textContent || '')
+        .join(' ')
+        .trim();
+      if (text) return text;
+    }
+
+    const prompt = document.getElementById('scenario-start-prompt');
+    const promptText = prompt?.textContent?.trim();
+    if (promptText) return promptText;
+
+    // Visible heading near the input: prefer the scenario-start container,
+    // then walk ancestors (the legacy inline max-width wrapper included).
+    const searchRoots = [];
+    const container = this.getScenarioStartContainer(input);
+    if (container) searchRoots.push(container);
+    let ancestor = input?.parentElement;
+    let depth = 0;
+    while (ancestor && ancestor !== document.body && depth < 8) {
+      searchRoots.push(ancestor);
+      ancestor = ancestor.parentElement;
+      depth++;
+    }
+    for (const root of searchRoots) {
+      const headings = root.querySelectorAll?.('h1, h2, [role="heading"]') || [];
       for (const heading of headings) {
         const text = heading.textContent?.trim();
-        if (text && text.length > 0 && text.length < 160) {
-          questionText = text;
-          break;
-        }
+        if (text && text.length > 0 && text.length < 160) return text;
       }
     }
 
-    const visibleQuestion = this.normalizeFieldText(questionText);
+    return '';
+  }
+
+  findScenarioEntryField() {
+    const input = this.findScenarioEntryInput();
+    if (!input) return null;
+
+    const ariaLabel = input.getAttribute('aria-label') || '';
+    const headingText = this.resolveScenarioQuestionText(input);
+
+    const visibleQuestion = this.normalizeFieldText(headingText);
     const inputQuestion = this.normalizeFieldText(ariaLabel);
     const question = visibleQuestion || inputQuestion;
+
+    if (!question && !this.parseScenarioShortIdFromUrl()) {
+      // The full-screen input with no resolvable question and no scenario
+      // route is not a scenario placeholder field we can prefill.
+      return null;
+    }
+
+    const questionText = headingText || ariaLabel || 'Scenario question';
     const fieldId = this.stableFieldId(question, inputQuestion);
 
     return {
@@ -401,6 +466,13 @@ class CharacterPresetFeature {
 
   getFieldContainer(field) {
     if (!field?.input) return null;
+
+    // The scenario-start scroll container holds the prompt, the input, and
+    // the Back/Next/Start controls together; prefer it so the advance
+    // button search below covers the current Tailwind-based layout (the
+    // legacy layout relied on an inline max-width wrapper that is gone).
+    const scenarioContainer = this.getScenarioStartContainer(field.input);
+    if (scenarioContainer) return scenarioContainer;
 
     let el = field.input.parentElement;
     let depth = 0;
@@ -1442,7 +1514,7 @@ class CharacterPresetFeature {
     this.removePanel();
 
     try {
-      const input = document.getElementById('full-screen-text-input') || field.input;
+      const input = this.findScenarioEntryInput() || field.input;
       await this.typewriterFill(input, value);
       const continueBtn = this.findAdvanceButton(field);
       if (continueBtn) {
@@ -1464,7 +1536,7 @@ class CharacterPresetFeature {
     this.isApplying = true;
     this.removePanel();
     try {
-      const input = document.getElementById('full-screen-text-input') || field.input;
+      const input = this.findScenarioEntryInput() || field.input;
       await this.typewriterFill(input, value);
       input.focus();
     } catch (error) {
