@@ -73,6 +73,7 @@ class TriggerHighlightFeature {
     if (adventureChanged && this.currentAdventureId !== null) {
       if (typeof storyCardCache !== 'undefined') storyCardCache.clear();
       this.processedElements = new WeakSet();
+      this._suggestedCache = null;
       
       // Also reset the scanner state for the new adventure
       if (typeof storyCardScanner !== 'undefined') {
@@ -174,11 +175,51 @@ class TriggerHighlightFeature {
     });
   }
 
-  // Scan the entire page for trigger values
+  // Find the card name for a field in the current (Tailwind) story card
+  // editor: the name field in the same editor form is labelled by
+  // #scTitleLabel via aria-labelledby (verified in the current bundle,
+  // story card editor chunk: fieldKey "title" / "keys").
+  findEditorCardName(field) {
+    let root = field?.parentElement || null;
+    for (let i = 0; i < 12 && root; i++) {
+      const titleField = root.querySelector?.('input[aria-labelledby="scTitleLabel"], textarea[aria-labelledby="scTitleLabel"]');
+      if (titleField) {
+        const name = titleField.value?.trim();
+        if (name) return name;
+        break; // Found the editor form; the name is just empty for now.
+      }
+      root = root.parentElement;
+    }
+    return this.findCardName(field);
+  }
+
+  // Scan open story card editors for trigger values
   scanForTriggers() {
     const previousCount = typeof storyCardCache !== 'undefined' ? storyCardCache.size : 0;
-    
-    // Look for TRIGGERS label and associated inputs
+
+    // Current editor (Tailwind UI): the triggers field carries
+    // aria-labelledby="scTriggersLabel" (label id verified in the current
+    // bundle). The old Tamagui anchors below no longer match this editor:
+    // its label is a <label> element and its field wrapper is a plain
+    // flex <div>, so p.is_Paragraph / .is_Column find nothing there.
+    document.querySelectorAll('input[aria-labelledby="scTriggersLabel"], textarea[aria-labelledby="scTriggersLabel"]').forEach(input => {
+      if (input.value) {
+        this.parseTriggers(input.value, this.findEditorCardName(input));
+      }
+    });
+    // Label-anchored variant of the same editor, in case the field's
+    // aria-labelledby is dropped but the stable label id remains.
+    const triggersLabel = document.getElementById('scTriggersLabel');
+    if (triggersLabel) {
+      const container = triggersLabel.parentElement;
+      container?.querySelectorAll('input, textarea').forEach(input => {
+        if (input.value) {
+          this.parseTriggers(input.value, this.findEditorCardName(input));
+        }
+      });
+    }
+
+    // Legacy editor: look for TRIGGERS label and associated inputs
     document.querySelectorAll('p.is_Paragraph').forEach(p => {
       const text = p.textContent?.trim().toUpperCase() || '';
       if (text === 'TRIGGERS' || text === 'TRIGGER') {
@@ -196,7 +237,10 @@ class TriggerHighlightFeature {
       }
     });
 
-    // Also scan all inputs on the page for ones that look like trigger fields
+    // Also scan all inputs on the page for ones that look like trigger fields.
+    // This is a full-document sweep, so only run it when the legacy editor
+    // structure it targets is actually present on the page.
+    if (!document.querySelector('.is_Column')) return;
     document.querySelectorAll('input, textarea').forEach(input => {
       const value = input.value || '';
       if (!value) return;
@@ -285,15 +329,7 @@ class TriggerHighlightFeature {
         if (mutation.type === 'childList') {
           for (const node of mutation.addedNodes) {
             if (node.nodeType === Node.ELEMENT_NODE) {
-              // Check for Adventure context viewer modal
-              if (this.isAdventureModal(node)) {
-                this.handleAdventureModal(node);
-              } else if (node.querySelector) {
-                const modal = node.querySelector('[aria-label="Modal"]');
-                if (modal && this.isAdventureModal(modal)) {
-                  this.handleAdventureModal(modal);
-                }
-              }
+              this.checkForAdventureModal(node);
             }
           }
         }
@@ -305,21 +341,53 @@ class TriggerHighlightFeature {
       subtree: true
     });
 
-    // Check if modal is already open
-    const existingModal = document.querySelector('[aria-label="Modal"]');
-    if (existingModal && this.isAdventureModal(existingModal)) {
-      this.handleAdventureModal(existingModal);
+    // Check if the context viewer is already open
+    document.querySelectorAll('[aria-label="Modal"], [role="dialog"], [role="alertdialog"], [aria-modal="true"]').forEach(el => {
+      if (this.isAdventureModal(el)) {
+        this.handleAdventureModal(el);
+      }
+    });
+  }
+
+  // Present a newly added subtree to the adventure-modal check. Discovery
+  // used to rely solely on a descendant carrying aria-label="Modal"; that
+  // literal no longer appears anywhere in AI Dungeon's current bundles, so
+  // also consider dialog-role elements and — as a signature fallback — any
+  // subtree that contains the context viewer's characteristic text.
+  checkForAdventureModal(root) {
+    const candidates = new Set();
+    if (root.matches?.('[aria-label="Modal"], [role="dialog"], [role="alertdialog"], [aria-modal="true"]')) {
+      candidates.add(root);
+    }
+    root.querySelectorAll?.('[aria-label="Modal"], [role="dialog"], [role="alertdialog"], [aria-modal="true"]')
+      .forEach(el => candidates.add(el));
+
+    if (candidates.size === 0 && root.textContent?.includes('Context used for this action')) {
+      candidates.add(root.closest?.('[role="dialog"], [role="alertdialog"], [aria-modal="true"]') || root);
+    }
+
+    for (const candidate of candidates) {
+      if (this.isAdventureModal(candidate)) {
+        this.handleAdventureModal(candidate);
+        return;
+      }
+    }
+    if (candidates.size === 0 && this.isAdventureModal(root)) {
+      this.handleAdventureModal(root);
     }
   }
 
   isAdventureModal(element) {
     // The adventure context viewer is a modal/alertdialog that contains the
     // story text. AI Dungeon changed the heading from "Adventure" to
-    // "Complete Text", so match both and also look for characteristic
-    // tab structure ("Text" / "Tokens" tabs) as a fallback.
-    const header = element.querySelector('h1[role="heading"]');
+    // "Complete Text", and the current viewer titles itself "View Context",
+    // so match all three and also look for characteristic tab structure
+    // ("Text" / "Tokens" tabs) as a fallback. The heading element itself is
+    // a Tamagui text element, so accept an h1 with an implicit heading role
+    // as well as an explicit role="heading" element.
+    const header = element.querySelector('h1, [role="heading"]');
     const headerText = header?.textContent?.trim() || '';
-    if (headerText === 'Adventure' || headerText === 'Complete Text') return true;
+    if (headerText === 'Adventure' || headerText === 'Complete Text' || headerText === 'View Context') return true;
 
     const text = element.textContent || '';
     if (text.includes('View Context') && text.includes('Context used for this action')) return true;
@@ -506,6 +574,24 @@ class TriggerHighlightFeature {
     return suggested;
   }
 
+  getSuggestedTriggersMemoized(allText) {
+    const triggerCount = typeof storyCardCache !== 'undefined' ? storyCardCache.size : 0;
+    // Cheap sampled hash: distinguishes same-length edits well enough for
+    // a cache key; a rare collision only costs a stale suggestion set for
+    // one modal session.
+    let hash = 0;
+    for (let i = 0; i < allText.length; i += 97) {
+      hash = (hash * 31 + allText.charCodeAt(i)) | 0;
+    }
+    const key = `${allText.length}:${hash}:${this.suggestedTriggerThreshold}:${this.suggestedTriggersEnabled}:${triggerCount}`;
+    if (this._suggestedCache?.key === key) {
+      return this._suggestedCache.map;
+    }
+    const map = this.getSuggestedTriggers(allText);
+    this._suggestedCache = { key, map };
+    return map;
+  }
+
   highlightTriggersInModal(modal) {
     const hasTriggers = typeof storyCardCache !== 'undefined' && storyCardCache.size > 0;
     const suggestedEnabled = this.suggestedTriggersEnabled;
@@ -525,8 +611,12 @@ class TriggerHighlightFeature {
       allText += element.textContent + ' ';
     });
     
-    // Get suggested triggers from the combined text
-    const suggestedTriggers = this.getSuggestedTriggers(allText);
+    // Get suggested triggers from the combined text. This re-runs on every
+    // modal content mutation, and noun extraction over a long adventure's
+    // full context is the most expensive work this feature does — memoize
+    // it on the text (plus the inputs that change the result) so unchanged
+    // context isn't re-analyzed for every mutation batch.
+    const suggestedTriggers = this.getSuggestedTriggersMemoized(allText);
     
     storyTextElements.forEach(element => {
       if (!this.processedElements.has(element)) {
@@ -547,17 +637,24 @@ class TriggerHighlightFeature {
     const sortedTriggers = Array.from(triggers.keys())
       .sort((a, b) => b.length - a.length);
     
-    // Highlight existing triggers (yellow)
-    sortedTriggers.forEach(trigger => {
-      const cardName = triggers.get(trigger) || 'Unknown Card';
-      // Escape the card name for use in HTML attribute
-      const escapedCardName = this.escapeHtml(cardName);
-      
-      // Case-insensitive word boundary match
-      const escapedTrigger = this.escapeRegExp(trigger);
-      const regex = new RegExp(`\\b(${escapedTrigger})\\b`, 'gi');
-      html = html.replace(regex, `<span class="bd-trigger-highlight" data-card-name="${escapedCardName}">$1</span>`);
-    });
+    // Highlight existing triggers (yellow) in a single pass with one
+    // combined regex. The previous per-trigger passes re-scanned markup
+    // inserted by earlier passes, so a shorter trigger could match inside
+    // a previous span's data-card-name attribute (e.g. trigger "larion"
+    // matching the card name of the "kingdom" span) and corrupt the HTML.
+    // Longest-first alternation makes the longest trigger win at each
+    // position, and matches are resolved against the trigger map directly.
+    if (sortedTriggers.length > 0) {
+      const pattern = sortedTriggers.map(t => this.escapeRegExp(t)).join('|');
+      const regex = new RegExp(`\\b(?:${pattern})\\b`, 'gi');
+      html = html.replace(regex, (match, offset) => {
+        // Don't match inside an HTML entity (e.g. trigger "amp" in "&amp;")
+        if (offset > 0 && html[offset - 1] === '&') return match;
+        const cardName = triggers.get(match.toLowerCase()) || 'Unknown Card';
+        const escapedCardName = this.escapeHtml(cardName);
+        return `<span class="bd-trigger-highlight" data-card-name="${escapedCardName}">${match}</span>`;
+      });
+    }
     
     // Highlight suggested triggers (cyan) - only if not already highlighted
     if (suggestedTriggers.size > 0) {

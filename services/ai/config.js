@@ -6,13 +6,7 @@
   const consumers = ['navigator', 'ultrascripts', 'characterPresets'];
   const flash = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
   const gemma = ['gemma-4-31b-it', 'gemma-4-26b-a4b-it'];
-  const mistral = [
-    { id: 'mistral-large-2512', label: 'Mistral Large 3', context: 256000, tpm: 250000, rps: 1 },
-    { id: 'ministral-14b-2512', label: 'Ministral 3 14B', context: 256000, tpm: 937500, rps: 0.5 },
-    { id: 'ministral-8b-2512', label: 'Ministral 3 8B', context: 256000, tpm: 625000, rps: 3.13 },
-    { id: 'ministral-3b-2512', label: 'Ministral 3 3B', context: 256000, tpm: 1300000, rps: 12.5 },
-  ];
-  const urls = { gemini: 'https://generativelanguage.googleapis.com/v1beta', openrouter: 'https://openrouter.ai/api/v1', mistral: 'https://api.mistral.ai/v1' };
+  const urls = { gemini: 'https://generativelanguage.googleapis.com/v1beta', openrouter: 'https://openrouter.ai/api/v1' };
   const trim = v => typeof v === 'string' ? v.trim() : '';
   const consumerId = v => v === 'character-presets' || v === 'characterpresets' ? 'characterPresets' : consumers.includes(v) ? v : 'ultrascripts';
   function normalize(raw = {}) {
@@ -23,12 +17,11 @@
       version: 2,
       simple: { apiKey: trim(raw.simple?.apiKey), quotaStrategy: raw.simple?.quotaStrategy === 'shared' ? 'shared' : 'separated' },
       advanced: {
-        enabled: a.enabled === true,
-        activeService: ['openrouter', 'mistral', 'custom'].includes(a.activeService) ? a.activeService : 'openrouter',
+        enabled: a.enabled === true && a.activeService !== 'mistral',
+        activeService: a.activeService === 'custom' ? 'custom' : 'openrouter',
         inputCapTokens: Number.isSafeInteger(cap) && cap >= 0 && cap <= 2000000 ? cap : 0,
         profiles: {
           openrouter: profile('openrouter'),
-          mistral: { ...profile('mistral'), modelMode: p.mistral?.modelMode === 'pinned' ? 'pinned' : 'auto' },
           custom: { ...profile('custom'), baseUrl: trim(p.custom?.baseUrl).replace(/\/+$/, '') },
         },
       },
@@ -58,13 +51,10 @@
     const baseUrl = urls[service] || p.baseUrl;
     let validUrl = false;
     try { const u = new URL(baseUrl); validUrl = u.protocol === 'https:' && !u.username && !u.password && !u.search && !u.hash; } catch { /* invalid configuration */ }
-    return { ...p, tier, service, baseUrl, configured: validUrl && (service === 'custom' || !!p.apiKey) && (service === 'mistral' && p.modelMode === 'auto' || !!p.model) };
+    return { ...p, tier, service, baseUrl, configured: validUrl && (service === 'custom' || !!p.apiKey) && !!p.model };
   }
   function models(config, tier, consumer, estimatedTokens) {
-    if (tier === 'advanced') {
-      const s = settings(config, tier);
-      return s.service === 'mistral' && s.modelMode === 'auto' ? mistral.map(m => m.id) : [s.model];
-    }
+    if (tier === 'advanced') return [settings(config, tier).model];
     // Character Prefill needs structured JSON. Use the same Gemini models that
     // the Simple connection check exercises, so a working key can generate it.
     return [...flash, ...(config.simple.quotaStrategy === 'shared' ? gemma : [])]
@@ -80,8 +70,8 @@
       ...(Number.isFinite(error?.retryAfterMs) ? { retryAfterMs: error.retryAfterMs } : {}),
       ...(error?.attemptedModels ? { attemptedModels: error.attemptedModels } : {}) };
   }
-  const api = { KEY, LEGACY_KEY, consumers, flash, gemma, mistral, urls, normalize, migrate, publicConfig, consumerId, settings, models, availabilityErrors, redactError };
-  for (const value of [flash, gemma, consumers, ...mistral, mistral, urls]) Object.freeze(value);
+  const api = { KEY, LEGACY_KEY, consumers, flash, gemma, urls, normalize, migrate, publicConfig, consumerId, settings, models, availabilityErrors, redactError };
+  for (const value of [flash, gemma, consumers, urls]) Object.freeze(value);
   root.BetterDungeonAIConfig = Object.freeze(api);
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(globalThis);

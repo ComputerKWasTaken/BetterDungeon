@@ -30,10 +30,6 @@ class BetterDungeon {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message.type === 'FEATURE_TOGGLE') {
         this.handleFeatureToggle(message.featureId, message.enabled);
-      } else if (message.type === 'SET_AUTO_SEE_TRIGGER_MODE') {
-        this.handleSetAutoSeeTriggerMode(message.mode);
-      } else if (message.type === 'SET_AUTO_SEE_TURN_INTERVAL') {
-        this.handleSetAutoSeeTurnInterval(message.interval);
       } else if (message.type === 'GET_PRESETS') {
         this.handleGetPresets().then(sendResponse);
         return true;
@@ -130,20 +126,6 @@ class BetterDungeon {
       };
     } catch (error) {
       return { success: false, error: error?.message || String(error) };
-    }
-  }
-
-  handleSetAutoSeeTriggerMode(mode) {
-    const autoSeeFeature = this.featureManager.features.get('autoSee');
-    if (autoSeeFeature && typeof autoSeeFeature.setTriggerMode === 'function') {
-      autoSeeFeature.setTriggerMode(mode);
-    }
-  }
-
-  handleSetAutoSeeTurnInterval(interval) {
-    const autoSeeFeature = this.featureManager.features.get('autoSee');
-    if (autoSeeFeature && typeof autoSeeFeature.setTurnInterval === 'function') {
-      autoSeeFeature.setTurnInterval(interval);
     }
   }
 

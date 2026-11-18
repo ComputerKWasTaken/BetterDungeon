@@ -174,18 +174,37 @@
 
     const cards = [];
     const cardKeys = new Set();
+    const cardIds = new Set();
+    const pushCard = (card) => {
+      if (!card || typeof card !== 'object') return;
+      const idKey = card.id === undefined || card.id === null ? null : String(card.id);
+      if (idKey !== null) {
+        if (cardIds.has(idKey)) return;
+        cardIds.add(idKey);
+      }
+      cards.push(plain(card));
+    };
     const collectCards = (items) => {
       if (!Array.isArray(items)) return;
       for (const item of items) {
+        if (!item || typeof item !== 'object') continue;
         const key = item?.__ref;
-        if (!key || cardKeys.has(key)) continue;
-        cardKeys.add(key);
-        const card = extract[key];
-        if (card) cards.push(plain(card));
+        if (key) {
+          if (cardKeys.has(key)) continue;
+          cardKeys.add(key);
+          pushCard(extract[key]);
+        } else if (item.id !== undefined && item.id !== null && ('title' in item || 'value' in item || 'keys' in item)) {
+          // Inline card objects (e.g. Adventure.storyCardSnapshot.storyCards,
+          // which the current app derives its @client storyCards fields from).
+          pushCard(item);
+        }
       }
     };
+    // adventure.state may be stored as a cache reference rather than inline.
+    const stateRecord = resolveRef(adventure.state, extract) || adventure.state;
     collectCards(adventure.storyCards);
-    collectCards(adventure.state?.storyCards);
+    collectCards(stateRecord?.storyCards);
+    collectCards(adventure.storyCardSnapshot?.storyCards);
 
     const adventureId = String(adventure.id);
     const actions = Object.entries(extract)
@@ -200,7 +219,7 @@
       .sort((left, right) => Number(left.id) - Number(right.id));
 
     const adventureCopy = plain(adventure) || {};
-    const stateCopy = plain(adventure.state) || {};
+    const stateCopy = plain(stateRecord) || {};
     delete adventureCopy.storyCards;
     delete stateCopy.storyCards;
     return {

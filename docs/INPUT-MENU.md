@@ -21,7 +21,7 @@ The `.gameplay-action-input-dock` has `data-mobile="true"` on narrow screens and
 
 ## Older layouts
 
-The previous wide layout had separate `Generate an image` and `Generate a video` buttons in the strip. The previous compact layout used a portal `[role="menu"][aria-label="Input mode"]` with Write and Create groups. A legacy strip had a See writing-mode button. The service still recognizes these; legacy See hotkey settings migrate to the Image action, and input history falls back to Story when a saved See mode is unavailable. AutoSee continues to use the backend image-generation flow.
+The previous wide layout had separate `Generate an image` and `Generate a video` buttons in the strip. The previous compact layout used a portal `[role="menu"][aria-label="Input mode"]` with Write and Create groups. A legacy strip had a See writing-mode button. The service still recognizes these; legacy See hotkey settings migrate to the Image action, and input history falls back to Story when a saved See mode is unavailable.
 
 Compact Radix menus use ArrowDown to open and Escape to dismiss. Their injected Try and Command entries need explicit focus/selection handling because cloned elements are outside Radix's internal collection. The current horizontal strip uses native role buttons and the shared custom-mode insertion path. Opening or dismissing either menu preserves an active Try or Command overlay; choosing another writing mode replaces it. Neither mode submits the input text on selection.
 

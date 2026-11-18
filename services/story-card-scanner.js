@@ -8,9 +8,17 @@ class StoryCardScanner {
     this.scanStartTime = null;
     this.scannedNames = new Set();
     this.cardDatabase = new Map();
+    // Full normalized card list from the latest scan. cardDatabase is keyed
+    // by card name for backwards compatibility, which collapses cards that
+    // share a title; analytics must iterate this list instead.
+    this.cardsList = [];
     this.lastScannedAdventureId = null;
     this.debug = false;
-    this.CARD_TYPES = ['character', 'location', 'item', 'faction', 'lore', 'other'];
+    // Native AI Dungeon card types. 'race' and 'class' are first-class types
+    // (character-creator sections, verified in the current play bundle's
+    // sortedStoryCardTypes ordering); omitting them silently bucketed those
+    // cards as 'other' in the type breakdown.
+    this.CARD_TYPES = ['character', 'race', 'class', 'location', 'item', 'faction', 'lore', 'other'];
   }
 
   validatePageState() {
@@ -42,6 +50,7 @@ class StoryCardScanner {
     this.scanStartTime = null;
     this.scannedNames = new Set();
     this.cardDatabase = new Map();
+    this.cardsList = [];
     this.lastScannedAdventureId = null;
     this.getSharedCache()?.clear?.();
   }
@@ -94,7 +103,8 @@ class StoryCardScanner {
         onTriggerFound,
         onProgress,
         onCardScanned,
-        snapshot.provenance?.source || 'unavailable'
+        snapshot.provenance?.source || 'unavailable',
+        snapshot.coverage?.storyCards || null
       );
     } catch (error) {
       if (error.name === 'AbortError' || this.abortController?.signal.aborted) {
@@ -108,7 +118,7 @@ class StoryCardScanner {
     }
   }
 
-  consumeStoryCards(cards, shortId, onTriggerFound, onProgress, onCardScanned, source) {
+  consumeStoryCards(cards, shortId, onTriggerFound, onProgress, onCardScanned, source, coverage = null) {
     const results = new Map();
     const normalizedCards = [];
 
@@ -121,6 +131,7 @@ class StoryCardScanner {
     }
 
     this.cardDatabase = new Map();
+    this.cardsList = normalizedCards;
     this.scannedNames = new Set();
     this.lastScannedAdventureId = shortId;
 
@@ -144,12 +155,23 @@ class StoryCardScanner {
 
     this.log(`Story-card scan hydrated ${total} cards from ${source}.`);
 
+    // Surface an incomplete read instead of silently presenting partial
+    // data as complete: the read service reports the authoritative total
+    // (adventure.storyCardCount) when it knows it.
+    const authoritativeTotal = Number.isFinite(coverage?.authoritativeTotal)
+      ? coverage.authoritativeTotal
+      : null;
+    const incomplete = authoritativeTotal !== null && total < authoritativeTotal;
+
     return {
       success: true,
       triggers: results,
       scannedCount: total,
       cardDatabase: this.cardDatabase,
       source,
+      coverage,
+      authoritativeTotal,
+      incomplete,
       message: total === 0 ? 'No story cards found' : undefined,
     };
   }
@@ -190,7 +212,9 @@ class StoryCardScanner {
 
   addTriggerResult(results, trigger, cardName) {
     const existingCard = results.get(trigger);
-    if (existingCard && existingCard !== cardName && !existingCard.includes(cardName)) {
+    // Membership must be an exact name match: a substring check drops a card
+    // whose name is a prefix of an existing one ("Ann" vs "Anna").
+    if (existingCard && existingCard !== cardName && !existingCard.split(', ').includes(cardName)) {
       results.set(trigger, `${existingCard}, ${cardName}`);
     } else if (!existingCard) {
       results.set(trigger, cardName);
@@ -202,8 +226,15 @@ class StoryCardScanner {
   }
 
   getAnalytics() {
+    // Iterate the full scan list, not the name-keyed cardDatabase: cards
+    // that share a title would otherwise collapse into one and every count
+    // (total, by-type, coverage) would silently under-report.
+    const cards = this.cardsList.length > 0
+      ? this.cardsList
+      : Array.from(this.cardDatabase.values());
+
     const analytics = {
-      totalCards: this.cardDatabase.size,
+      totalCards: cards.length,
       byType: {},
       withTriggers: 0,
       withoutTriggers: 0,
@@ -226,7 +257,8 @@ class StoryCardScanner {
     let totalTriggers = 0;
     const triggerToCards = new Map();
 
-    this.cardDatabase.forEach((card, name) => {
+    cards.forEach((card) => {
+      const name = card.name;
       const type = card.type || 'other';
       analytics.byType[type] = (analytics.byType[type] || 0) + 1;
 
@@ -276,8 +308,11 @@ class StoryCardScanner {
       }
     });
 
-    if (analytics.withTriggers > 0) {
-      analytics.averageTriggerCount = (totalTriggers / analytics.withTriggers).toFixed(1);
+    // The dashboard labels this "Avg Triggers/Card" — that is per card
+    // overall, not per card-that-has-triggers (the old denominator, which
+    // inflated the average whenever any card had no triggers).
+    if (analytics.totalCards > 0) {
+      analytics.averageTriggerCount = (totalTriggers / analytics.totalCards).toFixed(1);
     }
 
     triggerToCards.forEach((cards, trigger) => {

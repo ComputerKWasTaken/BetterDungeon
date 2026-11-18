@@ -244,7 +244,12 @@
         if (respJson) {
           scanAndForwardScenarioStart(respJson);
           scanAndForwardCards(respJson);
-          updateBaseCredentials(url, method, init?.headers);
+          // Headers may live on the Request object when fetch is called
+          // without an init argument; missing them would silently capture
+          // credentials with no Authorization header and break replay writes.
+          const requestHeaders = init?.headers
+            ?? (typeof input === 'object' && input !== null ? input.headers : undefined);
+          updateBaseCredentials(url, method, requestHeaders);
         }
       } catch (err) {
         if (err?.name !== 'AbortError') {

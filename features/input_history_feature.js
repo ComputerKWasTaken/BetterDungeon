@@ -20,6 +20,10 @@ class InputHistoryFeature {
     // State
     this.history = [];
     this.historyIndex = -1;
+    // The user's in-progress text, captured when they start cycling through
+    // history so that cycling back past the newest entry restores it instead
+    // of clearing the box. Null when no cycle is in progress.
+    this.pendingDraft = null;
     this.maxHistorySize = 50;
     this.storageKeyPrefix = 'betterDungeon_inputHistory_';
     this.legacyStorageKey = 'betterDungeon_inputHistory';
@@ -134,6 +138,7 @@ class InputHistoryFeature {
     this.currentAdventureId = newAdventureId;
     this.history = [];
     this.historyIndex = -1;
+    this.pendingDraft = null;
     this.loadedAdventureId = null;
 
     // Drop any visible bar from the previous adventure so it can't be used
@@ -325,8 +330,27 @@ class InputHistoryFeature {
     // If the user actually typed something, reset the history index so they can navigate normally
     if (this.historyIndex !== -1) {
       this.historyIndex = -1;
+      // Whatever is in the box now is the user's own text — a draft saved
+      // when the cycle started no longer applies.
+      this.pendingDraft = null;
       this.updateHistoryBar();
     }
+  }
+
+  // Called before the first step away from the live draft (index -1 -> 0).
+  // Captures the box's current text so returning past the newest entry can
+  // restore it verbatim instead of clearing the input.
+  capturePendingDraft() {
+    if (this.historyIndex !== -1) return;
+    const inputElement = document.querySelector(this.textInputSelector);
+    this.pendingDraft = inputElement ? inputElement.value : null;
+  }
+
+  // Called when cycling returns to the live draft position (index -> -1).
+  restorePendingDraft() {
+    const draft = this.pendingDraft;
+    this.pendingDraft = null;
+    this.setInputValue(draft ?? '');
   }
 
   saveCurrentInput() {
@@ -360,6 +384,7 @@ class InputHistoryFeature {
     
     this.saveHistory();
     this.historyIndex = -1; // Reset index after sending
+    this.pendingDraft = null; // The submitted text supersedes any saved draft
     this.log(`Saved input to history: [${mode}] ${text}`);
 
     // Ensure the history chip is visible and reflects the new count
@@ -375,9 +400,12 @@ class InputHistoryFeature {
 
     // Android Enter/IME keys can insert a newline. Desktop keeps the explicit
     // keyboard-send behavior while touch platforms record only submit clicks.
+    // An Enter that confirms an IME composition (isComposing) does not submit
+    // the action, so it must not record the half-composed text either.
     if (
       e.key === 'Enter'
       && !e.shiftKey
+      && !e.isComposing
       && !window.BetterDungeonPlatform?.has('touchControls')
     ) {
       this.saveCurrentInput();
@@ -395,6 +423,7 @@ class InputHistoryFeature {
       if (isUp) {
         // Go older
         if (this.historyIndex < this.history.length - 1) {
+          this.capturePendingDraft();
           this.historyIndex++;
           this.applyHistoryItem(this.historyIndex);
         }
@@ -404,9 +433,10 @@ class InputHistoryFeature {
           this.historyIndex--;
           this.applyHistoryItem(this.historyIndex);
         } else if (this.historyIndex === 0) {
-          // Clear input when going down from newest item
+          // Back to the live draft: restore what the user had typed before
+          // cycling (empty only if they started from an empty box).
           this.historyIndex = -1;
-          this.setInputValue('');
+          this.restorePendingDraft();
         }
       }
     }
@@ -478,6 +508,7 @@ class InputHistoryFeature {
     // silently show `N/M` and set React's text to a history entry the
     // user didn't request.
     this.historyIndex = -1;
+    this.pendingDraft = null;
 
     const bar = document.createElement('div');
     bar.id = 'bd-history-bar';
@@ -531,6 +562,7 @@ class InputHistoryFeature {
 
     if (direction === 'up') {
       if (this.historyIndex < this.history.length - 1) {
+        this.capturePendingDraft();
         this.historyIndex++;
         this.applyHistoryItem(this.historyIndex);
       }
@@ -540,7 +572,7 @@ class InputHistoryFeature {
         this.applyHistoryItem(this.historyIndex);
       } else if (this.historyIndex === 0) {
         this.historyIndex = -1;
-        this.setInputValue('');
+        this.restorePendingDraft();
         this.updateHistoryBar();
       }
     }

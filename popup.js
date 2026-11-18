@@ -104,9 +104,7 @@ const DEFAULT_FEATURES = {
   favoriteInstructions: true,
   inputModeColor: true,
   characterPreset: true,
-  autoSee: false,
   notes: true,
-  storyCardModalDock: true,
   inputHistory: true,
   customDynamic: false,
   navigator: true
@@ -590,9 +588,6 @@ function initSettings() {
       });
     });
   }
-
-  // Auto See settings
-  initAutoSeeSettings();
 }
 
 function initCustomDynamicSettings() {
@@ -654,7 +649,22 @@ function loadCustomDynamicSettings() {
       renderCustomDynamicConfig();
       updateCustomDynamicRuntimeStatus();
       void refreshCustomDynamicModels({ silent: true });
+      warnIfCustomDynamicFeatureOff();
     });
+  });
+}
+
+// The pool config and the feature toggle are separate switches: the config
+// alone never engages routing (FeatureManager only initialises the feature
+// when its toggle is on). If a pool exists while the toggle is off, say so
+// instead of letting the saved pool look active.
+function warnIfCustomDynamicFeatureOff() {
+  const hasEnabledModel = (currentCustomDynamicConfig.pool || []).some((model) => model.enabled !== false);
+  if (!hasEnabledModel) return;
+  popupExtension.storage.sync.get(STORAGE_KEYS.features, (result) => {
+    const features = (result || {})[STORAGE_KEYS.features] || {};
+    if (features.customDynamic === true) return;
+    setCustomDynamicStatus('Custom Dynamic is off — this pool is saved but will not route until the feature is enabled above.', true);
   });
 }
 
@@ -850,6 +860,18 @@ function saveCustomDynamicSettings() {
   popupExtension.storage.sync.set({ [STORAGE_KEYS.customDynamicConfig]: config }, () => {
     currentCustomDynamicConfig = config;
     renderCustomDynamicConfig();
+    // Saving a pool is an explicit intent to route, but the config alone
+    // does not turn the feature on — enable the toggle too, otherwise the
+    // saved pool silently never engages.
+    const hasEnabledModel = config.pool.some((model) => model.enabled !== false);
+    const toggle = document.getElementById('feature-customDynamic');
+    if (hasEnabledModel && toggle && !toggle.checked) {
+      toggle.checked = true;
+      saveFeatureState('customDynamic', true);
+      setCustomDynamicStatus('Custom Dynamic saved and enabled.');
+      showToast('Custom Dynamic saved and enabled', 'success');
+      return;
+    }
     setCustomDynamicStatus('Custom Dynamic saved.');
     showToast('Custom Dynamic saved', 'success');
   });
@@ -1143,59 +1165,6 @@ function clampPopupNumber(value, fallback, min, max) {
 
 function clampPopupInteger(value, fallback, min, max) {
   return Math.round(clampPopupNumber(value, fallback, min, max));
-}
-
-function initAutoSeeSettings() {
-  const triggerModeSelect = document.getElementById('auto-see-trigger-mode');
-  const intervalSlider = document.getElementById('auto-see-interval');
-  const intervalDisplay = document.getElementById('auto-see-interval-value');
-  const intervalOption = document.getElementById('auto-see-interval-option');
-
-  // Load saved Auto See settings
-  popupExtension.storage.sync.get([
-    'betterDungeon_autoSeeTriggerMode',
-    'betterDungeon_autoSeeTurnInterval'
-  ], (result) => {
-    const r = result || {};
-    const triggerMode = r.betterDungeon_autoSeeTriggerMode ?? 'everyTurn';
-    const interval = r.betterDungeon_autoSeeTurnInterval ?? 2;
-
-    if (triggerModeSelect) {
-      triggerModeSelect.value = triggerMode;
-      updateAutoSeeIntervalVisibility(triggerMode);
-    }
-
-    if (intervalSlider && intervalDisplay) {
-      intervalSlider.value = interval;
-      intervalDisplay.textContent = interval;
-    }
-  });
-
-  // Trigger mode select handler
-  if (triggerModeSelect) {
-    triggerModeSelect.addEventListener('change', () => {
-      const mode = triggerModeSelect.value;
-      popupExtension.storage.sync.set({ betterDungeon_autoSeeTriggerMode: mode });
-      notifyContentScript('SET_AUTO_SEE_TRIGGER_MODE', { mode });
-      updateAutoSeeIntervalVisibility(mode);
-    });
-  }
-
-  // Interval slider handler
-  if (intervalSlider && intervalDisplay) {
-    intervalSlider.addEventListener('input', () => {
-      const value = parseInt(intervalSlider.value);
-      intervalDisplay.textContent = value;
-      popupExtension.storage.sync.set({ betterDungeon_autoSeeTurnInterval: value });
-      notifyContentScript('SET_AUTO_SEE_TURN_INTERVAL', { interval: value });
-    });
-  }
-
-  function updateAutoSeeIntervalVisibility(mode) {
-    if (intervalOption) {
-      intervalOption.style.display = mode === 'afterNTurns' ? 'flex' : 'none';
-    }
-  }
 }
 
 // ============================================

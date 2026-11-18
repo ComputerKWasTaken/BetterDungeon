@@ -21,6 +21,7 @@ class CustomDynamicFeature {
     };
 
     this.defaultRuntime = {
+      adventureShortId: '',
       lastModelId: '',
       lastModelLabel: '',
       lastVersionName: '',
@@ -87,6 +88,7 @@ class CustomDynamicFeature {
     const runtime = this.normalizeRuntime(runtimeResult?.[this.runtimeStorageKey]);
     if (options.forceDisabled) config.enabled = false;
 
+    console.log(`[CustomDynamic] Posting state to router: enabled=${config.enabled}, pool=${config.pool.length} model(s), turnInterval=${config.turnInterval}.`);
     window.postMessage({
       namespace: this.namespace,
       direction: 'extension-to-page',
@@ -155,6 +157,7 @@ class CustomDynamicFeature {
     const runtime = this.normalizeRuntime(result?.[this.runtimeStorageKey]);
     const timestamp = new Date().toISOString();
 
+    runtime.adventureShortId = this.cleanModelName(event.adventureShortId);
     runtime.lastModelId = this.cleanModelName(event.modelId);
     runtime.lastModelLabel = this.cleanModelName(event.label || event.modelId);
     runtime.lastVersionName = this.cleanModelName(event.versionName || event.modelId);
@@ -171,13 +174,18 @@ class CustomDynamicFeature {
       return { success: false, error: 'No AI Dungeon model version was provided.' };
     }
 
-    const gql = await this.waitForGqlCredentials(1000);
+    const gql = await this.waitForGqlCredentials(3000);
     if (!gql) {
       return { success: false, error: 'AI Dungeon GraphQL is not ready.' };
     }
 
+    const adventureShortId = gql.getShortIdFromUrl();
+    if (!adventureShortId || payload.adventureShortId !== adventureShortId) {
+      return { success: false, error: 'The active adventure changed before the model switch.' };
+    }
+
     try {
-      await gql.saveSettings({ storyAiVersionName: versionName }, { timeoutMs: 5000 });
+      await gql.saveSettings({ storyAiVersionName: versionName }, { adventureShortId, timeoutMs: 5000 });
       return { success: true, mechanism: 'graphql-settings', versionName };
     } catch (error) {
       return {
@@ -367,6 +375,7 @@ class CustomDynamicFeature {
     const raw = value && typeof value === 'object' ? value : {};
     const hasCurrentCatalog = Number(raw.visibleVersionsSchemaVersion) === CustomDynamicFeature.catalogSchemaVersion;
     return {
+      adventureShortId: this.cleanModelName(raw.adventureShortId),
       lastModelId: this.cleanModelName(raw.lastModelId || ''),
       lastModelLabel: this.cleanModelName(raw.lastModelLabel || raw.lastModelId || ''),
       lastVersionName: this.cleanModelName(raw.lastVersionName || raw.lastModelId || ''),

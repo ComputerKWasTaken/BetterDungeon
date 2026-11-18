@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BetterDungeon",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "An all-in-one browser extension for AI Dungeon that enhances the experience with QOL additions and brand new features.",
   "permissions": [
     "activeTab",
@@ -109,9 +109,7 @@
         "features/plot_presets_feature.js",
         "features/input_mode_color_feature.js",
         "features/character_preset_feature.js",
-        "features/auto_see_feature.js",
         "features/story_card_analytics_feature.js",
-        "features/story_card_modal_dock_feature.js",
         "features/input_history_feature.js",
         "features/custom_dynamic_feature.js",
         "features/navigator_feature.js",

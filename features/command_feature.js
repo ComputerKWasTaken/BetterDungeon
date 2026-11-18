@@ -27,15 +27,13 @@ class CommandFeature {
     this.boundKeyHandler = null;
     this.submitClickHandler = null;
     this.modeChangeHandler = null;
-    this.autoDeleteEnabled = false;
     this.subMode = 'standard'; // 'standard' | 'subtle' | 'ooc'
     this.subModeKeyHandler = null;
     this.subModeBar = null;
-    this.pendingCommandDelete = null;
-    this.responseObserver = null;
     this._lastSpriteState = null; // track sprite/dynamic theme for reactive re-injection
     this.pendingInjection = null;  // rAF handle coalescing observer bursts
     this.debug = false;
+    this._warnedReasons = new Set(); // platform-structure failures already reported
   }
 
   log(message, ...args) {
@@ -44,21 +42,21 @@ class CommandFeature {
     }
   }
 
+  // Platform-structure failures used to fail silently (the Navigator /
+  // Character Presets breakage pattern): if AI Dungeon renames an anchor,
+  // say so once per reason instead of never mounting with no trace.
+  warnOnce(reason, message) {
+    if (this._warnedReasons.has(reason)) return;
+    this._warnedReasons.add(reason);
+    console.warn(`[Command] ${message}`);
+  }
+
   init() {
     console.log('[Command] Initializing Command feature...');
     this.setupObserver();
     this.injectCommandButton();
-    this.loadAutoDeleteSetting();
     this.loadSubModeSetting();
     this.setupMessageListener();
-  }
-
-  loadAutoDeleteSetting() {
-    if (typeof chrome !== 'undefined' && chrome.storage) {
-      chrome.storage.sync.get('betterDungeon_commandAutoDelete', (result) => {
-        this.autoDeleteEnabled = (result || {}).betterDungeon_commandAutoDelete ?? false;
-      });
-    }
   }
 
   loadSubModeSetting() {
@@ -82,10 +80,7 @@ class CommandFeature {
   setupMessageListener() {
     if (typeof chrome !== 'undefined' && chrome.runtime) {
       chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-        if (message.type === 'SET_COMMAND_AUTO_DELETE') {
-          this.autoDeleteEnabled = message.enabled;
-          sendResponse({ success: true });
-        } else if (message.type === 'SET_COMMAND_SUB_MODE') {
+        if (message.type === 'SET_COMMAND_SUB_MODE') {
           if (message.subMode && CommandFeature.SUB_MODES.includes(message.subMode)) {
             this.subMode = message.subMode;
             if (this.isCommandMode) this.updateModeDisplay();
@@ -107,10 +102,6 @@ class CommandFeature {
     if (this.pendingInjection !== null) {
       cancelAnimationFrame(this.pendingInjection);
       this.pendingInjection = null;
-    }
-    if (this.responseObserver) {
-      this.responseObserver.disconnect();
-      this.responseObserver = null;
     }
     if (this.modeChangeHandler) {
       document.removeEventListener('click', this.modeChangeHandler, true);
@@ -161,6 +152,14 @@ class CommandFeature {
       name: 'command', base: 'story', label: 'Command', icon: 'w_ai',
       activate: () => this.activateCommandMode()
     });
+    if (this.commandButton) {
+      this._warnedReasons.delete('inject-failed');
+    } else if (this.aid.getInputModeMenu()) {
+      // The mode menu is open but the button could not be built — a native
+      // anchor (menu entries / base mode button) no longer matches.
+      this.warnOnce('inject-failed',
+        'Input mode menu is open but the Command button could not be injected; a native mode anchor may have changed.');
+    }
     if (this.isCommandMode && !this.activationTimer && this.aid.detectCurrentMode() === 'story') {
       this.updateModeDisplay();
     }
@@ -347,7 +346,12 @@ class CommandFeature {
 
   activateCommandMode() {
     const baseButton = this.aid.getModeButtonByName('story');
-    if (!baseButton || baseButton.getAttribute('aria-disabled') === 'true') return;
+    if (!baseButton || baseButton.getAttribute('aria-disabled') === 'true') {
+      this.warnOnce('activate-no-story',
+        'Command mode could not activate: the native Story mode button was not found or is disabled.');
+      return;
+    }
+    this._warnedReasons.delete('activate-no-story');
     // Let existing mode-change handlers restore the previous mode before the
     // native click changes React state, then enable our overlay.
     baseButton.click();
@@ -442,7 +446,7 @@ class CommandFeature {
       if (modeText) {
         const lower = modeText.textContent.toLowerCase();
         if (lower.startsWith('command')) {
-          modeText.textContent = 'story';
+          modeText.textContent = 'Story';
         }
       }
     }
@@ -501,9 +505,6 @@ class CommandFeature {
             const formattedContent = this.formatAsCommand(content);
             this._setTextareaValue(textarea, formattedContent);
             
-            // Schedule deletion if auto-delete is enabled
-            this.scheduleCommandDeletion(formattedContent.trim());
-            
             // Reset command mode after submission
             this.deactivateCommandMode();
           }
@@ -534,9 +535,6 @@ class CommandFeature {
           // Format the content as a command header
           const formattedContent = this.formatAsCommand(content);
           this._setTextareaValue(textarea, formattedContent);
-          
-          // Schedule deletion if auto-delete is enabled
-          this.scheduleCommandDeletion(formattedContent.trim());
           
           // Reset command mode after submission
           this.deactivateCommandMode();
@@ -712,173 +710,13 @@ class CommandFeature {
     }
   }
 
-  scheduleCommandDeletion(commandText) {
-    if (!this.autoDeleteEnabled) return;
-    
-    this.pendingCommandDelete = commandText;
-    this.watchForResponseCompletion();
-  }
-
-  watchForResponseCompletion() {
-    if (this.responseObserver) {
-      this.responseObserver.disconnect();
-    }
-
-    const storyOutput = document.querySelector('#gameplay-output');
-    if (!storyOutput) return;
-
-    let responseStarted = false;
-    let stabilityTimer = null;
-
-    this.responseObserver = new MutationObserver((mutations) => {
-      // Check if new content is being added (AI is responding)
-      const hasNewContent = mutations.some(m => 
-        m.addedNodes.length > 0 || 
-        (m.type === 'characterData' && m.target.textContent)
-      );
-
-      if (hasNewContent) {
-        responseStarted = true;
-        
-        // Reset stability timer - wait for response to stabilize
-        if (stabilityTimer) clearTimeout(stabilityTimer);
-        
-        stabilityTimer = setTimeout(() => {
-          this.deleteCommandFromStory();
-          
-          // Clean up
-          if (this.responseObserver) {
-            this.responseObserver.disconnect();
-            this.responseObserver = null;
-          }
-          this.pendingCommandDelete = null;
-        }, 2000); // Wait 2 seconds of no changes
-      }
-    });
-
-    this.responseObserver.observe(storyOutput, {
-      childList: true,
-      subtree: true,
-      characterData: true
-    });
-
-    // Timeout after 60 seconds if no response
-    setTimeout(() => {
-      if (this.responseObserver) {
-        this.responseObserver.disconnect();
-        this.responseObserver = null;
-      }
-      this.pendingCommandDelete = null;
-    }, 60000);
-  }
-
-  deleteCommandFromStory() {
-    if (!this.pendingCommandDelete) return;
-
-    const storyOutput = document.querySelector('#gameplay-output');
-    if (!storyOutput) return;
-
-    const commandPattern = this.pendingCommandDelete;
-    const allSpans = storyOutput.querySelectorAll('span[id="transition-opacity"]');
-    
-    for (const span of allSpans) {
-      const text = span.textContent || '';
-      if (text.includes(commandPattern)) {
-        span.click();
-        setTimeout(() => this.clearAndSaveEdit(), 500);
-        break;
-      }
-    }
-  }
-
-  clearAndSaveEdit() {
-    const allTextareas = document.querySelectorAll('textarea');
-    
-    // Find the edit textarea (not the main game input)
-    for (const textarea of allTextareas) {
-      if (textarea.id === 'game-text-input') continue;
-      this.clearTextareaAndSave(textarea);
-      return;
-    }
-
-    // Fallback: check for contenteditable elements
-    const editables = document.querySelectorAll('[contenteditable="true"]');
-    for (const editable of editables) {
-      const searchText = this.pendingCommandDelete?.trim();
-      if (searchText && editable.textContent.includes(searchText)) {
-        this.clearContentEditableAndSave(editable);
-        return;
-      }
-    }
-  }
-
-  clearTextareaAndSave(textarea) {
-    textarea.focus();
-    textarea.select();
-    // Replace with two newlines for better formatting
-    textarea.value = '\n\n';
-    textarea.dispatchEvent(new Event('input', { bubbles: true }));
-    textarea.dispatchEvent(new Event('change', { bubbles: true }));
-    
-    setTimeout(() => this.clickOutsideToClose(), 200);
-  }
-
-  clearContentEditableAndSave(element) {
-    // Select all content and delete
-    element.focus();
-    
-    // Select all text
-    const selection = window.getSelection();
-    const range = document.createRange();
-    range.selectNodeContents(element);
-    selection.removeAllRanges();
-    selection.addRange(range);
-    
-    // Delete the content
-    document.execCommand('delete', false, null);
-    
-    // Dispatch events
-    element.dispatchEvent(new Event('input', { bubbles: true }));
-    element.dispatchEvent(new Event('change', { bubbles: true }));
-    
-    // Click outside to close edit field
-    setTimeout(() => this.clickOutsideToClose(), 200);
-  }
-
-  clearInputAndSave(input) {
-    input.focus();
-    input.select();
-    input.value = '';
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-    
-    // Click outside to close edit field
-    setTimeout(() => this.clickOutsideToClose(), 200);
-  }
-
-  clickOutsideToClose() {
-    // Press Escape to close any popup
-    document.dispatchEvent(new KeyboardEvent('keydown', {
-      key: 'Escape',
-      code: 'Escape',
-      keyCode: 27,
-      which: 27,
-      bubbles: true
-    }));
-    
-    // Blur and click outside as backup
-    setTimeout(() => {
-      document.activeElement?.blur();
-      const outsideTarget = document.querySelector('header') ||
-                            document.querySelector('nav') ||
-                            document.querySelector('[class*="sidebar"]') ||
-                            document.body;
-      if (outsideTarget) outsideTarget.click();
-    }, 100);
-  }
 }
 
 // Make available globally
 if (typeof window !== 'undefined') {
   window.CommandFeature = CommandFeature;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = CommandFeature;
 }

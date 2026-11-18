@@ -1,16 +1,13 @@
 // BetterDungeon - Navigator Feature
 //
-// Adventure-page AI agent shell with a transcript and composer. On desktop the
-// existing Navigator surface is mounted into AI Dungeon's Gameplay settings as
-// an injected subtab.
+// Adventure-page AI agent shell with a transcript and composer.
 //
 // NavigatorSession owns live streaming chat, adventure context, and confirmed
 // mutation proposals assembled from Plot Components, Story Cards, and actions.
 
 class NavigatorFeature {
   static id = 'navigator';
-
-  static GAMEPLAY_SETTINGS_SURFACE_ID = 'keyboard-field-reveal-scroll-surface-settings-gameplay';
+  static launcherPositionKey = 'bd-navigator-launcher-position';
 
   constructor() {
     this.enabled = true;
@@ -23,6 +20,10 @@ class NavigatorFeature {
     this.unsubscribe = null;
 
     this.drawer = null;
+    this.launcher = null;
+    this.launcherBadge = null;
+    this.launcherStatus = null;
+    this.launcherDrag = null;
     this.transcriptEl = null;
     this.inputEl = null;
     this.composerEl = null;
@@ -36,23 +37,6 @@ class NavigatorFeature {
     this.confirmationPanel = null;
     this.confirmationResolve = null;
     this.confirmationReturnFocus = null;
-    this.settingsTablist = null;
-    this.settingsSurface = null;
-    this.settingsTabWrapper = null;
-    this.settingsTab = null;
-    this.settingsContentPanel = null;
-    this.settingsNavigationRoot = null;
-    this.settingsContentParent = null;
-    this.settingsNativeTabState = null;
-    this.settingsActiveThemeClass = '';
-    this.settingsInactiveThemeClass = '';
-    this.settingsTabActive = false;
-    this.settingsTabPreferred = false;
-    this.boundSettingsTablistClick = null;
-    this.boundSettingsTablistScroll = null;
-    this.settingsTabsOverflowHost = null;
-    this.settingsTabsLeftButton = null;
-    this.settingsTabsRightButton = null;
     this.inspectionRound = 0;
     this.messageNodes = new Map();
     this.proposalExpansion = new Map();
@@ -69,7 +53,6 @@ class NavigatorFeature {
     this.originalPushState = null;
     this.originalReplaceState = null;
     this.visualViewportFrame = null;
-    this.settingsSyncFrame = null;
     this.androidBackHandler = null;
     this.inputComposing = false;
   }
@@ -83,12 +66,8 @@ class NavigatorFeature {
     const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
     if (!element) return false;
     return !!(
-      this.drawer?.contains(element) ||
-      this.routinesView?.owns(element) ||
-      this.settingsTabWrapper?.contains(element) ||
-      this.settingsContentPanel?.contains(element) ||
-      this.settingsTabsLeftButton?.contains(element) ||
-      this.settingsTabsRightButton?.contains(element)
+      this.drawer?.contains(element) || this.launcher?.contains(element)
+      || this.launcherStatus?.contains(element) || this.routinesView?.owns(element)
     );
   }
 
@@ -138,18 +117,7 @@ class NavigatorFeature {
     const height = Math.max(1, Number(viewport?.height) || window.innerHeight);
     this.drawer.style.setProperty('--bd-navigator-viewport-height', `${height}px`);
     this.drawer.classList.toggle('bd-navigator-ime-visible', height < window.innerHeight - 96);
-    this.updateEmbeddedHeight();
     if (this.isOpen && document.activeElement === this.inputEl) this.scrollToBottom(true);
-  }
-
-  scheduleSettingsIntegrationSync() {
-    if (this.settingsSyncFrame !== null) return;
-    // Firefox's content-script global is not a Window; keep the DOM receiver.
-    const schedule = window.requestAnimationFrame?.bind(window) || (callback => window.setTimeout(callback, 0));
-    this.settingsSyncFrame = schedule(() => {
-      this.settingsSyncFrame = null;
-      if (this.currentAdventureId && this.drawer) this.syncSettingsIntegration();
-    });
   }
 
   // ==================== LIFECYCLE ====================
@@ -176,10 +144,11 @@ class NavigatorFeature {
   isAdventureUIPresent() {
     const gameplayOutput = document.querySelector('#gameplay-output');
     const settingsButton = document.querySelector(
-      '[aria-label="Game settings"], [aria-label="Game Settings"], [aria-label="Game Menu"], [aria-label="Game menu"]'
+      '[aria-label="Game settings"], [aria-label="Game Settings"], [aria-label="Game Menu"], [aria-label="Game menu"], [aria-label="Settings"], [aria-label="Close settings"]'
     );
     const navigationBar = document.querySelector('[aria-label="Navigation bar"]');
-    return !!(gameplayOutput && (settingsButton || navigationBar));
+    const textInput = document.querySelector('#game-text-input');
+    return !!(gameplayOutput && (settingsButton || navigationBar || textInput));
   }
 
   getAdventureIdFromUrl() {
@@ -238,17 +207,14 @@ class NavigatorFeature {
     // into adventure detection.
     this.adventureObserver = new MutationObserver((mutations) => {
       if (mutations.every(mutation => this.isOwnNode(mutation.target))) return;
-      this.scheduleSettingsIntegrationSync();
       if (this.detectionDebounce) clearTimeout(this.detectionDebounce);
       this.detectionDebounce = setTimeout(() => this.detectCurrentAdventure(), 150);
     });
     this.adventureObserver.observe(document.body, { childList: true, subtree: true });
 
     this.boundResize = () => {
+      this.launcherDrag?.update();
       this.scheduleVisualViewportSync();
-      this.applyLayout();
-      this.syncSettingsIntegration();
-      this.updateSettingsTabOverflow();
     };
     window.addEventListener('resize', this.boundResize);
 
@@ -301,11 +267,6 @@ class NavigatorFeature {
       window.cancelAnimationFrame?.(this.visualViewportFrame);
       window.clearTimeout?.(this.visualViewportFrame);
       this.visualViewportFrame = null;
-    }
-    if (this.settingsSyncFrame !== null) {
-      window.cancelAnimationFrame?.(this.settingsSyncFrame);
-      window.clearTimeout?.(this.settingsSyncFrame);
-      this.settingsSyncFrame = null;
     }
     if (this.boundKeydown) {
       document.removeEventListener('keydown', this.boundKeydown);
@@ -371,7 +332,10 @@ class NavigatorFeature {
     this.session = session;
     this.unsubscribe = session.subscribe((event, payload) => this.onSessionEvent(event, payload));
     this.proposalExpansion.clear();
-    if (this.inputEl) this.inputEl.value = '';
+    if (this.inputEl) {
+      this.inputEl.value = '';
+      this.autosizeInput();
+    }
     this.renderTranscript();
     this.renderNavigatorSettings();
   }
@@ -403,11 +367,6 @@ class NavigatorFeature {
     this.updateComposerState();
   }
 
-  applyLayout() {
-    if (!this.drawer) return;
-    if (this.drawer.classList.contains('bd-navigator-embedded')) this.updateEmbeddedHeight();
-  }
-
   // ==================== UI ====================
 
   createUI() {
@@ -416,7 +375,6 @@ class NavigatorFeature {
       this.routinesView = new NavigatorRoutinesView(this);
       this.routinesReady?.then(() => this.routinesView?.changed());
     }
-    this.syncSettingsIntegration();
   }
 
   removeUI() {
@@ -424,7 +382,13 @@ class NavigatorFeature {
     this.routinesView = null;
     if (this.confirmationPanel && !this.confirmationPanel.hidden) this.resolveConfirmation(false);
     this.inputEl?.blur();
-    this.resetSettingsIntegration({ preserveActive: false });
+    this.launcherDrag?.destroy();
+    this.launcherDrag = null;
+    this.launcher?.remove();
+    this.launcherStatus?.remove();
+    this.launcher = null;
+    this.launcherBadge = null;
+    this.launcherStatus = null;
     this.drawer?.remove();
     this.drawer = null;
     this.transcriptEl = null;
@@ -446,443 +410,38 @@ class NavigatorFeature {
     this.inputComposing = false;
   }
 
-  getGameplaySettingsSurface() {
-    const direct = document.getElementById(NavigatorFeature.GAMEPLAY_SETTINGS_SURFACE_ID);
-    if (direct) return direct;
-
-    const tablist = [...document.querySelectorAll('[role="tablist"][aria-label="Section Tabs" i]')]
-      .find(candidate => this.findModelsTab(candidate));
-    if (!tablist) return null;
-
-    let settingsPanel = null;
-    let current = tablist.parentElement;
-    while (current && current !== document.body) {
-      if (/settings-gameplay/i.test(current.id || '')) return current;
-      if (current.getAttribute?.('role') === 'tabpanel') settingsPanel = current;
-      if (current.classList?.contains('is_ScrollView')) return current;
-      current = current.parentElement;
-    }
-    return settingsPanel;
-  }
-
-  getSectionTablist(surface = this.getGameplaySettingsSurface()) {
-    const selector = '[role="tablist"][aria-label="Section Tabs" i]';
-    return surface?.querySelector(selector)
-      || document.querySelector(`[role="tabpanel"][aria-label="Settings"] ${selector}`)
-      || document.querySelector(selector)
-      || null;
-  }
-
-  getNativeSectionTabs(tablist = this.settingsTablist) {
-    return [...(tablist?.querySelectorAll('[role="tab"]') || [])]
-      .filter(tab => !tab.classList.contains('bd-navigator-settings-tab'));
-  }
-
-  findModelsTab(tablist) {
-    return this.getNativeSectionTabs(tablist).find(tab => {
-      const ariaLabel = tab.getAttribute('aria-label') || '';
-      return /^(?:selected )?tab models$/i.test(ariaLabel) || tab.textContent?.trim().toLowerCase() === 'models';
-    }) || null;
-  }
-
-  findSettingsNavigationRoot(tablist, surface) {
-    let current = tablist;
-    while (current?.parentElement && current.parentElement !== surface) {
-      if (current.nextElementSibling) return current;
-      current = current.parentElement;
-    }
-    return null;
-  }
-
-  setSettingsWrapperTheme(wrapper, className, markerClass = '') {
-    if (!wrapper) return;
-    if (className) wrapper.className = className;
-    if (markerClass) wrapper.classList.add(markerClass);
-  }
-
-  updateSettingsTabAppearance(active) {
-    if (!this.settingsTab || !this.settingsTabWrapper) return;
-    const baseClass = active ? this.settingsActiveThemeClass : this.settingsInactiveThemeClass;
-    this.setSettingsWrapperTheme(this.settingsTabWrapper, baseClass, 'bd-navigator-settings-tab-theme');
-    this.settingsTab.setAttribute('aria-label', active ? 'Selected tab navigator' : 'Tab navigator');
-    this.settingsTab.setAttribute('aria-selected', active ? 'true' : 'false');
-  }
-
-  suppressNativeSelectedTab() {
-    const selected = this.getNativeSectionTabs().find(tab => {
-      const ariaLabel = tab.getAttribute('aria-label') || '';
-      return /^selected tab /i.test(ariaLabel) || tab.getAttribute('aria-selected') === 'true';
-    });
-    if (!selected) return;
-
-    if (this.settingsNativeTabState?.tab !== selected) {
-      this.restoreNativeSelectedTab();
-      const wrapper = selected.parentElement;
-      this.settingsNativeTabState = {
-        tab: selected,
-        wrapper,
-        ariaLabel: selected.getAttribute('aria-label'),
-        ariaSelected: selected.getAttribute('aria-selected'),
-        wrapperClass: wrapper?.className || '',
-      };
-    }
-
-    const wrapper = selected.parentElement;
-    this.setSettingsWrapperTheme(wrapper, this.settingsInactiveThemeClass);
-    const ariaLabel = selected.getAttribute('aria-label') || this.settingsNativeTabState.ariaLabel || '';
-    selected.setAttribute('aria-label', ariaLabel.replace(/^Selected tab /i, 'Tab '));
-    selected.setAttribute('aria-selected', 'false');
-  }
-
-  restoreNativeSelectedTab() {
-    const state = this.settingsNativeTabState;
-    this.settingsNativeTabState = null;
-    if (!state?.tab?.isConnected) return;
-
-    if (state.ariaLabel === null) state.tab.removeAttribute('aria-label');
-    else state.tab.setAttribute('aria-label', state.ariaLabel);
-    if (state.ariaSelected === null) state.tab.removeAttribute('aria-selected');
-    else state.tab.setAttribute('aria-selected', state.ariaSelected);
-    if (state.wrapper?.isConnected) state.wrapper.className = state.wrapperClass;
-  }
-
-  createSettingsTabOverflowControls(tablist) {
-    const directParent = tablist?.parentElement;
-    const host = directParent?.classList?.contains('_dsp_contents')
-      ? directParent.parentElement
-      : directParent;
-    if (!host) return;
-
-    host.classList.add('bd-navigator-settings-tabs-host');
-    const createControl = (direction) => {
-      const control = document.createElement('div');
-      control.className = `css-g5y9jx r-633pao bd-navigator-settings-tabs-arrow bd-navigator-settings-tabs-arrow-${direction}`;
-      control.innerHTML = `
-        <div class="css-g5y9jx r-633pao bd-navigator-settings-tabs-arrow-align">
-          <span class="t_sub_theme t_core9 is_Theme" style="color: var(--color); display: contents;">
-            <div role="button" aria-label="scroll ${direction}" tabindex="0" class="is_Button is_View _bg-0hover-backgroundH3423444 _btc-0hover-borderColor69916956 _brc-0hover-borderColor69916956 _bbc-0hover-borderColor69916956 _blc-0hover-borderColor69916956 _bxsh-0hover-0px0px0pxva926910726 _bg-0active-backgroundP3496915 _btc-0active-borderColor77378595 _brc-0active-borderColor77378595 _bbc-0active-borderColor77378595 _blc-0active-borderColor77378595 _bxsh-0active-0px0px0pxva695599917 _bg-0focus-backgroundF3405682 _btc-0focus-borderColor68052152 _brc-0focus-borderColor68052152 _bbc-0focus-borderColor68052152 _blc-0focus-borderColor68052152 _bxsh-0focus-0px0px0pxva984719650 _cur-pointer _ussel-none _ox-hidden _oy-hidden _pos-relative _jc-center _ai-center _h-t-size-5 _btlr-t-radius-10 _btrr-t-radius-10 _bbrr-t-radius-10 _bblr-t-radius-10 _pr-t-space-0 _pl-t-space-0 _fd-row _bg-background _btc-borderColor _brc-borderColor _bbc-borderColor _blc-borderColor _btw-1px _brw-1px _bbw-1px _blw-1px _gap-t-space-1 _outlineColor-coreA0 _pe-auto _pt-t-space-0 _pb-t-space-0 _w-t-size-4--5 _mah-t-size-4--5 _maw-t-size-5 _bbs-solid _bts-solid _bls-solid _brs-solid _bxsh-0px0px0pxva26674076 bd-navigator-settings-tabs-native-button" style="box-shadow: rgb(0, 0, 0) 0 0 32px;">
-              <div class="is_View _pos-relative _fd-column _t-2--6537 _l-0px _ai-center _jc-center">
-                <span aria-hidden="true" class="is_Text font_icons _col-color _ff-f-family _lh-f-lineHeigh112920 _ls-f-letterSpa1360334204 _mt-0px _mb-0px _fow-500 _ws-break-space115 _pe-none _mr-0px _ml-0px _pt-t-space-0--53 _pb-t-space-0--53 _fos-f-size-1 _zi-1" style="pointer-events: none;">w_arrow_${direction}</span>
-              </div>
-            </div>
-          </span>
-        </div>
-      `;
-      const button = control.querySelector('[role="button"]');
-      const scroll = () => {
-        const distance = Math.max(120, Math.floor(tablist.clientWidth * 0.65));
-        tablist.scrollBy({ left: direction === 'right' ? distance : -distance, behavior: 'smooth' });
-      };
-      button.addEventListener('click', scroll);
-      button.addEventListener('keydown', event => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        event.preventDefault();
-        scroll();
-      });
-      host.appendChild(control);
-      return control;
-    };
-
-    this.settingsTabsOverflowHost = host;
-    this.settingsTabsLeftButton = createControl('left');
-    this.settingsTabsRightButton = createControl('right');
-    this.boundSettingsTablistScroll = () => this.updateSettingsTabOverflow();
-    tablist.addEventListener('scroll', this.boundSettingsTablistScroll, { passive: true });
-    const schedule = window.requestAnimationFrame?.bind(window) || (callback => window.setTimeout(callback, 0));
-    schedule(() => this.updateSettingsTabOverflow());
-  }
-
-  updateSettingsTabOverflow() {
-    const tablist = this.settingsTablist;
-    if (!tablist || !this.settingsTabsLeftButton || !this.settingsTabsRightButton) return;
-    const maxScroll = Math.max(0, tablist.scrollWidth - tablist.clientWidth);
-    const overflowing = maxScroll > 2;
-    const atStart = tablist.scrollLeft <= 2;
-    const atEnd = tablist.scrollLeft >= maxScroll - 2;
-    this.settingsTabsOverflowHost?.classList.toggle('bd-navigator-settings-tabs-overflowing', overflowing);
-    this.settingsTabsLeftButton.hidden = !overflowing || atStart;
-    this.settingsTabsRightButton.hidden = !overflowing || atEnd;
-  }
-
-  removeSettingsTabOverflowControls() {
-    if (this.settingsTablist && this.boundSettingsTablistScroll) {
-      this.settingsTablist.removeEventListener('scroll', this.boundSettingsTablistScroll);
-    }
-    this.settingsTabsLeftButton?.remove();
-    this.settingsTabsRightButton?.remove();
-    this.settingsTabsOverflowHost?.classList.remove(
-      'bd-navigator-settings-tabs-host',
-      'bd-navigator-settings-tabs-overflowing'
-    );
-    this.boundSettingsTablistScroll = null;
-    this.settingsTabsOverflowHost = null;
-    this.settingsTabsLeftButton = null;
-    this.settingsTabsRightButton = null;
-  }
-
-  getNativeSettingsContentNodes() {
-    if (!this.settingsContentParent || !this.settingsNavigationRoot) return [];
-    return [...this.settingsContentParent.children].filter(node => (
-      node !== this.settingsNavigationRoot && node !== this.settingsContentPanel
-    ));
-  }
-
-  setNativeSettingsContentHidden(hidden) {
-    for (const node of this.getNativeSettingsContentNodes()) {
-      node.classList.toggle('bd-navigator-settings-native-hidden', hidden);
-    }
-  }
-
-  parkNavigatorDrawer() {
-    if (!this.drawer) return;
-    this.drawer.hidden = true;
-    this.drawer.classList.remove('bd-navigator-embedded');
-    this.drawer.style.width = '';
-    this.drawer.style.height = '';
-    if (document.body && this.drawer.parentElement !== document.body) {
-      document.body.appendChild(this.drawer);
-    }
-  }
-
-  resetSettingsIntegration({ preserveActive = false } = {}) {
-    const wasActive = this.settingsTabActive;
-    this.settingsSurface?.classList.remove('bd-navigator-settings-active');
-    this.settingsSurface?.classList.remove('bd-navigator-settings-surface');
-    this.restoreNativeSelectedTab();
-    this.setNativeSettingsContentHidden(false);
-    this.parkNavigatorDrawer();
-
-    if (this.settingsTablist && this.boundSettingsTablistClick) {
-      this.settingsTablist.removeEventListener('click', this.boundSettingsTablistClick, true);
-    }
-    this.removeSettingsTabOverflowControls();
-    this.settingsTabWrapper?.remove();
-    this.settingsContentPanel?.remove();
-
-    this.settingsTablist = null;
-    this.settingsSurface = null;
-    this.settingsTabWrapper = null;
-    this.settingsTab = null;
-    this.settingsContentPanel = null;
-    this.settingsNavigationRoot = null;
-    this.settingsContentParent = null;
-    this.settingsNativeTabState = null;
-    this.settingsActiveThemeClass = '';
-    this.settingsInactiveThemeClass = '';
-    this.boundSettingsTablistClick = null;
-    this.settingsTabActive = preserveActive ? wasActive : false;
-    if (!preserveActive) this.isOpen = false;
-  }
-
-  createSettingsTab(tablist, modelsTab) {
-    const nativeTabs = this.getNativeSectionTabs(tablist);
-    const selectedTab = nativeTabs.find(tab => /^selected tab /i.test(tab.getAttribute('aria-label') || ''));
-    const inactiveTab = nativeTabs.find(tab => tab !== selectedTab) || modelsTab;
-    const activeWrapper = selectedTab?.parentElement || modelsTab.parentElement;
-    const inactiveWrapper = inactiveTab?.parentElement || modelsTab.parentElement;
-    this.settingsActiveThemeClass = activeWrapper?.className || '';
-    this.settingsInactiveThemeClass = inactiveWrapper?.className || this.settingsActiveThemeClass;
-
-    const wrapper = inactiveWrapper.cloneNode(true);
-    wrapper.removeAttribute('id');
-    wrapper.classList.add('bd-navigator-settings-tab-theme');
-    const tab = wrapper.querySelector('[role="tab"]');
-    if (!tab) return null;
-
-    tab.removeAttribute('id');
-    tab.classList.add('bd-navigator-settings-tab');
-    tab.setAttribute('aria-label', 'Tab navigator');
-    tab.setAttribute('aria-selected', 'false');
-    tab.setAttribute('tabindex', '0');
-    tab.setAttribute('aria-controls', 'bd-navigator-settings-content');
-
-    const icon = tab.querySelector('[aria-hidden="true"]');
-    if (icon) {
-      icon.textContent = '';
-      icon.className = 'bd-navigator-settings-tab-icon icon-telescope';
-    }
-    const label = [...tab.querySelectorAll('span')].reverse().find(node => node.textContent?.trim());
-    if (label) {
-      label.textContent = 'navigator';
-      label.classList.add('bd-navigator-settings-tab-label');
-    }
-
-    tab.addEventListener('click', event => {
-      event.preventDefault();
-      event.stopPropagation();
-      this.activateSettingsNavigator({ focus: !window.BetterDungeonPlatform?.has('touchControls') });
-    });
-    tab.addEventListener('keydown', event => {
-      if (event.key !== 'Enter' && event.key !== ' ') return;
-      event.preventDefault();
-      event.stopPropagation();
-      this.activateSettingsNavigator({ focus: !window.BetterDungeonPlatform?.has('touchControls') });
-    });
-
-    modelsTab.parentElement.parentElement.insertBefore(wrapper, modelsTab.parentElement);
-    this.settingsTabWrapper = wrapper;
-    this.settingsTab = tab;
-    return tab;
-  }
-
-  createSettingsContentPanel(contentParent, navigationRoot) {
-    const panel = document.createElement('section');
-    panel.className = 'bd-navigator-settings-content';
-    panel.id = 'bd-navigator-settings-content';
-    panel.setAttribute('role', 'tabpanel');
-    panel.setAttribute('aria-label', 'Navigator');
-    panel.hidden = true;
-    contentParent.insertBefore(panel, navigationRoot.nextElementSibling);
-    this.settingsContentPanel = panel;
-    return panel;
-  }
-
-  injectSettingsIntegration(surface, tablist) {
-    const modelsTab = this.findModelsTab(tablist);
-    const navigationRoot = this.findSettingsNavigationRoot(tablist, surface);
-    const contentParent = navigationRoot?.parentElement;
-    if (!modelsTab?.parentElement?.parentElement || !navigationRoot || !contentParent) return false;
-
-    document.querySelectorAll('.bd-navigator-settings-tab-theme, .bd-navigator-settings-content').forEach(node => {
-      if (node !== this.settingsTabWrapper && node !== this.settingsContentPanel) node.remove();
-    });
-
-    this.settingsTablist = tablist;
-    this.settingsSurface = surface;
-    surface.classList.add('bd-navigator-settings-surface');
-    this.settingsNavigationRoot = navigationRoot;
-    this.settingsContentParent = contentParent;
-    if (!this.createSettingsTab(tablist, modelsTab)) return false;
-    this.createSettingsContentPanel(contentParent, navigationRoot);
-    if (!window.BetterDungeonPlatform?.has('touchControls')) {
-      this.createSettingsTabOverflowControls(tablist);
-    }
-
-    this.boundSettingsTablistClick = event => {
-      const clickedTab = event.target?.closest?.('[role="tab"]');
-      if (!clickedTab || clickedTab === this.settingsTab) return;
-      this.deactivateSettingsNavigator({ preservePreference: false });
-    };
-    tablist.addEventListener('click', this.boundSettingsTablistClick, true);
-    return true;
-  }
-
-  syncSettingsIntegration() {
-    if (!this.drawer) return false;
-    const surface = this.getGameplaySettingsSurface();
-    const tablist = this.getSectionTablist(surface);
-
-    if (!surface || !tablist) {
-      this.resetSettingsIntegration({ preserveActive: false });
-      return false;
-    }
-
-    const needsOverflowControls = !window.BetterDungeonPlatform?.has('touchControls');
-    const integrationMissing = (
-      this.settingsTablist !== tablist ||
-      !this.settingsTabWrapper?.isConnected ||
-      !this.settingsContentPanel?.isConnected ||
-      (needsOverflowControls && !this.settingsTabsLeftButton?.isConnected) ||
-      (needsOverflowControls && !this.settingsTabsRightButton?.isConnected)
-    );
-    if (integrationMissing) {
-      const preserveActive = this.settingsTabActive;
-      this.resetSettingsIntegration({ preserveActive });
-      if (!this.injectSettingsIntegration(surface, tablist)) return false;
-    }
-
-    if (this.settingsTabPreferred && !this.settingsTabActive) {
-      this.settingsTabActive = true;
-      this.isOpen = true;
-    }
-
-    if (this.settingsTabActive) this.applyActiveSettingsView({ focus: false });
-    else {
-      this.updateSettingsTabAppearance(false);
-      this.setNativeSettingsContentHidden(false);
-      this.settingsContentPanel.hidden = true;
-      this.drawer.hidden = true;
-    }
-    this.updateSettingsTabOverflow();
-    return true;
-  }
-
-  applyActiveSettingsView({ focus = false } = {}) {
-    if (!this.settingsContentPanel || !this.drawer) return;
-    this.suppressNativeSelectedTab();
-    this.updateSettingsTabAppearance(true);
-    this.setNativeSettingsContentHidden(true);
-    this.settingsContentPanel.hidden = false;
-    if (this.settingsSurface) {
-      this.settingsSurface.classList.add('bd-navigator-settings-active');
-      this.settingsSurface.scrollTop = 0;
-    }
-    if (this.drawer.parentElement !== this.settingsContentPanel) {
-      this.settingsContentPanel.appendChild(this.drawer);
-    }
-    this.drawer.classList.add('bd-navigator-embedded');
-    this.drawer.hidden = false;
-    this.applyLayout();
-    this.scrollToBottom(true);
-    if (focus) setTimeout(() => this.inputEl?.focus(), 0);
-  }
-
-  updateEmbeddedHeight() {
-    if (!this.settingsSurface || !this.settingsContentPanel || !this.drawer) return;
-    if (!this.drawer.classList.contains('bd-navigator-embedded')) return;
-    const surfaceRect = this.settingsSurface.getBoundingClientRect();
-    const panelRect = this.settingsContentPanel.getBoundingClientRect();
-    const availableHeight = Math.floor(surfaceRect.bottom - panelRect.top);
-    const height = Math.max(320, availableHeight);
-    this.settingsContentPanel.style.height = `${height}px`;
-    this.drawer.style.height = `${height}px`;
-  }
-
-  activateSettingsNavigator({ focus = false } = {}) {
-    if (!this.syncSettingsIntegration()) return false;
-    this.settingsTabActive = true;
-    this.settingsTabPreferred = true;
-    this.isOpen = true;
-    this.applyActiveSettingsView({ focus });
-    return true;
-  }
-
-  deactivateSettingsNavigator({ preservePreference = false } = {}) {
-    this.inputEl?.blur();
-    this.inputComposing = false;
-    if (!preservePreference) this.settingsTabPreferred = false;
-    this.settingsTabActive = false;
-    this.isOpen = false;
-    this.restoreNativeSelectedTab();
-    this.updateSettingsTabAppearance(false);
-    this.setNativeSettingsContentHidden(false);
-    this.settingsSurface?.classList.remove('bd-navigator-settings-active');
-    if (this.settingsContentPanel) this.settingsContentPanel.hidden = true;
-    if (this.drawer) this.drawer.hidden = true;
-  }
-
   createDrawer() {
     const drawer = document.createElement('aside');
     drawer.className = 'bd-navigator-drawer';
+    drawer.id = 'bd-navigator-drawer';
     drawer.setAttribute('role', 'complementary');
-    drawer.setAttribute('aria-label', 'Navigator');
+    drawer.setAttribute('aria-labelledby', 'bd-navigator-title');
     drawer.hidden = true;
 
     const header = document.createElement('header');
     header.className = 'bd-navigator-header';
     header.innerHTML = `
-      <nav class="bd-routine-nav bd-navigator-primary-nav" aria-label="Navigator views"></nav>
-      <div class="bd-navigator-header-actions">
-        <button type="button" class="bd-navigator-icon-btn bd-navigator-inspection" aria-label="Open Inspector" title="Open Inspector" aria-controls="bd-navigator-inspection-panel" aria-expanded="false">
-          <span class="icon-file-braces" aria-hidden="true"></span>
-        </button>
-        <button type="button" class="bd-navigator-icon-btn bd-navigator-settings" aria-label="Navigator settings" title="Navigator settings" aria-controls="bd-navigator-settings-panel" aria-expanded="false">
-          <span class="icon-sliders-horizontal" aria-hidden="true"></span>
-        </button>
-        <button type="button" class="bd-navigator-icon-btn bd-navigator-clear" aria-label="Clear conversation" title="Clear conversation">
-          <span class="icon-eraser" aria-hidden="true"></span>
-        </button>
+      <div class="bd-navigator-heading">
+        <div class="bd-navigator-brand">
+          <span class="bd-navigator-brand-icon icon-telescope" aria-hidden="true"></span>
+          <h2 id="bd-navigator-title">Navigator</h2>
+        </div>
+        <div class="bd-navigator-header-actions">
+          <button type="button" class="bd-navigator-icon-btn bd-navigator-inspection" aria-label="Open Inspector" title="Open Inspector" aria-controls="bd-navigator-inspection-panel" aria-expanded="false">
+            <span class="icon-file-braces" aria-hidden="true"></span>
+          </button>
+          <button type="button" class="bd-navigator-icon-btn bd-navigator-settings" aria-label="Navigator settings" title="Navigator settings" aria-controls="bd-navigator-settings-panel" aria-expanded="false">
+            <span class="icon-sliders-horizontal" aria-hidden="true"></span>
+          </button>
+          <button type="button" class="bd-navigator-icon-btn bd-navigator-clear" aria-label="Clear conversation" title="Clear conversation">
+            <span class="icon-eraser" aria-hidden="true"></span>
+          </button>
+          <button type="button" class="bd-navigator-icon-btn bd-navigator-close" aria-label="Close Navigator" title="Close Navigator">
+            <span class="icon-x" aria-hidden="true"></span>
+          </button>
+        </div>
       </div>
+      <nav class="bd-routine-nav bd-navigator-primary-nav" aria-label="Navigator views"></nav>
     `;
     const settings = document.createElement('section');
     settings.className = 'bd-navigator-settings-panel';
@@ -959,12 +518,12 @@ class NavigatorFeature {
     empty.className = 'bd-navigator-empty';
     empty.innerHTML = `
       <span class="bd-navigator-empty-icon icon-telescope" aria-hidden="true"></span>
-      <p class="bd-navigator-empty-text"><strong>I'm Navigator.</strong> I'm an AI agent designed to help you improve and modify your adventures. Let's get started.</p>
-      <div class="bd-navigator-quick-actions" aria-label="Suggested prompts">
+      <p class="bd-navigator-welcome"><strong>I'm Navigator.</strong> I'm an AI agent designed to help you improve and modify your adventures. Let's get started.</p>
+      <div class="bd-navigator-quick-actions" role="group" aria-label="Suggested prompts">
         <button type="button" data-prompt="Review my Plot Components and suggest the most important improvements.">Review my plot</button>
         <button type="button" data-prompt="Review my AI Instructions and propose a clearer, more effective version.">Improve AI Instructions</button>
         <button type="button" data-prompt="Check my Story Cards for gaps, contradictions, or weak entries.">Check Story Cards</button>
-        <button type="button" data-prompt="Use the recent story and adventure context to suggest what should happen next.">Brainstorm what happens next</button>
+        <button type="button" data-prompt="Use the recent story and adventure context to suggest what should happen next.">Brainstorm next steps</button>
       </div>
     `;
     transcript.appendChild(empty);
@@ -979,7 +538,7 @@ class NavigatorFeature {
         <button type="button" class="bd-navigator-stop" aria-label="Stop generating" title="Stop generating" hidden>
           <span class="icon-square" aria-hidden="true"></span>
         </button>
-        <button type="button" class="bd-navigator-send" aria-label="Send message">
+        <button type="button" class="bd-navigator-send" aria-label="Send message" title="Send message" disabled>
           <span class="icon-send" aria-hidden="true"></span>
         </button>
       </div>
@@ -1000,7 +559,30 @@ class NavigatorFeature {
     `;
 
     drawer.append(header, settings, inspection, transcript, composer, confirmation);
-    document.body.appendChild(drawer);
+    const launcher = document.createElement('button');
+    launcher.type = 'button';
+    launcher.className = 'bd-navigator-launcher';
+    launcher.classList.toggle('bd-navigator-launcher-compact', window.BetterDungeonPlatform?.formFactor === 'mobile');
+    launcher.innerHTML = `
+      <span class="bd-navigator-launcher-icon icon-telescope" aria-hidden="true"></span>
+      <span class="bd-navigator-launcher-label">Navigator</span>
+      <span class="bd-navigator-launcher-badge" aria-hidden="true" hidden></span>
+    `;
+    const launcherStatus = document.createElement('span');
+    launcherStatus.id = 'bd-navigator-launcher-status';
+    launcherStatus.className = 'bd-navigator-sr-only';
+    launcherStatus.setAttribute('role', 'status');
+    launcher.setAttribute('aria-describedby', launcherStatus.id);
+    launcher.setAttribute('aria-label', 'Navigator');
+    launcher.setAttribute('aria-controls', drawer.id);
+    launcher.setAttribute('aria-expanded', 'false');
+    header.querySelector('.bd-navigator-close').addEventListener('click', () => this.closeDrawer({ restoreFocus: true }));
+    document.body.append(launcher, launcherStatus, drawer);
+    this.launcher = launcher;
+    this.launcherBadge = launcher.querySelector('.bd-navigator-launcher-badge');
+    this.launcherStatus = launcherStatus;
+    this.launcherDrag = DOMUtils.makeDraggableButton(launcher, NavigatorFeature.launcherPositionKey);
+    launcher.addEventListener('click', () => this.openDrawer());
 
     this.drawer = drawer;
     this.transcriptEl = transcript;
@@ -1054,7 +636,10 @@ class NavigatorFeature {
       button.addEventListener('click', () => this.handleQuickAction(button.dataset.prompt));
     });
 
-    this.inputEl.addEventListener('input', () => this.autosizeInput());
+    this.inputEl.addEventListener('input', () => {
+      this.autosizeInput();
+      this.updateComposerState();
+    });
     this.inputEl.addEventListener('compositionstart', () => {
       this.inputComposing = true;
     });
@@ -1074,7 +659,7 @@ class NavigatorFeature {
       this.autoScroll = distanceFromBottom < 48;
     });
 
-    this.applyLayout();
+    this.syncVisualViewport();
     this.updateComposerState();
     this.renderTranscript();
   }
@@ -1438,19 +1023,37 @@ class NavigatorFeature {
 
   // ==================== OPEN / CLOSE ====================
 
-  closeDrawer() {
+  openDrawer() {
+    if (!this.drawer || !this.launcher) return;
+    this.isOpen = true;
+    this.drawer.hidden = false;
+    this.launcher.setAttribute('aria-expanded', 'true');
+    this.launcher.hidden = true;
+    this.syncVisualViewport();
+    this.scrollToBottom(true);
+    if (!this.focusComposer(true)) this.drawer.querySelector('.bd-navigator-close')?.focus();
+  }
+
+  closeDrawer({ restoreFocus = false } = {}) {
     if (!this.drawer) return;
     this.setInspectorOpen(false, { focus: false });
     this.inputEl?.blur();
     this.inputComposing = false;
-    this.deactivateSettingsNavigator({ preservePreference: true });
-    document.querySelector('[aria-label="Close settings"]')?.click();
+    this.isOpen = false;
+    this.drawer.hidden = true;
+    if (this.launcher) {
+      this.launcher.hidden = false;
+      this.launcherDrag?.update();
+      this.launcher.setAttribute('aria-expanded', 'false');
+      if (restoreFocus) this.launcher.focus();
+    }
   }
 
   handleGlobalKeydown(event) {
     if (this.confirmationPanel && !this.confirmationPanel.hidden) {
       if (event.key === 'Escape') {
         event.preventDefault();
+        event.stopPropagation();
         this.resolveConfirmation(false);
         return;
       }
@@ -1469,15 +1072,21 @@ class NavigatorFeature {
       }
       return;
     }
-    if (event.key === 'Escape' && this.inspectionPanel && !this.inspectionPanel.hidden) {
-      event.preventDefault();
+    if (event.key !== 'Escape' || !this.isOpen || !this.drawer?.contains(event.target)) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    if (!this.inspectionPanel.hidden) {
       this.setInspectorOpen(false);
       return;
     }
-    if (event.key === 'Escape' && this.isOpen && this.drawer?.contains(document.activeElement)) {
-      event.preventDefault();
-      this.closeDrawer();
+    if (!this.settingsPanel.hidden) {
+      const toggle = this.drawer.querySelector('.bd-navigator-settings');
+      toggle.click();
+      toggle.focus();
+      return;
     }
+    this.closeDrawer({ restoreFocus: true });
   }
 
   // ==================== COMPOSER ====================
@@ -1489,8 +1098,9 @@ class NavigatorFeature {
   }
 
   focusComposer(force = false) {
-    if (!this.inputEl || !this.settingsTabActive || this.drawer?.hidden) return;
-    if (!this.settingsPanel?.hidden || !this.inspectionPanel?.hidden || !this.confirmationPanel?.hidden) return;
+    const input = this.inputEl;
+    if (!input || input.disabled || !this.isOpen || this.composerEl?.hidden) return false;
+    if (!this.settingsPanel?.hidden || !this.inspectionPanel?.hidden || !this.confirmationPanel?.hidden) return false;
     const active = document.activeElement;
     const mayRestore = force
       || !active
@@ -1498,7 +1108,10 @@ class NavigatorFeature {
       || active === this.inputEl
       || active === this.sendBtn
       || active === this.stopBtn;
-    if (mayRestore) setTimeout(() => this.inputEl?.focus(), 0);
+    if (mayRestore) setTimeout(() => {
+      if (this.isOpen && this.inputEl === input && !this.composerEl?.hidden) input.focus();
+    }, 0);
+    return mayRestore;
   }
 
   showConfirmation({ title, message, confirmLabel = 'Confirm', danger = false }) {
@@ -1567,11 +1180,29 @@ class NavigatorFeature {
     this.focusComposer(true);
   }
 
+  updateLauncherActivity() {
+    if (!this.launcher || !this.launcherBadge || !this.launcherStatus) return;
+
+    const working = this.routines?.active || this.chatSession?.isBusy || this.session?.isBusy;
+    const queued = this.routines?.manual.length > 0;
+    const state = working ? 'working' : queued ? 'queued' : 'idle';
+    if (this.launcher.dataset.activity === state) return;
+
+    this.launcher.dataset.activity = state;
+    this.launcherBadge.hidden = state === 'idle';
+    this.launcherBadge.textContent = working ? 'Working' : queued ? 'Queued' : '';
+    this.launcherDrag?.update();
+    this.launcherStatus.textContent = working ? 'Navigator is working.'
+      : queued ? 'Navigator has work queued.' : '';
+  }
+
   updateComposerState() {
+    this.updateLauncherActivity();
     const busy = !!this.session?.isBusy;
     const chatBusy = !!this.session?.isChatBusy;
     if (this.sendBtn) {
-      this.sendBtn.disabled = busy || !!this.routines?.manual.some(task => task.kind === 'manual');
+      this.sendBtn.disabled = !this.session || !this.inputEl?.value.trim()
+        || busy || !!this.routines?.manual.some(task => task.kind === 'manual');
       this.sendBtn.hidden = chatBusy;
     }
     if (this.stopBtn) this.stopBtn.hidden = !chatBusy;
@@ -1660,17 +1291,19 @@ class NavigatorFeature {
 
     const hasRunningTool = Array.isArray(message.toolActivityTrail)
       && message.toolActivityTrail.some(activity => activity.status === 'running');
-    if (message.status === 'error') {
-      status.replaceChildren(this.createErrorNode(message.error));
-    } else if (message.status === 'aborted') {
+    const stopped = message.status === 'aborted'
+      || (message.status === 'error' && message.error?.code === 'aborted');
+    status.classList.toggle('bd-navigator-status-muted', stopped);
+    if (stopped) {
       status.textContent = 'Stopped.';
-      status.className = 'bd-navigator-message-status bd-navigator-status-muted';
+    } else if (message.status === 'error') {
+      status.replaceChildren(this.createErrorNode(message.error));
     } else if (message.status === 'pending' && !hasRunningTool) {
-      status.replaceChildren(this.createThinkingIndicator());
-      status.className = 'bd-navigator-message-status';
+      if (!status.firstElementChild?.classList.contains('bd-navigator-thinking')) {
+        status.replaceChildren(this.createThinkingIndicator());
+      }
     } else {
       status.replaceChildren();
-      status.className = 'bd-navigator-message-status';
     }
   }
 

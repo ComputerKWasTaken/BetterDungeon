@@ -266,7 +266,7 @@ class AIDungeonService {
     if (this.getSeeActionMenu()) return true;
     const trigger = this.getSeeMenuTrigger();
     if (!trigger) return false;
-    trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+    trigger.dispatchEvent(AIDungeonService.syntheticKeydown('ArrowDown'));
     const deadline = Date.now() + maxWaitMs;
     while (Date.now() < deadline) {
       await this.wait(50);
@@ -348,6 +348,20 @@ class AIDungeonService {
     return raw;
   }
 
+  // Builds a keydown event that BD itself dispatches (to open or dismiss
+  // AI Dungeon's menus). The event is tagged `bdSynthetic` so BD's own
+  // capture-phase key handlers can tell it apart from a real user key
+  // press. This matters most for closeModeMenu(): its synthetic Escape
+  // bubbles back through the hotkey feature's document-level handler
+  // while the menu still reads as open, and an untagged event makes that
+  // handler call closeModeMenu() again — the two recursed until the
+  // call stack overflowed and the menu never closed (live Chrome, PR #73).
+  static syntheticKeydown(key, init = {}) {
+    const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
+    event.bdSynthetic = true;
+    return event;
+  }
+
   // Whether the expanded input mode menu is currently visible
   isModeMenuOpen() {
     return !!this.getInputModeMenu();
@@ -360,7 +374,7 @@ class AIDungeonService {
     if (!btn) return false;
     if (btn.getAttribute('aria-haspopup') === 'menu') {
       // Radix opens on pointerdown/keyboard, not on a synthetic click alone.
-      btn.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+      btn.dispatchEvent(AIDungeonService.syntheticKeydown('ArrowDown'));
     } else {
       btn.click();
     }
@@ -376,12 +390,12 @@ class AIDungeonService {
   closeModeMenu() {
     const seeMenu = this.getSeeActionMenu();
     if (seeMenu) {
-      seeMenu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      seeMenu.dispatchEvent(AIDungeonService.syntheticKeydown('Escape'));
       return;
     }
     const menu = this.getInputModeMenu();
     if (this.isMobileModeMenu(menu)) {
-      menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      menu.dispatchEvent(AIDungeonService.syntheticKeydown('Escape'));
       return;
     }
     const closeBtn = this.getCloseModeMenuButton();
@@ -764,21 +778,53 @@ class AIDungeonService {
   // Fallback textarea finder: locates a textarea by its plot component heading text.
   // This handles cases where placeholder-based CSS selectors fail due to
   // unicode apostrophe mismatches (e.g. U+2019 vs U+0027) or placeholder text changes.
+  //
+  // The current AI Dungeon UI renders each plot component inside a
+  // [data-slot="platform-column"] container with its title as a heading or
+  // platform-text element; the legacy Tamagui UI used .is_Column containers
+  // and [role="heading"] titles. Both shapes are supported.
+  //
+  // Safety rule: a container/ancestor is only trusted when it holds exactly
+  // one textarea. A shared ancestor holding several components' textareas is
+  // ambiguous — returning the first one would let callers (e.g. Plot Presets)
+  // write into the wrong field, so detection fails instead of guessing.
   _findTextareaByComponentHeading(headingText) {
     const normalize = (s) => s.replace(/[\u2018\u2019\u2032\u02BC]/g, "'");
     const target = normalize(headingText).toLowerCase();
+    const headingSelector = '[role="heading"], h1, h2, h3, h4, h5, h6, [data-slot="platform-text"]';
+    const onlyTextarea = (root) => {
+      if (!root) return null;
+      const areas = root.querySelectorAll('textarea');
+      return areas.length === 1 ? areas[0] : null;
+    };
 
-    for (const heading of document.querySelectorAll('[role="heading"]')) {
+    for (const heading of document.querySelectorAll(headingSelector)) {
       const text = normalize(heading.textContent?.trim() || '').toLowerCase();
-      if (text === target) {
-        // Plot component DOM structure:
-        //   container (.is_Column) > header row (.is_Row) > heading
-        //   container (.is_Column) > content area (.is_Column) > textarea
-        const container = heading.closest('.is_Column') || heading.parentElement?.parentElement;
-        if (container) {
-          const textarea = container.querySelector('textarea');
-          if (textarea) return textarea;
-        }
+      if (text !== target) continue;
+
+      // Same-named labels exist outside the Plot tab (e.g. the Gameplay
+      // memory settings list "Plot Essentials"); a plot component title is
+      // never inside a tab or button, so skip those.
+      if (heading.closest('[role="tab"], [role="tablist"], button')) continue;
+
+      // 1. Per-component container: current platform structure, then legacy.
+      const container = heading.closest('[data-slot="platform-column"], .is_Column');
+      const fromContainer = onlyTextarea(container);
+      if (fromContainer) return fromContainer;
+
+      // 2. Legacy layout: heading's grandparent wrapped the whole component.
+      const fromGrandparent = onlyTextarea(heading.parentElement?.parentElement);
+      if (fromGrandparent) return fromGrandparent;
+
+      // 3. Bounded ascent: first ancestor holding exactly one textarea.
+      //    Stop (fail) at the first ancestor holding several — anything
+      //    higher is even less specific.
+      let ancestor = heading.parentElement;
+      for (let depth = 0; ancestor && depth < 6; depth++) {
+        const areas = ancestor.querySelectorAll('textarea');
+        if (areas.length === 1) return areas[0];
+        if (areas.length > 1) break;
+        ancestor = ancestor.parentElement;
       }
     }
     return null;
@@ -788,6 +834,9 @@ class AIDungeonService {
   findAIInstructionsTextarea() {
     const byPlaceholder = document.querySelector(AIDungeonService.SEL.AI_INSTRUCTIONS);
     if (byPlaceholder) return byPlaceholder;
+    // Current editor fields may carry their title as an aria-label instead
+    const byAria = document.querySelector('textarea[aria-label="AI Instructions"]');
+    if (byAria) return byAria;
     // Fallback: locate by component heading (handles unicode apostrophe mismatches)
     return this._findTextareaByComponentHeading('AI Instructions');
   }
@@ -796,6 +845,8 @@ class AIDungeonService {
   findAuthorsNoteTextarea() {
     const byPlaceholder = document.querySelector(AIDungeonService.SEL.AUTHORS_NOTE);
     if (byPlaceholder) return byPlaceholder;
+    const byAria = document.querySelector('textarea[aria-label="Author\'s Note"], textarea[aria-label="Author\u2019s Note"]');
+    if (byAria) return byAria;
     // Fallback: locate by component heading (handles unicode apostrophe mismatches)
     return this._findTextareaByComponentHeading("Author's Note");
   }
@@ -804,6 +855,8 @@ class AIDungeonService {
   findPlotEssentialsTextarea() {
     const byPlaceholder = document.querySelector(AIDungeonService.SEL.PLOT_ESSENTIALS);
     if (byPlaceholder) return byPlaceholder;
+    const byAria = document.querySelector('textarea[aria-label="Plot Essentials"]');
+    if (byAria) return byAria;
     return this._findTextareaByComponentHeading('Plot Essentials');
   }
 
@@ -898,7 +951,7 @@ class AIDungeonService {
     }
 
     // Close any open dropdown if option wasn't found
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    document.dispatchEvent(AIDungeonService.syntheticKeydown('Escape'));
     await this.wait(100);
 
     return { success: false, error: `${componentName} option not found in menu` };

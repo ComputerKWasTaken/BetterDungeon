@@ -19,7 +19,7 @@
     embeddedLoginRestricted: false,
     nativeAssetDataUri: false,
     longWebViewTransitions: false,
-    draggableWidgetControl: false
+    draggableWidgetControl: true
   };
 
   const browserFeatures = [
@@ -31,10 +31,8 @@
     'favoriteInstructions',
     'inputModeColor',
     'characterPreset',
-    'autoSee',
     'storyCardAnalytics',
     'notes',
-    'storyCardModalDock',
     'inputHistory',
     'customDynamic',
     'navigator'
@@ -52,12 +50,11 @@
     storageAreasAliased: true,
     embeddedLoginRestricted: true,
     nativeAssetDataUri: true,
-    longWebViewTransitions: true,
-    draggableWidgetControl: true
+    longWebViewTransitions: true
   };
 
   const safeAndroidFeatures = browserFeatures.filter(
-    feature => feature !== 'hotkey' && feature !== 'storyCardModalDock'
+    feature => feature !== 'hotkey'
   );
 
   function parseNativeConfig() {

@@ -57,16 +57,8 @@ class FeatureManager {
       this.featureClasses.set('characterPreset', CharacterPresetFeature);
     }
 
-    if (typeof AutoSeeFeature !== 'undefined') {
-      this.featureClasses.set('autoSee', AutoSeeFeature);
-    }
-
     if (typeof StoryCardAnalyticsFeature !== 'undefined') {
       this.featureClasses.set('storyCardAnalytics', StoryCardAnalyticsFeature);
-    }
-
-    if (typeof StoryCardModalDockFeature !== 'undefined') {
-      this.featureClasses.set('storyCardModalDock', StoryCardModalDockFeature);
     }
 
     if (typeof InputHistoryFeature !== 'undefined') {
@@ -96,7 +88,7 @@ class FeatureManager {
       // Always-on QOL features that don't need user toggling
       const alwaysEnabled = ['storyCardAnalytics'];
       // Features that are disabled by default
-      const defaultOff = ['autoSee', 'customDynamic'];
+      const defaultOff = ['customDynamic'];
       
       const enabled = alwaysEnabled.includes(id) || 
                       savedStates[id] === true || 

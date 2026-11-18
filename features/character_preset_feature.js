@@ -25,9 +25,11 @@ class CharacterPresetFeature {
     this.currentFieldLabel = null;
     this.currentFieldKey = null;
     this.panelElement = null;
+    this.mobileStep = null;
     this.lastPanelRenderKey = null;
     this.manualDismissedQuestions = new Set();
     this.sessionDismissed = false;
+    this.dismissedRouteShortId = null;
     this.observer = null;
     this.checkInterval = null;
     this._checkDebounceTimer = null;
@@ -199,6 +201,7 @@ class CharacterPresetFeature {
 
   cleanupSession() {
     this.sessionDismissed = true;
+    this.dismissedRouteShortId = this.parseScenarioShortIdFromUrl();
     this.clearSession();
     this.manualDismissedQuestions.clear();
     this.status = 'idle';
@@ -325,18 +328,9 @@ class CharacterPresetFeature {
   }
 
   isOwnPanelMutation(mutation) {
-    if (mutation.target?.closest?.('.bd-character-ai-panel')) return true;
-    for (const node of mutation.addedNodes || []) {
-      if (node.nodeType === Node.ELEMENT_NODE && (node.matches?.('.bd-character-ai-panel') || node.closest?.('.bd-character-ai-panel'))) {
-        return true;
-      }
-    }
-    for (const node of mutation.removedNodes || []) {
-      if (node.nodeType === Node.ELEMENT_NODE && (node.matches?.('.bd-character-ai-panel') || node.closest?.('.bd-character-ai-panel'))) {
-        return true;
-      }
-    }
-    return false;
+    const selector = '.bd-character-ai-panel, .bd-character-ai-disclosure';
+    return !!mutation.target?.closest?.(selector) ||
+      (mutation.addedNodes?.length > 0 && Array.from(mutation.addedNodes).every(node => node.matches?.(selector)));
   }
 
   startPolling() {
@@ -351,29 +345,111 @@ class CharacterPresetFeature {
     }, 250);
   }
 
-  findScenarioEntryField() {
-    const input = document.getElementById('full-screen-text-input');
-    if (!input) return null;
+  // Only free-text fields can receive a prefill answer. The fallback
+  // lookups below must never bind to a radio/checkbox/hidden input that a
+  // multiple-choice scenario-start step (or a future layout) renders inside
+  // the scenario-start container: detection would otherwise mount the panel
+  // on a step with no text entry, and the typewriter fill would silently
+  // write nowhere.
+  isTextEntryElement(el) {
+    if (!el || el.closest?.('.bd-character-ai-panel')) return false;
+    if (el.tagName === 'TEXTAREA') return true;
+    if (el.tagName !== 'INPUT') return false;
+    const type = String(el.getAttribute?.('type') || el.type || '').toLowerCase();
+    return type === '' || type === 'text' || type === 'search';
+  }
 
-    const ariaLabel = input.getAttribute('aria-label');
-    if (!ariaLabel) return null;
+  findScenarioEntryInput() {
+    const byId = document.getElementById('full-screen-text-input');
+    if (this.isTextEntryElement(byId)) return byId;
 
-    let questionText = ariaLabel;
-    const searchRoot = input.closest('[style*="max-width"]') || input.parentElement?.parentElement?.parentElement;
-    if (searchRoot) {
-      const headings = searchRoot.querySelectorAll('h1, h2, [role="heading"]');
+    // Fallbacks if the stable id is ever renamed: the scenario-start prompt
+    // heading and its scroll container keep their own stable ids.
+    const labelled = document.querySelector('[aria-labelledby="scenario-start-prompt"]');
+    if (this.isTextEntryElement(labelled)) {
+      return labelled;
+    }
+
+    const container = this.getScenarioStartContainer();
+    const candidates = container?.querySelectorAll?.('input, textarea') || [];
+    for (const candidate of candidates) {
+      if (this.isTextEntryElement(candidate)) return candidate;
+    }
+    return null;
+  }
+
+  getScenarioStartContainer(fromElement = null) {
+    const fromInput = fromElement?.closest?.('[id$="scenario-start"]');
+    if (fromInput) return fromInput;
+    const prompt = document.getElementById('scenario-start-prompt');
+    const fromPrompt = prompt?.closest?.('[id$="scenario-start"]');
+    if (fromPrompt) return fromPrompt;
+    return document.querySelector('[id$="scenario-start"]');
+  }
+
+  // AI Dungeon's scenario-start input no longer carries the question in an
+  // `aria-label` attribute (verified against the live play bundle on
+  // 2026-11-17: the input now uses `aria-labelledby="scenario-start-prompt"`
+  // pointing at an <h1 id="scenario-start-prompt">, with no aria-label at
+  // all). The previous implementation returned null whenever aria-label was
+  // missing, so the panel never appeared. Resolve the question from every
+  // surface the platform has used, in visible-first order.
+  resolveScenarioQuestionText(input) {
+    const labelledBy = input?.getAttribute?.('aria-labelledby');
+    if (labelledBy) {
+      const text = labelledBy
+        .split(/\s+/)
+        .map(id => document.getElementById(id)?.textContent || '')
+        .join(' ')
+        .trim();
+      if (text) return text;
+    }
+
+    const prompt = document.getElementById('scenario-start-prompt');
+    const promptText = prompt?.textContent?.trim();
+    if (promptText) return promptText;
+
+    // Visible heading near the input: prefer the scenario-start container,
+    // then walk ancestors (the legacy inline max-width wrapper included).
+    const searchRoots = [];
+    const container = this.getScenarioStartContainer(input);
+    if (container) searchRoots.push(container);
+    let ancestor = input?.parentElement;
+    let depth = 0;
+    while (ancestor && ancestor !== document.body && depth < 8) {
+      searchRoots.push(ancestor);
+      ancestor = ancestor.parentElement;
+      depth++;
+    }
+    for (const root of searchRoots) {
+      const headings = root.querySelectorAll?.('h1, h2, [role="heading"]') || [];
       for (const heading of headings) {
         const text = heading.textContent?.trim();
-        if (text && text.length > 0 && text.length < 160) {
-          questionText = text;
-          break;
-        }
+        if (text && text.length > 0 && text.length < 160) return text;
       }
     }
 
-    const visibleQuestion = this.normalizeFieldText(questionText);
+    return '';
+  }
+
+  findScenarioEntryField() {
+    const input = this.findScenarioEntryInput();
+    if (!input) return null;
+
+    const ariaLabel = input.getAttribute('aria-label') || '';
+    const headingText = this.resolveScenarioQuestionText(input);
+
+    const visibleQuestion = this.normalizeFieldText(headingText);
     const inputQuestion = this.normalizeFieldText(ariaLabel);
     const question = visibleQuestion || inputQuestion;
+
+    if (!question && !this.parseScenarioShortIdFromUrl()) {
+      // The full-screen input with no resolvable question and no scenario
+      // route is not a scenario placeholder field we can prefill.
+      return null;
+    }
+
+    const questionText = headingText || ariaLabel || 'Scenario question';
     const fieldId = this.stableFieldId(question, inputQuestion);
 
     return {
@@ -402,6 +478,13 @@ class CharacterPresetFeature {
   getFieldContainer(field) {
     if (!field?.input) return null;
 
+    // The scenario-start scroll container holds the prompt, the input, and
+    // the Back/Next/Start controls together; prefer it so the advance
+    // button search below covers the current Tailwind-based layout (the
+    // legacy layout relied on an inline max-width wrapper that is gone).
+    const scenarioContainer = this.getScenarioStartContainer(field.input);
+    if (scenarioContainer) return scenarioContainer;
+
     let el = field.input.parentElement;
     let depth = 0;
     while (el && el !== document.body && depth < 10) {
@@ -416,8 +499,21 @@ class CharacterPresetFeature {
 
   async checkForEntryField() {
     if (this.isApplying) return;
-    if (this.sessionDismissed) return;
+    if (this.sessionDismissed) {
+      // Dismissal is per scenario visit. SPA navigation to a different
+      // scenario normally clears it via the scenario:start event, but if
+      // that event does not fire (or its shape changes), the dismissal must
+      // not silently disable the feature for the rest of the page session.
+      const routeShortId = this.parseScenarioShortIdFromUrl();
+      if (!routeShortId || routeShortId === this.dismissedRouteShortId) return;
+      this.sessionDismissed = false;
+      this.dismissedRouteShortId = null;
+    }
     const field = this.findScenarioEntryField();
+    if (this.usesMobileDisclosure()) {
+      await this.checkMobileStep(field);
+      return;
+    }
 
     if (field) {
       this.reconcileFieldWithScenario(field);
@@ -451,6 +547,82 @@ class CharacterPresetFeature {
     }
   }
 
+  usesMobileDisclosure() {
+    return window.BetterDungeonPlatform?.kind === 'android-webview';
+  }
+
+  mobileStepKey(field) {
+    return JSON.stringify([this.parseScenarioShortIdFromUrl(), this.resolveScenarioShortId(),
+      this.stableFieldId(field.label, field.ariaLabel)]);
+  }
+
+  currentMobileField(field) {
+    if (!field.mobileStep || this.mobileStep !== field.mobileStep) return null;
+    const current = this.findScenarioEntryField();
+    return current && this.mobileStepKey(current) === field.mobileStep.key ? current : null;
+  }
+
+  async checkMobileStep(field) {
+    if (!field) {
+      this.mobileStep?.disclosure?.remove();
+      if (this.mobileStep && !this._fieldGraceTimer) {
+        this._fieldGraceTimer = setTimeout(() => {
+          this._fieldGraceTimer = null;
+          if (!this.findScenarioEntryField()) this.removePanel();
+        }, 800);
+      }
+      return;
+    }
+    clearTimeout(this._fieldGraceTimer);
+    this._fieldGraceTimer = null;
+
+    const key = this.mobileStepKey(field);
+    if (this.mobileStep?.key !== key) {
+      this.removePanel();
+      this.mobileStep = { key, pending: false, disclosure: null, status: null };
+    }
+    const step = this.mobileStep;
+    field.mobileStep = step;
+    const anchor = this.findMobilePresetAnchor(field.input);
+    if (!anchor) {
+      step.disclosure?.remove();
+      return;
+    }
+    if (step.disclosure && step.disclosure.previousElementSibling !== anchor) {
+      anchor.after(step.disclosure);
+    }
+    if (step.pending || (step.disclosure && step.status === this.status)) return;
+    step.pending = true;
+    try {
+      await this.handleField(field);
+    } finally {
+      step.pending = false;
+    }
+  }
+
+  findMobilePresetAnchor(input) {
+    const container = this.getScenarioStartContainer(input);
+    const ids = (input.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean);
+    const prompt = document.getElementById('scenario-start-prompt');
+    const labels = ids.length ? ids.map(id => document.getElementById(id)) : [prompt];
+    if (!container?.contains(input) || labels.some(label => !label || !container.contains(label))) return null;
+
+    for (let anchor = input; anchor !== container; anchor = anchor.parentElement) {
+      const parent = anchor.parentElement;
+      if (!labels.every(label => parent.contains(label) && !anchor.contains(label) &&
+        (label.compareDocumentPosition(anchor) & Node.DOCUMENT_POSITION_FOLLOWING))) continue;
+      const layout = getComputedStyle(parent);
+      const position = getComputedStyle(anchor).position;
+      if (layout.display.includes('grid') || (layout.display.includes('flex') && layout.flexDirection !== 'column') ||
+        position === 'absolute' || position === 'fixed') return null;
+      const advance = this.findAdvanceButton({ input });
+      if (advance && (anchor.contains(advance) ||
+        !(anchor.compareDocumentPosition(advance) & Node.DOCUMENT_POSITION_FOLLOWING))) return null;
+      return anchor;
+    }
+    return null;
+  }
+
   // ============================================
   // SCENARIO + AI SESSION
   // ============================================
@@ -477,6 +649,7 @@ class CharacterPresetFeature {
       this.clearSession();
       this.manualDismissedQuestions.clear();
       this.sessionDismissed = false;
+      this.dismissedRouteShortId = null;
       this.currentFieldLabel = null;
       this.currentFieldKey = null;
     }
@@ -570,6 +743,7 @@ class CharacterPresetFeature {
         this.showCharacterPicker(field);
       }
     } catch (error) {
+      if (token !== this._handleToken) return;
       this.status = 'error';
       this.statusMessage = error?.message || 'Character Presets could not prepare this scenario.';
       this.showBlockedPanel(field, this.statusMessage);
@@ -789,6 +963,8 @@ class CharacterPresetFeature {
   }
 
   async generateSessionForCharacter(characterId, field) {
+    const routeShortId = this.parseScenarioShortIdFromUrl();
+    const scenarioShortId = this.scenarioShortId;
     const character = this.presets.find(p => p.id === characterId);
     if (!character) {
       this.showToast('Character not found', 'error');
@@ -796,6 +972,7 @@ class CharacterPresetFeature {
     }
 
     const aiReady = await this.ensureAIReady();
+    if (field.mobileStep && !this.currentMobileField(field)) return;
     if (!aiReady.ready) {
       this.status = 'blocked';
       this.statusMessage = aiReady.message;
@@ -805,7 +982,7 @@ class CharacterPresetFeature {
 
     this.lastAttemptedCharacterId = characterId;
     this.status = 'generating';
-    this.generationRouteShortId = this.parseScenarioShortIdFromUrl();
+    this.generationRouteShortId = routeShortId;
     this.showGeneratingPanel(field);
 
     try {
@@ -821,11 +998,7 @@ class CharacterPresetFeature {
         consumer: 'character-presets',
       });
 
-      if (this.generationRouteShortId && this.generationRouteShortId !== this.parseScenarioShortIdFromUrl()) {
-        this.status = 'idle';
-        this.statusMessage = '';
-        return;
-      }
+      if (this.parseScenarioShortIdFromUrl() !== routeShortId || this.scenarioShortId !== scenarioShortId) return;
 
       this.session = this.normalizeAISession(character, result?.json);
       this.manualDismissedQuestions.clear();
@@ -834,13 +1007,14 @@ class CharacterPresetFeature {
       this.showAnswerPanel(field);
       this.showToast(`Generated answers for ${character.name}`, 'success');
     } catch (error) {
+      if (this.parseScenarioShortIdFromUrl() !== routeShortId || this.scenarioShortId !== scenarioShortId) return;
       console.error('[CharacterPreset] AI generation failed:', error);
       const presentation = this.describeAIGenerationError(error);
       this.status = presentation.retryable ? 'error' : 'blocked';
       this.statusMessage = presentation.message;
       this.showBlockedPanel(field, presentation.message, presentation);
     } finally {
-      this.generationRouteShortId = null;
+      if (this.generationRouteShortId === routeShortId) this.generationRouteShortId = null;
     }
   }
 
@@ -971,8 +1145,27 @@ class CharacterPresetFeature {
   // ============================================
 
   renderPanel(field, html, renderKey = null) {
-    const container = document.body;
+    let container = document.body;
     if (!container) return null;
+    if (this.usesMobileDisclosure()) {
+      const step = field.mobileStep;
+      const current = this.currentMobileField(field);
+      if (!current) return null;
+      const anchor = this.findMobilePresetAnchor(current.input);
+      if (!anchor) return null;
+
+      if (!step.disclosure) {
+        const disclosure = document.createElement('details');
+        disclosure.className = 'bd-character-ai-disclosure';
+        const summary = document.createElement('summary');
+        summary.innerHTML = '<span>Character Presets</span><span class="icon-chevron-down" aria-hidden="true"></span>';
+        disclosure.appendChild(summary);
+        step.disclosure = disclosure;
+      }
+      container = step.disclosure;
+      if (container.previousElementSibling !== anchor) anchor.after(container);
+      step.status = this.status;
+    }
 
     const fieldId = field?.fieldId || field?.ariaLabel || field?.question || '';
     const htmlSignature = String(this.hashString(html));
@@ -1012,6 +1205,12 @@ class CharacterPresetFeature {
     const current = this.panelElement;
     this.panelElement = null;
     this.lastPanelRenderKey = null;
+    if (this.mobileStep) {
+      this.mobileStep.disclosure?.remove();
+      this.mobileStep = null;
+      this._handleToken++;
+      return;
+    }
     if (current) {
       current.classList.remove('bd-character-ai-panel-visible');
       setTimeout(() => current.remove(), 200);
@@ -1193,15 +1392,13 @@ class CharacterPresetFeature {
       panel?.querySelector('#bd-character-ai-manual')?.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
-        this.manualDismissedQuestions.add(field.question);
-        this.removePanel();
-        field.input.focus();
+        this.answerManually(field);
       });
       panel?.querySelectorAll('.bd-character-ai-idea').forEach((button) => {
         button.addEventListener('click', async (event) => {
           event.preventDefault();
           event.stopPropagation();
-          this.manualDismissedQuestions.add(field.question);
+          if (!field.mobileStep) this.manualDismissedQuestions.add(field.question);
           await this.fillWithoutContinue(field, button.textContent || '');
         });
       });
@@ -1253,9 +1450,7 @@ class CharacterPresetFeature {
     panel.querySelector('#bd-character-ai-manual')?.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
-      this.manualDismissedQuestions.add(field.question);
-      this.removePanel();
-      field.input.focus();
+      this.answerManually(field);
     });
 
     panel.querySelector('#bd-character-ai-edit')?.addEventListener('click', (event) => {
@@ -1328,7 +1523,8 @@ class CharacterPresetFeature {
   }
 
   async rerollAnswer(field, question, previousAnswer, modificationRequest, panel) {
-    const character = this.presets.find(p => p.id === this.session?.characterId);
+    const session = this.session;
+    const character = this.presets.find(p => p.id === session?.characterId);
     if (!character || !this.session?.answers?.[question]) return;
     const routeShortId = this.parseScenarioShortIdFromUrl();
     this.generationRouteShortId = routeShortId;
@@ -1349,7 +1545,7 @@ class CharacterPresetFeature {
         requestId: `character-prefill-reroll-${this.scenarioShortId}-${Date.now()}`,
         consumer: 'character-presets',
       });
-      if (this.generationRouteShortId && this.generationRouteShortId !== this.parseScenarioShortIdFromUrl()) return;
+      if (this.session !== session || routeShortId !== this.parseScenarioShortIdFromUrl()) return;
       const item = result?.json || {};
       const confidence = ['confident', 'tentative', 'not_applicable'].includes(item.confidence)
         ? item.confidence
@@ -1366,7 +1562,7 @@ class CharacterPresetFeature {
     } catch (error) {
       console.error('[CharacterPreset] AI reroll failed:', error);
       this.showToast(this.describeAIGenerationError(error).message, 'error');
-      this.removePanel();
+      if (!field.mobileStep) this.removePanel();
       this.showAnswerPanel(field);
     } finally {
       this.generationRouteShortId = null;
@@ -1420,11 +1616,32 @@ class CharacterPresetFeature {
   }
 
   bindCloseButton(panel) {
-    panel?.querySelector('.bd-character-ai-close')?.addEventListener('click', (event) => {
+    const close = panel?.querySelector('.bd-character-ai-close');
+    const disclosure = panel?.closest('.bd-character-ai-disclosure');
+    if (disclosure) close?.setAttribute('aria-label', 'Collapse Character Presets');
+    close?.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
+      if (disclosure) {
+        disclosure.open = false;
+        disclosure.querySelector('summary').focus();
+        return;
+      }
       this.cleanupSession();
     });
+  }
+
+  answerManually(field) {
+    if (field.mobileStep) {
+      const current = this.currentMobileField(field);
+      if (!current) return;
+      field.mobileStep.disclosure.open = false;
+      current.input.focus();
+      return;
+    }
+    this.manualDismissedQuestions.add(field.question);
+    this.removePanel();
+    field.input.focus();
   }
 
   findBestQuestionMatch(question) {
@@ -1438,15 +1655,23 @@ class CharacterPresetFeature {
 
   async fillAndContinue(field, value) {
     if (this.isApplying) return;
+    const current = field.mobileStep ? this.currentMobileField(field) : field;
+    if (!current) return;
     this.isApplying = true;
-    this.removePanel();
+    if (field.mobileStep) field.mobileStep.disclosure.open = false;
+    else this.removePanel();
 
     try {
-      const input = document.getElementById('full-screen-text-input') || field.input;
+      const input = field.mobileStep ? current.input : this.findScenarioEntryInput() || field.input;
       await this.typewriterFill(input, value);
-      const continueBtn = this.findAdvanceButton(field);
-      if (continueBtn) {
-        setTimeout(() => continueBtn.click(), 150);
+      const clicked = await this.clickAdvanceButtonWhenReady(field);
+      if (clicked && field.mobileStep) {
+        this.removePanel();
+      } else if (!clicked) {
+        // The answer is filled either way; never leave the user staring at
+        // a vanished panel with no idea the advance did not happen.
+        console.warn('[CharacterPreset] Advance button was not clickable after fill; leaving the filled answer for manual advance.');
+        this.showToast('Answer filled — tap Next or Start to continue', 'info');
       }
     } catch (error) {
       console.error('[CharacterPreset] Fill failed:', error);
@@ -1461,10 +1686,13 @@ class CharacterPresetFeature {
 
   async fillWithoutContinue(field, value) {
     if (this.isApplying) return;
+    const current = field.mobileStep ? this.currentMobileField(field) : field;
+    if (!current) return;
     this.isApplying = true;
-    this.removePanel();
+    if (field.mobileStep) field.mobileStep.disclosure.open = false;
+    else this.removePanel();
     try {
-      const input = document.getElementById('full-screen-text-input') || field.input;
+      const input = field.mobileStep ? current.input : this.findScenarioEntryInput() || field.input;
       await this.typewriterFill(input, value);
       input.focus();
     } catch (error) {
@@ -1478,16 +1706,63 @@ class CharacterPresetFeature {
     }
   }
 
-  findAdvanceButton(field) {
+  // Advance labels are whole words ("Next", "Start", "Continue", e.g.
+  // "Start Adventure"). Substring matching also fires on "Restart" or
+  // "Get Started", which are not advance actions; word boundaries keep the
+  // match to real advance buttons while staying label-flexible.
+  isAdvanceButtonText(text) {
+    const normalized = String(text || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!normalized || normalized.includes('back')) return false;
+    return /(?:^|[^a-z])(next|start|continue)(?:$|[^a-z])/.test(normalized);
+  }
+
+  isAdvanceButtonEnabled(btn) {
+    if (!btn) return false;
+    if (btn.disabled) return false;
+    if (String(btn.getAttribute?.('aria-disabled') || '').toLowerCase() === 'true') return false;
+    return true;
+  }
+
+  findAdvanceCandidates(field) {
     const searchRoot = field ? (this.getFieldContainer(field) || document) : document;
     const buttons = searchRoot.querySelectorAll('[role="button"], button');
+    const candidates = [];
     for (const btn of buttons) {
-      const text = btn.textContent?.toLowerCase() || '';
-      if ((text.includes('next') || text.includes('start') || text.includes('continue')) && !text.includes('back')) {
-        return btn;
+      const label = btn.getAttribute?.('aria-label');
+      const decorative = btn.querySelector?.('[aria-hidden="true"]');
+      let text = btn.textContent;
+      if (!label && decorative) {
+        const copy = btn.cloneNode(true);
+        copy.querySelectorAll('[aria-hidden="true"]').forEach(node => node.remove());
+        text = copy.textContent;
       }
+      if (this.isAdvanceButtonText(label || text)) candidates.push(btn);
     }
-    return null;
+    return candidates;
+  }
+
+  findAdvanceButton(field) {
+    return this.findAdvanceCandidates(field)[0] || null;
+  }
+
+  // The platform keeps the advance button disabled until its controlled
+  // input registers the filled value, which can lag the fill on slow
+  // WebViews. Poll briefly for the first candidate to become clickable
+  // instead of firing one fixed-delay click that can land on a still
+  // disabled button (or on nothing, if the footer re-rendered).
+  async clickAdvanceButtonWhenReady(field, { timeoutMs = 1200, intervalMs = 100 } = {}) {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const current = field.mobileStep ? this.currentMobileField(field) : field;
+      if (!current) return false;
+      const candidate = this.findAdvanceCandidates(current)[0] || null;
+      if (candidate && this.isAdvanceButtonEnabled(candidate)) {
+        candidate.click();
+        return true;
+      }
+      if (Date.now() >= deadline) return false;
+      await new Promise(resolve => setTimeout(resolve, intervalMs));
+    }
   }
 
   typewriterFill(input, text) {
@@ -1567,4 +1842,8 @@ class CharacterPresetFeature {
 
 if (typeof window !== 'undefined') {
   window.CharacterPresetFeature = CharacterPresetFeature;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = CharacterPresetFeature;
 }

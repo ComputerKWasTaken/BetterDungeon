@@ -16,19 +16,16 @@
     let migration, last = null;
     const STATE_KEY = 'betterdungeon_ai_runtime_state_v1';
     let stateWrites = Promise.resolve();
-    const suppressed = new Map(), catalogs = new Map();
     function persistState() {
-      const value = { last, suppressed: Object.fromEntries(suppressed) };
+      const value = { last };
       stateWrites = stateWrites.catch(() => {}).then(() => storage.set({ [STATE_KEY]: value }));
       return stateWrites;
     }
     async function config() {
       if (!migration) migration = (async () => {
         const saved = await storage.get([C.KEY, C.LEGACY_KEY, STATE_KEY]);
-        last = saved[STATE_KEY]?.last || null;
-        for (const [model, value] of Object.entries(saved[STATE_KEY]?.suppressed || {})) {
-          if (C.mistral.some(m => m.id === model) && Number.isFinite(value?.until) && value.until > now() - 900000) suppressed.set(model, value);
-        }
+        const previous = saved[STATE_KEY]?.last;
+        last = ['gemini', 'openrouter', 'custom'].includes(previous?.provider) ? previous : null;
         if (saved[C.KEY]) return;
         const migrated = C.migrate(saved[C.LEGACY_KEY]);
         await storage.set({ [C.KEY]: migrated });
@@ -50,7 +47,7 @@
       }
       await storage.set({ [C.KEY]: next });
       if (!sameStored((await storage.get(C.KEY))[C.KEY], next)) throw fail('storage_failed', 'AI settings could not be saved.');
-      suppressed.clear(); catalogs.clear(); last = null;
+      last = null;
       // The configuration is already committed. A failed diagnostic-state reset
       // must not report the user's settings as unsaved.
       await persistState().catch(() => {});
@@ -64,7 +61,7 @@
       const cap = tier === 'advanced' && c.advanced.inputCapTokens || 128000;
       return { ready, available: ready, reason: ready ? null : 'not_configured',
         message: ready ? 'BetterDungeon AI is ready.' : 'Open the AI tab in the BetterDungeon popup to configure a provider.',
-        limits: { maxInputTokens: Math.min(cap, s.service === 'mistral' ? 240000 : 2000000), maxInputChars: Math.min(cap, s.service === 'mistral' ? 240000 : 2000000) * 3, maxOutputTokens: 2048, resolved: true },
+        limits: { maxInputTokens: cap, maxInputChars: cap * 3, maxOutputTokens: 2048, resolved: true },
         config: { ...C.publicConfig(c), service: s.service,
           thinkingLevels: tier === 'simple' ? ['minimal', 'low', 'medium', 'high'] : [] }, consumer: id, tier, last };
     }
@@ -98,17 +95,6 @@
         throw fail('network_failed', 'Could not reach the AI provider.');
       } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
     }
-    async function discover(s, signal) {
-      const cache = catalogs.get(s.apiKey);
-      if (cache && cache.until > now()) return cache.models;
-      const data = await http(`${s.baseUrl}/models`, { method: 'GET', headers: { Authorization: `Bearer ${s.apiKey}` } }, signal, async r => {
-        try { return await r.json(); } catch { throw fail('invalid_response', 'Model discovery returned invalid JSON.'); }
-      });
-      if (!Array.isArray(data.data)) throw fail('invalid_response', 'Model discovery returned no model list.');
-      const models = new Map(data.data.map(m => [m.id, m]));
-      catalogs.set(s.apiKey, { until: now() + 3600000, models });
-      return models;
-    }
     function taskData(raw) {
       const chat = raw?.op === 'chat';
       let task;
@@ -134,22 +120,10 @@
     }
     function payload(info, s, model, stream) {
       if (s.service !== 'gemini') {
-        const messages = clone(info.messages);
-        if (s.service === 'mistral') {
-          // Mistral requires nine alphanumeric characters for tool call IDs.
-          const ids = new Map();
-          for (const m of messages) for (const call of m.tool_calls || []) {
-            if (!ids.has(call.id)) ids.set(call.id, `bd${ids.size.toString().padStart(7, '0')}`);
-            call.id = ids.get(call.id);
-          }
-          for (const m of messages) if (m.role === 'tool') m.tool_call_id = ids.get(m.tool_call_id) || m.tool_call_id;
-        }
-        const body = { model, messages, max_tokens: info.outputTokens, stream };
+        const body = { model, messages: info.messages, max_tokens: info.outputTokens, stream };
         if (stream) body.stream_options = { include_usage: true };
         if (info.task.tools?.length) { body.tools = info.task.tools.map(t => ({ type: 'function', function: t })); body.tool_choice = 'auto'; }
-        if (info.task.output?.type === 'json') body.response_format = s.service === 'mistral'
-          ? { type: 'json_schema', json_schema: { name: 'betterdungeon_response', schema: info.task.output.schema, strict: true } }
-          : { type: 'json_object' };
+        if (info.task.output?.type === 'json') body.response_format = { type: 'json_object' };
         return body;
       }
       const contents = [];
@@ -245,7 +219,7 @@
     }
     async function attempt(info, s, model, signal, onDelta) {
       if (!model || /[\s/?#]/.test(model) && s.service === 'gemini') throw fail('invalid_args', 'Invalid model identifier.');
-      const context = s.service === 'mistral' && C.mistral.some(m => m.id === model) ? 256000 : s.service === 'gemini' ? (C.gemma.includes(model) ? 256000 : 1048576) : null;
+      const context = s.service === 'gemini' ? (C.gemma.includes(model) ? 256000 : 1048576) : null;
       if (context && info.totalTokens > context - 1024) throw fail('context_limit', 'The request exceeds this model’s context window.');
       const body = payload(info, s, model, info.chat);
       const gemini = s.service === 'gemini';
@@ -281,22 +255,12 @@
         const s = C.settings(c, tier);
         if (!s.configured) throw fail('not_configured', `Configure ${tier === 'simple' ? 'Gemini' : 'the Advanced provider'} in the AI tab.`);
         if (tier === 'advanced' && c.advanced.inputCapTokens && info.inputTokens > c.advanced.inputCapTokens) throw fail('invalid_args', 'The request exceeds the configured Advanced input cap.');
-        const autoMistral = s.service === 'mistral' && s.modelMode === 'auto';
-        const catalog = s.service === 'mistral' ? await discover(s, controls.signal) : null;
         let lastError;
         for (const model of C.models(c, tier, info.consumer, info.totalTokens)) {
           if (controls.signal?.aborted) throw fail('aborted', 'AI request cancelled.');
-          if (catalog && !catalog.has(model)) {
-            lastError = fail('model_unavailable', 'The configured Mistral model is unavailable.');
-            if (!autoMistral) throw lastError;
-            continue;
-          }
-          const key = model;
-          if (autoMistral && suppressed.get(key)?.until > now()) { lastError = fail('rate_limit', 'Mistral capacity is temporarily unavailable.'); continue; }
           attempted.push(model);
           try {
             const result = await attempt(info, s, model, controls.signal, onDelta);
-            suppressed.delete(key);
             const completion = { consumer: info.consumer, providerTier: tier, provider: s.service, model, attemptedModels: [...attempted], advancedFallback };
             if (!controls.diagnostic) {
               last = completion;
@@ -306,16 +270,11 @@
           } catch (e) {
             lastError = e;
             if (emitted) throw e; // Do not concatenate output from two different attempts.
-            const cascade = ['rate_limit', 'model_unavailable'].includes(e.code) && (s.service === 'gemini' || autoMistral);
+            const cascade = ['rate_limit', 'model_unavailable'].includes(e.code) && s.service === 'gemini';
             if (!cascade) throw e;
-            if (autoMistral) {
-              const count = (suppressed.get(key)?.count || 0) + 1;
-              suppressed.set(key, { count, until: now() + (e.retryAfterMs ?? Math.min(60000 * 2 ** (count - 1), 900000)) });
-              await persistState().catch(() => {});
-            }
           }
         }
-        throw fail(lastError?.code || 'model_unavailable', `${s.service === 'mistral' ? 'Mistral' : 'Gemini'} capacity exhausted. Attempted: ${attempted.join(', ') || 'no eligible models'}.`, { attemptedModels: [...attempted] });
+        throw fail(lastError?.code || 'model_unavailable', `Gemini capacity exhausted. Attempted: ${attempted.join(', ') || 'no eligible models'}.`, { attemptedModels: [...attempted] });
       }
       try { return await lane(primary); }
       catch (error) {

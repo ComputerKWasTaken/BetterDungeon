@@ -27,22 +27,33 @@ ${settingsCogSvg}
     // Clone the current drawer action so the injected control inherits AI
     // Dungeon's live styling instead of relying on hashed class names.
     function createDrawerSettingsButton(sourceButton) {
-        const button = sourceButton.cloneNode(true);
-        const icon = button.querySelector('.font_icons');
-        const label = Array.from(button.querySelectorAll('span'))
-            .find(span => span.textContent.trim() === 'Guidebook');
-        if (!icon || !label) return null;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = sourceButton.className;
+        button.style.cssText = sourceButton.style.cssText;
+        for (const child of sourceButton.childNodes) button.append(child.cloneNode(true));
+        const walker = document.createTreeWalker(button, NodeFilter.SHOW_TEXT);
+        let label;
+        while ((label = walker.nextNode())) {
+            if (label.textContent.trim() === 'Guidebook' && !label.parentElement.closest('svg')) break;
+        }
 
         button.classList.add('bd-mobile-settings');
         button.setAttribute('aria-label', 'BetterDungeon Settings');
         button.setAttribute('title', 'BetterDungeon Settings');
-        button.removeAttribute('aria-haspopup');
-        button.removeAttribute('aria-expanded');
-        button.removeAttribute('data-state');
-        button.removeAttribute('data-slot');
-        button.removeAttribute('id');
-        icon.outerHTML = settingsCogSvg.trim();
-        label.textContent = 'BetterDungeon';
+        const icon = button.querySelector('svg, .font_icons, img, [data-icon]');
+        // Keep the two inline icons' gradient references independent.
+        const drawerCog = settingsCogSvg.trim().replaceAll('bd-gradient-cog', 'bd-drawer-gradient-cog');
+        if (label) {
+            label.textContent = 'BetterDungeon';
+            if (icon && !icon.contains(label)) icon.outerHTML = drawerCog;
+            else button.insertAdjacentHTML('afterbegin', drawerCog);
+        } else {
+            button.innerHTML = drawerCog + '<span>BetterDungeon</span>';
+        }
+        button.querySelectorAll('[id]').forEach(child => {
+            if (!child.closest('svg')) child.removeAttribute('id');
+        });
         button.addEventListener('click', onSettingsClick);
         return button;
     }
@@ -58,13 +69,17 @@ ${settingsCogSvg}
     }
     function injectSettingsButtons() {
         // 1. Home Page Target - directly above Guidebook in the drawer.
-        const guidebookButtons = document.querySelectorAll('button[aria-label="Guidebook"]');
-        guidebookButtons.forEach(guidebookButton => {
+        const drawerActions = document.querySelectorAll(
+            '[aria-label="Guidebook"], a, button, [role="menuitem"], [role="button"]'
+        );
+        drawerActions.forEach(guidebookButton => {
+            if (guidebookButton.getAttribute('aria-label') !== 'Guidebook'
+                && ![...guidebookButton.childNodes, ...guidebookButton.querySelectorAll('span, div, p')]
+                    .some(label => label.textContent.trim() === 'Guidebook')) return;
             const drawerGroup = guidebookButton.parentElement;
-            if (!drawerGroup || drawerGroup.querySelector('.bd-mobile-settings')) return;
+            if (!drawerGroup || guidebookButton.previousElementSibling?.matches('.bd-mobile-settings')) return;
 
-            const node = createDrawerSettingsButton(guidebookButton);
-            if (node) drawerGroup.insertBefore(node, guidebookButton);
+            drawerGroup.insertBefore(createDrawerSettingsButton(guidebookButton), guidebookButton);
         });
 
         // 2. Adventure Page Target (next to the Model Switcher / Undo / Redo)

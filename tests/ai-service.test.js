@@ -16,26 +16,25 @@ const json = (data, status = 200, headers = {}) => new Response(JSON.stringify(d
 const reply = () => json({ choices: [{ message: { content: 'Forest' }, finish_reason: 'stop' }] });
 const geminiReply = () => json({ candidates: [{ content: { parts: [{ text: 'Forest' }] }, finishReason: 'STOP' }] });
 const limited = (headers = {}) => json({ error: { message: 'Model rate limit' } }, 429, headers);
-function advanced(service = 'mistral') {
+const stream = events => new Response(events.map(e => 'data: ' + JSON.stringify(e) + '\r\n\r\n').join(''));
+function advanced(service = 'openrouter') {
   return C.normalize({ simple: { apiKey: 'gemini-secret' }, advanced: { enabled: true, activeService: service,
-    profiles: { mistral: { apiKey: 'mistral-secret', modelMode: 'auto' }, openrouter: { apiKey: 'router-secret', model: 'example/model' } } },
+    profiles: { openrouter: { apiKey: 'router-secret', model: 'example/model' } } },
     routing: { ultrascripts: 'advanced', navigator: 'advanced' } });
 }
 function setup(config, fetch, initial) {
   const data = initial || { [C.KEY]: config };
   const requests = [], writes = [];
-  let time = 100000;
   const storage = {
     get: async keys => Object.fromEntries((Array.isArray(keys) ? keys : [keys]).filter(k => data[k] !== undefined).map(k => [k, copy(data[k])])),
     set: async values => { writes.push('set'); Object.assign(data, copy(values)); },
     remove: async key => { writes.push('remove'); delete data[key]; },
   };
-  const api = Runtime.create({ storage, now: () => time, fetch: async (url, init) => {
+  const api = Runtime.create({ storage, now: () => 100000, fetch: async (url, init) => {
     requests.push({ url, ...init });
-    if (url.endsWith('/models')) return json({ data: C.mistral.map(m => ({ id: m.id, max_context_length: m.context })) });
     return fetch(url, init);
   } });
-  return { api, requests, data, writes, storage, advance: n => { time += n; } };
+  return { api, requests, data, writes, storage };
 }
 test('migration preserves profiles and keys; status redacts them; failed writes preserve legacy data', async () => {
   const old = { activeService: 'custom', profiles: { gemini: { apiKey: 'g-secret', model: 'old' }, custom: { apiKey: 'c-secret', model: 'abc', baseUrl: 'https://example.com/v1' } } };
@@ -79,20 +78,89 @@ test('AI settings accept storage property reordering but still detect a lost key
   };
   await assert.rejects(broken.api.handle({ op: 'settings:set', config: { ...saved, simple: { ...saved.simple, apiKey: 'replacement-key' } } }), { code: 'storage_failed' });
 });
-test('Mistral Automatic falls through in order, respects suppression and returns actual provider metadata', async () => {
-  let success = false;
-  const h = setup(advanced(), (_url, init) => {
-    const m = JSON.parse(init.body).model;
-    return success || m === C.mistral[2].id ? reply() : limited({ 'Retry-After': '2' });
-  });
-  const result = await h.api.handle(query);
-  assert.equal(result.model, C.mistral[2].id);
-  assert.deepEqual(result.attemptedModels, C.mistral.slice(0, 3).map(m => m.id));
-  assert.equal(result.providerTier, 'advanced');
-  assert.equal(result.advancedFallback, false);
-  assert.deepEqual((await h.api.handle(query)).attemptedModels, [C.mistral[2].id]);
-  h.advance(2001); success = true;
-  assert.equal((await h.api.handle(query)).model, C.mistral[0].id);
+test('Simple Gemini routing and Navigator large-request eligibility', () => {
+  const c = C.normalize({ simple: { apiKey: 'g' } });
+  assert.deepEqual(C.models(c, 'simple', 'ultrascripts', 4000), C.flash);
+  assert.deepEqual(C.models(c, 'simple', 'character-presets', 4000), C.flash);
+  c.simple.quotaStrategy = 'shared';
+  assert.deepEqual(C.models(c, 'simple', 'navigator', 12001), C.flash);
+  assert.deepEqual(C.models(c, 'simple', 'navigator', 12000), [...C.flash, ...C.gemma]);
+});
+
+test('Navigator advertises Gemini thinking levels and saved AI settings survive a reload', async () => {
+  const h = setup(C.normalize({ simple: { apiKey: 'original-key' } }), geminiReply);
+  const initial = await h.api.handle({ op: 'status', consumer: 'navigator' });
+  assert.deepEqual(initial.config.thinkingLevels, ['minimal', 'low', 'medium', 'high']);
+  const updated = copy(initial.config);
+  updated.simple.apiKey = 'replacement-key';
+  updated.advanced.enabled = true;
+  updated.advanced.activeService = 'openrouter';
+  updated.advanced.profiles.openrouter.apiKey = 'router-key';
+  updated.routing.characterPresets = 'advanced';
+  await h.api.handle({ op: 'settings:set', config: updated });
+  const reloaded = setup(null, geminiReply, h.data);
+  const status = await reloaded.api.handle({ op: 'status', consumer: 'characterPresets' });
+  assert.equal(status.tier, 'advanced');
+  assert.deepEqual(status.config.thinkingLevels, []);
+  assert.equal(h.data[C.KEY].simple.apiKey, 'replacement-key');
+  assert.equal(h.data[C.KEY].advanced.profiles.openrouter.apiKey, 'router-key');
+  assert.ok(!JSON.stringify(status).includes('replacement-key'));
+});
+
+test('a diagnostic-state write failure does not falsely report saved settings as failed', async () => {
+  const h = setup(C.normalize({ simple: { apiKey: 'original-key' } }), geminiReply);
+  const set = h.storage.set;
+  h.storage.set = values => Object.hasOwn(values, 'betterdungeon_ai_runtime_state_v1')
+    ? Promise.reject(new Error('Diagnostic state unavailable')) : set(values);
+  const updated = (await h.api.handle({ op: 'settings:get' })).config;
+  updated.simple.apiKey = 'replacement-key';
+  const saved = await h.api.handle({ op: 'settings:set', config: updated });
+  assert.equal(saved.config.simple.keyConfigured, true);
+  assert.equal(h.data[C.KEY].simple.apiKey, 'replacement-key');
+});
+
+test('connection checks use the selected provider, a small output cap, and do not replace the latest real completion', async () => {
+  const simple = setup(C.normalize({ simple: { apiKey: 'gemini-key' } }), geminiReply);
+  await simple.api.handle(query);
+  const previous = simple.data.betterdungeon_ai_runtime_state_v1.last;
+  const checked = await simple.api.handle({ op: 'test', tier: 'simple' });
+  assert.equal(checked.model, C.flash[0]);
+  assert.equal(JSON.parse(simple.requests.at(-1).body).generationConfig.maxOutputTokens, 64);
+  assert.deepEqual(checked.status.last, previous);
+  assert.deepEqual(simple.data.betterdungeon_ai_runtime_state_v1.last, previous);
+
+  const router = setup(advanced(), reply);
+  const advancedCheck = await router.api.handle({ op: 'test', tier: 'advanced' });
+  assert.equal(advancedCheck.model, 'example/model');
+  assert.equal(advancedCheck.providerTier, 'advanced');
+  assert.equal(JSON.parse(router.requests.at(-1).body).max_tokens, 64);
+  assert.equal(advancedCheck.status.last, null);
+});
+test('a retired Advanced selection keeps the other profiles and uses Simple until Advanced is re-enabled', async () => {
+  const previous = advanced();
+  previous.advanced.activeService = 'mistral';
+  previous.advanced.profiles.mistral = { apiKey: 'retired-key', modelMode: 'auto' };
+  previous.advanced.profiles.custom = { baseUrl: 'https://example.com/v1', model: 'custom-model', apiKey: 'custom-key' };
+  const h = setup(previous, url => url.includes('googleapis') ? geminiReply() : reply());
+  const status = await h.api.handle({ op: 'settings:get' });
+  assert.equal(status.config.advanced.enabled, false);
+  assert.equal(status.config.advanced.activeService, 'openrouter');
+  assert.deepEqual(Object.keys(status.config.advanced.profiles), ['openrouter', 'custom']);
+  assert.equal((await h.api.handle(query)).provider, 'gemini');
+  assert.equal(h.requests.length, 1);
+
+  status.config.advanced.enabled = true;
+  await h.api.handle({ op: 'settings:set', config: status.config });
+  assert.equal(h.data[C.KEY].advanced.profiles.openrouter.apiKey, 'router-secret');
+  assert.equal(h.data[C.KEY].advanced.profiles.custom.apiKey, 'custom-key');
+  assert.equal((await h.api.handle(query)).provider, 'openrouter');
+});
+test('OpenRouter can run without a Gemini key and only tries the configured model', async () => {
+  const c = advanced(); c.simple.apiKey = '';
+  const h = setup(c, () => limited());
+  await assert.rejects(h.api.handle(query), { code: 'rate_limit' });
+  assert.equal(h.requests.length, 1);
+  assert.deepEqual(C.models(c, 'advanced', 'ultrascripts', 2), ['example/model']);
 });
 test('availability falls back; safety, invalid input and cancellation never do', async () => {
   for (const status of [401, 429, 500]) {
@@ -107,6 +175,120 @@ test('availability falls back; safety, invalid input and cancellation never do',
   const h = setup(advanced(), reply), controller = new AbortController(); controller.abort();
   await assert.rejects(h.api.handle(query, { signal: controller.signal }), { code: 'aborted' });
   assert.equal(h.requests.length, 0);
+});
+test('feature assignment and Gemini native JSON request preserve the contract', async () => {
+  const c = advanced();
+  const h = setup(c, (_url, init) => {
+    const body = JSON.parse(init.body);
+    assert.equal(body.generationConfig.responseMimeType, 'application/json');
+    assert.equal(init.headers['x-goog-api-key'], 'gemini-secret');
+    assert.ok(!('model' in body));
+    return json({ candidates: [{ content: { parts: [{ text: '{"name":"A"}' }] }, finishReason: 'STOP' }] });
+  });
+  const result = await h.api.handle({ op: 'query', task: { prompt: 'Name', consumer: 'character-presets', output: { type: 'json', schema: { type: 'object', properties: { name: { type: 'string' } } } } } });
+  assert.deepEqual(result.json, { name: 'A' });
+  assert.equal(result.model, C.flash[0]);
+});
+test('Character Prefill uses the Gemini models verified by the Simple connection check', async () => {
+  const h = setup(C.normalize({ simple: { apiKey: 'valid-gemini-key' } }), (url) => {
+    if (url.includes('gemma-')) return json({ error: { message: 'Model access denied' } }, 403);
+    return json({ candidates: [{ content: { parts: [{ text: '{"answers":[]}' }] }, finishReason: 'STOP' }] });
+  });
+  const checked = await h.api.handle({ op: 'test', tier: 'simple' });
+  const result = await h.api.handle({ op: 'query', task: {
+    prompt: 'Fill the character questions.', consumer: 'character-presets',
+    output: { type: 'json', schema: { type: 'object', properties: { answers: { type: 'array', items: { type: 'object' } } }, required: ['answers'] } },
+  } });
+  assert.deepEqual(result.json, { answers: [] });
+  assert.equal(checked.model, C.flash[0]);
+  assert.equal(result.model, C.flash[0]);
+  assert.equal(h.requests.length, 2);
+  assert.ok(h.requests.every(request => !request.url.includes('gemma-')));
+});
+const chat = { op: 'chat', task: { op: 'chat', consumer: 'navigator', systemInstruction: 'Help.', messages: [{ role: 'user', content: 'Look up a card' }], tools: [{ name: 'read_card', description: 'Read a card', parameters: { type: 'object' } }], budget: { maxInputChars: 100000, maxOutputTokens: 2048 } } };
+test('Gemini streams text and retains native tool signatures across continuation', async () => {
+  let round = 0;
+  const h = setup(C.normalize({ simple: { apiKey: 'g' } }), (_url, init) => {
+    if (++round === 1) return stream([{ candidates: [{ content: { parts: [{ functionCall: { id: 'callA', name: 'read_card', args: {} }, thoughtSignature: 'signature' }] }, finishReason: 'STOP' }] }]);
+    const body = JSON.parse(init.body);
+    assert.equal(body.contents[1].parts[0].thoughtSignature, 'signature');
+    assert.equal(body.contents[2].parts[0].functionResponse.id, 'callA');
+    return stream([{ candidates: [{ content: { parts: [{ text: 'Found ' }] } }] }, { candidates: [{ content: { parts: [{ text: 'it.' }] }, finishReason: 'STOP' }] }]);
+  });
+  const first = await h.api.handle(chat);
+  assert.equal(first.toolCalls[0].name, 'read_card');
+  const deltas = [];
+  const result = await h.api.handle({ op: 'chat', task: { ...chat.task, continuation: first.continuation, toolResults: [{ callId: 'callA', name: 'read_card', result: { text: 'card' } }] } }, { onDelta: d => deltas.push(d) });
+  assert.equal(result.text, 'Found it.'); assert.deepEqual(deltas, ['Found ', 'it.']);
+});
+test('OpenAI tool continuation can fall back to Gemini without losing completed results', async () => {
+  const h = setup(advanced('openrouter'), url => url.includes('googleapis') ? stream([{ candidates: [{ content: { parts: [{ text: 'Result' }] }, finishReason: 'STOP' }] }]) : limited());
+  const result = await h.api.handle({ op: 'chat', task: { ...chat.task,
+    continuation: { provider: 'betterdungeon-ai', service: 'openrouter', messages: [{ role: 'assistant', content: null, tool_calls: [{ id: 'a', type: 'function', function: { name: 'read_card', arguments: '{}' } }] }] },
+    toolResults: [{ callId: 'a', name: 'read_card', result: { text: 'Completed result' } }] } });
+  assert.equal(result.advancedFallback, true);
+  assert.ok(h.requests.at(-1).body.includes('Completed result'));
+});
+test('truncated streams are not retried after visible output', async () => {
+  const h = setup(advanced('openrouter'), () => stream([{ choices: [{ delta: { content: 'Partial' } }] }]));
+  await assert.rejects(h.api.handle(chat), { code: 'invalid_response' });
+  assert.equal(h.requests.length, 1);
+});
+test('Navigator discovers the custom provider when window and the content-script global differ', async () => {
+  const config = C.normalize({ advanced: { enabled: true, activeService: 'custom', profiles: {
+    custom: { baseUrl: 'https://example.com/llm/v1', model: 'local-model.gguf' },
+  } }, routing: { navigator: 'advanced' } });
+  for (const separateWindow of [true, false]) {
+    const h = setup(config, reply);
+    const context = { console, browser: { runtime: {
+      sendMessage: async message => ({ ok: true, data: await h.api.handle(message.request) }),
+    } } };
+    context.window = separateWindow ? {} : context;
+    vm.createContext(context);
+    for (const file of ['modules/ai/executor.js', 'modules/ai/openai-compatible-backend.js', 'services/navigator/session.js']) {
+      vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), context, { filename: file });
+    }
+    const session = {};
+    const readiness = await context.window.NavigatorSession.prototype.checkReady.call(session);
+    assert.equal(readiness.ready, true, readiness.message);
+    assert.equal(session.providerStatus.config.service, 'custom');
+    const executor = context.window.BetterDungeonAI;
+    assert.equal(executor.resolveProvider('navigator').provider, 'betterdungeon-ai');
+    vm.runInContext(fs.readFileSync(path.join(root, 'modules/ai/executor.js'), 'utf8'), context);
+    assert.equal(context.window.BetterDungeonAI, executor);
+    assert.equal(context.window.UltrascriptsAIExecutor, executor);
+  }
+});
+
+test('Navigator streams from a custom endpoint without an API key or Gemini configuration', async () => {
+  const config = C.normalize({ advanced: { enabled: true, activeService: 'custom', profiles: {
+    custom: { baseUrl: 'https://example.com/llm/v1', model: 'local-model.gguf' },
+  } }, routing: { navigator: 'advanced' } });
+  const h = setup(config, (url, init) => {
+    assert.equal(url, 'https://example.com/llm/v1/chat/completions');
+    assert.equal(JSON.parse(init.body).model, 'local-model.gguf');
+    assert.equal(JSON.parse(init.body).stream, true);
+    assert.ok(!Object.keys(init.headers).some(key => key.toLowerCase() === 'authorization'));
+    return stream([{ choices: [{ delta: { content: 'Review' }, finish_reason: 'stop' }] }]);
+  });
+  const deltas = [];
+  const result = await h.api.handle(chat, { onDelta: delta => deltas.push(delta) });
+  assert.equal(result.text, 'Review');
+  assert.equal(result.service, 'custom');
+  assert.equal(result.providerTier, 'advanced');
+  assert.deepEqual(deltas, ['Review']);
+  assert.equal(h.requests.length, 1);
+});
+
+test('Ultrascripts rejects overlap and unlocks after failure', async () => {
+  let release;
+  const context = { console, window: { BetterDungeonAI: { query: () => new Promise((_, reject) => { release = reject; }) } } };
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'modules/ai/module.js'), 'utf8'), context);
+  const queryOp = context.window.UltrascriptsAIModule.ops.query.handler;
+  const pending = queryOp({ prompt: 'a' });
+  await assert.rejects(queryOp({ prompt: 'b' }), e => e.code === 'busy');
+  release(new Error('Failed')); await assert.rejects(pending);
+  const again = queryOp({ prompt: 'c' }); release(new Error('Failed')); await assert.rejects(again);
 });
 test('browser and Android hosts return identical responses through current and legacy messages', async () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'android/betterdungeon-runtime.json')));

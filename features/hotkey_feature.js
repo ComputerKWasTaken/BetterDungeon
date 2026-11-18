@@ -75,6 +75,42 @@ class HotkeyFeature {
     
     // Track pending timeouts for cleanup
     this.pendingTimeouts = [];
+
+    // One-time diagnostics for missing UI targets (see warnOnce)
+    this.warnedKeys = new Set();
+
+    // Re-entrancy guard for the Escape-dismisses-menu path: true while a
+    // closeModeMenu() call from this handler is still on the stack.
+    this._closingModeMenu = false;
+  }
+
+  // Surface a missing-target problem once instead of failing silently
+  // forever. AI Dungeon renames labels without notice; a single console
+  // warning names the exact anchor that stopped matching.
+  warnOnce(key, message) {
+    if (this.warnedKeys.has(key)) return;
+    this.warnedKeys.add(key);
+    console.warn(`[Hotkey] ${message}`);
+  }
+
+  // Find an element by its aria-label: exact selector first, then a
+  // case-insensitive scan so a capitalization change on AI Dungeon's side
+  // (e.g. "Command: Retry") degrades gracefully instead of killing the key.
+  findByLabel(label) {
+    const direct = document.querySelector(`[aria-label="${label}"]`);
+    if (direct) return direct;
+    const wanted = label.toLowerCase();
+    return Array.from(document.querySelectorAll('[aria-label]'))
+      .find(el => (el.getAttribute('aria-label') || '').trim().toLowerCase() === wanted) || null;
+  }
+
+  // Resolve a simple action's target element from its configured selector.
+  findActionTarget(config) {
+    if (!config?.selector) return null;
+    const direct = document.querySelector(config.selector);
+    if (direct) return direct;
+    const match = config.selector.match(/^\[aria-label="(.+)"\]$/);
+    return match ? this.findByLabel(match[1]) : null;
   }
 
   log(message, ...args) {
@@ -279,7 +315,10 @@ class HotkeyFeature {
 
   closeInputArea() {
     // Click the close button with aria-label="Close text input"
-    const closeButton = document.querySelector('[aria-label="Close text input"]');
+    const closeButton = this.findByLabel('Close text input');
+    if (!closeButton) {
+      this.warnOnce('missing:close-input', 'Exit Input target not found: no element labelled "Close text input". The shortcut will keep failing until AI Dungeon restores it or the label is updated.');
+    }
     if (closeButton) {
       // First blur the active element before clicking close
       if (document.activeElement) {
@@ -304,7 +343,7 @@ class HotkeyFeature {
 
   isInputAreaOpen() {
     // Check if the input area is visible by looking for the "Change input mode" button
-    return !!document.querySelector('[aria-label="Change input mode"]');
+    return !!this.findByLabel('Change input mode');
   }
 
   async openInputArea(operationId = null) {
@@ -312,8 +351,9 @@ class HotkeyFeature {
     if (this.isInputAreaOpen()) return true;
     
     // Click "Take a Turn" to open the input area
-    const takeATurnButton = document.querySelector('[aria-label="Command: take a turn"]');
+    const takeATurnButton = this.findByLabel('Command: take a turn');
     if (!takeATurnButton) {
+      this.warnOnce('missing:take-a-turn', 'Mode hotkeys cannot open the input area: no element labelled "Command: take a turn".');
       return false;
     }
     
@@ -344,6 +384,16 @@ class HotkeyFeature {
 
   setupKeyboardListener() {
     const handleKeyDown = async (e) => {
+      // Ignore key events BD dispatched itself (tagged by
+      // AIDungeonService.syntheticKeydown). They are plumbing for AI
+      // Dungeon's menus, not user input. This check is load-bearing for
+      // Escape: closeModeMenu()'s synthetic Escape bubbles back through
+      // this capture-phase handler while the menu still reads as open,
+      // so acting on it would call closeModeMenu() again and recurse
+      // until the stack overflows (live Chrome, PR #73).
+      if (e.bdSynthetic) return;
+      if (e.target?.closest?.('.bd-navigator-drawer, .bd-navigator-launcher, .bd-routine-notice')) return;
+
       // Don't trigger hotkeys when user is typing, EXCEPT for Escape key
       if (this.isUserTyping() && e.key.toLowerCase() !== 'escape') return;
       
@@ -351,17 +401,36 @@ class HotkeyFeature {
       if (e.ctrlKey || e.altKey || e.metaKey) return;
       
       const key = e.key.toLowerCase();
-      const hotkeyConfig = this.hotkeyMap[key];
-      
-      if (!hotkeyConfig) return;
+
+      // Lone modifier presses are never hotkeys (combos are unsupported);
+      // ignore them even if a modifier name was recorded as a binding.
+      if (key === 'shift' || key === 'control' || key === 'alt' || key === 'meta') return;
 
       // Escape dismisses the menu first; don't close the whole input drawer.
+      // This runs before the binding lookup so it still works when the user
+      // unbound or rebound the Escape key.
       if (key === 'escape' && this.aid.isModeMenuOpen()) {
+        // Re-entrancy guard: a synthetic Escape from elsewhere (another
+        // feature's untagged dispatch) can re-enter this handler
+        // synchronously while the close below is still on the stack. That
+        // nested event belongs to the same close gesture — swallow it
+        // rather than closing again. (BD's own service events never get
+        // here; they are filtered by the bdSynthetic check above.)
+        if (this._closingModeMenu) return;
         e.preventDefault();
-        this.aid.closeModeMenu();
+        this._closingModeMenu = true;
+        try {
+          this.aid.closeModeMenu();
+        } finally {
+          this._closingModeMenu = false;
+        }
         return;
       }
-      
+
+      const hotkeyConfig = this.hotkeyMap[key];
+
+      if (!hotkeyConfig) return;
+
       e.preventDefault();
       e.stopPropagation();
       
@@ -416,6 +485,9 @@ class HotkeyFeature {
           // Now open the input mode menu
           const menuOpened = await this.openInputModeMenu(operationId);
           if (!menuOpened || !this.isOperationValid(operationId)) {
+            if (!menuOpened) {
+              this.warnOnce('open-mode-menu', 'Mode hotkeys could not open the input mode menu: no element labelled "Change input mode" responded, or the menu never appeared.');
+            }
             this.log('[Hotkey] Failed to open menu or operation cancelled');
             return;
           }
@@ -450,6 +522,8 @@ class HotkeyFeature {
               targetElement.click();
             }
           } else {
+            this.warnOnce(`missing:${hotkeyConfig.actionId}`,
+              `Menu target not found for "${hotkeyConfig.description}" (${hotkeyConfig.actionId}). The mode menu opened but the option was not in it.`);
             // Close menu if we couldn't find the option
             this.closeInputModeMenu();
           }
@@ -466,21 +540,29 @@ class HotkeyFeature {
       }
       
       // Handle simple actions (no menu required)
-      const targetElement = document.querySelector(hotkeyConfig.selector);
-      if (targetElement) {
-        // Check if element is disabled
-        const isDisabled = targetElement.getAttribute('aria-disabled') === 'true';
-        if (isDisabled) {
-          return;
-        }
-        
-        // Dispatch custom event for Continue action so other features can detect it
-        if (hotkeyConfig.actionId === 'continue') {
-          document.dispatchEvent(new CustomEvent('betterdungeon:continue-hotkey'));
-        }
-        
-        targetElement.click();
+      const targetElement = this.findActionTarget(hotkeyConfig);
+      if (!targetElement) {
+        // The key was already swallowed above (preventDefault), so a missing
+        // target must not be silent — name the anchor that stopped matching.
+        this.warnOnce(`missing:${hotkeyConfig.actionId}`,
+          `Target not found for "${hotkeyConfig.description}" (${hotkeyConfig.selector}). The shortcut will keep failing until AI Dungeon restores it or the selector is updated.`);
+        return;
       }
+
+      // Check if element is disabled
+      const isDisabled = targetElement.getAttribute('aria-disabled') === 'true'
+        || targetElement.hasAttribute('data-disabled')
+        || targetElement.hasAttribute('disabled');
+      if (isDisabled) {
+        return;
+      }
+
+      // Dispatch custom event for Continue action so other features can detect it
+      if (hotkeyConfig.actionId === 'continue') {
+        document.dispatchEvent(new CustomEvent('betterdungeon:continue-hotkey'));
+      }
+
+      targetElement.click();
     };
 
     this.boundKeyHandler = handleKeyDown;
@@ -503,4 +585,8 @@ class HotkeyFeature {
 // Make available globally
 if (typeof window !== 'undefined') {
   window.HotkeyFeature = HotkeyFeature;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = HotkeyFeature;
 }

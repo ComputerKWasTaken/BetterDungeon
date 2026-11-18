@@ -8,7 +8,7 @@
 
 <p align="center"><a href="https://chromewebstore.google.com/detail/betterdungeon/ppliljfopejamemejnnchehpbacpebjf">Chrome Web Store</a> · <a href="https://addons.mozilla.org/firefox/addon/betterdungeon/">Firefox Add-ons</a> · <a href="https://github.com/ComputerKWasTaken/BetterDungeon/releases">Android downloads</a></p>
 
-<p align="center"><a href="manifest.json"><img alt="Source version 2.1.1" src="https://img.shields.io/badge/source-v2.1.1-eda449"></a> <a href="https://github.com/ComputerKWasTaken/BetterDungeon/actions/workflows/quality-gate.yml"><img alt="Preview quality gate" src="https://github.com/ComputerKWasTaken/BetterDungeon/actions/workflows/quality-gate.yml/badge.svg?branch=preview"></a> <a href="LICENSE"><img alt="Source-available license" src="https://img.shields.io/badge/license-source--available-333238"></a></p>
+<p align="center"><a href="manifest.json"><img alt="Source version 2.1.2" src="https://img.shields.io/badge/source-v2.1.2-eda449"></a> <a href="https://github.com/ComputerKWasTaken/BetterDungeon/actions/workflows/quality-gate.yml"><img alt="Preview quality gate" src="https://github.com/ComputerKWasTaken/BetterDungeon/actions/workflows/quality-gate.yml/badge.svg?branch=preview"></a> <a href="LICENSE"><img alt="Source-available license" src="https://img.shields.io/badge/license-source--available-333238"></a></p>
 
 [Get BetterDungeon](#get-betterdungeon) · [Start playing](#start-playing) · [Explore the toolkit](#explore-the-toolkit) · [Contribute](#contribute)
 
@@ -27,7 +27,7 @@
 
 1. Install BetterDungeon for your platform and open an [AI Dungeon adventure](https://play.aidungeon.com/).
 2. Open the BetterDungeon popup to switch on and configure the features you want.
-3. For Navigator, Character Prefill, or Ultrascripts AI, add your own provider key in **AI Connections**. Gemini is the simple setup; OpenRouter, Mistral, and custom endpoints are available in Advanced. [AI setup guide](docs/AI.md)
+3. For Navigator, Character Prefill, or Ultrascripts AI, add your own provider key in **AI Connections**. Gemini is the simple setup; OpenRouter and custom endpoints are available in Advanced. [AI setup guide](docs/AI.md)
 
 You can use BetterDungeon's non-AI features without configuring an AI provider. Most features have their own switch, so you can keep the experience as light or as involved as you like.
 
@@ -45,7 +45,7 @@ Alpha's current horizontal action bar works on desktop and mobile, with Image an
 
 ### New in v2.1: Navigator and Routines
 
-Navigator is an assistant grounded in your adventure. Ask it questions, have it look through Story Cards, or request changes to adventure content under your chosen approval setting.
+Select **Navigator** on the right side of an adventure to open its chat and Routines. Navigator is an assistant grounded in your adventure. Ask it questions, have it look through Story Cards, or request changes to adventure content. Its change setting lets you choose automatic verified edits, proposals to review, or conversation without edits.
 
 Routines take that help into the background: write an instruction, choose how many completed actions should pass between runs, and Navigator handles it while you play. [Read the Routines guide](docs/NAVIGATOR_ROUTINES.md).
 

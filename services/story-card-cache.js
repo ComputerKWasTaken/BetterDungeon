@@ -73,7 +73,9 @@ class StoryCardCache {
     if (!key) return;
 
     const existing = this.triggers.get(key);
-    if (existing && existing !== cardName && !existing.includes(cardName)) {
+    // Exact name membership, not substring: "Ann" must still be added when
+    // "Anna" is already listed for the trigger.
+    if (existing && existing !== cardName && !existing.split(', ').includes(cardName)) {
       this.triggers.set(key, `${existing}, ${cardName}`);
     } else if (!existing) {
       this.triggers.set(key, cardName);
@@ -140,13 +142,17 @@ class StoryCardCache {
   // --------------- Read ---------------
 
   // Get the card name(s) associated with a trigger.
+  // Keys are stored lowercased/trimmed (see setTrigger), so lookups must
+  // normalize the same way — a raw lookup silently missed mixed-case input.
   getTrigger(trigger) {
-    return this.triggers.get(trigger);
+    if (!trigger || typeof trigger !== 'string') return undefined;
+    return this.triggers.get(trigger.toLowerCase().trim());
   }
 
   // Check whether a trigger exists in the cache.
   hasTrigger(trigger) {
-    return this.triggers.has(trigger);
+    if (!trigger || typeof trigger !== 'string') return false;
+    return this.triggers.has(trigger.toLowerCase().trim());
   }
 
   // Return the underlying Map (read-only access by convention).
