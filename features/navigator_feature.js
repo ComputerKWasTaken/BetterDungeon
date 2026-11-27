@@ -911,14 +911,21 @@ class NavigatorFeature {
       ['storyCardDirectory', 'Story Card directory', inspection.snapshot?.segments?.storyCardDirectory],
     ];
     for (const [key, label, segment] of segmentMap) {
-      const reduced = segment?.truncated === true || segment?.dropped === true || Number(segment?.omitted || 0) > 0;
+      const onDemand = segment?.skipped === true;
       const unavailable = segment?.unavailable === true || segment?.available === false;
-      const state = unavailable ? 'Unavailable' : reduced ? 'Reduced' : 'Complete';
+      const windowed = !onDemand && segment?.windowed === true && segment?.truncated !== true;
+      const reduced = !onDemand && !windowed && (segment?.truncated === true || segment?.dropped === true || Number(segment?.omitted || 0) > 0);
+      const state = unavailable ? 'Unavailable' : onDemand ? 'On demand' : windowed ? 'Recent window' : reduced ? 'Reduced' : 'Complete';
       const sizes = Number.isFinite(segment?.includedChars) && Number.isFinite(segment?.sourceChars)
         ? `${state} · ${Number(segment.includedChars).toLocaleString()} of ${Number(segment.sourceChars).toLocaleString()} chars`
         : state;
       const detail = this.createInspectionDisclosure(label, { meta: sizes, className: 'bd-navigator-inspection-context-item' });
-      detail.appendChild(this.createInspectionPre(sections[key], unavailable ? '(Unavailable for this request.)' : '(Not sent due to the request budget.)'));
+      const fallback = unavailable
+        ? '(Unavailable for this request.)'
+        : onDemand
+          ? '(Available on demand via read tools; not sent upfront.)'
+          : '(Not sent due to the request budget.)';
+      detail.appendChild(this.createInspectionPre(sections[key], fallback));
       contextBody.appendChild(detail);
     }
     contextDetails.appendChild(contextBody);
@@ -1316,12 +1323,15 @@ class NavigatorFeature {
 
   toolActivityLabel(name) {
     const labels = {
+      get_plot_components: 'Read Plot Components',
       search_story_cards: 'Search Story Cards',
       get_story_card: 'Read Story Card',
       search_story_history: 'Search story history',
       get_story_actions: 'Read story actions',
       search_memory_bank: 'Search Memory Bank',
       get_memory: 'Read Memory Bank entry',
+      list_routines: 'List Routines',
+      run_routine: 'Queue Routine',
       propose_plot_component_change: 'Change Plot Component',
       propose_third_person_change: 'Change Third Person setting',
       propose_story_card_create: 'Create Story Card',
@@ -1329,6 +1339,7 @@ class NavigatorFeature {
       propose_story_card_delete: 'Delete Story Card',
       propose_memory_update: 'Update Memory Bank entry',
       propose_memory_delete: 'Delete Memory Bank entry',
+      propose_routine_create: 'Create Routine',
     };
     return labels[name] || 'Use Navigator tool';
   }

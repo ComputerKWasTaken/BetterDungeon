@@ -464,14 +464,14 @@
         ? rules.map(item => item.id === valid.id ? valid : item) : [...rules, valid]);
     }
     static proposalDefinition() {
-      return { name: 'propose_routine_create', description: 'Draft a new local BetterDungeon Routine for the player to review. It can run every 1–100 completed adventure actions when enabled, and the player can also ask Navigator to run it on demand. Approval creates it disabled; nothing runs automatically. Never use this tool without a player request for a reusable Routine.', parameters: { type: 'object', properties: {
+      return { name: 'propose_routine_create', description: 'Draft a disabled Routine (interval 1-100 actions) for player approval. Use only when requested.', parameters: { type: 'object', properties: {
         name: { type: 'string' }, instruction: { type: 'string' }, interval: { type: 'integer', minimum: 1, maximum: 100 }, reason: { type: 'string' }
       }, required: ['name', 'instruction', 'interval'], additionalProperties: false } };
     }
     static navigatorDefinitions() {
       return [
-        { name: 'list_routines', description: 'List saved BetterDungeon Routines so you can identify one the player asked about or asked you to run. Includes disabled automatic Routines, which can still be run on request. Reports whether automatic switches are shared across adventures or set for this adventure.', parameters: { type: 'object', properties: { query: { type: 'string', description: 'Optional name search.' } }, additionalProperties: false } },
-        { name: 'run_routine', description: 'Queue one saved Routine to run after this chat response. Use only when the player explicitly asks you to run that Routine; first identify it with list_routines if needed. An off automatic toggle does not block a requested run. This returns queued status, not the completed result; direct the player to Activity.', parameters: { type: 'object', properties: { routine: { type: 'string', description: 'Exact Routine ID or unambiguous name.' }, guidance: { type: 'string', description: 'Optional player guidance for this run.' } }, required: ['routine'], additionalProperties: false } }
+        { name: 'list_routines', description: 'List saved Routines (including disabled ones) and switch scope.', parameters: { type: 'object', properties: { query: { type: 'string' } }, additionalProperties: false } },
+        { name: 'run_routine', description: 'Queue a saved Routine to run after this reply (only on explicit player request; works even if disabled).', parameters: { type: 'object', properties: { routine: { type: 'string' }, guidance: { type: 'string' } }, required: ['routine'], additionalProperties: false } }
       ];
     }
     makeProposal(args) {
@@ -655,11 +655,21 @@
           if (routineId) await this.updateRecord(record, state);
           const start = task.session.getMessages().length;
           const text = task.kind === 'routine'
-            ? `Run Routine "${rule.name}" at adventure action-count milestone ${task.milestone}. These are the current instructions and supersede older versions of this Routine:\n\n${rule.instruction}\n\nUse current adventure context. Earlier runs and follow-up guidance belong only to this Routine. Report applied changes, proposals awaiting approval, or that no change was needed.`
+            ? `Run Routine "${rule.name}" (milestone ${task.milestone}). Current instructions:\n\n${rule.instruction}\n\nBriefly report applied changes, proposals awaiting approval, or that no change was needed.`
             : task.kind === 'requested'
-              ? `The player asked Navigator to run Routine "${rule.name}" now. These are the current instructions and supersede older versions:\n\n${rule.instruction}\n\n${task.guidance ? `Player guidance for this run: ${task.guidance}\n\n` : ''}Use current adventure context and this Routine's separate conversation. Report applied changes, proposals awaiting approval, or that no change was needed.`
+              ? `Run Routine "${rule.name}" now (player request). Current instructions:\n\n${rule.instruction}${task.guidance ? `\n\nPlayer guidance: ${task.guidance}` : ''}\n\nBriefly report applied changes, proposals awaiting approval, or that no change was needed.`
             : task.text;
-          if (!task.controller.signal.aborted && !this.destroyed) await task.session.send(text, { routineId, runId: record.id, source: task.kind === 'requested' ? 'routine' : task.kind, routineName: record.name, milestone: record.milestone });
+          if (!task.controller.signal.aborted && !this.destroyed) {
+            await task.session.send(text, {
+              routineId,
+              runId: record.id,
+              source: task.kind === 'requested' ? 'routine' : task.kind,
+              routineName: record.name,
+              milestone: record.milestone,
+              routineInterval: routine?.interval ?? null,
+              routineInstruction: routine?.instruction || null,
+            });
+          }
           await task.session.persist();
           const messages = task.session.getMessages().slice(start);
           const replies = messages.filter(message => message.role === 'assistant');

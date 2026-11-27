@@ -82,7 +82,7 @@
           let code = response.status === 429 ? 'rate_limit' : [401, 403].includes(response.status) ? 'auth_failed' : [404, 410].includes(response.status) ? 'model_unavailable' : response.status >= 500 ? 'backend_failed' : 'invalid_args';
           if (/safety|prohibited|content.policy|content.filter/.test(reason)) code = 'safety_blocked';
           if (response.status === 429 && /monthly|billing|spend|organization.wide/.test(reason)) code = 'provider_limit';
-          if (/context.{0,30}(length|window)|maximum context|too many tokens/.test(reason)) code = 'context_limit';
+          if (response.status === 413 || /context.{0,30}(length|window)|maximum context|too many tokens|input token count|exceeds the maximum number of tokens|prompt is too long|payload.{0,20}too large/.test(reason)) code = 'context_limit';
           const retry = response.headers?.get('retry-after');
           const delay = retry == null ? undefined : Number.isFinite(Number(retry)) ? Number(retry) * 1000 : Date.parse(retry) - now();
           throw fail(code, `AI provider returned ${response.status} (${code}).`, { retryAfterMs: Number.isFinite(delay) ? Math.max(0, delay) : undefined });

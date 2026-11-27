@@ -48,17 +48,13 @@
   const DEFINITIONS = Object.freeze([
     {
       name: 'propose_plot_component_change',
-      description: 'Prepare a change to AI Instructions, Plot Essentials, Author\'s Note, or Story Summary. An empty content string removes that component. Navigator applies or stages the validated change according to the player\'s mode.',
+      description: 'Replace a Plot Component (empty content removes it).',
       parameters: {
         type: 'object',
         properties: {
-          component: {
-            type: 'string',
-            enum: Object.keys(TEXT_COMPONENTS),
-            description: 'Plot Component to add, modify, or remove.',
-          },
-          content: { type: 'string', description: 'Complete replacement content. Use an empty string to remove the component.' },
-          reason: { type: 'string', description: 'Short explanation shown to the player.' },
+          component: { type: 'string', enum: Object.keys(TEXT_COMPONENTS) },
+          content: { type: 'string' },
+          reason: { type: 'string' },
         },
         required: ['component', 'content'],
         additionalProperties: false,
@@ -66,12 +62,12 @@
     },
     {
       name: 'propose_third_person_change',
-      description: 'Prepare a change to the adventure Third Person setting. Navigator applies or stages the validated change according to the player\'s mode.',
+      description: 'Set the adventure Third Person mode.',
       parameters: {
         type: 'object',
         properties: {
-          enabled: { type: 'boolean', description: 'Whether Third Person should be enabled.' },
-          reason: { type: 'string', description: 'Short explanation shown to the player.' },
+          enabled: { type: 'boolean' },
+          reason: { type: 'string' },
         },
         required: ['enabled'],
         additionalProperties: false,
@@ -79,7 +75,7 @@
     },
     {
       name: 'propose_story_card_create',
-      description: 'Prepare a new Story Card. Supply all five player-facing fields. Navigator creates it immediately or stages it according to the player\'s mode.',
+      description: 'Create a new Story Card with all five fields.',
       parameters: {
         type: 'object',
         properties: {
@@ -88,7 +84,7 @@
           triggers: { type: 'string' },
           entry: { type: 'string' },
           notes: { type: 'string' },
-          reason: { type: 'string', description: 'Short explanation shown to the player.' },
+          reason: { type: 'string' },
         },
         required: ['type', 'title', 'triggers', 'entry', 'notes'],
         additionalProperties: false,
@@ -96,11 +92,11 @@
     },
     {
       name: 'propose_story_card_update',
-      description: 'Prepare changes to an existing Story Card selected by stable ID. Include only fields that should change. Navigator applies or stages the validated change according to the player\'s mode.',
+      description: 'Update an existing Story Card by stable ID; include only changed fields.',
       parameters: {
         type: 'object',
         properties: {
-          id: { type: 'string', description: 'Exact Story Card ID from the directory or a read tool.' },
+          id: { type: 'string' },
           changes: {
             type: 'object',
             properties: {
@@ -112,7 +108,7 @@
             },
             additionalProperties: false,
           },
-          reason: { type: 'string', description: 'Short explanation shown to the player.' },
+          reason: { type: 'string' },
         },
         required: ['id', 'changes'],
         additionalProperties: false,
@@ -120,12 +116,12 @@
     },
     {
       name: 'propose_story_card_delete',
-      description: 'Prepare irreversible deletion of one Story Card selected by stable ID. The player must explicitly approve it. This function never deletes the card.',
+      description: 'Propose irreversible Story Card deletion by ID (requires player approval).',
       parameters: {
         type: 'object',
         properties: {
-          id: { type: 'string', description: 'Exact Story Card ID from the directory or a read tool.' },
-          reason: { type: 'string', description: 'Short explanation shown to the player.' },
+          id: { type: 'string' },
+          reason: { type: 'string' },
         },
         required: ['id'],
         additionalProperties: false,
@@ -133,13 +129,13 @@
     },
     {
       name: 'propose_memory_update',
-      description: 'Prepare a replacement for one existing Memory Bank entry selected by stable memory ID. Navigator applies or stages the validated change according to the player\'s mode.',
+      description: 'Replace an existing Memory Bank entry by stable ID.',
       parameters: {
         type: 'object',
         properties: {
-          id: { type: 'string', description: 'Stable memory ID, equal to actionIds[0].' },
-          text: { type: 'string', description: 'Complete replacement memory text.' },
-          reason: { type: 'string', description: 'Short explanation shown to the player.' },
+          id: { type: 'string' },
+          text: { type: 'string' },
+          reason: { type: 'string' },
         },
         required: ['id', 'text'],
         additionalProperties: false,
@@ -147,12 +143,12 @@
     },
     {
       name: 'propose_memory_delete',
-      description: 'Prepare irreversible deletion of one existing Memory Bank entry selected by stable memory ID. The player must explicitly approve it. This function never deletes the memory.',
+      description: 'Propose irreversible Memory Bank deletion by ID (requires player approval).',
       parameters: {
         type: 'object',
         properties: {
-          id: { type: 'string', description: 'Stable memory ID, equal to actionIds[0].' },
-          reason: { type: 'string', description: 'Short explanation shown to the player.' },
+          id: { type: 'string' },
+          reason: { type: 'string' },
         },
         required: ['id'],
         additionalProperties: false,
