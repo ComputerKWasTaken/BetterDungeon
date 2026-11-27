@@ -14,7 +14,7 @@
   const OUTPUT_TYPES = Object.freeze(['text', 'json']);
   const THINKING_LEVELS = Object.freeze(['minimal', 'low', 'medium', 'high']);
   const DEFAULT_THINKING_LEVEL = 'minimal';
-  const CHAT_MAX_TOOLS = 16;
+  const CHAT_MAX_TOOLS = 20;
   const CHAT_MAX_TOOL_RESULTS = 16;
 
   const state = {

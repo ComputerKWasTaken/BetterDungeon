@@ -168,7 +168,12 @@ test('availability falls back; safety, invalid input and cancellation never do',
     assert.equal((await h.api.handle(query)).advancedFallback, true);
     assert.equal(h.requests.length, 2);
   }
-  for (const [status, message, code] of [[400, 'Invalid parameter', 'invalid_args'], [400, 'Content policy blocked', 'safety_blocked']]) {
+  for (const [status, message, code] of [
+    [400, 'Invalid parameter', 'invalid_args'],
+    [400, 'Content policy blocked', 'safety_blocked'],
+    [400, 'The input token count (200000) exceeds the maximum number of tokens allowed (128000)', 'context_limit'],
+    [413, 'Request payload too large', 'context_limit'],
+  ]) {
     const h = setup(advanced('openrouter'), () => json({ error: { message } }, status));
     await assert.rejects(h.api.handle(query), { code }); assert.equal(h.requests.length, 1);
   }

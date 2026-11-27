@@ -5,48 +5,69 @@
 (function () {
   if (typeof window === 'undefined' || window.NavigatorTools) return;
 
-  const MAX_CARD_ENTRY_CHARS = 6000;
-  const MAX_CARD_RESULT_CHARS = 10000;
+  const MAX_CARD_ENTRY_CHARS = 4000;
+  const MAX_CARD_RESULT_CHARS = 6000;
   const MAX_SEARCH_RESULT_CHARS = 4000;
-  const MAX_SEARCH_PREVIEW_CHARS = 240;
+  const MAX_SEARCH_PREVIEW_CHARS = 200;
   const MAX_SEARCH_LIMIT = 10;
+  const MAX_LIST_LIMIT = 25;
   const MAX_ACTION_WINDOW = 20;
-  const MAX_ACTION_WINDOW_CHARS = 8000;
-  const MAX_ACTION_RESULT_CHARS = 10000;
-  const MAX_MEMORY_CHARS = 4000;
+  const MAX_ACTION_WINDOW_CHARS = 6000;
+  const MAX_ACTION_RESULT_CHARS = 7000;
+  const MAX_MEMORY_CHARS = 3000;
+  const MAX_PLOT_COMPONENT_CHARS = 6000;
+  const MAX_PLOT_RESULT_CHARS = 12000;
+  const PLOT_COMPONENTS = Object.freeze({
+    ai_instructions: { label: 'AI Instructions', field: 'instructions' },
+    plot_essentials: { label: 'Plot Essentials', field: 'memory' },
+    authors_note: { label: "Author's Note", field: 'authorsNote' },
+    story_summary: { label: 'Story Summary', field: 'storySummary' },
+  });
   const DEFINITIONS = Object.freeze([
     {
-      name: 'get_story_card',
-      description: 'Read one current Story Card selected by stable ID from the supplied directory or search results. Returns bounded values for all five player-facing fields, with explicit source sizes and truncation flags for every field. This tool never changes the card.',
+      name: 'get_plot_components',
+      description: 'Read current Plot Components (defaults to all four) and Third Person state.',
       parameters: {
         type: 'object',
-        properties: { id: { type: 'string', description: 'Exact Story Card ID.' } },
+        properties: {
+          components: {
+            type: 'array',
+            items: { type: 'string', enum: Object.keys(PLOT_COMPONENTS) },
+          },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: 'get_story_card',
+      description: 'Read one Story Card by stable ID.',
+      parameters: {
+        type: 'object',
+        properties: { id: { type: 'string' } },
         required: ['id'],
         additionalProperties: false,
       },
     },
     {
       name: 'search_story_cards',
-      description: 'Search current Story Cards with case-insensitive substring matching. Ranking is deterministic: title or trigger hits outrank type hits, which outrank entry hits, which outrank notes; ties use Story Card directory order. Results include match-centred previews.',
+      description: 'Search Story Cards by substring, or omit query to list directory entries.',
       parameters: {
         type: 'object',
         properties: {
-          query: { type: 'string', minLength: 1, description: 'Case-insensitive text to search for.' },
-          limit: { type: 'integer', minimum: 1, maximum: MAX_SEARCH_LIMIT, description: 'Maximum matches to return. Defaults to 5.' },
-          type: { type: 'string', description: 'Optional exact Story Card type filter.' },
+          query: { type: 'string' },
+          limit: { type: 'integer', minimum: 1, maximum: MAX_LIST_LIMIT },
+          type: { type: 'string' },
           fields: {
             type: 'array',
             items: { type: 'string', enum: ['title', 'triggers', 'type', 'entry', 'notes'] },
-            description: 'Optional fields to search. Defaults to all searchable fields.',
           },
         },
-        required: ['query'],
         additionalProperties: false,
       },
     },
     {
       name: 'search_story_history',
-      description: 'Search normalized action text with case-insensitive substring matching. Temporal order is primary (newest-first by default or oldest-first); match count only breaks selection when more hits exist than the limit. Use the returned positional index with get_story_actions.',
+      description: 'Search story actions by substring; returns indices for get_story_actions.',
       parameters: {
         type: 'object',
         properties: {
@@ -60,7 +81,7 @@
     },
     {
       name: 'get_story_actions',
-      description: 'Read a bounded action window around an action ID or positional index. Supply exactly one anchor. Direction is before, after, or around; each call returns at most 20 actions and approximately 8000 characters.',
+      description: 'Read up to 20 story actions around an actionId/fromIndex, or the latest actions when no anchor is supplied.',
       parameters: {
         type: 'object',
         properties: {
@@ -74,24 +95,22 @@
     },
     {
       name: 'search_memory_bank',
-      description: 'Search normalized Memory Bank entries with case-insensitive substring matching. Results include both stable memory IDs and positional indexes; match count only breaks selection when more hits exist than the limit. Use get_memory with either returned id or index.',
+      description: 'Search Memory Bank by substring, or omit query to list newest memories.',
       parameters: {
         type: 'object',
         properties: {
-          query: { type: 'string', minLength: 1 },
+          query: { type: 'string' },
           limit: { type: 'integer', minimum: 1, maximum: MAX_SEARCH_LIMIT },
         },
-        required: ['query'],
         additionalProperties: false,
       },
     },
     {
       name: 'get_memory',
-      description: 'Read one bounded Memory Bank entry by stable memory ID or positional index. The result is capped at 4000 characters and reports truncation explicitly.',
+      description: 'Read one Memory Bank entry by stable ID or index.',
       parameters: {
         type: 'object',
         properties: { index: { type: 'integer', minimum: 0 }, id: { type: 'string', minLength: 1 } },
-        required: [],
         additionalProperties: false,
       },
     },
@@ -330,6 +349,43 @@
     return index;
   }
 
+  function getPlotComponents(shortId, args, index) {
+    const snapshot = currentIndex(index);
+    if (!snapshot.adventure) {
+      throw { code: 'unavailable', message: 'Plot Components are unavailable in the current Navigator snapshot.' };
+    }
+    const requested = args.components === undefined ? Object.keys(PLOT_COMPONENTS) : args.components;
+    if (!Array.isArray(requested) || !requested.length || requested.some(name => !PLOT_COMPONENTS[name])) {
+      throw {
+        code: 'invalid_tool_args',
+        message: `components must contain one or more of: ${Object.keys(PLOT_COMPONENTS).join(', ')}.`,
+      };
+    }
+    const unique = [...new Set(requested)];
+    const perComponentLimit = Math.min(
+      MAX_PLOT_COMPONENT_CHARS,
+      Math.max(1000, Math.floor(10000 / unique.length))
+    );
+    return {
+      thirdPerson: snapshot.adventure.thirdPerson === true,
+      components: unique.map(component => {
+        const config = PLOT_COMPONENTS[component];
+        const bounded = boundedText(snapshot.adventure[config.field], perComponentLimit);
+        const item = {
+          component,
+          label: config.label,
+          content: bounded.text,
+          populated: bounded.sourceChars > 0,
+        };
+        if (bounded.truncated) {
+          item.truncated = true;
+          item.sourceChars = bounded.sourceChars;
+        }
+        return item;
+      }),
+    };
+  }
+
   function cardField(card, field) {
     if (field === 'title') return card.title;
     if (field === 'triggers') return card.triggers.join(' ');
@@ -340,63 +396,69 @@
 
   function getStoryCard(shortId, args, index) {
     const id = oneLine(args.id);
-    if (!id) throw { code: 'invalid_tool_args', message: 'get_story_card requires id. Accepted keys: id.' };
+    if (!id) throw { code: 'invalid_tool_args', message: 'get_story_card requires id.' };
     const snapshot = currentIndex(index);
     const card = snapshot.cards.map(normalizeCard).filter(Boolean).find(candidate => candidate.id === id);
     if (!card) throw { code: 'not_found', message: 'No current Story Card matched that identifier.' };
-    const type = boundedText(card.type, 240);
-    const title = boundedText(card.title, 500);
+    const type = boundedText(card.type, 160);
+    const title = boundedText(card.title, 300);
     const notes = boundedText(card.notes, 800);
     const keys = boundedText(card.keys, 800);
     const entry = boundedText(card.value, MAX_CARD_ENTRY_CHARS);
-    const triggerValues = card.triggers.slice(0, 20).map(trigger => boundedText(trigger, 240));
-    const triggersTruncated = card.triggers.length > triggerValues.length || triggerValues.some(trigger => trigger.truncated);
+    const record = {
+      id: card.id,
+      type: type.text,
+      title: title.text,
+      keys: keys.text,
+      value: entry.text,
+      description: notes.text,
+    };
+    if (card.useForCharacterCreation) record.useForCharacterCreation = true;
+    if (card.updatedAt) record.updatedAt = card.updatedAt;
+    if (type.truncated) { record.typeTruncated = true; record.typeSourceChars = type.sourceChars; }
+    if (title.truncated) { record.titleTruncated = true; record.titleSourceChars = title.sourceChars; }
+    if (keys.truncated) { record.keysTruncated = true; record.keysSourceChars = keys.sourceChars; }
+    if (entry.truncated) { record.entryTruncated = true; record.entrySourceChars = entry.sourceChars; }
+    if (notes.truncated) { record.notesTruncated = true; record.notesSourceChars = notes.sourceChars; }
     return {
-      source: snapshot.source || 'unknown',
-      adventureId: snapshot.adventureId || null,
-      shortId: snapshot.shortId || shortId,
-      capturedAtIso: snapshot.capturedAtIso || null,
-      card: {
-        id: card.id,
-        type: type.text,
-        typeSourceChars: type.sourceChars,
-        typeTruncated: type.truncated,
-        title: title.text,
-        titleSourceChars: title.sourceChars,
-        titleTruncated: title.truncated,
-        description: notes.text,
-        notesSourceChars: notes.sourceChars,
-        notesTruncated: notes.truncated,
-        keys: keys.text,
-        keysSourceChars: keys.sourceChars,
-        keysTruncated: keys.truncated,
-        triggers: triggerValues.map(trigger => trigger.text),
-        triggerCount: card.triggers.length,
-        triggersReturned: triggerValues.length,
-        triggersTruncated,
-        value: entry.text,
-        entrySourceChars: entry.sourceChars,
-        entryTruncated: entry.truncated,
-        useForCharacterCreation: card.useForCharacterCreation,
-        updatedAt: card.updatedAt,
-      },
-      entrySourceChars: entry.sourceChars,
-      entryTruncated: entry.truncated,
+      card: record,
+      ...(entry.truncated ? { entryTruncated: true, entrySourceChars: entry.sourceChars } : {}),
     };
   }
 
   function searchStoryCards(shortId, args, index) {
-    const query = oneLine(args.query).toLowerCase();
-    if (!query) throw { code: 'invalid_tool_args', message: 'query must be a non-empty string. Accepted keys: query, limit, type, fields.' };
-    const limit = integerArg(args.limit, 5, 1, MAX_SEARCH_LIMIT, 'limit');
+    const query = args.query === undefined ? '' : oneLine(args.query).toLowerCase();
     const type = args.type === undefined ? null : oneLine(args.type).toLowerCase();
+    const snapshot = currentIndex(index);
+    const allCards = snapshot.cards.map(normalizeCard).filter(Boolean);
+    if (!query) {
+      const limit = integerArg(args.limit, 15, 1, MAX_LIST_LIMIT, 'limit');
+      const filtered = allCards
+        .filter(card => !type || card.type === type)
+        .sort((left, right) => (
+          left.type.localeCompare(right.type, 'en', { sensitivity: 'base' }) ||
+          left.title.localeCompare(right.title, 'en', { sensitivity: 'base' }) ||
+          String(left.id || '').localeCompare(String(right.id || ''), 'en')
+        ));
+      const records = filtered.slice(0, limit).map(card => ({
+        id: card.id,
+        type: card.type,
+        title: card.title,
+      }));
+      return {
+        totalMatches: filtered.length,
+        returned: records.length,
+        omitted: Math.max(0, filtered.length - records.length),
+        cards: records,
+      };
+    }
+    const limit = integerArg(args.limit, 5, 1, MAX_SEARCH_LIMIT, 'limit');
     const fields = args.fields === undefined ? ['title', 'triggers', 'type', 'entry', 'notes'] : args.fields;
     if (!Array.isArray(fields) || !fields.length || fields.some(field => !['title', 'triggers', 'type', 'entry', 'notes'].includes(field))) {
-      throw { code: 'invalid_tool_args', message: 'fields must contain only title, triggers, type, entry, or notes. Accepted keys: query, limit, type, fields.' };
+      throw { code: 'invalid_tool_args', message: 'fields must contain only title, triggers, type, entry, or notes.' };
     }
-    const snapshot = currentIndex(index);
     const ranked = [];
-    snapshot.cards.map(normalizeCard).filter(Boolean).forEach((card, directoryIndex) => {
+    allCards.forEach((card, directoryIndex) => {
       if (type && card.type !== type) return;
       const hits = fields.filter(field => text(cardField(card, field)).toLowerCase().includes(query));
       if (!hits.length) return;
@@ -419,18 +481,14 @@
         matchedFields: match.hits,
         preview: preview.text,
         previewField: field,
-        previewTruncated: preview.truncated,
+        ...(preview.truncated ? { previewTruncated: true } : {}),
       };
       const next = JSON.stringify(record).length;
-      if (records.length && used + next > MAX_SEARCH_RESULT_CHARS - 700) break;
+      if (records.length && used + next > MAX_SEARCH_RESULT_CHARS - 600) break;
       records.push(record);
       used += next;
     }
     return {
-      source: snapshot.source || 'unknown',
-      adventureId: snapshot.adventureId || null,
-      shortId: snapshot.shortId || shortId,
-      capturedAtIso: snapshot.capturedAtIso || null,
       query,
       totalMatches: ranked.length,
       returned: records.length,
@@ -453,7 +511,7 @@
 
   function searchStoryHistory(shortId, args, index) {
     const query = oneLine(args.query).toLowerCase();
-    if (!query) throw { code: 'invalid_tool_args', message: 'query must be a non-empty string. Accepted keys: query, limit, order.' };
+    if (!query) throw { code: 'invalid_tool_args', message: 'query must be a non-empty string.' };
     const limit = integerArg(args.limit, 5, 1, MAX_SEARCH_LIMIT, 'limit');
     const order = args.order === 'oldest-first' ? 'oldest-first' : 'newest-first';
     const actions = currentActions(index);
@@ -473,7 +531,6 @@
         : right.actionIndex - left.actionIndex || right.count - left.count
     ));
     return {
-      source: index.source || 'unknown',
       query,
       order,
       totalMatches: ordered.length,
@@ -490,42 +547,54 @@
   function getStoryActions(shortId, args, index) {
     const hasId = args.actionId !== undefined;
     const hasIndex = args.fromIndex !== undefined;
-    if (hasId === hasIndex) {
-      throw { code: 'invalid_tool_args', message: 'Supply exactly one of actionId or fromIndex. Accepted keys: actionId, fromIndex, count, direction.' };
+    if (hasId && hasIndex) {
+      throw { code: 'invalid_tool_args', message: 'Supply at most one of actionId or fromIndex.' };
     }
     const actions = currentActions(index);
-    const anchor = hasId
-      ? actions.findIndex(action => String(action.id) === String(args.actionId))
-      : integerArg(args.fromIndex, 0, 0, Math.max(0, actions.length - 1), 'fromIndex');
-    if (anchor < 0 || anchor >= actions.length) throw { code: 'not_found', message: 'No action matched the supplied anchor.' };
     const count = integerArg(args.count, 10, 1, MAX_ACTION_WINDOW, 'count');
-    const direction = args.direction || 'around';
-    if (!['before', 'after', 'around'].includes(direction)) {
-      throw { code: 'invalid_tool_args', message: 'direction must be before, after, or around. Accepted keys: actionId, fromIndex, count, direction.' };
+    if (!actions.length) {
+      return { totalActions: 0, fromIndex: null, toIndex: null, clipped: false, actions: [] };
     }
+    let anchor;
+    let direction;
     let indices;
-    if (direction === 'before') indices = Array.from({ length: count }, (_, offset) => anchor - count + offset);
-    else if (direction === 'after') indices = Array.from({ length: count }, (_, offset) => anchor + 1 + offset);
-    else {
-      const before = Math.floor((count - 1) / 2);
-      indices = Array.from({ length: count }, (_, offset) => anchor - before + offset);
+    if (!hasId && !hasIndex) {
+      anchor = actions.length - 1;
+      direction = 'latest';
+      const start = Math.max(0, actions.length - count);
+      indices = Array.from({ length: actions.length - start }, (_, offset) => start + offset);
+    } else {
+      anchor = hasId
+        ? actions.findIndex(action => String(action.id) === String(args.actionId))
+        : integerArg(args.fromIndex, 0, 0, Math.max(0, actions.length - 1), 'fromIndex');
+      if (anchor < 0 || anchor >= actions.length) throw { code: 'not_found', message: 'No action matched the supplied anchor.' };
+      direction = args.direction || 'around';
+      if (!['before', 'after', 'around'].includes(direction)) {
+        throw { code: 'invalid_tool_args', message: 'direction must be before, after, or around.' };
+      }
+      if (direction === 'before') indices = Array.from({ length: count }, (_, offset) => anchor - count + offset);
+      else if (direction === 'after') indices = Array.from({ length: count }, (_, offset) => anchor + 1 + offset);
+      else {
+        const before = Math.floor((count - 1) / 2);
+        indices = Array.from({ length: count }, (_, offset) => anchor - before + offset);
+      }
     }
     const valid = indices.filter(value => value >= 0 && value < actions.length);
     const selected = [];
     let used = 0;
     let clippedByChars = false;
-    const actionBudget = MAX_ACTION_WINDOW_CHARS - 700;
-    for (const actionIndex of valid) {
+    const actionBudget = MAX_ACTION_WINDOW_CHARS - 500;
+    const orderedValid = direction === 'latest' ? valid.slice().reverse() : valid;
+    for (const actionIndex of orderedValid) {
       const action = actions[actionIndex];
-      const remaining = Math.max(80, actionBudget - used - 180);
+      const remaining = Math.max(80, actionBudget - used - 140);
       const clippedText = boundedText(action.text, remaining);
       const selectedAction = {
         index: actionIndex,
         id: String(action.id),
-        type: action.type || null,
+        ...(action.type ? { type: action.type } : {}),
         text: clippedText.text,
-        textSourceChars: clippedText.sourceChars,
-        textTruncated: clippedText.truncated,
+        ...(clippedText.truncated ? { textTruncated: true, textSourceChars: clippedText.sourceChars } : {}),
       };
       const serialized = JSON.stringify(selectedAction).length;
       if (selected.length && used + serialized > actionBudget) {
@@ -533,35 +602,44 @@
         break;
       }
       if (clippedText.truncated) clippedByChars = true;
-      selected.push(selectedAction);
+      if (direction === 'latest') selected.unshift(selectedAction);
+      else selected.push(selectedAction);
       used += serialized;
     }
     return {
-      source: index.source || 'unknown',
       anchor: { actionId: String(actions[anchor].id), index: anchor },
       direction,
-      requestedCount: count,
       fromIndex: selected.length ? selected[0].index : null,
       toIndex: selected.length ? selected[selected.length - 1].index : null,
       totalActions: actions.length,
       clipped: valid.length > selected.length || clippedByChars,
-      clippedByCount: valid.length < indices.length,
-      clippedByChars,
       actions: selected,
     };
   }
 
   function searchMemoryBank(shortId, args, index) {
-    const query = oneLine(args.query).toLowerCase();
-    if (!query) throw { code: 'invalid_tool_args', message: 'query must be a non-empty string. Accepted keys: query, limit.' };
+    const query = args.query === undefined ? '' : oneLine(args.query).toLowerCase();
     const limit = integerArg(args.limit, 5, 1, MAX_SEARCH_LIMIT, 'limit');
     const memories = currentMemories(index);
+    if (!query) {
+      const recent = memories.map((memory, memoryIndex) => ({ memory, index: memoryIndex }))
+        .slice(-limit)
+        .reverse();
+      return {
+        totalMatches: memories.length,
+        returned: recent.length,
+        memories: recent.map(item => ({
+          id: item.memory.id || null,
+          index: item.index,
+          preview: boundedText(item.memory.text, MAX_SEARCH_PREVIEW_CHARS).text,
+        })),
+      };
+    }
     const matches = memories.map((memory, memoryIndex) => {
       const count = text(memory.text).toLowerCase().split(query).length - 1;
       return count ? { memory, index: memoryIndex, count } : null;
     }).filter(Boolean);
     return {
-      source: index.source || 'unknown',
       query,
       totalMatches: matches.length,
       returned: Math.min(limit, matches.length),
@@ -590,12 +668,10 @@
     if (!memory) throw { code: 'not_found', message: 'No Memory Bank entry matched that index.' };
     const result = boundedText(memory.text, MAX_MEMORY_CHARS);
     return {
-      source: index.source || 'unknown',
       id: memory.id || null,
       index: memoryIndex,
       text: result.text,
-      sourceChars: result.sourceChars,
-      truncated: result.truncated,
+      ...(result.truncated ? { truncated: true, sourceChars: result.sourceChars } : {}),
     };
   }
 
@@ -615,6 +691,7 @@
       const args = assertArgs(rawArgs, definition);
       let result;
       switch (name) {
+        case 'get_plot_components': result = getPlotComponents(this.shortId, args, options.index); break;
         case 'get_story_card': result = getStoryCard(this.shortId, args, options.index); break;
         case 'search_story_cards': result = searchStoryCards(this.shortId, args, options.index); break;
         case 'search_story_history': result = searchStoryHistory(this.shortId, args, options.index); break;
@@ -626,18 +703,19 @@
       const envelope = {
         ok: true,
         tool: name,
-        capturedAtIso: options.index?.capturedAtIso || new Date().toISOString(),
         data: result,
       };
-      const resultLimit = name === 'search_story_cards'
-        ? MAX_SEARCH_RESULT_CHARS
-        : name === 'get_story_card'
-          ? MAX_CARD_RESULT_CHARS
-          : name === 'get_story_actions'
-            ? MAX_ACTION_RESULT_CHARS
-            : name === 'get_memory'
-              ? MAX_MEMORY_CHARS + 1000
-              : MAX_SEARCH_RESULT_CHARS;
+      const resultLimit = name === 'get_plot_components'
+        ? MAX_PLOT_RESULT_CHARS
+        : name === 'search_story_cards'
+          ? MAX_SEARCH_RESULT_CHARS
+          : name === 'get_story_card'
+            ? MAX_CARD_RESULT_CHARS
+            : name === 'get_story_actions'
+              ? MAX_ACTION_RESULT_CHARS
+              : name === 'get_memory'
+                ? MAX_MEMORY_CHARS + 800
+                : MAX_SEARCH_RESULT_CHARS;
       return boundedResult(envelope, resultLimit);
     }
   }
@@ -645,6 +723,7 @@
   NavigatorTools.DEFINITIONS = DEFINITIONS;
   NavigatorTools.MAX_CARD_RESULT_CHARS = MAX_CARD_RESULT_CHARS;
   NavigatorTools.MAX_SEARCH_RESULT_CHARS = MAX_SEARCH_RESULT_CHARS;
+  NavigatorTools.MAX_PLOT_RESULT_CHARS = MAX_PLOT_RESULT_CHARS;
   window.NavigatorTools = NavigatorTools;
 
   if (typeof module !== 'undefined' && module.exports) module.exports = NavigatorTools;
